@@ -17,11 +17,12 @@ def register(parent_path: Path, service: Path) -> dict:
     sources = [copy.deepcopy(source) for source in parent["sources"] if source["id"] in papers]
     if len(papers) != 6 or {source["id"] for source in sources} != papers:
         raise ValueError("R3 requires all six registered collagen sources")
-    plain = copy.deepcopy(parent["methods"]["schema"])
-    if plain["article"]["context"] != "full" or plain["article"].get("selection") is not None:
-        raise ValueError("R3 requires the full-source schema method without selection")
+    plain = copy.deepcopy(parent["methods"]["reference"])
+    if plain["article"]["context"] != "full":
+        raise ValueError("R3 requires the full-source reference method")
     plain["article"].pop("rendering", None)
     plain["article"]["grounding"] = "off"
+    plain["article"].pop("grounding_overflow", None)
     structured = copy.deepcopy(plain)
     structured["article"]["rendering"] = "structured"
     for source in sources:

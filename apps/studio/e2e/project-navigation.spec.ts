@@ -152,7 +152,7 @@ const base: NavigationStore = {
         revisionNumber: 2,
         createdAt: document.createdAt,
       },
-      annotationSet: null,
+
       extractionSchema: null,
     }
   },

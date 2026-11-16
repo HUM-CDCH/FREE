@@ -13,11 +13,11 @@ SCHEMA = {"recordDescription": "One numbered catalogue entry.", "schemaNodes": [
 def test_budget_discovery_sees_entries_across_physical_pages():
     source = evidence("1. Alpha.\nThe description continues", "on this page.\n2. Beta.")
     new, _ = extract(source, defaults=5)
-    old, _ = extract(source, defaults=4)
+    old, _ = extract(source, defaults=10)
     assert [r['label'] for r in new['records']] == ['1', '2']
     assert len([c for c in new['calls'] if c['stage'] == 'discovery']) == 1
-    assert len([c for c in old['calls'] if c['stage'] == 'discovery']) == 2
-    assert new['prompt_version'] == old['prompt_version'] == 8
+    assert old['processing']['discovery']['windows'] == 1
+    assert (new['prompt_version'], old['prompt_version']) == (8, 11)
 
 
 def test_budget_discovery_still_splits_a_long_source_without_losing_entries():
@@ -57,10 +57,10 @@ def test_invalid_correction_never_becomes_an_accepted_value(correction):
     assert processing_complete(result) and not result['complete']
 
 
-def test_old_admissions_keep_verdict_only_verification():
+def test_current_method_can_verify_fixed_candidates():
     source = evidence('1. The first sentence.')
     model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')})
-    result, _ = extract(source, model, schema=SCHEMA, defaults=4)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=10, verification=True)
     assert result['records'][0]['description'] == 'The first sentence.'
 
 
@@ -119,7 +119,7 @@ def test_verifier_confirms_an_unchanged_scalar_without_a_correction_issue():
     source = evidence('1. The first sentence.')
     model = Model(source, entry=lambda *_: {'description': candidate('The first sentence.', 'The first sentence.')},
                   verdict=lambda *_: candidate('The first sentence.', 'The first sentence.'))
-    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    result, _ = extract(source, model, schema=SCHEMA, defaults=10, verification=True)
     assert result['records'][0]['description'] == 'The first sentence.'
     assert not any(i['code'] == 'verification_corrected' for i in result['issues'])
 
@@ -165,7 +165,9 @@ def test_scalar_drafts_do_not_anchor_verification_of_a_mixed_record():
         answer = fields(record, user, schema)
         answer['site'] = candidate(draft, 'Site')
         return answer
-    result, chat = extract(source, Model(source, entry=entry), defaults=5)
+    model = Model(source, entry=entry, verdict=lambda path, value, record:
+        fields(record, '', {'properties': {path: None}}).get(path) if value is None else 'supported')
+    result, chat = extract(source, model, defaults=5)
     assert result['records'][0]['site'] == 'Site'
     assert result['records'][0]['finds'] == [{'name': 'Bowl', 'count': 1}]
     request = next(c for c in chat.calls if c['system'].startswith('You check values'))

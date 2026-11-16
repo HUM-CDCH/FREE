@@ -142,37 +142,22 @@ NEAR = 40
 # Versions 8 and 9 still read no entry before the whole discovery. Measured on one scanned 45-page catalogue
 # (12 November 2026, Qwen3.8-27B-NVFP4): version 9's first saved value came 18 to 23 minutes after the start.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
-DEFAULTS = {1: {"reserves": _RESERVES, "overlap": 1, "headings": True, "verification": True, "splits": 6},
-            2: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page"},
-            3: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page", "pipelined": True},
-            4: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": True, "splits": 6,
-                "windows": "page", "pipelined": True, "entry_reply": "context"},
-            5: {"reserves": {**_RESERVES, "verification": 4096}, "overlap": 3, "headings": True,
-                "verification": True, "splits": 6, "windows": "budget", "pipelined": True,
-                "entry_reply": "context", "corrections": True},
-            6: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
-                "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True},
-            7: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
-                "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                "heading_context": True, "candidates": discovery.CANDIDATES},
-            8: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
-                "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                "nearby": True, "children": True},
-            9: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
-                "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                "nearby": True, "children": True, "complete_text": True},
-            10: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
-                 "windows": "budget", "pipelined": True, "entry_reply": "context", "single_pass": True,
-                 "nearby": True, "children": "pipelined", "complete_text": True}}
+DEFAULTS = {
+    5: {"reserves": {**_RESERVES, "verification": 4096}, "overlap": 3, "headings": True,
+        "verification": True, "splits": 6, "windows": "budget", "pipelined": True,
+        "entry_reply": "context", "corrections": True, "single_pass": False,
+        "nearby": False, "children": False, "complete_text": False},
+    10: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
+         "windows": "budget", "pipelined": True, "entry_reply": "context", "corrections": False,
+         "single_pass": True, "nearby": True, "children": "pipelined", "complete_text": True},
+}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    defaults: Literal[5, 10]
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
@@ -280,17 +265,16 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
             "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
             | {name: value for name, value in DEFAULTS[options.defaults].items()
-               if name in ("windows", "pipelined", "entry_reply", "corrections", "single_pass", "heading_context",
+               if name in ("windows", "pipelined", "entry_reply", "corrections", "single_pass",
                            "nearby", "children", "complete_text")}
-            | ({"candidates": options.setting("candidates")} if options.defaults >= 7 else {})
+            | {"candidates": options.setting("candidates")}
             | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
             | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
                and (native or options.output_tokens) else {}),
             "models": chat.models,
-            "prompt_version": {7: 9, 8: 10, 9: 11}.get(options.defaults, PROMPT_VERSION if options.defaults > 9 else 8),
-            "discovery_version": {7: 10, 8: 11, 9: 12}.get(options.defaults,
-                                                           discovery.VERSION if options.defaults > 9 else 8),
-            **({"entry_version": ENTRY_VERSION} if options.defaults >= 7 else {}),
+            "prompt_version": PROMPT_VERSION if options.defaults == 10 else 8,
+            "discovery_version": discovery.VERSION if options.defaults == 10 else 8,
+            **({"entry_version": ENTRY_VERSION} if options.defaults == 10 else {}),
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
 
@@ -334,7 +318,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     """The version 3 artifact for `request` (the validated `run.ExtractRequest`) over `evidence`; the execution,
     discovery and entry records live only in the artifact (`run_dir` is read only for the PDF the retained links'
     value marks are placed from, ADR 0031). Entries run `chunks` at a time, nearest `options.start_page` first
-    (`work_order`), assembled in source order. Pipelined (defaults 3), a durable run's planning reads the entries of
+    (`work_order`), assembled in source order. A durable run's planning reads the entries of
     the windows already read while discovery still waits on later ones (`NeedsCall`), publishing them under
     `unified-prefix`, and verifies them once discovery is complete; a run that is not durable reads discovery whole
     first, so its artifact is the same."""
@@ -351,7 +335,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     effective = execution["effective"]
     linked_by = _linked_by(effective)
     budget = _Budget(chat, counters, effective["stages"],
-                     frozenset({"entry"}) if effective.get("entry_reply") == "context" else frozenset())
+                     frozenset({"entry"}) if effective["entry_reply"] == "context" else frozenset())
     from kei_exp.kie.extract.durable import Boundary, NeedsCall
     from kei_exp.kie.extract.retained import ahead, discovering, plan_execution, plan_records, saved_record
     from kei_exp.kie.extract.value_mark import place_links
@@ -359,7 +343,6 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     # Durable runs keep it in their plans (`plan_execution`), one stage per distinct record: a resumed round whose
     # record changed (a deploy, a served context) adds a row instead of conflicting with the first.
     plan_execution(chat, f"unified-execution:{execution_sha256[:16]}", execution)
-    pipelined = effective.get("pipelined", False)
     # Durable planning never waits on a model: an `ask` replays a saved reply or captures the call and raises
     # `NeedsCall`, so it reads in turn, without threads; the calls run in their own workflows (durable_extract).
     durable = getattr(chat, "runtime", None) is not None
@@ -371,32 +354,28 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         try:
             return budget.ask("discovery", *args)
         except Boundary as boundary:
-            if not pipelined:
-                raise
             stopped.append(boundary)
             raise NeedsCall() from None
 
     def discover() -> tuple[dict, bool]:
-        description = schema.record_description + (DISCOVERY_SCOPE_V9 if options.defaults >= 9 else
-                                                       DISCOVERY_SCOPE if options.defaults >= 5 else "")
+        description = schema.record_description + (DISCOVERY_SCOPE_V9 if options.defaults == 10 else DISCOVERY_SCOPE)
         body = discovery.discover(evidence, description, partial(budget.fits, "discovery"),
                                   ask, overlap=effective["overlap"],
-                                  splits=effective["splits"], by=effective.get("windows", "budget"), workers=chunks,
-                                  progress=partial(discovering, chat), frontier=pipelined,
+                                  splits=effective["splits"], by=effective["windows"], workers=chunks,
+                                  progress=partial(discovering, chat), frontier=True,
                                   unanswered=(NeedsCall,) if durable else (),
-                                  heading_context=effective.get("heading_context", False),
-                                  nearby=effective.get("nearby", False), shared_context=options.defaults >= 9)
+                                  nearby=effective["nearby"], shared_context=options.defaults == 10)
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
-        complete, early = body.get("complete", True), durable and effective.get("children") == "pipelined"
-        if options.defaults >= 9:
+        complete, early = body.get("complete", True), durable and effective["children"] == "pipelined"
+        if options.defaults == 10:
             body = discovery.table_notes(body, evidence, complete)
-        if effective.get("children") and (complete or early):
+        if effective["children"] and (complete or early):
             try:  # the bare description: DISCOVERY_SCOPE keeps numbered items in their record
                 with ahead(chat):  # carving the records found goes before looking for more
                     body = discovery.children(body, evidence, schema.record_description,
                                               partial(budget.fits, "discovery"), ask,
-                                              cuts=body["cuts"] if effective["children"] == "pipelined" else None,
+                                              cuts=body["cuts"],
                                               progress=partial(discovering, chat) if complete else None,
                                               unanswered=(NeedsCall,) if early else ())
             except NeedsCall:
@@ -423,7 +402,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         verification waits, so that the reasoning model reads discovery's windows; candidates are shown meanwhile."""
         def one(number: int) -> _Work:
             entry = entries[number]
-            unit = f"{entry['id']}#{digest(entry['ranges'])[:16]}" if pipelined else None
+            unit = f"{entry['id']}#{digest(entry['ranges'])[:16]}"
             page = pages.get(entry["ranges"][0]["segment"]) if entry.get("ranges") else None  # as `work_order` reads it
             # A finished entry is a function of these, its counts and its saved replies: an earlier round of the
             # attempt that read and saved it leaves nothing to read or save again (a phase change, verification once
@@ -474,8 +453,6 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
         if raised:
             raise raised[min(raised)]
         return works
-    if not complete and effective.get("children") is True:  # defaults 8 and 9
-        raise stopped[0] if stopped else NeedsCall()  # children carved later change the prefix entries' ranges
     if not complete:
         # Each entry of the windows read so far is final, so its number is: it is read and listed now.
         try:
@@ -788,28 +765,8 @@ VERIFY = ("You check values extracted from one record of a source document. A re
           "For each candidate answer \"supported\" when the record text states that value for that field of this "
           "record, \"unsupported\" when it does not (it says something else, or the value belongs to another record or "
           "only to the context), or \"unclear\". Judge only from the text shown. Return only the JSON object.")
-ENTRY_HEADING = ("You extract structured data from one record of a source document. A record is: {description}\n{notes}"
-         "Answer every field with null when the shown source does not support it, or with an object: \"value\" "
-         "(typed as the field) and \"quote\" (the exact source text that states or supports the value, copied character "
-         "for character). For each object in a list also give \"_item_text\": the exact text of the record where that "
-         "item appears, or null. Read values from the RECORD text; EARLIER and LATER text belongs to the same record "
-         "and is shown so that a value crossing the cut is whole. CONTEXT is record-free source before the record, "
-         "in source order (oldest first, latest last). "
-         "For scalar fields outside lists, a heading in CONTEXT may supply an inherited value only when it clearly "
-         "applies to this record; quote that heading. Compare all shown headings: a later applicable heading "
-         "supersedes a conflicting earlier value for the same field; earlier higher-level headings still apply "
-         "unless superseded. Do not use unrelated, superseded or uncertain context. List items and all their values "
-         "must come from the record, never CONTEXT. Never invent a value. Return only the JSON object.")
-VERIFY_HEADING = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
-          "For each candidate answer \"supported\" when the record text states that value for that field of this "
-          "record, or a heading in CONTEXT clearly supplies an inherited value for a scalar field outside lists. "
-          "Check that the heading applies to this record, comparing all shown headings in source order "
-          "(oldest first, latest last). A later applicable heading supersedes a conflicting earlier value for "
-          "the same field; earlier higher-level headings still apply unless superseded. Proximity alone is not "
-          "support. Answer \"unsupported\" for a contradicted, unrelated "
-          "or superseded value or one belonging to another record, and \"unclear\" when applicability is uncertain. "
-          "List items and their values require the record text. Judge only from the text shown. "
-          "Return only the JSON object.")
+
+
 VERIFY_CHILD = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
                 "The RECORD is printed inside another record, whose own text is shown as CONTEXT. For each candidate "
                 "answer \"supported\" when the RECORD states that value for that field of this record, or, for a "
@@ -818,6 +775,7 @@ VERIFY_CHILD = ("You check values extracted from one record of a source document
                 "contradicted or unrelated value or one belonging to another record, and \"unclear\" when "
                 "applicability is uncertain. List items and their values require the RECORD text. Judge only from the "
                 "text shown. Return only the JSON object.")
+
 VERIFY_COMPLETE = (
     "You check values extracted from one source record. A record is: {description}\n{notes}"
     "For each scalar field, read the source afresh and return the final complete value and an exact quote "
@@ -825,7 +783,7 @@ VERIFY_COMPLETE = (
     "and exclude other fields. Do not summarize or invent. Return null if the record supplies no value. "
     "For list-item fields, return supported, unsupported, or unclear without changing the item identity. "
     "Use only RECORD, EARLIER TEXT and LATER TEXT, never CONTEXT. Return only the JSON object.")
-# Defaults 8: a record printed inside another one, read beside its enclosing record's text.
+
 CHILD = ("You extract structured data from one record of a source document. A record is: {description}\n{notes}"
          "The RECORD is printed inside another record, whose own text (before and after it in the source) is shown as "
          "CONTEXT. Answer every field with null when the shown source does not support it, or with an object: "
@@ -838,21 +796,24 @@ CHILD = ("You extract structured data from one record of a source document. A re
          "for another record, or a property of the enclosing record that does not hold for what it contains, is not "
          "this record's, and the RECORD's own statement wins over a conflicting one. List items and all their values "
          "must come from the RECORD. Never invent a value. Return only the JSON object.")
+
 ARBITRATION = ("Several verified candidate values were found in one record of a source document for one field. "
                "Choose the label of the candidate whose value is correct for the field, given its source text, or "
                "NONE when none is. Return only the JSON object.")
-# With verification off (a single pass) candidates are located by code, never verified, and arbitration says so.
+
 ARBITRATION_LOCATED = ARBITRATION.replace("Several verified candidate values were found",
                                           "Several candidate values, each located in the record's text, were found")
+
 DOCUMENT = ("You extract fields that describe a whole source document, not one record.\n{notes}"
             "Answer every field with null when the text shown does not give it, or with an object: \"value\" (typed "
             "as the field) and \"quote\" (the exact supporting text, copied character for character). For each object "
             "in a list also give \"_item_text\": the exact text where that item appears, or null. Never invent a "
             "value. Return only the JSON object.")
+
 REPAIRED = "a nearly verbatim copy was replaced by the source text it was copied from"
-# A typed value whose citation is missing or found nowhere: code cannot judge it. A located quote that does not print
-# its value (`value_not_in_quote`, such as a value of another table row) contradicts it and stays rejected.
+
 UNCITED = ("no_quote", "quote_not_in_source")
+
 VERDICTS = {"supported": ("accepted", None), "unsupported": ("rejected", "verification_rejected"),
             "unclear": ("proposed", "verification_unclear")}
 
@@ -877,7 +838,7 @@ def _source_text(units: Sequence[Unit], texts: dict[str, str], tables: dict[str,
 
 
 def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, PageTable], *,
-          heading_context: bool = False, parent: bool = False) -> str:
+          parent: bool = False) -> str:
     def source(units):
         return _source_text(units, texts, tables)
     if parent:
@@ -886,13 +847,7 @@ def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, 
                             ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) +
                             [f"### {marker}\n{source(window.primary)}\n### END {marker}"] +
                             ([f"### LATER TEXT\n{source(window.after)}"] if window.after else []))
-    if heading_context:
-        heading = [f"#### CONTEXT {index}/{len(window.heading)} "
-                   f"({'latest' if index == len(window.heading) else 'earlier'} shown; source {unit.segment})\n"
-                   f"{source([unit])}" for index, unit in enumerate(window.heading, 1)]
-        context = "Excerpt labels are metadata, not source text.\n" + "\n".join(heading)
-    else:
-        context = source(window.heading)
+    context = source(window.heading)
     parts = ([f"### CONTEXT (not part of the record)\n{context}"] if window.heading else []) + \
         ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) + \
         [f"### {marker}\n{source(window.primary)}\n### END {marker}"] + \
@@ -948,15 +903,15 @@ class _Run:
               heading: tuple[Unit, ...], out: _Work, *, parent: bool = False) -> list[tuple[Window, dict | None]]:
         """Every window's reply in source order; a failed window is halved up to the versioned number of times.
         With `parent` (a child record, defaults 8) `heading` is its enclosing record's text, selected as headings are."""
-        selected = self.effective.get("heading_context", False) or parent
+        selected = parent
 
         def fits(window: Window) -> bool:
             user = _user(window, self.texts, marker, self.tables,
-                         heading_context=self.effective.get("heading_context", False), parent=parent) + \
+                         parent=parent) + \
                 "\n\nReturn the JSON object now."
             return self.budget.fits(stage, system, user, schema)
         windows = plan(units, self.texts, fits, overlap=self.effective["overlap"], heading=heading,
-                       candidates=self.effective.get("candidates", discovery.CANDIDATES),
+                       candidates=self.effective["candidates"],
                        heading_context=selected)
         if windows is None:
             raise BudgetRefused(f"not even one character of source fits a {stage} request beside its instructions")
@@ -965,12 +920,12 @@ class _Run:
         while queue:
             window, depth = queue.pop(0)
             user = _user(window, self.texts, marker, self.tables,
-                         heading_context=self.effective.get("heading_context", False), parent=parent) + \
+                         parent=parent) + \
                 "\n\nReturn the JSON object now."
             answer = self.budget.ask(stage, number, system, user, schema, out.calls, out.issues, out.unit, out.page)
             if answer is None and len(window.primary) > 1 and depth < self.effective["splits"]:
                 halves = split(window, self.texts, fits, overlap=self.effective["overlap"],
-                               candidates=self.effective.get("candidates", discovery.CANDIDATES),
+                               candidates=self.effective["candidates"],
                                heading_context=selected)
                 queue[0:0] = [(half, depth + 1) for half in halves]
                 continue
@@ -1012,13 +967,13 @@ class _Run:
         parent = entry.get("parent") is not None
         if parent:  # a child record's context is its enclosing record's text, whatever the heading setting
             heading = tuple(Unit(each["segment"], each["start"], each["end"]) for each in entry["context"])
-        heading_context = self.effective.get("heading_context", False) or parent
-        system = (CHILD if parent else ENTRY_HEADING if heading_context else ENTRY).format(
+        heading_context = parent
+        system = (CHILD if parent else ENTRY).format(
             description=self.schema.record_description, notes=_notes(self.nodes))
-        single = self.effective.get("single_pass", False)
+        single = self.effective["single_pass"]
         if single:
             system += SINGLE_PASS
-        if self.effective.get("complete_text", False):
+        if self.effective["complete_text"]:
             system += COMPLETE_TEXT_V9
         replies = self._read("entry", number, units, system, candidates_schema(self.nodes), "RECORD", heading, out,
                              parent=parent)
@@ -1091,7 +1046,7 @@ class _Run:
             if policy != "quoted":
                 found.kind, found.reason = "proposed", f"evidence_policy_{policy}"
             elif not self.effective["verification"]:  # a single pass accepts what code grounded, as code's link
-                found.kind, found.reason = ("accepted", None) if self.effective.get("single_pass") else \
+                found.kind, found.reason = ("accepted", None) if self.effective["single_pass"] else \
                     ("proposed", "verification_disabled")
         # Corrections address scalar fields; changing a list item would require rediscovering its identity.
         nodes = {}
@@ -1102,10 +1057,9 @@ class _Run:
                     scalars(node.children or [], key)
                 elif node.type != "array" and evidence_policy(self.nodes, key) == "quoted":
                     nodes[key] = node
-        if self.effective.get("corrections") and self.effective["verification"]:
+        if self.effective["corrections"] and self.effective["verification"]:
             scalars(self.nodes)
-        prompt = VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY_HEADING \
-            if self.effective.get("heading_context") else VERIFY
+        prompt = VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY
         system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
@@ -1116,7 +1070,6 @@ class _Run:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
                 user = _user(window, self.texts, "RECORD", self.tables,
-                             heading_context=self.effective.get("heading_context", False) or parent,
                              parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
                     f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
                     ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "

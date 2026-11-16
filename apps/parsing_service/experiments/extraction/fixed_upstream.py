@@ -3,18 +3,18 @@ from __future__ import annotations
 
 import argparse
 import json
-from dataclasses import asdict, replace
+from dataclasses import asdict
 from pathlib import Path
 
 from kei_exp.kie.extract.article import document_root
+from kei_exp.kie.extract.assembly import ARTICLE_VERSION, document_values
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.passages import load
 from kei_exp.kie.extract.method import ArticleOptions, LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract.stages import Issue, extract_document, merge
+from kei_exp.kie.extract.stages import merge
 
-from .legacy_article import extract_records, reconcile_values
 from .manifest import checked, pin, read, write_new
 from .replay_reference import Captured, key
 
@@ -76,12 +76,9 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     if source.get("pdf"):
         checked(source["pdf"])
     expected = read(directory / "result.json")["artifact"]
-    # Version 13 sizes and counts list parts and drops repeats of OTHER items unlike version 12, versions 14 and 15
-    # ask and decide list items unlike the earlier ones, and version 16 asks and decides them unlike 15, so none's
-    # requests and records can be reproduced.
-    if expected.get("article_version") in (12, 13, 14, 15):
-        raise ValueError(f"Article version {expected['article_version']} resolution cannot be replayed by version 16; "
-                         "run the cell again")
+    if expected.get("article_version") != ARTICLE_VERSION:
+        raise ValueError(f"Article version {expected.get('article_version')} cannot be replayed by version "
+                         f"{ARTICLE_VERSION}; run the cell again")
     if expected["schema"] != read(checked(source["schema"])):
         raise ValueError("parent schema differs from source pin")
     evidence = load(Path(source["run"]))
@@ -91,32 +88,21 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     chats = {role: Captured(directory / "calls", role, provider["model"], provider["context_tokens"])
              for role, provider in study["providers"].items()}
     # Routing settings collect origins without changing any upstream request.
-    method = ArticleOptions.model_validate({**expected["options"]["article"], "grounding": "spans",
-        "grounding_schedule": "unresolved", "grounding_routing": "origin_lexical"})
+    method = ArticleOptions.model_validate({**expected["options"]["article"], "grounding": "spans"})
     counters = {role: LimitedCounter(ReplayCounts(chats[role], provider, verified["tokenizer_probes"]),
                                      method.context_tokens) for role, provider in study["providers"].items()}
     contexts = restore_contexts(expected["contexts"], evidence.passages)
     router = Router(**chats)
-    documents, calls, issues = [], [], []
-    for context in contexts:
-        document, attempts, problems = extract_document(replace(evidence, passages=context.passages), schema,
-            router, budget=expected["options"]["record_chars"], counter=counters["fields"])
-        documents.append(document)
-        calls += attempts
-        issues += problems
-    document, conflicts = reconcile_values(documents) if len(documents) > 1 else (documents[0], [])
-    issues += [Issue("conflicting_document_values", json.dumps(item, ensure_ascii=False)) for item in conflicts]
-    # A version 1 Article inventoried identities; from version 2 (`article_version`) the document is the one root.
-    upstream = document_root if expected.get("article_version", 1) >= 2 else extract_records
-    # Resolution first shipped in version 12; older artifacts contain no such calls.
-    resolved = {"resolve_parts": expected.get("article_version", 1) >= 12} if upstream is document_root else {}
-    extracted = upstream(evidence.passages, schema, router, counters=counters,
-        record_chars=expected["options"]["record_chars"], method=method, contexts=contexts, **resolved)
+    document, conflicts, calls, issues = document_values(evidence, contexts, schema, router,
+        budget=expected["options"]["record_chars"], counter=counters["fields"],
+        structured=method.rendering == "structured")
+    extracted = document_root(evidence.passages, schema, router, counters=counters,
+        record_chars=expected["options"]["record_chars"], method=method, contexts=contexts)
     calls += extracted.calls
     issues += extracted.issues
     records = [merge(fields, document, evidence.source_name, schema) for _, fields in extracted.slices]
     value_contexts = [[unit.dumped() for unit in groups] for groups in extracted.value_contexts]
-    current = {"records": records, "inventory": extracted.identities, "value_contexts": value_contexts,
+    current = {"records": records, "value_contexts": value_contexts,
                "conflicts": {"document": conflicts, "records": extracted.conflicts}}
     if normalized(current) != {key: expected[key] for key in current}:
         raise ValueError("fixed upstream differs from the original bounded extraction")
@@ -137,7 +123,7 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     return {"version": 1, "source": source_id, "run_id": evidence.run_id, "generation": evidence.generation,
         "digest": evidence.digest, "source_name": evidence.source_name, "schema": annotated,
         "policy_annotations": annotations, "upstream_options": expected["options"], **current,
-        "fields": [fields for _, fields in extracted.slices], "document": document,
+        "inventory": extracted.identities, "fields": [fields for _, fields in extracted.slices], "document": document,
         "contexts": expected["contexts"], "value_origins": extracted.origins,
         "upstream_calls": [asdict(call) for call in calls], "upstream_issues": [asdict(issue) for issue in issues],
         "provenance": {"manifest": pin(parent / "manifest.json"), "result": verified["result"],

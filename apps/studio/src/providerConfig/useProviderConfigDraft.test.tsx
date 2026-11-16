@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
+import { articleSettingsSchema } from 'extraction/extraction-method'
+const UNWINDOWED_ARTICLE = articleSettingsSchema.parse({})
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { canonicalArticle, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
+import { canonicalArticle, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG } from 'extraction/extraction-method'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
 import { STARTING_POINTS, withStartingPoint } from './advancedSettings'
 import { useProviderConfigDraft } from './useProviderConfigDraft'
@@ -35,7 +37,7 @@ describe('the Advanced draft', () => {
 
   it('an inactive context ceiling left behind by full source is not an unsaved change: Apply would store the saved value', () => {
     const { result } = draftHook()
-    act(() => result.current.initialize({ ...saved, extractionSettings: { article: UNRECORDED_ARTICLE } }))
+    act(() => result.current.initialize({ ...saved, extractionSettings: { article: UNWINDOWED_ARTICLE } }))
     act(() => result.current.setArticle('context', 'bounded'))
     act(() => result.current.setNumber('article.context_tokens', '9000'))
     expect(result.current.dirty).toBe(true)
@@ -115,7 +117,7 @@ describe('the Advanced draft', () => {
     const { result } = draftHook()
     act(() => result.current.customize('article'))
     act(() => result.current.setArticle('grounding', 'off'))
-    expect(result.current.draft?.extractionSettings.article).toEqual({ ...UNRECORDED_ARTICLE, grounding: 'off' })
+    expect(result.current.draft?.extractionSettings.article).toEqual({ ...UNWINDOWED_ARTICLE, grounding: 'off' })
     expect(result.current.settingsIssues).toEqual([])
   })
 

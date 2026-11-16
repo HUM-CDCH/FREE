@@ -6,7 +6,6 @@ from xml.etree import ElementTree
 import pytest
 
 from kei_exp.kie.extract import assembly, run
-from kei_exp.kie.extract.article import inventory_request
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import structured_source
@@ -100,7 +99,6 @@ def test_all_upstream_stages_receive_and_count_structured_input(monkeypatch, con
 
 def test_plain_reference_request_and_serialization_are_preserved():
     source = passages([" Heading\n", "42\t37"])
-    assert inventory_request(source, SCHEMA)[1] == "[p1_s0] Heading\n\n[p1_s1] 42\t37"
     assert "rendering" not in ArticleOptions().model_dump()
     base = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {}})
     structured = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {

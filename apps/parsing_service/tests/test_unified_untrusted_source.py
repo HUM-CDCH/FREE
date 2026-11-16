@@ -16,9 +16,9 @@ def shapes(chat: CountingChat) -> list[tuple]:
 
 
 def test_printed_instructions_change_no_request_but_its_text():
-    _, plain = extract(evidence(PLAIN))
+    _, plain = extract(evidence(PLAIN), defaults=10, output_tokens=1024)
     poisoned_source = evidence(PLAIN.replace("Material: iron.", f"Material: iron. {INJECTION}"))
-    result, poisoned = extract(poisoned_source)
+    result, poisoned = extract(poisoned_source, defaults=10, output_tokens=1024)
     assert shapes(poisoned) == shapes(plain)
     assert all("198.51.100.7" not in str(call.get("schema")) for call in poisoned.calls)
     assert [record["site"] for record in result["records"]] == ["Rome", "Ostia"]

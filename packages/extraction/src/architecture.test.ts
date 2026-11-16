@@ -25,5 +25,5 @@ test('execution reads the admitted method only: nothing on the durable execution
 })
 
 test('the method contract stays browser-safe and holds no extraction algorithm', () => {
-  assert.deepEqual(importsOf('extraction-method.ts').sort(), ['./allowed-values.js', './errors.js', './schema.js', './types.js', 'zod'])
+  assert.deepEqual(importsOf('extraction-method.ts').sort(), ['./errors.js', './types.js', 'zod'])
 })

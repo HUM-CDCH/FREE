@@ -9,7 +9,6 @@ is deduplicated by value alone. `reconcile_values`' exact union stays only for t
 import json
 import re
 
-from experiments.extraction.legacy_article import reconcile_values
 from kei_exp.kie.extract import article, contexts, unified
 from kei_exp.kie.extract.assembly import document_values
 from kei_exp.kie.extract.contexts import Context
@@ -31,7 +30,6 @@ def test_equal_items_of_one_reading_are_distinct_occurrences():
     for shared in (contexts.assemble_document.__defaults__[0], every):
         root, conflicts, repeats, joined = contexts.assemble_document(readings, shared)
         assert root == {"fees": [10, 10, 5], "refs": ["A"]} and (conflicts, repeats, joined) == ([], [], [])
-    assert reconcile_values(readings)[0]["fees"] == [10, 5]  # the legacy union this replaces
 
 
 def test_the_same_occurrence_read_by_overlapping_readings_is_joined_once_and_named():
@@ -178,7 +176,7 @@ class Careless(Model):
 
 
 def keywords(source, **settings):
-    result, _ = extract(source, Careless(source), schema=KEYWORDS, input_tokens=520, output_tokens=64, **settings)
+    result, _ = extract(source, Careless(source), schema=KEYWORDS, input_tokens=520, output_tokens=64, **{"overlap": 1, **settings})
     issues = {issue["code"]: json.loads(issue["detail"]) for issue in result["issues"]
               if issue["code"] in ("overlap_items_joined", "possible_repeated_items")}
     return result, issues

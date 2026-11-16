@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExtractionAttemptSnapshot } from 'extraction'
 
@@ -134,8 +135,8 @@ describe('extractionAttemptDto', () => {
 
   it('names no finalized cut and no admitted choice when there is none', async () => {
     const { extractionAttemptDto } = await import('./_extractions.js')
-    const dto = extractionAttemptDto({ ...snapshot, strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null, finalizedReview: null })
-    expect(dto).toMatchObject({ catalogRecipe: null, requestedModels: null, requestedSettings: null, finalizedReview: null })
+    const dto = extractionAttemptDto({ ...snapshot, strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, finalizedReview: null })
+    expect(dto).toMatchObject({ catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, finalizedReview: null })
   })
 
   it('refuses a recipe on an Article Extraction', async () => {

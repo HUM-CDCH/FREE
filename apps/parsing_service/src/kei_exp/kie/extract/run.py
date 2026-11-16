@@ -29,7 +29,7 @@ from kei_exp.kie.extract import article, catalog, grounded, unified
 from kei_exp.kie.extract import models as extraction_models
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.llm import Chat
-from kei_exp.kie.extract.method import ArticleOptions
+from kei_exp.kie.extract.method import REFERENCE, ArticleOptions
 from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.schema import RecordScope, Schema
 from kei_exp.kie.extract.unified import ITEM, UnifiedOptions
@@ -71,6 +71,14 @@ class Options(BaseModel):
                                          or {"discovery_chars", "record_chars"} & self.model_fields_set):
             raise ValueError("options.unified applies to the catalog strategy only and takes no recipe "
                              "(options.catalog) and no character limits (discovery_chars, record_chars)")
+        return self
+
+    @model_validator(mode="after")
+    def _article_defaults(self) -> Options:
+        if self.strategy == "article" and self.article is None:
+            if "article" in self.model_fields_set:
+                raise ValueError("options.article cannot be null")
+            self.article = REFERENCE
         return self
 
     @model_validator(mode="after")
@@ -129,15 +137,6 @@ class ExtractRequest(BaseModel):
                 raise ValueError(f"the unified Catalog reserves the list field name {ITEM!r}")
         return self
 
-    @model_validator(mode="after")
-    def _identity_fields_exist(self):
-        if self.options.article is not None:
-            from kei_exp.kie.extract.schema import SCALAR_JSON
-            scalar = {node.name for node in self.schema_.record_nodes if node.type in SCALAR_JSON}
-            unknown = set(self.options.article.identity_fields) - scalar
-            if unknown:
-                raise ValueError(f"identity_fields must be scalar record fields: {sorted(unknown)}")
-        return self
 
     @model_validator(mode="after")
     def _native_fields_are_supported(self):

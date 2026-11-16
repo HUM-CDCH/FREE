@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { StrictMode, useEffect, useState, type ComponentProps } from 'react'
@@ -303,7 +304,7 @@ it('shows requested and effective methods with their producing selections, and n
     selections:[
       {id:'first',ordinal:1,schemaRevisionId:'schema-first',schemaTree:{},method:{models:{fields:'requested-first'},settings:{article:{context:'bounded'}}},resolved:{}},
       {id:'second',ordinal:2,schemaRevisionId:'schema-second',schemaTree:{},method:{models:{fields:'requested-second'},settings:{article:{context:'full'}}},resolved:{}},
-      {id:'pending',ordinal:3,schemaRevisionId:'schema-pending',schemaTree:{},method:{models:null,settings:{article:null}},resolved:{}},
+      {id:'pending',ordinal:3,schemaRevisionId:'schema-pending',schemaTree:{},method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{}},
     ],
     effective:[
       {id:'second',configuration:{models:{fields:provider('resolved-second','served-second'),reasoning:provider('reasoning-second','reasoner-second')},options:{article:{context:'full'}},planner:1,protocols:{calls:1,source:'document'}}},
@@ -736,7 +737,7 @@ it('keeps saying an opened cut could not be read once the latest state arrives',
 
 it('acknowledges editing once per inputs edit session and saves the draft under that acknowledgement',async()=>{
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
-  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article:null}},resolved:{catalogRecipe:null}}
+  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{catalogRecipe:null}}
   const state={projectId:'project',status:'PAUSED',controlVersion:4,snapshotVersion:1,selection,pendingSelection:null,counts:{saved:0,inFlight:0}}
   vi.mocked(readDurable).mockResolvedValue({state,page} as never)
   vi.mocked(durableRequest).mockImplementation(async url=>url.endsWith('/control')?{controlVersion:5}:{})
@@ -750,14 +751,14 @@ it('acknowledges editing once per inputs edit session and saves the draft under 
   expect(screen.queryByRole('menuitem',{name:'Change inputs'})).toBeNull()
   fireEvent.click(screen.getByRole('button',{name:'Save pending inputs'}))
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/selection',
-    {expectedVersion:5,schemaRevisionId:'newer',method:{models:null,settings:{article:null}}}))
+    {expectedVersion:5,schemaRevisionId:'newer',method:{models:null,settings:{article: REFERENCE_ARTICLE}}}))
   expect(vi.mocked(durableRequest).mock.calls.filter(([url])=>url.endsWith('/control'))).toEqual([
     ['/api/extractions/extraction/durable/control',{id:expect.any(String),expectedVersion:4,action:'editing'}]])
 })
 
 it('closes the inputs editor on Cancel, saving nothing, and offers Change inputs again',async()=>{
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
-  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article:null}},resolved:{catalogRecipe:null}}
+  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{catalogRecipe:null}}
   const state={projectId:'project',status:'PAUSED',controlVersion:4,snapshotVersion:1,selection,pendingSelection:null,counts:{saved:0,inFlight:0}}
   vi.mocked(readDurable).mockResolvedValue({state,page} as never)
   vi.mocked(durableRequest).mockImplementation(async url=>url.endsWith('/control')?{controlVersion:5}:{})

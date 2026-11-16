@@ -49,7 +49,7 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
     strategy: extraction.strategy,
     catalogRecipe: extraction.catalogRecipe,
     requestedModels: extraction.requestedModels ?? null,
-    requestedSettings: extraction.requestedSettings ?? null,
+    requestedSettings: extraction.requestedSettings,
     executionStatus: extraction.executionStatus,
     finalizedReview: extraction.finalizedReview
       ? {

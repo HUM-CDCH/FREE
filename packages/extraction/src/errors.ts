@@ -24,7 +24,6 @@ export type ExtractionErrorCode =
   | 'catalog_no_records'
   | 'cancelled'
   | 'method_changed'
-  | 'invalid_identity_fields'
   | 'incompatible_extraction_model'
   | 'invalid_model_config'
   | 'invalid_extraction_method'

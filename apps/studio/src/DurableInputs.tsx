@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { activeMethod, canonicalExtractionSettings, canonicalUnified, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
+import { activeMethod, canonicalExtractionSettings, canonicalUnified } from 'extraction/extraction-method'
 import type { DurableRead } from 'extraction/durable-types'
 import type { ExtractionAttempt, ExtractionModelListing } from '../shared/extraction.contract'
 import type { ModelConfig } from '../shared/modelConfig.contract'
@@ -40,7 +40,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
     // today's service defaults, so saving other inputs keeps its method.
     const config:ModelConfig={connections:[],routes:{interaction:null,schemaSuggestion:null},ingestionModels:{},
       extractionModels:used.models??{},extractionSettings:canonicalExtractionSettings(attempt.strategy==='ARTICLE'
-        ? {article:used.settings.article??UNRECORDED_ARTICLE}
+        ? ('article' in used.settings ? {article:used.settings.article} : {})
         : {catalog:used.settings})}
     editor.initialize(config)
     setSchemaId(selection.schemaRevisionId)
@@ -71,9 +71,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
       // The editor holds account-shaped settings, which carry no defaults version: keep the one this Extraction runs under
       // (so verification stays that version's, never Pro mode's).
       // Left as the whole source it ran, an Extraction recorded without Article settings keeps that record.
-      const unrecorded='article' in used.settings&&used.settings.article===null&&'article' in edited.settings
-        &&JSON.stringify(edited.settings.article)===JSON.stringify(editor.saved?.extractionSettings.article)
-      const method=unrecorded?{...edited,settings:{article:null}}:pinned!==undefined&&'unified' in edited.settings
+      const method=pinned!==undefined&&'unified' in edited.settings
         ?{...edited,settings:{unified:canonicalUnified({...editor.draft.extractionSettings.catalog?.unified,defaults:pinned})}}:edited
       await durableRequest(`${durableRoot(attempt.extractionId)}/selection`,{expectedVersion:baseline.controlVersion,schemaRevisionId:schemaId,method})
       onSaved()
@@ -94,7 +92,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
             unserved="Not serving" onChange={(key:string)=>editor.setExtractionModel(role,key)}/>
         </label>)}
         <AdvancedTab draft={editor.draft} saved={editor.saved} editor={editor} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified} unifiedDefaults={pinned}
-          extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'} unrecordedArticle={'article' in used.settings&&used.settings.article===null}/>
+          extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'}/>
       </>}
       {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{issue.message}</p>)}
       {stale&&<p role="status" className="text-secondary">The Extraction changed after this draft started.{' '}

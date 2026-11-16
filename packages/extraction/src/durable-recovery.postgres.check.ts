@@ -7,7 +7,7 @@ import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { promisify } from 'node:util'
 import { Client } from 'pg'
-import { migrate,provisionDatabase,seedPreMigrationHistory,CATALOG_TREE } from '../../db/src/record-scope-history-fixture.js'
+import { migrate,provisionDatabase,seedResearchPins,CATALOG_TREE } from '../../db/src/postgres-fixture.js'
 import { ensureKeiRole } from '../../db/src/kei-role.js'
 import { initializeDurableExtraction } from './durable-repository.js'
 import { durableTestNetwork } from './durable-test-network.js'
@@ -28,7 +28,7 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
     try{await maintenance.query(`DROP ROLE IF EXISTS ${role}`)}finally{await maintenance.end()}
   })
   await migrate(target.url);await owner.connect()
-  const history=await seedPreMigrationHistory(owner)
+  const history=await seedResearchPins(owner)
   const password=randomBytes(24).toString('hex')
   await ensureKeiRole(owner,{role,password,schema:'kei_dbos'})
   const workerUrl=new URL(target.url);workerUrl.username=role;workerUrl.password=password

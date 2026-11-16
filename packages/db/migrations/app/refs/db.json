@@ -1,10 +1,11 @@
 {
-  "hash": "sha256:9a5c9519c9e620a2582782734688ad87aed2929ece762be272eeea4435ed1142",
+  "hash": "sha256:fbeb9698789eafab32f78fe52a5d41a9c6cbcd945b9a34cecf4814f691bcccf7",
   "invariants": [
     "extraction-runtime.article-resolution-recovery",
     "extraction-runtime.catalog-whitespace-recovery",
     "extraction-runtime.claude-code-extraction",
     "extraction-runtime.codex-extraction",
-    "extraction-runtime.value-disagreement"
+    "extraction-runtime.value-disagreement",
+    "retired-contracts.require-current-data"
   ]
 }

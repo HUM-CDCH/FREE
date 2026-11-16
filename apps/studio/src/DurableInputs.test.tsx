@@ -14,18 +14,18 @@ vi.mock('./durableExtractionApi',()=>({durableRequest:vi.fn(),durableRoot:(id:st
 afterEach(()=>{cleanup();vi.resetAllMocks()})
 
 it.each([
-  {strategy:'ARTICLE',settings:{article:null},recipe:null},
+  {strategy:'ARTICLE',settings:{article: REFERENCE_ARTICLE},recipe:null},
   {strategy:'CATALOG',settings:{generic:null},recipe:null},
   {strategy:'CATALOG',settings:{recipe:null},recipe:'numbered-catalogue-de@1'},
-  {strategy:'CATALOG',settings:{unified:{defaults:1}},recipe:null},
+  {strategy:'CATALOG',settings:{unified:{defaults: 5}},recipe:null},
   {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',context_tokens:8192}},recipe:null},
-  {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',identity:'conservative',identity_fields:['Species'],prompt:'schema',selection:'supported',grounding:'spans',grounding_schedule:'unresolved',grounding_routing:'origin_lexical'}},recipe:null},
+  {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',grounding:'spans',}},recipe:null},
   {strategy:'CATALOG',settings:{generic:{discovery_chars:8000,record_chars:4000}},recipe:null},
   {strategy:'CATALOG',settings:{recipe:{input_tokens:4096,output_tokens:512,factors:{overlap:false}}},recipe:'numbered-catalogue-de@1'},
-  {strategy:'CATALOG',settings:{unified:{defaults:1,input_tokens:8192,output_tokens:1024,overlap:0,headings:false,verification:false}},recipe:null},
+  {strategy:'CATALOG',settings:{unified:{defaults: 5,input_tokens:8192,output_tokens:1024,overlap:0,headings:false,verification:false}},recipe:null},
   // A pinned version keeps its own verification: verification on never turns into Pro mode's version here.
-  {strategy:'CATALOG',settings:{unified:{defaults:6,verification:true}},recipe:null},
-  {strategy:'CATALOG',settings:{unified:{defaults:7,candidates:8,verification:true}},recipe:null},
+  {strategy:'CATALOG',settings:{unified:{defaults: 10,verification:true}},recipe:null},
+  {strategy:'CATALOG',settings:{unified:{defaults: 10,candidates:8,verification:true}},recipe:null},
 ])('can save unchanged $strategy inputs with pinned settings $settings',async({strategy,settings,recipe})=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
   const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings},resolved:{catalogRecipe:recipe}},pendingSelection:null} as unknown as DurableRead
@@ -37,7 +37,7 @@ it.each([
   expect(save).toBeEnabled()
   expect(screen.getByRole('radio',{name:strategy==='ARTICLE'?'Article':'Catalog'})).toBeChecked()
   // A unified Extraction's editor shows the defaults version it runs under, not the latest.
-  if('unified' in settings&&settings.unified&&Object.keys(settings.unified).length===1)expect(screen.getByText('Service defaults, version 1')).toBeInTheDocument()
+  if('unified' in settings&&settings.unified&&Object.keys(settings.unified).length===1)expect(screen.getByText(`Service defaults, version ${settings.unified.defaults}`)).toBeInTheDocument()
   fireEvent.click(save)
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/selection',{
     expectedVersion:3,schemaRevisionId:'schema',method:{models:null,settings},
@@ -45,16 +45,16 @@ it.each([
   expect(onSaved).toHaveBeenCalledOnce()
 })
 
-it('an Extraction recorded without Article settings previews what Save sends: no article until the draft changes',async()=>{
+it('an Article input editor always previews the explicit settings Save sends',async()=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
-  const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings:{article:null}},resolved:{catalogRecipe:null}},pendingSelection:null} as unknown as DurableRead
+  const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{catalogRecipe:null}},pendingSelection:null} as unknown as DurableRead
   render(<DurableInputs attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} state={state} acknowledged={3} currentSchema='schema' onSaved={vi.fn()} onEdited={async()=>{}} onCancel={vi.fn()}/>)
   await screen.findByRole('button',{name:'Save pending inputs'})
   const view=screen.getByRole('combobox',{name:'Article setting'})
   const show=(title:string)=>fireEvent.change(view,{target:{value:(within(view).getAllByRole('option') as HTMLOptionElement[]).find(option=>option.textContent===title||option.textContent?.startsWith(`${title}: `))!.value}})
   show('Technical details')
   expect(screen.getByRole('heading',{name:'strategy'})).toBeInTheDocument()  // the only request option
-  expect(screen.queryByRole('combobox',{name:'Request option'})).toBeNull()
+  expect(within(screen.getByRole('combobox',{name:'Request option'})).getByRole('option',{name:'article.context'})).toBeInTheDocument()
   show('Source context')
   fireEvent.click(screen.getByRole('radio',{name:'Bounded source units'}))
   show('Technical details')

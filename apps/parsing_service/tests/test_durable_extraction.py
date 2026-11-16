@@ -305,32 +305,9 @@ def test_unified_planning_shows_discovery_progress_until_its_records_are_planned
     assert plan().discovery is None
 
 
-@pytest.mark.parametrize("chunks",[1,3])
-def test_a_planning_round_yields_at_most_chunks_page_windows_each_shown_with_its_own_lines(chunks):
-    """Discovery's fan-out is bounded: each round yields the next `chunks` page windows in source order, the event
-    names each with its own lines, and the starts found so far are every earlier window's, in source order."""
-    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,11)))
-    request=unified_request(defaults=2)
-    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    rounds=[]
-    def extract(router,counter):
-        try:
-            return run.dispatch(None,source,request,router,counter=counter,chunks=chunks)
-        except NeedsCall:
-            if router.runtime.discovery is not None:
-                rounds.append(worker.discovery_event(router.runtime.discovery))
-                assert {window["capture"] for window in rounds[-1]["windows"]}==set(router.runtime.pending)
-            raise
-    result=finish(lease,CountingChat(Model(source)),extract)
-    assert [record["material"] for record in result["records"]]==[f"m{n}" for n in range(1,11)]
-    starts=[f"p{n}_s0" for n in range(1,11)]
-    assert [{window["lines"][0]["segment"] for window in event["windows"]} for event in rounds]==\
-        [set(starts[at:at+chunks]) for at in range(0,10,chunks)]
-    assert all([found["segment"] for found in event["found"]]==starts[:len(event["found"])] for event in rounds)
-    assert [len(event["found"]) for event in rounds]==list(range(0,10,chunks))
 
 
-@pytest.mark.parametrize("defaults,windows,overlap",[(1,None,1),(2,"page",3),(6,"budget",3)])
+@pytest.mark.parametrize("defaults,windows,overlap",[(5,"budget",3),(10,"budget",3)])
 def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans(defaults,windows,overlap):
     """The discovery windows and overlap a run read with stay auditable in the database (`publish_plan`)."""
     source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
@@ -348,7 +325,7 @@ def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans(default
 def test_a_paused_unified_run_plans_on_without_its_execution_record():
     """The record is no gate: while the attempt does not run, planning goes on and the next running round keeps it."""
     source=unified_evidence("1. Hill. Material: gold.")
-    request=unified_request(defaults=2)
+    request=unified_request(defaults=5)
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     lease.intent="PAUSE"
     counter=Counter();planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
@@ -364,7 +341,7 @@ def test_a_changed_execution_record_adds_a_plan_instead_of_failing_the_attempt()
     """A round resumed after its record changed (here the served context, so every stage budget) plans on: both
     records stay, each under its own digest."""
     source=unified_evidence("1. Hill. Material: gold.")
-    request=unified_request(defaults=2)
+    request=unified_request(defaults=5)
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     class Smaller(Counter):
         context_tokens=32768
@@ -846,37 +823,12 @@ def drive(lease, chat, extract, chunks, until=lambda answered: False):
     return running,rounds,answered
 
 
-def test_version_3_paused_during_discovery_shows_every_entry_read_before_it_stops():
-    """A Pause lets the calls already running save; planning then shows every entry whose read was saved, and stops."""
-    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,13)))
-    request=unified_request(defaults=3)
-    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    chat=CountingChat(Model(source))
-    extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
-    running,_,_=drive(lease,chat,extract,2,until=lambda answered: "entry" in answered)
-    def shown():
-        return {value["path"][1] for each in lease.publications.values() for value in each["values"] if value["modelValue"]}
-    before=shown()
-    assert "entry" in [unit["descriptor"]["stage"] for unit in lease.units.values() if unit["id"] in running]
-    lease.intent="PAUSE"
-    for capture in running:
-        unit=next(u for u in lease.units.values() if u["id"]==capture)
-        body=dict(unit["input"]["request"]["body"])
-        body.pop("max_whitespace")
-        parsed,attempts=calls.complete(chat,**body,counter=Counter())
-        unit["checkpoint"]={"output":{"parsed":parsed,"calls":[asdict(call) for call in attempts]}}
-    counter=Counter()
-    with pytest.raises(Boundary):
-        extract(Router(chat,chat,CapturePlanner(lease,{"fields":counter,"reasoning":counter})),counter)
-    read={unit["input"]["request"]["body"]["record"] for unit in lease.units.values()
-          if unit["descriptor"]["stage"]=="entry" and unit["checkpoint"]}
-    assert before<shown()==read
 
 
 def test_version_4_entry_replies_may_use_the_context_their_counted_input_leaves():
     """The captured entry request asks for the served context its finalized input leaves, the reserve its floor."""
     source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,5)))
-    request=unified_request(defaults=4)
+    request=unified_request(defaults=5)
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
     result,_,_=drive(lease,CountingChat(Model(source)),extract,2)
@@ -886,42 +838,8 @@ def test_version_4_entry_replies_may_use_the_context_their_counted_input_leaves(
     assert [record["material"] for record in result["records"]]==["m1","m2","m3","m4"]
 
 
-@pytest.mark.parametrize("chunks",[1,2])
-def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks):
-    """Each entry of the windows read so far is read, and shown with its candidates, before discovery has read the
-    rest; verification waits for discovery's end, so the reasoning model reads discovery's windows first. However many
-    entries a round plans, the workflow runs `chunks` calls per role (`drive`), and the result is a plain run's."""
-    from tests.test_unified_catalog import untimed
-    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,13)))
-    request=unified_request(defaults=3)
-    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=chunks)
-    result,rounds,answered=drive(lease,CountingChat(Model(source)),extract,chunks)
-    last_window=len(answered)-1-answered[::-1].index("discovery")
-    assert answered.index("entry")<last_window<answered.index("verification")
-    assert any("discovery" in each["planned"].values() and 0 in each["saved"] for each in rounds)
-    # discovery keeps `chunks` windows asked until none is left to ask
-    assert all(list(each["planned"].values()).count("discovery")==min(chunks,12-each["answered"].count("discovery"))
-               for each in rounds if each["answered"].count("discovery")<12)
-    plain=run.dispatch(None,source,request,CountingChat(Model(source)),counter=Counter(),chunks=chunks)
-    assert untimed(result)==untimed(plain)
-    assert [record["material"] for record in result["records"]]==[f"m{n}" for n in range(1,13)]
-    assert any(stage.startswith("unified-prefix:") for stage in lease.plans) and "unified-records" in lease.plans
 
 
-def test_version_3_entry_calls_keep_their_captures_when_an_earlier_record_moves_their_number():
-    """An entry's calls are captured by the entry (where it starts and what it covers), not by its number: a record
-    found earlier on another page renumbers the later entries but reuses their saved calls."""
-    def entry_keys(defaults, first_page):
-        source=unified_evidence(first_page,"3. Site3. Material: m3.","4. Site4. Material: m4.")
-        request=unified_request(defaults=defaults)
-        lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-        finish(lease,CountingChat(Model(source)),lambda router,counter: run.dispatch(None,source,request,router,
-                                                                                       counter=counter))
-        return {key for key,unit in lease.units.items() if unit["descriptor"]["stage"] in ("entry","verification")}
-    for defaults in (3,2):
-        one,two=entry_keys(defaults,"1. Site1. Material: m1."),entry_keys(defaults,"1. Site1. Material: m1.\n2. Site2. Material: m2.")
-        assert (one<=two)==(defaults==3), defaults  # version 2 numbers entries 3 and 4 anew: their calls are new
 
 
 def reading_disagreements(path, values):

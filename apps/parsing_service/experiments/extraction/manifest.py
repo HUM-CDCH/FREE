@@ -65,8 +65,6 @@ def differences(left: dict, right: dict) -> set[str]:
 
 def request(source: dict, method: dict) -> ExtractRequest:
     options = json.loads(json.dumps(method))
-    if options.get("article") is not None:
-        options["article"]["identity_fields"] = source["identity_fields"]
     return ExtractRequest.model_validate({"schema": read(checked(source["schema"])), "options": options})
 
 

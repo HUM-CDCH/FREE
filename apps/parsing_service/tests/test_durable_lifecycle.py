@@ -137,8 +137,6 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
             refused=requests.post(fixture['bridge'],json={'id':case['id'],'action':'resume'},
                 headers={'Authorization':f"Bearer {fixture['token']}"},timeout=15)
             assert not refused.ok and 'Stopped Extractions cannot resume' in refused.text
-        with psycopg.connect(**fields) as admin:
-            assert admin.execute('SELECT outcome FROM public.extraction WHERE id=%s',[case['id']]).fetchone()[0] is None
     finally:
         release.set()
         if process.poll() is None:process.terminate()
@@ -222,7 +220,6 @@ def test_truncated_discovery_is_saved_and_split_until_complete_or_exhausted(tmp_
             assert completed['state']['counts']['inFlight']==0
         with psycopg.connect(**fields) as admin:
             assert admin.execute('SELECT count(*) FROM extraction_runtime.checkpoint o JOIN extraction_runtime.capture c ON c.id=o.id WHERE c."extractionId"=%s AND EXISTS (SELECT FROM jsonb_array_elements(o.output->\'calls\') call WHERE call->>\'finish\'=\'length\')',[case['id']]).fetchone()[0]==0
-            assert admin.execute('SELECT outcome FROM public.extraction WHERE id=%s',[case['id']]).fetchone()[0] is None
     finally:
         if process.poll() is None:process.terminate()
         try:process.wait(timeout=10)

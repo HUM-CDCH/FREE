@@ -1,9 +1,10 @@
+import { REFERENCE_ARTICLE } from './extraction-method.js'
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { performance } from 'node:perf_hooks'
 import { test } from 'node:test'
 import { Client, Pool } from 'pg'
-import { migrate, provisionDatabase, seedPreMigrationHistory, ARTICLE_TREE } from '../../db/src/record-scope-history-fixture.js'
+import { migrate, provisionDatabase, seedResearchPins, ARTICLE_TREE } from '../../db/src/postgres-fixture.js'
 
 /** The value history gate: ten Extractions whose head results are each about 20 MB answer one value's history in under
  *  1.5 s, in a response under 50 KB. Opt in with VALUE_HISTORY_PERFORMANCE=1; it writes about 200 MB. */
@@ -15,18 +16,18 @@ test('value history reads one value from ten 20 MB results in under 1.5 s', { sk
   t.after(async () => { await source.end(); await admin.end(); await target.drop() })
   await migrate(target.url); await admin.connect()
   const { createDurableRepository, initializeDurableExtraction } = await import('./durable-repository.js')
-  const history = await seedPreMigrationHistory(admin)
+  const history = await seedResearchPins(admin)
   const d1 = history.documents.d1, node = ARTICLE_TREE.schemaNodes[0]!
   const { preprocessId } = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1', [d1.sourceRepresentationRevisionId])).rows[0]
   const ids: string[] = []
   for (let index = 0; index < 10; index += 1) {
     const id = randomUUID()
     await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings","createdAt")
-      VALUES ($1,$2,$3,$4,'ARTICLE',$5,$6)`, [id, d1.sourceDocumentId, d1.sourceRepresentationRevisionId, history.revisions.article, { article: null }, new Date(Date.UTC(2026, 9, 1 + index)).toISOString()])
+      VALUES ($1,$2,$3,$4,'ARTICLE',$5,$6)`, [id, d1.sourceDocumentId, d1.sourceRepresentationRevisionId, history.revisions.article, { article: REFERENCE_ARTICLE }, new Date(Date.UTC(2026, 9, 1 + index)).toISOString()])
     await admin.query('BEGIN')
     await initializeDurableExtraction(admin as never, id, { projectContextId: history.projectContextId, sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,
       schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', catalogRecipe: null, preprocessId,
-      requestedModels: null, requestedSettings: { article: null } })
+      requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
     await admin.query('COMMIT')
     const selectionId = (await admin.query('SELECT "selectionId" FROM extraction_runtime.head WHERE id=$1', [id])).rows[0].selectionId
     // Random text resists TOAST compression; the traced value is last, the whole array is searched.

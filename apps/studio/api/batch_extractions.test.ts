@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { describe, expect, it, vi } from 'vitest'
 import type { ResearcherProjectStore } from 'db'
 import {
@@ -82,7 +83,7 @@ const selection = {
   schemaRevisionId: REVISION,
   strategy: 'ARTICLE',
   sourceDocumentIds: [DOCUMENT],
-  method: { models: null, settings: { article: null } },
+  method: { models: null, settings: { article: REFERENCE_ARTICLE } },
 }
 
 describe('/api/batch-extractions transport', () => {
@@ -120,8 +121,7 @@ describe('/api/batch-extractions transport', () => {
 
   it('hands the submitted method to admission unchanged; the handler never reads the account', async () => {
     const module = extractionModule()
-    const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
-      prompt: 'schema', grounding: 'spans', grounding_schedule: 'unresolved', evidence_policy: 'schema' }
+    const article = { context: 'bounded', context_tokens: 12288, overlap_passages: 0, grounding: 'spans', evidence_policy: 'schema' }
     const method = { models: { fields: 'instruct' }, settings: { article } }
     expect((await handlerFor(module)(open({ ...selection, method }))).status).toBe(202)
     expect(module.scheduleBatch).toHaveBeenCalledWith(expect.objectContaining({ method }))
@@ -131,7 +131,6 @@ describe('/api/batch-extractions transport', () => {
     ['method_changed', 409],
     ['record_scope_required', 409],
     ['record_scope_mismatch', 409],
-    ['invalid_identity_fields', 422],
     ['incompatible_extraction_model', 422],
     ['invalid_model_config', 500],
   ] as const)('answers %s with %i', async (code, status) => {
@@ -152,8 +151,7 @@ describe('/api/batch-extractions transport', () => {
     // A batch has no recipe, so recipe settings fit neither strategy.
     for (const strategy of ['ARTICLE', 'CATALOG'])
       expect((await handle(open({ ...selection, strategy, method: { models: null, settings: { recipe: null } } }))).status).toBe(422)
-    const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, identity: 'reference', identity_fields: [],
-      prompt: 'reference', grounding: 'semantic' }
+    const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, grounding: 'semantic' }
     const broken = await handle(open({ ...selection, method: { models: null, settings: { article } } }))
     expect(broken.status).toBe(422)
     expect((await broken.json()).error.details.issues).toContainEqual({

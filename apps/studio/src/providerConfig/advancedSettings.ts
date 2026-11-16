@@ -8,7 +8,7 @@ import {
 
 export type AdvancedStrategy = 'article' | 'catalog'
 export type ArticleKey = keyof ArticleSettings
-export type ArticleSection = 'context' | 'identity' | 'input' | 'evidence'
+export type ArticleSection = 'context' | 'input' | 'evidence'
 export type CatalogFactor = 'glossary' | 'headings' | 'overlap' | 'verification'
 export type NumberPath =
   | 'article.context_tokens'
@@ -17,21 +17,11 @@ export type NumberPath =
   | 'catalog.unified.input_tokens' | 'catalog.unified.output_tokens' | 'catalog.unified.overlap' | 'catalog.unified.candidates'
 
 export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string; keys: readonly ArticleKey[] }[] = [
-  { section: 'context', title: 'Source context', keys: ['context', 'context_tokens', 'grouping', 'overlap_passages', 'selection'] },
-  { section: 'identity', title: 'Record identity', keys: ['identity', 'identity_fields'] },
-  { section: 'input', title: 'Extraction input', keys: ['prompt', 'rendering'] },
-  { section: 'evidence', title: 'Evidence', keys: ['grounding', 'grounding_overflow', 'evidence_policy', 'grounding_schedule', 'grounding_routing'] },
+  { section: 'context', title: 'Source context', keys: ['context', 'context_tokens', 'grouping', 'overlap_passages'] },
+  { section: 'input', title: 'Extraction input', keys: ['rendering'] },
+  { section: 'evidence', title: 'Evidence', keys: ['grounding', 'grounding_overflow', 'evidence_policy'] },
 ]
-/** Retired controls whose saved values remain part of the admitted method. `source_contexts` still counts
- *  `inventory_request` using identity, identity_fields and prompt for preliminary bounded source sizing (including
- *  full-source fallback). They do not change the document-value prompt or reconcile records. The remaining keys
- *  keep their validation and diagnostic metadata. Saved values change only through an explicit edit or reset. */
-export const ADDITIONAL_ARTICLE_KEYS = ['selection', 'identity', 'prompt', 'grounding_schedule', 'grounding_routing'] as const
-export type AdditionalArticleKey = typeof ADDITIONAL_ARTICLE_KEYS[number]
-export const RETIRED_ARTICLE_KEYS: ReadonlySet<ArticleKey> = new Set([...ADDITIONAL_ARTICLE_KEYS, 'identity_fields'])
-/** Live controls, separate from the complete recorded-setting order used by summaries and deltas. */
-export const ARTICLE_CONTROL_SECTIONS = ARTICLE_SECTIONS.map(({ keys, ...section }) =>
-  ({ ...section, keys: keys.filter((key) => !RETIRED_ARTICLE_KEYS.has(key)) })).filter(({ keys }) => keys.length > 0)
+export const ARTICLE_CONTROL_SECTIONS = ARTICLE_SECTIONS
 
 export const SECTION_OF = Object.fromEntries(
   ARTICLE_SECTIONS.flatMap(({ section, keys }) => keys.map((key) => [key, section])),
@@ -39,13 +29,11 @@ export const SECTION_OF = Object.fromEntries(
 
 export const CONTROL_LABELS: Readonly<Record<ArticleKey, string>> = {
   context: 'Scope', context_tokens: 'Context ceiling', grouping: 'Grouping', overlap_passages: 'Previous passages',
-  selection: 'Value evidence', identity: 'Reconciliation', identity_fields: 'Identity fields', prompt: 'Instructions',
   rendering: 'Source representation', grounding: 'Verification', grounding_overflow: 'Large checks',
   evidence_policy: 'Fields to verify',
-  grounding_schedule: 'Continue verification', grounding_routing: 'Unit order',
 }
 
-export const CONTROL_HINTS: Readonly<Record<Exclude<ArticleKey, AdditionalArticleKey | 'identity_fields'>, string>> = {
+export const CONTROL_HINTS: Readonly<Record<ArticleKey, string>> = {
   context: 'Full source reads the whole document at once; bounded source units split it into parts that fit a ceiling.',
   context_tokens: 'Tokens per request, including instructions and the output reserve; each served model can lower it.',
   grouping: 'How bounded units are formed: by token budget, or following headings, captions and tables.',
@@ -61,9 +49,6 @@ export const ARTICLE_CHOICES = {
   context: [{ value: 'full', label: 'Full source' }, { value: 'bounded', label: 'Bounded source units' }],
   grouping: [{ value: undefined, label: 'Token budget' }, { value: 'structural', label: 'Structure-aware' }],
   overlap_passages: [{ value: 0, label: '0' }, { value: 1, label: '1' }, { value: 2, label: '2' }],
-  selection: [{ value: undefined, label: 'All source units' }, { value: 'supported', label: 'Supported units' }],
-  identity: [{ value: 'reference', label: 'Reference' }, { value: 'conservative', label: 'Declared identity fields' }],
-  prompt: [{ value: 'reference', label: 'Reference' }, { value: 'schema', label: 'Schema-driven' }],
   rendering: [{ value: undefined, label: 'Plain text' }, { value: 'structured', label: 'Structured blocks and tables' }],
   grounding: [
     { value: 'semantic', label: 'Source labels' }, { value: 'quoted', label: 'Generated quotes' },
@@ -71,9 +56,7 @@ export const ARTICLE_CHOICES = {
   ],
   grounding_overflow: [{ value: undefined, label: 'Leave unchecked' }, { value: 'windows', label: 'Check in windows' }],
   evidence_policy: [{ value: undefined, label: 'All populated record fields' }, { value: 'schema', label: 'Follow template policies' }],
-  grounding_schedule: [{ value: undefined, label: 'Across all source units' }, { value: 'unresolved', label: 'Until first support' }],
-  grounding_routing: [{ value: undefined, label: 'Source order' }, { value: 'origin_lexical', label: 'Origin and lexical relevance' }],
-} as const satisfies { [K in Exclude<ArticleKey, 'context_tokens' | 'identity_fields'>]: readonly Choice<ArticleSettings[K] | undefined>[] }
+} as const satisfies { [K in Exclude<ArticleKey, 'context_tokens'>]: readonly Choice<ArticleSettings[K] | undefined>[] }
 
 export const CATALOG_LABELS = {
   discovery_chars: 'Discovery text limit', record_chars: 'Record text limit',
@@ -97,11 +80,6 @@ export const NUMBER_MESSAGES: Readonly<Record<NumberPath, string>> = {
 export function orderedArticle(article: Readonly<Partial<Record<ArticleKey, unknown>>>): ArticleSettings {
   return Object.fromEntries(ARTICLE_KEYS.flatMap((key) =>
     article[key] === undefined || article[key] === null ? [] : [[key, article[key]]])) as ArticleSettings
-}
-
-/** Reset one saved setting without changing other draft values; identity and its fields reset together. */
-export function resetArticleSetting(article: ArticleSettings, key: AdditionalArticleKey): ArticleSettings {
-  return orderedArticle({ ...article, [key]: REFERENCE_ARTICLE[key], ...(key === 'identity' ? { identity_fields: [] } : {}) })
 }
 
 /** Why choosing `value` would break a rule at this very control, or null. A parent choice that breaks a child stays
@@ -132,9 +110,7 @@ export function effectiveSummary(article: ArticleSettings | undefined): string {
 export const describeArticleValue = (article: ArticleSettings, key: ArticleKey): string =>
   key === 'context_tokens'
     ? (article.context === 'bounded' ? `${numberText(article.context_tokens)} tokens` : 'Used with bounded source units')
-    : key === 'identity_fields'
-      ? (article.identity_fields.join(', ') || 'None')
-      : label(key as keyof typeof ARTICLE_CHOICES, article[key])
+    : label(key as keyof typeof ARTICLE_CHOICES, article[key])
 
 /** Sections whose shown values differ from the saved settings (service defaults compare as `REFERENCE_ARTICLE`). */
 export function changedSections(draft: ArticleSettings, saved: ArticleSettings | undefined): ReadonlySet<ArticleSection> {
@@ -148,20 +124,16 @@ export type StartingPoint = Readonly<{ name: string; description: string; assign
 export const STARTING_POINTS: readonly StartingPoint[] = [
   {
     name: 'Reference controls',
-    description: 'The service defaults, explicit: full source, reference identity and prompt, plain input, source-label verification, large checks in windows and no other optional factor.',
+    description: 'The service defaults, explicit: full source, plain input, source-label verification, large checks in windows and no other optional factor.',
     assign: {
-      context: 'full', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
-      prompt: 'reference', rendering: undefined, grounding: 'semantic', evidence_policy: undefined, grounding_schedule: undefined,
-      grounding_routing: undefined, grounding_overflow: 'windows',
+      context: 'full', context_tokens: 12288, overlap_passages: 0, grouping: undefined, rendering: undefined, grounding: 'semantic', evidence_policy: undefined, grounding_overflow: 'windows',
     },
   },
   {
     name: 'Explore spans and template policies',
-    description: 'Explicit bounded 12,288, no previous passages, token grouping, reference identity, template prompt, plain input, source spans and template policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
+    description: 'Explicit bounded 12,288, no previous passages, token grouping, plain input, source spans and template policies. It explores the combined method family. It is not a recommendation, a speed claim or a pilot reproduction.',
     assign: {
-      context: 'bounded', context_tokens: 12288, overlap_passages: 0, grouping: undefined, selection: undefined, identity: 'reference',
-      prompt: 'schema', rendering: undefined, grounding: 'spans', evidence_policy: 'schema', grounding_schedule: undefined,
-      grounding_routing: undefined, grounding_overflow: undefined,
+      context: 'bounded', context_tokens: 12288, overlap_passages: 0, grouping: undefined, rendering: undefined, grounding: 'spans', evidence_policy: 'schema', grounding_overflow: undefined,
     },
   },
 ]

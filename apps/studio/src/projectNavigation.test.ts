@@ -175,7 +175,7 @@ const snapshotOf = (documentId: string) =>
         parsedDocumentUrl: `/api/project-contexts/${projectContextId}/source-representations/${documentId}/source`,
       },
     },
-    annotationSet: null,
+
     extractionSchema: null,
     latestAttempt: null,
     latestReviewed: null,

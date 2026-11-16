@@ -2,7 +2,6 @@
 import pytest
 
 from kei_exp.kie.extract import assembly, run
-from experiments.extraction.legacy_article import inventory, reconcile_identities, reconcile_values
 from kei_exp.kie.extract.contexts import partition
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
@@ -13,22 +12,6 @@ from tests.test_extract_grounded import CountingChat, GLOSSED, WordCounter, run 
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
-def test_same_name_partial_keys_do_not_collapse_distinct_subjects():
-    method = ArticleOptions(identity="conservative", identity_fields=("site", "year"))
-    items = [{"label": label, "identity": {"site": "Edouard"}, "passages": ["p1_s0"]}
-             for label in ("Edouard in Paris", "Edouard in Lyon")]
-    found, _, issues = inventory(passages(), SCHEMA, CountingChat(lambda *_: {"records": items}),
-                                 counter=WordCounter(), method=method)
-    assert len(found) == 2
-    assert [issue.code for issue in issues] == ["partial_identity", "partial_identity"]
-    items = [{"label": "Hill", "identity": {"site": "Hill", "year": 1827}, "passages": [ref]}
-             for ref in ("p1_s0", "p1_s1")]
-    merged, issues = reconcile_identities(items, method)
-    assert len(merged) == 1 and merged[0]["passages"] == ["p1_s0", "p1_s1"] and not issues
-    items[1]["identity"]["year"] = 1828
-    assert len(reconcile_identities(items, method)[0]) == 2
-
-
 def test_context_primary_ownership_is_exhaustive_and_overlap_never_owns_or_cuts():
     source = passages(["one", "two", "table " * 100, "late"])
     contexts = partition(source, lambda group: sum(len(p.text) for p in group) <= 9, overlap=1)
@@ -36,13 +19,6 @@ def test_context_primary_ownership_is_exhaustive_and_overlap_never_owns_or_cuts(
     assert any(context.primary == (source[2],) for context in contexts)
     assert all(p in source for context in contexts for p in context.passages)
     assert contexts[-1].primary[0].text == "late"
-
-
-def test_conflicts_remain_null_even_when_a_third_window_repeats_one_candidate():
-    fields, conflicts = reconcile_values([{"year": 1827, "items": ["a"]}, {"year": 1828, "items": ["b"]},
-                                          {"year": 1827, "items": ["a"]}])
-    assert fields == {"year": None, "items": ["a", "b"]}
-    assert conflicts == [{"path": ["year"], "candidates": [1827, 1828]}]
 
 
 @pytest.mark.parametrize("settings", [
@@ -55,11 +31,11 @@ def test_invalid_method_settings_are_rejected(settings):
 
 
 def test_options_validate_schema_identity_fields_and_change_fingerprint():
-    with pytest.raises(ValueError, match="scalar record fields"):
+    with pytest.raises(ValueError, match="Extra inputs"):
         run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"identity_fields": ["nope"]}})
     base = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article"})
     selected = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"grounding": "off"}})
-    assert "article" not in base.options.dumped()
+    assert base.options.dumped()["article"]["grounding_overflow"] == "windows"
     assert assembly.fingerprint({"generation": "g", "digest": "d"}, base, {}) != assembly.fingerprint(
         {"generation": "g", "digest": "d"}, selected, {})
 
@@ -74,8 +50,7 @@ def test_bounded_pipeline_reaches_late_evidence_and_never_claims_measured_recall
     def fields(system, user, schema):
         return {"year": 1827 if "Late result" in user else None}
     request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
-        "context": "bounded", "context_tokens": 8192, "identity": "conservative", "identity_fields": ["site"],
-        "prompt": "schema", "grounding": "off"}})
+        "context": "bounded", "context_tokens": 8192, "grounding": "off"}})
     result = run.extract(None, request, Router(CountingChat(fields), CountingChat(reason)),
                          counter={role: WordCounter() for role in ("fields", "reasoning")})
     assert result["records"][0]["year"] == 1827 and len(result["contexts"]) >= 2
@@ -146,18 +121,4 @@ def test_contract_cases_and_their_dumps_match_the_shared_fixture():
 def test_categorical_inventory_verdicts_match_the_shared_fixture():
     inventory = fixture("article-options")["inventory"]
     assert article_options.verdicts(inventory) == inventory["verdicts"]
-    # The specification's receipt (contract-check.json) pins 1560/4584 at one ceiling and key set; `grounding_overflow`
-    # doubles the inventory and is refused with grounding off.
-    assert (inventory["accepted"], inventory["rejected"]) == (3016, 9272)
-
-
-def test_identity_fields_are_checked_against_the_schema_as_the_shared_fixture_says():
-    shared = fixture("identity-fields")
-    for case in shared["cases"]:
-        options = {"strategy": "article", "article": {"identity_fields": case["fields"]}}
-        if not case["issues"]:
-            run.ExtractRequest(schema=shared["schema"], options=options)
-            continue
-        with pytest.raises(ValueError) as refused:
-            run.ExtractRequest(schema=shared["schema"], options=options)
-        assert str(sorted(issue["name"] for issue in case["issues"])) in str(refused.value)
+    assert (inventory["accepted"], inventory["rejected"]) == (154, 230)

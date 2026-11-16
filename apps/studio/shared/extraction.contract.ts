@@ -109,7 +109,7 @@ export const extractionAttemptSchema = z
     /** The admitted Extraction Model Choice; null when every role kept kei-exp's deployment default. */
     requestedModels: extractionModelChoiceSchema.nullable(),
     /** The settings admitted with the Extraction. */
-    requestedSettings: activeSettingsSchema.nullable(),
+    requestedSettings: activeSettingsSchema,
     executionStatus: extractionExecutionStatusSchema,
     /** The latest finalization of any of its cuts; later work stays separate and live inspection shows the live cut. */
     finalizedReview: finalizedReviewSchema.nullable(),

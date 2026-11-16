@@ -93,7 +93,7 @@ export type ExtractionAttemptSnapshot = Readonly<{
   /** The model choice admitted with this Extraction (`Extraction.requestedModels`). */
   requestedModels?: ExtractionModelChoice | null
   /** The method settings admitted with this Extraction (`Extraction.requestedSettings`). */
-  requestedSettings?: ActiveSettings | null
+  requestedSettings: ActiveSettings
   executionStatus: ExtractionExecutionStatus
   /** The latest finalization of any of its result/decision cuts; later work stays separate. */
   finalizedReview: FinalizedReview | null

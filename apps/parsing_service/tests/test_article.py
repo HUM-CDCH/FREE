@@ -1,5 +1,4 @@
-"""Article reads one document root with complete input and served-token admission; the inventory of
-noncontiguous records it used to take lives in research tooling and is tested here as a unit."""
+"""Article reads one document root with complete input and served-token admission."""
 import dataclasses
 
 import pytest
@@ -8,7 +7,6 @@ from kei_exp.kie.extract import run
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import processing_complete
 from kei_exp.kie.extract.llm import Reply
-from experiments.extraction.legacy_article import inventory
 from kei_exp.kie.extract.article import DOCUMENT_LABEL, RootUnanswered
 from kei_exp.kie.extract.calls import complete
 from kei_exp.kie.extract.grounding import verify
@@ -48,8 +46,8 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert len(systems) == 1 and DOCUMENT in systems[0] and "Extract ONLY the record" not in systems[0]
     assert result["records"] == [{"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"],
                                   "title": "Sites", "filename": "bauer.pdf"}]
-    assert result["inventory"] == [{"identity": {}, "label": DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1", "p1_s2"]}]
-    assert not result["issues"] and result["article_version"] == 17
+    assert "inventory" not in result
+    assert not result["issues"] and result["article_version"] == 18
     assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert all(call["counted_input_tokens"] + call["max_output_tokens"] <= call["context_tokens"]
                for call in result["calls"])
@@ -95,54 +93,12 @@ def test_article_grounding_does_not_lexically_accept_another_samples_unique_meas
     assert '"site": "Brook"' in seen[0] and "18.5" in seen[0]
 
 
-def test_article_inventory_retains_all_passages_of_repeated_identities_and_rejects_foreign_passages():
-    chat = CountingChat(lambda *_: {"records": [
-        {"label": "Hill", "identity": {"site": "Hill"}, "passages": ["p1_s0"]},
-        {"label": "Hill again", "identity": {"site": "Hill"}, "passages": ["p1_s1"]},
-        {"label": "Brook", "identity": {}, "passages": ["p99_s1"]}]})
-    identities, _, issues = inventory(passages(), SCHEMA, chat, counter=WordCounter())
-    assert identities == [{"label": "Hill; Hill again", "identity": {"site": "Hill"}, "passages": ["p1_s0", "p1_s1"]}]
-    assert [i.code for i in issues] == ["duplicate_inventory_record", "invalid_inventory_record"]
-
-
-@pytest.mark.parametrize("attributes", [
-    {"year": "1827"}, {"year": True}, {"site": ""}, {"foreign": "Hill"},
-])
-def test_inventory_bindings_must_be_typed_record_fields(attributes):
-    chat = CountingChat(lambda *_: {"records": [{"label": "Hill", "identity": attributes, "passages": ["p1_s0"]}]})
-    found, _, issues = inventory(passages(), SCHEMA, chat, counter=WordCounter())
-    assert not found and issues[0].code == "invalid_inventory_record"
-
-
-def test_all_identity_fields_need_no_second_extraction_and_nested_only_schemas_can_use_a_label():
+def test_all_identity_fields_need_no_second_extraction():
     scalar = Schema(schemaNodes=[{"id": "site", "name": "site", "type": "string"}], recordDescription="A site")
     chat = CountingChat(lambda *_: pytest.fail("no remaining fields"))
     result, calls, issues = extract_record(passages(), scalar, chat, budget=1000,
         identity={"site": "Hill"}, record_name="Hill", counter=WordCounter())
     assert result == {"site": "Hill"} and not calls and not issues
-    nested = Schema(schemaNodes=[{"id": "finds", "name": "finds", "type": "array", "itemType": "string"},
-                                 {"id": "empty", "name": "empty", "type": "object", "children": []}],
-                    recordDescription="Finds from one site")
-    chat = CountingChat(lambda *_: {"records": [{"label": "Hill", "identity": {}, "passages": ["p1_s1"]}]})
-    found, _, issues = inventory(passages(), nested, chat, counter=WordCounter())
-    assert found == [{"label": "Hill", "identity": {}, "passages": ["p1_s1"]}] and not issues
-
-
-def test_unknown_identity_attributes_do_not_drop_the_record_or_bind_its_remaining_fields():
-    chat = CountingChat(lambda *_: {"records": [{"label": "Hill", "identity": {
-        "site": "Hill", "year": None}, "passages": ["p1_s0"]}]})
-    found, _, issues = inventory(passages(), SCHEMA, chat, counter=WordCounter())
-    assert found == [{"label": "Hill", "identity": {"site": "Hill"}, "passages": ["p1_s0"]}] and not issues
-
-
-def test_complete_request_including_output_reserve_is_refused_without_clipping_or_inference():
-    counter = WordCounter()
-    counter.context_tokens = 4100
-    chat = CountingChat(lambda *_: pytest.fail("over-budget inference"))
-    identities, calls, issues = inventory(passages(), SCHEMA, chat, counter=counter)
-    assert not identities and not chat.calls and not calls[-1].ok
-    assert "complete source was not sent" in issues[0].detail
-    assert calls[-1].max_output_tokens == 4096
 
 
 def test_grounding_splits_claims_while_retaining_all_evidence_and_stops_at_oversized_singletons():
@@ -297,3 +253,20 @@ def test_a_bounded_root_context_keeps_as_many_reply_tokens_as_its_request_counts
     assert all(call["ok"] and call["max_output_tokens"] == 11264 - call["counted_input_tokens"]
                >= call["counted_input_tokens"] for call in roots)
     assert result["records"][0]["finds"] == FINDS
+
+
+def test_bounded_contexts_are_sized_against_the_document_value_request():
+    from kei_exp.kie.extract.article import source_contexts
+    from kei_exp.kie.extract.method import ArticleOptions
+    source = passages(["first context", "second context"])
+    measured = []
+    class Counter(WordCounter):
+        context_tokens = 8192
+        def request_tokens(self, system, user, schema=None):
+            measured.append((system, user, schema))
+            assert system.startswith(DOCUMENT)
+            assert schema == record_request('', SCHEMA, None, None, document=True)[2]
+            return 5000 if all(p.text in user for p in source) else 1000
+    groups = source_contexts(source, SCHEMA, ArticleOptions(context="bounded"), Counter())
+    assert [list(group.primary) for group in groups] == [[source[0]], [source[1]]]
+    assert measured

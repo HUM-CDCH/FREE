@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { describe, expect, it, vi } from 'vitest'
 import type { ExtractionAttemptSnapshot, ExtractionModule } from 'extraction'
 import type { DocumentReopenSnapshot } from '../../../packages/db/src/project-store.js'
@@ -29,7 +30,7 @@ const extraction: ExtractionAttemptSnapshot = {
   strategy: 'ARTICLE',
   catalogRecipe: null,
   requestedModels: null,
-  requestedSettings: { article: null },
+  requestedSettings: { article: REFERENCE_ARTICLE },
   executionStatus: 'COMPLETED',
   finalizedReview: { snapshotVersion: 1, feedbackVersion: 2, createdAt: new Date('2026-08-10T01:30:00Z') },
   batchExtractionId: null,
@@ -53,7 +54,7 @@ function snapshot(schemaTree: unknown = definition): DocumentReopenSnapshot {
       revisionNumber: 2,
       createdAt: new Date('2026-08-10T01:00:00Z'),
     },
-    annotationSet: null,
+
     extractionSchema: {
       extractionSchemaId,
       name: 'Titles',
@@ -141,20 +142,21 @@ describe('document reopen ExtractionModule projection', () => {
     expect(response.status).toBe(503)
   })
 
-  it('opens the current schema with the source declaration its revision was saved with; an unreadable one is not recorded', async () => {
+  it('opens the current schema with the source declaration its revision was saved with; an unreadable one is refused', async () => {
     const excerpted = { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
     const reopen = async (sourceCoverage: unknown) => {
       const current = snapshot()
       current.extractionSchema = { ...current.extractionSchema!, sourceCoverage }
       const response = await createGetDocumentReopen({ getDocumentReopenSnapshot: vi.fn(async () => current) },
         extractionModule())(url())
+      if (response.status !== 200) return { status: response.status }
       return documentReopenResponseSchema.parse(await response.json()).extractionSchema?.sourceCoverage
     }
 
     expect(await reopen(excerpted)).toEqual(excerpted)
     expect(await reopen({ complete: true })).toEqual({ complete: true })
     expect(await reopen(null)).toBeNull()
-    expect(await reopen([{ nodeId: 'legacy', present: 1, total: 2 }])).toBeNull()
+    expect(await reopen([{ nodeId: 'legacy', present: 1, total: 2 }])).toEqual({ status: 503 })
   })
 
   it('combines source/schema state with module-owned latest attempts', async () => {

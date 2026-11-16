@@ -11,17 +11,17 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kei_exp.kie.extract.method import ArticleOptions, CatalogFactors
+from kei_exp.kie.extract.method import REFERENCE, CatalogFactors
 from kei_exp.kie.passages import load
 from .manifest import code_pin, pin, read, validate, write_new
 
 
-def source(identifier, run, schema, methods, identity_fields, *, gold=False, pdf=None):
+def source(identifier, run, schema, methods, *, gold=False, pdf=None):
     evidence = load(run)
     return {"id": identifier, "run": str(run), "generation": evidence.generation, "digest": evidence.digest,
             "canonical_files": [pin(p) for p in sorted((run / "result").rglob("*.json"))],
             "schema": pin(schema), "pdf": pin(pdf) if pdf is not None else None,
-            "methods": methods, "identity_fields": identity_fields,
+            "methods": methods,
             "exposure": "development" if gold else "unannotated", "used_in_previous_diagnosis": True,
             "annotation": "adjudicated non-exhaustive collagen gold" if gold else "no independent field annotations"}
 
@@ -29,25 +29,23 @@ def source(identifier, run, schema, methods, identity_fields, *, gold=False, pdf
 def register(root: Path, service: Path) -> dict:
     root = root.resolve()
     models = {"fields": "instruct", "reasoning": "instruct"}
-    base = {"strategy": "article", "models": models, "article": ArticleOptions().model_dump(mode="json")}
+    base = {"strategy": "article", "models": models, "article": REFERENCE.model_dump(mode="json")}
     methods = {"reference": base}
     for name, parent, key, value in [
-        ("identity", "reference", "identity", "conservative"),
-        ("schema", "identity", "prompt", "schema"),
-        ("bounded", "schema", "context", "bounded"),
+        ("bounded", "reference", "context", "bounded"),
         ("quoted", "bounded", "grounding", "quoted"),
-        ("full_quoted", "schema", "grounding", "quoted"),
+        ("full_quoted", "reference", "grounding", "quoted"),
         ("overlap", "bounded", "overlap_passages", 1),
         ("unverified", "bounded", "grounding", "off"),
     ]:
         methods[name] = copy.deepcopy(methods[parent])
         methods[name]["article"][key] = value
+        if value == "off": methods[name]["article"].pop("grounding_overflow", None)
     article_methods = list(methods)
     comparisons = [{"control": parent, "treatment": name, "factor": f"article.{key}"}
                    for name, parent, key in [
-                       ("identity", "reference", "identity"), ("schema", "identity", "prompt"),
-                       ("bounded", "schema", "context"), ("quoted", "bounded", "grounding"),
-                       ("full_quoted", "schema", "grounding"), ("overlap", "bounded", "overlap_passages"),
+                       ("bounded", "reference", "context"), ("quoted", "bounded", "grounding"),
+                       ("full_quoted", "reference", "grounding"), ("overlap", "bounded", "overlap_passages"),
                        ("unverified", "bounded", "grounding")]]
     methods["catalog"] = {"strategy": "catalog", "models": models, "catalog": {
         "recipe": "headed-graves-da@1", "input_tokens": 4096, "output_tokens": 2048,
@@ -59,27 +57,23 @@ def register(root: Path, service: Path) -> dict:
     methods["generic_catalog"] = {"strategy": "catalog", "models": models}
     sources = []
     gold = read(root / "snapshot/validation/adjudicated-v1/gold.corrected.json")
-    identity = ["scientific_name", "tissue", "sample_scope", "sample_fraction"]
     for paper, metadata in sorted(gold["sources"].items()):
         run = Path(read(root / f"fix/full-source-v11/{paper}/pins.json")["canonical_run"])
-        sources.append(source(paper, run, root / "fix/collagen.schema.v3.json", article_methods, identity,
+        sources.append(source(paper, run, root / "fix/collagen.schema.v3.json", article_methods,
                               gold=True, pdf=Path(metadata["absolute_path"])))
     examples = read(root / "fix/examples/evaluation-plan.json")
     pdfs = {pin(p)["sha256"]: p for p in service.parents[1].joinpath("examples").rglob("*.pdf")}
     for item in examples:
         name = item["source_id"]
         variant = item.get("conversion", name)  # the plan names a fixed re-conversion when one replaced the original
-        fields = {"historical-person.json": ["person_name", "associated_enslaver"],
-                  "research-paper.json": ["study_title"], "archaeology-report.json": ["site_name", "report_id"],
-                  "collagen-groups.json": [*identity, "sample_group"], "grave-entry.json": ["grave_id"]}[Path(item["schema"]).name]
-        selected = ["reference", "schema", "bounded"] if item["strategy"] == "article" else [
+        selected = ["reference", "bounded"] if item["strategy"] == "article" else [
             "generic_catalog", "catalog", "catalog_no_overlap", "catalog_unverified"]
-        sources.append(source(name, root / f"fix/examples/conversions/{variant}", Path(item["schema"]), selected, fields,
+        sources.append(source(name, root / f"fix/examples/conversions/{variant}", Path(item["schema"]), selected,
                               pdf=pdfs[item["source_sha256"]]))
     return {"version": 1, "id": "extraction-ablation-20260927-r1", "registered_at": datetime.now(UTC).isoformat(),
             "base_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=service, text=True).strip(),
             "code_files": code_pin(service), "methods": methods, "sources": sources, "comparisons": comparisons,
-            "interactions": [{"label": "context_by_grounding", "baseline": "schema", "a": "bounded",
+            "interactions": [{"label": "context_by_grounding", "baseline": "reference", "a": "bounded",
                               "b": "full_quoted", "ab": "quoted"}],
             "repeats": 1, "order_seed": 20260927,
             "providers": {role: {"base_url": "http://127.0.0.1:18012", "model": "Qwen/Qwen3.8-27B-FP8",

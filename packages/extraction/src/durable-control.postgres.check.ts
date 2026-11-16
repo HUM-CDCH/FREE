@@ -3,7 +3,7 @@ import { randomBytes,randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { Client,Pool } from 'pg'
 import { createDisposableRuntime } from 'db/postgres-test-helpers'
-import { migrate,provisionDatabase,seedPreMigrationHistory,ARTICLE_TREE } from '../../db/src/record-scope-history-fixture.js'
+import { migrate,provisionDatabase,seedResearchPins,ARTICLE_TREE } from '../../db/src/postgres-fixture.js'
 import { createGarbageReferences } from '../../db/src/garbage-references.js'
 import { createDurableRepository,initializeDurableExtraction,DurableConflict,DurableNotFound,collectDeletedDurableGraphs,reconcileDurableAttempts } from './durable-repository.js'
 import { createResearcherExtractionPersistence } from './postgres-persistence.js'
@@ -16,7 +16,7 @@ test('boolean review requires decisions and finalizes without legacy grounding c
   const admin = new Client({connectionString: target.url}), source = new Pool({connectionString: target.url, max: 4})
   t.after(async () => { await source.end(); await admin.end(); await target.drop() })
   await migrate(target.url); await admin.connect()
-  const fixture = await seedPreMigrationHistory(admin), document = fixture.documents.d1
+  const fixture = await seedResearchPins(admin), document = fixture.documents.d1
   const representation = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1', [document.sourceRepresentationRevisionId])).rows[0]
   const repository = createDurableRepository(fixture.accountId, source)
   const nodes = [
@@ -29,7 +29,7 @@ test('boolean review requires decisions and finalizes without legacy grounding c
   ]
   const tree = {recordDescription: 'One source record', schemaNodes: nodes}
   for (const [index, strategy] of (['ARTICLE', 'CATALOG'] as const).entries()) await t.test(strategy, async () => {
-    const id = randomUUID(), schemaRevisionId = randomUUID(), settings = strategy === 'ARTICLE' ? {article: null} : {generic: null}
+    const id = randomUUID(), schemaRevisionId = randomUUID(), settings = strategy === 'ARTICLE' ? {article: REFERENCE_ARTICLE} : {generic: null}
     await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
       [schemaRevisionId, 2 + index, tree, strategy === 'ARTICLE' ? 'document' : 'records', fixture.revisions.article])
@@ -99,21 +99,18 @@ test('native pilot finalization drives batch progress and unlocks only its produ
   const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
   t.after(async()=>{await source.end();await admin.end();await target.drop()})
   await migrate(target.url);await admin.connect()
-  const fixture=await seedPreMigrationHistory(admin),batchId=randomUUID(),ids:string[]=[]
-  // This case proves native eligibility, independently of the legacy reviews
-  // deliberately supplied by the shared historical fixture.
-  await admin.query('UPDATE public.extraction SET "reviewedAt"=NULL WHERE "schemaRevisionId"=$1',[fixture.revisions.article])
+  const fixture=await seedResearchPins(admin),batchId=randomUUID(),ids:string[]=[]
   await admin.query('INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,\'ARTICLE\',$4)',
-    [batchId,fixture.projectContextId,fixture.revisions.article,{article:null}])
+    [batchId,fixture.projectContextId,fixture.revisions.article,{article: REFERENCE_ARTICLE}])
   for(const document of [fixture.documents.d1,fixture.documents.d2]) {
     const id=randomUUID();ids.push(id)
     const representation=(await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
     await admin.query('INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings","batchExtractionId") VALUES ($1,$2,$3,$4,\'ARTICLE\',$5,$6)',
-      [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null},batchId])
+      [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article: REFERENCE_ARTICLE},batchId])
     await admin.query('BEGIN')
     try{await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,
       schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,
-      requestedModels:null,requestedSettings:{article:null}});await admin.query('COMMIT')}catch(error){await admin.query('ROLLBACK');throw error}
+      requestedModels:null,requestedSettings:{article: REFERENCE_ARTICLE}});await admin.query('COMMIT')}catch(error){await admin.query('ROLLBACK');throw error}
     const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
     const node=ARTICLE_TREE.schemaNodes[0]
     const value={id:'value',recordId:'record',fieldId:node.id,path:['records',0,node.name],selectionId:head.selectionId,
@@ -132,18 +129,17 @@ test('native pilot finalization drives batch progress and unlocks only its produ
   assert.equal(batch?.members.filter(member=>member.currentReview).length,1)
   assert.equal(batch?.members.find(member=>member.extractionId===ids[0])?.currentReview?.schemaRevisionId,fixture.revisions.article)
   assert.notEqual(await persistence.stabiliseSchemaRevision(input),'not-ready')
-  assert.equal((await admin.query('SELECT "reviewedAt" FROM public.extraction WHERE id=$1',[ids[0]])).rows[0].reviewedAt,null)
   const revised=randomUUID()
   await admin.query('INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope") SELECT $1,"extractionSchemaId",2,\'RESEARCHER_EDIT\',"schemaTree\",\'document\' FROM public."schemaRevision" WHERE id=$2',[revised,fixture.revisions.article])
   const state=await repository.read(ids[0])
-  const identityMethod={models:null,settings:{article:{...REFERENCE_ARTICLE,identity:'conservative',identity_fields:['title']}}}
+  const method={models:null,settings:{article:REFERENCE_ARTICLE}}
   await assert.rejects(repository.saveSelection(ids[0],{expectedVersion:state.controlVersion,schemaRevisionId:revised,
-    method:{...identityMethod,settings:{article:{...identityMethod.settings.article,identity_fields:['missing']}}}}),
-    {code:'invalid_identity_fields'})
-  const selected=await repository.saveSelection(ids[0],{expectedVersion:state.controlVersion,schemaRevisionId:revised,method:identityMethod})
+    method:{...method,settings:{article:{...REFERENCE_ARTICLE,identity_fields:['missing']}}}}),
+    /The Extraction settings are invalid/)
+  const selected=await repository.saveSelection(ids[0],{expectedVersion:state.controlVersion,schemaRevisionId:revised,method})
   const pending=(await repository.read(ids[0])).pendingSelection
   assert.equal(pending.schemaTree.recordScope,'document')
-  assert.deepEqual(pending.method.settings.article.identity_fields,['title'])
+  assert.deepEqual(pending.method.settings.article,REFERENCE_ARTICLE)
   await repository.adoptSelection(ids[0],{expectedVersion:selected.controlVersion,selectionId:selected.selectionId,reprocessValueIds:[]})
   // A later revision of an approved schema needs no pilot of its own to be approved.
   assert.notEqual(await persistence.stabiliseSchemaRevision({...input,schemaRevisionId:revised}),'not-ready')
@@ -156,15 +152,15 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
   t.after(async()=>{await source.end();await admin.end();await target.drop()})
   await migrate(target.url);await admin.connect()
-  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d1
+  const fixture=await seedResearchPins(admin),document=fixture.documents.d1
   const representation=(await admin.query('SELECT * FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
   const id=randomUUID()
-  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article: REFERENCE_ARTICLE}])
   const client=await source.connect()
-  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article: REFERENCE_ARTICLE}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
   await assert.rejects(createDurableRepository(randomUUID(),source).read(id),DurableNotFound)
-  await assert.rejects(repository.read(fixture.extractions.article.failed),DurableNotFound)
+  await assert.rejects(repository.read(randomUUID()),DurableNotFound)
   let state=await repository.read(id),head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
   const pause={id:randomUUID(),expectedVersion:state.controlVersion,action:'pause'}
   assert.deepEqual(await repository.command(id,pause),await repository.command(id,pause))
@@ -199,7 +195,7 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   const numeric=randomUUID(),tree={...ARTICLE_TREE,schemaNodes:[{...node,type:'number'}]}
   await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope") SELECT $1,"extractionSchemaId",2,'RESEARCHER_EDIT',$2,'document' FROM public."schemaRevision" WHERE id=$3`,[numeric,tree,fixture.revisions.article])
   state=await repository.read(id)
-  const pending=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:numeric,method:{models:null,settings:{article:null}}})
+  const pending=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:numeric,method:{models:null,settings:{article: REFERENCE_ARTICLE}}})
   assert.equal((await repository.feedback(fixture.projectContextId,id,pending.selectionId))[0].targetCompatibility,'incompatible')
   assert.equal((await repository.feedback(fixture.projectContextId,id,pending.selectionId))[0].sourceDocumentId,document.sourceDocumentId)
   assert.equal((await repository.feedback(fixture.projectContextId,id,head.selectionId))[0].targetCompatibility,'compatible')
@@ -239,7 +235,6 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   assert.equal((await extractionPersistence.readExtractionAttempt(id))?.executionStatus,'PAUSED')
   assert.equal((await extractionPersistence.readExtractionAttempt(id))?.finalizedReview?.snapshotVersion,3)
   assert.equal((await extractionPersistence.readDocumentExtractions({sourceDocumentId:document.sourceDocumentId}))?.latestReviewed?.extractionId,id)
-  assert.equal((await admin.query('SELECT outcome FROM public.extraction WHERE id=$1',[id])).rows[0].outcome,null)
   state=await repository.read(id)
   await repository.command(id,{id:randomUUID(),expectedVersion:state.controlVersion,action:'resume'})
   const dispatched:string[]=[]
@@ -280,7 +275,7 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   assert.deepEqual(await repository.command(id,pausing),paused)
   state=await repository.read(id)
   assert.equal(state.status,'COMPLETED');assert.equal(state.controlVersion,paused.controlVersion)
-  const afterCompletion=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:numeric,method:{models:null,settings:{article:null}}})
+  const afterCompletion=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:numeric,method:{models:null,settings:{article: REFERENCE_ARTICLE}}})
   await repository.adoptSelection(id,{expectedVersion:afterCompletion.controlVersion,selectionId:afterCompletion.selectionId,reprocessValueIds:[]})
   await repository.command(id,{id:randomUUID(),expectedVersion:(await repository.read(id)).controlVersion,action:'resume'})
   head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
@@ -321,16 +316,16 @@ test('deleted durable graphs retain their pins until fenced worker history remov
   const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
   t.after(async()=>{await source.end();await admin.end();await target.drop()})
   await migrate(target.url);await admin.connect()
-  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d1,id=randomUUID()
+  const fixture=await seedResearchPins(admin),document=fixture.documents.d1,id=randomUUID()
   const representation=(await admin.query('SELECT * FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
   await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
-    VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
+    VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article: REFERENCE_ARTICLE}])
   await admin.query('BEGIN')
   try {
     await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
       sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,
       schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,
-      requestedModels:null,requestedSettings:{article:null}})
+      requestedModels:null,requestedSettings:{article: REFERENCE_ARTICLE}})
     await admin.query('COMMIT')
   } catch(error) {await admin.query('ROLLBACK');throw error}
   const initial=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
@@ -401,12 +396,12 @@ test('a Value Disagreement decision binds to its readings: choices apply until t
   const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
   t.after(async()=>{await source.end();await admin.end();await target.drop()})
   await migrate(target.url);await admin.connect()
-  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d1
+  const fixture=await seedResearchPins(admin),document=fixture.documents.d1
   const representation=(await admin.query('SELECT * FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
   const id=randomUUID()
-  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article: REFERENCE_ARTICLE}])
   const client=await source.connect()
-  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article: REFERENCE_ARTICLE}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
   const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
   const readings=(values:unknown[],segment='p3_s0')=>values.map(reading=>({value:reading,segments:[segment]}))
@@ -465,12 +460,12 @@ test('the review page reads the run diagnostics of the completion snapshot shown
   const admin=new Client({connectionString:target.url}),source=new Pool({connectionString:target.url,max:4})
   t.after(async()=>{await source.end();await admin.end();await target.drop()})
   await migrate(target.url);await admin.connect()
-  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d1
+  const fixture=await seedResearchPins(admin),document=fixture.documents.d1
   const representation=(await admin.query('SELECT * FROM public."sourceRepresentationRevision" WHERE id=$1',[document.sourceRepresentationRevisionId])).rows[0]
   const id=randomUUID()
-  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article: REFERENCE_ARTICLE}])
   const client=await source.connect()
-  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article: REFERENCE_ARTICLE}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
   const node=ARTICLE_TREE.schemaNodes[0]
   const publish=(head:{attemptId:string;selectionId:string},epoch:number,identity:string,values:unknown[],coverage:Record<string,unknown>)=>
@@ -506,7 +501,7 @@ test('the review page reads the run diagnostics of the completion snapshot shown
   const revised=randomUUID()
   await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope") SELECT $1,"extractionSchemaId",2,'RESEARCHER_EDIT',"schemaTree",'document' FROM public."schemaRevision" WHERE id=$2`,[revised,fixture.revisions.article])
   let state=await repository.read(id)
-  const selected=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:revised,method:{models:null,settings:{article:null}}})
+  const selected=await repository.saveSelection(id,{expectedVersion:state.controlVersion,schemaRevisionId:revised,method:{models:null,settings:{article: REFERENCE_ARTICLE}}})
   await repository.adoptSelection(id,{expectedVersion:selected.controlVersion,selectionId:selected.selectionId,reprocessValueIds:['title']})
   state=await repository.read(id)
   await repository.command(id,{id:randomUUID(),expectedVersion:state.controlVersion,action:'resume'})

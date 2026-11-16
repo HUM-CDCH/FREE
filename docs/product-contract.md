@@ -68,10 +68,10 @@ FREE's normative product and safety contract is:
    Model Choice and the Ingestion Model Choice. It also holds the account's
    Extraction Method Settings: per Extraction Strategy, how future Extractions
    run (the Model Configuration page's Advanced tab). Unset settings keep the
-   service defaults, except for Article: an Article Extraction started from a
-   current Studio page records Studio's default explicitly (the whole source,
-   large checks in windows), while
-   a page loaded before that default records none. Saved settings never edit an
+   service defaults. Article records the shared Studio and Parsing Service
+   default explicitly: the whole source, large checks in windows. Null Article
+   settings and retired Article keys are refused. Unified Catalog accepts only
+   defaults 5 (Pro) and 10. Saved settings never edit an
    Extraction Schema and never hold a key. A Project Context uses its owner's configuration. The
    Model Configuration page supports Ollama, OpenAI, Anthropic, Google, vLLM
    and OpenAI-compatible connections. A researcher's API keys stay in their
@@ -99,6 +99,11 @@ FREE's normative product and safety contract is:
    role, and starts Studio without the administrative credential. Each process
    migrates its own DBOS system schema (`dbos`, `kei_dbos`) when it launches. Normal startup never resets the database or
    seeds an account, Project Context, provider, route, or credential.
+   The legacy-retirement migration refuses incompatible persisted settings and
+   JSON shapes before dropping obsolete columns or tables. It never rewrites a
+   pinned method into another version. Delete incompatible development rows or
+   explicitly run the guarded local `pnpm db:reset` before retrying migration;
+   production is never reset.
 9. **Proxy parity.** Production runs behind the host-managed nginx or the
    bundled nginx container; local uses containerized nginx. All render the
    same version-controlled proxy fragment for `/free` routing, forwarded

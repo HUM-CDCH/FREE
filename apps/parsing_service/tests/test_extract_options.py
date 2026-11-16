@@ -4,6 +4,7 @@ from pydantic import ValidationError
 
 from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.run import Options
+from kei_exp.kie.extract.method import REFERENCE
 
 
 def test_a_page_scope_is_refused_as_an_unknown_option():
@@ -13,7 +14,8 @@ def test_a_page_scope_is_refused_as_an_unknown_option():
 
 def test_dumped_article_options_are_exactly_the_recorded_ones():
     assert Options(strategy="article").dumped() == {
-        "strategy": "article", "models": None, "discovery_chars": 48_000, "record_chars": 24_000}
+        "strategy": "article", "models": None, "discovery_chars": 48_000, "record_chars": 24_000,
+        "article": REFERENCE.model_dump()}
 
 
 def test_dumped_recipe_catalog_options_are_exactly_the_recorded_ones():

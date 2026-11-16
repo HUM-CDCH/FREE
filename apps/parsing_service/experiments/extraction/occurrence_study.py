@@ -316,8 +316,7 @@ def run(output, arm):
         evidence = Evidence(case["id"], "synthetic-v1", manifest["inputs"]["sha256"],
                             "synthetic.txt", max(p.page for p in source), source)
         request = ExtractRequest(schema=case["schema"], options={"strategy": "article", "article": {
-            "context": "bounded", "context_tokens": 131072, "grounding": "spans",
-            "grounding_schedule": "unresolved", "grounding_routing": "origin_lexical"}})
+            "context": "bounded", "context_tokens": 131072, "grounding": "spans"}})
         providers = {role: Capture(Scripted(role, case["provider_mode"]), target / "calls", role)
                      for role in ("fields", "reasoning")}
         started = time.perf_counter()

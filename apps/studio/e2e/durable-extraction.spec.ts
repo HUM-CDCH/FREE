@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { expect,test,type Page } from '@playwright/test'
 import { createHash,randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
@@ -98,7 +99,7 @@ test('results identify an older template and a new Article admission survives re
       admitted=fresh.id
       await route.fulfill({status:201,json:{extractionId:fresh.id,sourceDocumentId:fixture.sourceDocumentId,
         sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,strategy:'ARTICLE',catalogRecipe:null,
-        requestedModels:null,requestedSettings:null,executionStatus:'COMPLETED',finalizedReview:null,batchExtractionId:null,createdAt:new Date().toISOString()}})
+        requestedModels:null,requestedSettings:{ article: REFERENCE_ARTICLE },executionStatus:'COMPLETED',finalizedReview:null,batchExtractionId:null,createdAt:new Date().toISOString()}})
     })
     await page.getByRole('button',{name:'↻ Re-run extraction',exact:true}).click()
     await expect(page.getByText('New article metadata',{exact:true})).toBeVisible()
@@ -138,7 +139,7 @@ test('every durable API rejects unauthenticated and foreign owners, wrong origin
     const reads=[root,`${root}/source`,`${root}/history`,`${root}/values`,`${root}/values/title`,feedback,`${feedback}?target=${id}`]
     const writes:[string,object][]=[
       [`${root}/control`,{id:randomUUID(),expectedVersion:state.controlVersion,action:'pause'}],
-      [`${root}/selection`,{expectedVersion:state.controlVersion,schemaRevisionId,method:{models:null,settings:{article:null}}}],
+      [`${root}/selection`,{expectedVersion:state.controlVersion,schemaRevisionId,method:{models:null,settings:{article: REFERENCE_ARTICLE}}}],
       [`${root}/adopt`,{expectedVersion:state.controlVersion,selectionId:state.selection.id,reprocessValueIds:[]}],
       [`${root}/values/title`,{expectedRevision:0,snapshotVersion:1,action:'EDITED',value:'Refused write',included:true,evidence:[]}],
       [`${root}/finalize`,{snapshotVersion:1,feedbackVersion:0}],
@@ -186,8 +187,8 @@ test('saved live review survives reload, rejects another owner and exports its f
   try {
     const revision=(await fixture.schemaRevisions())[0].schemaRevisionId,id=randomUUID()
     await withPoolClientTransaction(async(_tx,client)=> {
-      await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,fixture.sourceDocumentId,fixture.sourceRepresentationRevisionId,revision,{article:null}])
-      await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,schemaTree:{recordDescription:'One interactive record.',schemaNodes:INTERACTIVE_SCHEMA_NODES},strategy:'ARTICLE',catalogRecipe:null,preprocessId:`kei-exp:e2e-${fixture.sourceRepresentationRevisionId}:g1`,requestedModels:null,requestedSettings:{article:null}})
+      await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,fixture.sourceDocumentId,fixture.sourceRepresentationRevisionId,revision,{article: REFERENCE_ARTICLE}])
+      await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,schemaTree:{recordDescription:'One interactive record.',schemaNodes:INTERACTIVE_SCHEMA_NODES},strategy:'ARTICLE',catalogRecipe:null,preprocessId:`kei-exp:e2e-${fixture.sourceRepresentationRevisionId}:g1`,requestedModels:null,requestedSettings:{article: REFERENCE_ARTICLE}})
       const head=(await client.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
       const values=INTERACTIVE_SCHEMA_NODES.map(node=>({id:node.id,recordId:'document',fieldId:node.id,path:['records',0,node.name],selectionId:head.selectionId,schemaRevisionId:revision,node,modelValue:node.id==='title'?'Original title':2026,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}))
       await client.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,1,$3,$4,$5,'{"incomplete":true}')`,[randomUUID(),id,head.selectionId,'a'.repeat(64),JSON.stringify(values)])
@@ -554,7 +555,7 @@ for(const status of ['PAUSED','FAILED','STOPPED'] as const) {
       const parsed=decodeParsedDocument((await (await page.request.get(`/api/extractions/${first.id}/durable/source`)).json()).document)
       const secondSource=await savedBatchSource(fixture,parsed,'second.pdf')
       const second=await savedExtraction(secondSource,nodes,['Second saved title'],status,{schemaRevisionId:first.schemaRevisionId})
-      await pool.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,[batchId,fixture.projectContextId,first.schemaRevisionId,{article:null}])
+      await pool.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,[batchId,fixture.projectContextId,first.schemaRevisionId,{article: REFERENCE_ARTICLE}])
       await pool.query(`UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])`,[batchId,[first.id,second.id]])
       await page.goto(`/projects/${fixture.projectContextId}/extractions/${batchId}`)
       await expect(page.getByText(`2 ${status.toLowerCase()}`,{exact:true})).toBeVisible()
@@ -588,7 +589,7 @@ test('a mixed retained batch counts an empty failed member and exports its fixed
     const emptySource=await savedBatchSource(fixture,source,'empty.pdf'),stoppedSource=await savedBatchSource(fixture,source,'stopped.pdf')
     const empty=await savedExtraction(emptySource,nodes,[],'FAILED',{schemaRevisionId:first.schemaRevisionId,empty:true})
     const stopped=await savedExtraction(stoppedSource,nodes,['Stopped retained title'],'STOPPED',{schemaRevisionId:first.schemaRevisionId})
-    await pool.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,[batchId,fixture.projectContextId,first.schemaRevisionId,{article:null}])
+    await pool.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,[batchId,fixture.projectContextId,first.schemaRevisionId,{article: REFERENCE_ARTICLE}])
     await pool.query(`UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])`,[batchId,[first.id,empty.id,stopped.id]])
     await page.goto(`/projects/${fixture.projectContextId}/extractions/${batchId}`)
     const summary=page.getByText(/1 paused/)
