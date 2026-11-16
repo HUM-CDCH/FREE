@@ -2,7 +2,7 @@
 
 Decision this plan serves: FREE is not in production, so the tree keeps no code that exists only to read old runs,
 old settings or historical generations. Stored dev data need not stay readable; no version flags replace removed code.
-Nothing below has been changed yet. Base: `origin/dev` at `dd54a55b`; grounding items also read PR #390
+Status: tier 1 landed first on this branch; tier 2 (migration `20261116T0040_retire_legacy_contracts`) and tier 3 (unified as the only Catalog, migration `20261116T0847_unified_catalog`) were then merged in from their own branches. The tier 2 and 3 tables are the survey as written, not a checklist of what landed. Original base: `origin/dev` at `dd54a55b`; grounding items also read PR #390
 (`codex/record-aware-grounding`), which another session owns.
 
 ## The finding that reorders everything
