@@ -39,38 +39,51 @@ def test_record_evidence_shares_the_source_and_reserves_the_complete_reply():
     assert seen[0]["max_tokens"] >= len(json.dumps(longest).encode("utf-8")) > 2048
 
 
-def test_evidence_cut_inside_a_word_is_cited_with_the_passage_that_finishes_it():
-    source = passages(["The RF group was signifi-", "Running Header", "cantly higher than the CF group (34.51)."])
-    source[1] = replace(source[1], label="PageHeader")
-    schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
-        {"id": "c", "name": "cf", "type": "number"}, {"id": "s", "name": "significant", "type": "string"}]})
-    links, _, issues = grounding.verify(source, {"cf": 34.51, "significant": "yes"}, schema,
-                                        CountingChat(lambda *_: {"C1": "E1", "C2": "E1"}), record=0, projected=True)
-    whole = lambda passage: {"segment": passage.id, "start": 0, "end": len(passage.text)}
-    # The half printing the value is primary; a value neither half prints keeps the model's choice.
-    assert not issues and [(link.segment, link.context) for link in links] == [
-        (source[2].id, (whole(source[0]),)), (source[0].id, (whole(source[2]),))]
-
-
-def test_evidence_a_page_end_cuts_mid_sentence_is_cited_with_the_next_pages_first_text():
-    # No hyphen marks it, and the parser glued the page number to the rest: the page end alone says it continues.
-    first = passages(["Higher than snapper (39.57), silver"])
-    rest = passages(["Running Header", "10 of 16 pomfret (40.89) and sole.", "A new paragraph."], page=2)
+@pytest.mark.parametrize("page", [2, 1], ids=["page-end", "column-end"])
+def test_a_word_split_by_a_hyphen_is_cited_whole_whichever_half_the_model_chooses(page):
+    # I3: the first half names the sample, the second prints the value, on the next page or in the next column of
+    # the same page, with page furniture between them.
+    first = passages(["For Sample A, a sig-"])
+    rest = [replace(each, id=f"q{n}") for n, each in enumerate(
+        passages(["Running Header", "nificant yield of 20 fragments was recorded."], page=page))]
     rest[0] = replace(rest[0], label="PageHeader")
-    schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
-        {"id": "p", "name": "pomfret", "type": "number"}, {"id": "s", "name": "species", "type": "string"}]})
-    fields = {"pomfret": 40.89, "species": "silver pomfret"}
-    answer = lambda *_: {"C1": "E1", "C2": "E1"}
-    links, _, issues = grounding.verify([*first, *rest], fields, schema, CountingChat(answer), record=0, projected=True)
+    schema = Schema.model_validate({"recordDescription": "One sample", "schemaNodes": [
+        {"id": "y", "name": "yield", "type": "number"}]})
     whole = lambda passage: {"segment": passage.id, "start": 0, "end": len(passage.text)}
-    assert not issues and [(link.segment, link.context) for link in links] == [
-        (rest[1].id, (whole(first[0]),)), (first[0].id, (whole(rest[1]),))]
-    # On one page nothing says the next text continues it, nor does a finished sentence at a page end.
-    for source in ([*first, *passages(["pomfret (40.89) and sole."])[:1]],
-                   [*passages(["Higher than snapper (39.57)."]), *rest]):
-        source[1:] = [replace(each, id=f"q{n}") for n, each in enumerate(source[1:])]
-        links, _, _ = grounding.verify(source, fields, schema, CountingChat(answer), record=0, projected=True)
-        assert [(link.segment, link.context) for link in links] == [(source[0].id, ())] * 2
+    seen = {}
+    for chosen in ("E1", "E3"):
+        links, _, issues = grounding.verify([*first, *rest], {"yield": 20}, schema,
+                                            CountingChat(lambda *_, chosen=chosen: {"C1": chosen}), record=0,
+                                            projected=True, located=True)
+        assert not issues
+        seen[chosen] = [(link.segment, link.verbatim, link.location and link.location["raw"], link.context)
+                        for link in links]
+    # Either choice stays primary, verbatim and located only where it prints the value; the other half is context.
+    assert seen == {"E1": [(first[0].id, False, None, (whole(rest[1]),))],
+                    "E3": [(rest[1].id, True, "20", (whole(first[0]),))]}
+
+
+@pytest.mark.parametrize("label", ["Text", "ListItem"])
+def test_a_page_end_never_moves_the_models_evidence_to_another_subject_on_the_next_page(label):
+    # I1: the next page's first text of the same kind prints the value, but for Sample B; the model chose Sample A.
+    schema = Schema.model_validate({"recordDescription": "One sample", "schemaNodes": [
+        {"id": "f", "name": "fragments", "type": "number"}]})
+    whole = lambda passage: {"segment": passage.id, "start": 0, "end": len(passage.text)}
+    def grounded(end, start):
+        first = [replace(passages([end])[0], label=label)]
+        rest = passages(["Running Header", start], page=2)
+        rest = [replace(rest[0], label="PageHeader"), replace(rest[1], label=label)]
+        links, _, issues = grounding.verify([*first, *rest], {"fragments": 20}, schema,
+                                            CountingChat(lambda *_: {"C1": "E1"}), record=0, projected=True,
+                                            located=True)
+        assert not issues
+        return [(link.segment, link.verbatim, link.location, link.context) for link in links], first[0], rest[1]
+    # A page end without a hyphen joins nothing: Sample B's sentence is neither primary nor context.
+    links, first, _ = grounded("Sample A contained twenty fragments", "Sample B contained 20 fragments.")
+    assert links == [(first.id, False, None, ())]
+    # A hyphen joins the word's other half as context; the half printing the value still does not become primary.
+    links, first, rest = grounded("Sample A contained twenty frag-", "ments; Sample B contained 20.")
+    assert links == [(first.id, False, None, (whole(rest),))]
 
 
 def test_a_word_break_never_crosses_content_or_a_heading_to_move_the_models_evidence():
@@ -86,10 +99,31 @@ def test_a_word_break_never_crosses_content_or_a_heading_to_move_the_models_evid
     # A heading between the halves is not the word's end either, even in lower case.
     source = passages(["The RF group was signifi-", "foods", "cantly higher than the CF group (34.51)."])
     source[1] = replace(source[1], label="SectionHeader")
-    links, _, issues = grounding.verify(source, {"cf": 34.51}, Schema.model_validate({
-        "recordDescription": "One study", "schemaNodes": [{"id": "c", "name": "cf", "type": "number"}]}),
-        CountingChat(answer), record=0, projected=True)
+    cf = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
+        {"id": "c", "name": "cf", "type": "number"}]})
+    links, _, issues = grounding.verify(source, {"cf": 34.51}, cf, CountingChat(answer), record=0, projected=True)
     assert not issues and [(link.segment, link.context) for link in links] == [(source[0].id, ())]
+    # Nor is the second half, chosen itself, joined back across a heading or other content to the hyphen before them.
+    for between in ("SectionHeader", "Text"):
+        source[1] = replace(source[1], label=between)
+        links, _, issues = grounding.verify(source, {"cf": 34.51}, cf, CountingChat(lambda *_: {"C1": "E3"}),
+                                            record=0, projected=True)
+        assert not issues and [(link.segment, link.context) for link in links] == [(source[2].id, ())]
+
+
+def test_a_cells_table_named_again_as_its_items_context_is_cited_once():
+    table = table_passage([["Sample", "Yield"], ["A", "20"]])
+    schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
+        {"id": "t", "name": "title", "type": "string"},
+        {"id": "s", "name": "samples", "type": "array", "children": [
+            {"id": "n", "name": "name", "type": "string"}, {"id": "y", "name": "yield", "type": "number"}]}]})
+    # E1 is the whole table (offered for the title, which no cell prints), E4 and E5 the item's cells.
+    reply = {"C1": "E1", "G1": ["E1"], "C2": "E4", "C3": "E5"}
+    links, _, issues = grounding.verify([table], {"title": "Yields", "samples": [{"name": "A", "yield": 20}]},
+                                        schema, CountingChat(lambda *_: reply), record=0, projected=True)
+    whole = {"segment": table.id, "start": 0, "end": len(table.text)}
+    assert not issues and [(link.cell, link.context) for link in links] == [
+        (None, ()), ("r1_c0", (whole,)), ("r1_c1", (whole,))]
 
 
 def test_article_retains_an_items_identity_evidence_on_its_claims_and_no_context_for_the_record_itself():

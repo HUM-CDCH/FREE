@@ -416,12 +416,10 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not offered", record, path))
             else:
                 candidate = labelled[label]
-                whole = candidate.passage if bundled and candidate.cell is not None else _continuation(
-                    passages, candidate.passage) if bundled else None
-                if whole is not None:
-                    if candidate.cell is None and contains(whole.text, value) and not contains(candidate.text, value):
-                        candidate, whole = _Candidate(whole), candidate.passage  # the half printing the value is primary
-                    context += ({"segment": whole.id, "start": 0, "end": len(whole.text)},)
+                if bundled:  # the model's choice stays primary: a cell's table, or a split word's other half, is context
+                    joined = [candidate.passage] if candidate.cell is not None else _word_break(passages, candidate.passage)
+                    context += tuple(whole for whole in ({"segment": each.id, "start": 0, "end": len(each.text)}
+                                                         for each in joined) if whole not in context)
                 links.append(_link(path, candidate, contains(candidate.text, value), "model",
                                    _location(candidate, value) if located else None, context))
                 if quoted and proofs is not None:
@@ -440,22 +438,22 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     return links, calls, issues
 
 
-def _continuation(passages: Sequence[Passage], broken: Passage) -> Passage | None:
-    """The passage finishing what `broken` leaves cut at its end, with only page headers and footers between: the
-    rest of a word split by a hyphen (`signifi-`, then `cantly`), starting in lower case on its page or the following,
-    or the rest of a sentence a page end cuts, the next page's first text of its kind. Text flow, not meaning:
-    evidence cut at its end is cited whole, and no other content or heading is crossed to find the rest."""
+def _word_break(passages: Sequence[Passage], passage: Passage) -> list[Passage]:
+    """The passages sharing a word a hyphen splits with `passage`, before or after it: `signifi-` ending one and
+    `cantly` starting the next in lower case, on its page or the following, with only page headers and footers
+    between. A heading is neither half. Text flow, not meaning: an unhyphenated page end joins nothing, since the next
+    page may begin with another subject's text, while a hyphen that splits no word (`Rh-`, `pre-`) still attaches
+    its neighbour, as context only."""
     # shortcut: only an ASCII hyphen marks a word break; add the other hyphen characters when a parser emits them.
-    ending = broken.text.rstrip()
-    word = re.search(r"[^\W\d]-$", ending)
-    if not word and not re.search(r"[\w,]$", ending):
-        return None
-    after = next((each for each in passages[passages.index(broken) + 1:] if each.label not in FURNITURE), None)
-    if after is None or after.label in HEADINGS or after.page > broken.page + 1:
-        return None
-    if after.text.lstrip()[:1].islower() if word else after.page > broken.page and after.label == broken.label:
-        return after
-    return None
+    def splits(first: Passage, rest: Passage) -> bool:
+        return (first.label not in HEADINGS and rest.label not in HEADINGS and rest.page <= first.page + 1
+                and re.search(r"[^\W\d]-$", first.text.rstrip()) is not None and rest.text.lstrip()[:1].islower())
+    content = [each for each in passages if each.label not in FURNITURE]
+    if passage not in content:
+        return []
+    at = content.index(passage)
+    return ([each for each in content[at - 1:at] if splits(each, passage)]
+            + [each for each in content[at + 1:at + 2] if splits(passage, each)])
 
 
 def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, linked_by: str,
