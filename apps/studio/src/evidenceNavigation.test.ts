@@ -17,6 +17,15 @@ describe('source-document Evidence navigation', () => {
     expect(result[1].location).toBeUndefined()
     expect(result[1].contextOnly).toBe(true)
   })
+  it('keeps attribution context that shares the value\'s own segment, once per segment', () => {
+    const link = { resultPath: ['records', 0, 'name'], evidenceAnchorId: 'a_p1_s0', precision: 'segment' as const,
+      contextSpans: [{ segment: 'p1_s0', start: 12, end: 21 }, { segment: 'p1_s0', start: 22, end: 30 }],
+      location: { textSpans: [{ segment: 'p1_s0', start: 6, end: 11 }], raw: 'Smith' } }
+    const result = sourceEvidenceLinks(link, new Set(['a_p1_s0']))
+    expect(result).toHaveLength(2)
+    expect(result[0]).toBe(link)
+    expect(result[1]).toMatchObject({ evidenceAnchorId: 'a_p1_s0', contextOnly: true, location: undefined })
+  })
   it('accepts rotated page-space geometry and rejects unsafe bounds', () => {
     const anchor = { kind: 'text' as const, anchor_id: 'a', content_sha256: 'a'.repeat(64), preprocess_id: 'p', block_id: 'b', markdown_span: { start: 0, end: 1 }, producer_observations: [{ occurrence_id: 'o', page_number: 1, producer_ref: '#/texts/1', bbox: { x0: 1, y0: 2, x1: 4, y1: 6 } }] }
     const occurrence = anchor.producer_observations[0]

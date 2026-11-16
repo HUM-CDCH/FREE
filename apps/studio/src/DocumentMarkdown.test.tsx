@@ -59,7 +59,8 @@ describe('the Markdown view', () => {
     fireEvent.click(year)
     expect(onSelect).toHaveBeenCalledWith(['year'], year)
     expect(screen.getAllByRole('button')).toHaveLength(2)
-    if (selected) expect(screen.getByTitle('Attribution context').textContent).toBe('Year: ')
+    // The selected value's context is shown in its own segment too, around its mark.
+    if (selected) expect(screen.getAllByTitle('Attribution context').map(each => each.textContent)).toEqual(['Name: ', 'Year: '])
   })
 
   it('marks a value at its anchor\'s byte span, past multi-byte text, and selects it', () => {
@@ -113,6 +114,67 @@ describe('the Markdown view', () => {
   it('says when there is no Markdown', () => {
     render(<TestMarkdown markdown={null} document={null} marks={null} />)
     expect(screen.getByText('Markdown unavailable')).toBeInTheDocument()
+  })
+})
+
+describe('attribution context in the value\'s own segment', () => {
+  const passage = 'Name: Smith Rome 1901'
+  const anchor = { kind: 'text', anchor_id: 'a_p1_s0', block_id: 'b_p1_s0', markdown_span: { start: 0, end: bytes(passage) } }
+  const document = { evidence_index: { anchors: [anchor] },
+    content_stream: [{ block_id: 'b_p1_s0', kind: 'paragraph', text: passage }] } as unknown as ParsedDocument
+  const describe = new Map<string, MarkInfo>([['name', { name: 'Name', value: 'Smith', word: null, style: 'link' }],
+    ['year', { name: 'Year', value: '1901', word: null, style: 'link' }]])
+  const saved = (key: string, value: [number, number], context: [number, number]) => sourceEvidenceLinks({
+    resultPath: ['records', 0, key], evidenceAnchorId: 'a_p1_s0', precision: 'segment',
+    location: { textSpans: [{ segment: 'p1_s0', start: value[0], end: value[1] }], raw: passage.slice(...value) },
+    contextSpans: [{ segment: 'p1_s0', start: context[0], end: context[1] }],
+  }, new Set(['a_p1_s0'])).map(link => ({ key, link }))
+  const shown = (selected: string | null, savedLinks: RailMarkState['savedLinks'], onSelect = vi.fn()) =>
+    render(<TestMarkdown markdown={passage} document={document} marks={{ describe, selected, savedLinks, onSelect }} />)
+  const contexts = () => screen.queryAllByTitle('Attribution context').map(each => each.textContent)
+
+  it('shows the selected value\'s mark and its context beside it', () => {
+    shown('name', saved('name', [6, 11], [12, 21]))
+    const name = screen.getByRole('button', { name: 'Name: Smith' })
+    expect(name.textContent).toBe('Smith')
+    expect(name).toHaveAttribute('aria-current', 'true')
+    expect(contexts()).toEqual(['Rome 1901'])
+    expect(screen.getByTitle('Attribution context').tagName).toBe('SPAN')
+    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(passage)
+  })
+
+  it('keeps context unmarked while its value is not selected', () => {
+    shown(null, saved('name', [6, 11], [12, 21]))
+    expect(screen.getByRole('button', { name: 'Name: Smith' }).textContent).toBe('Smith')
+    expect(contexts()).toEqual([])
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(passage)
+  })
+
+  it('keeps the value\'s mark whole inside a record range that contains it', () => {
+    const onSelect = vi.fn()
+    shown('name', saved('name', [6, 11], [0, 21]), onSelect)
+    const name = screen.getByRole('button', { name: 'Name: Smith' })
+    expect(name.textContent).toBe('Smith')
+    expect(name.querySelector('button, [title]')).toBeNull()
+    expect(contexts()).toEqual(['Name: ', ' Rome 1901'])
+    fireEvent.click(name)
+    expect(onSelect).toHaveBeenCalledWith(['name'], name)
+    expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(passage)
+  })
+
+  it.each([null, 'year'])('selects one value, not the others in its record, with %s selected', selected => {
+    const onSelect = vi.fn()
+    shown(selected, [...saved('name', [6, 11], [0, 21]), ...saved('year', [17, 21], [0, 21])], onSelect)
+    const name = screen.getByRole('button', { name: 'Name: Smith' }), year = screen.getByRole('button', { name: 'Year: 1901' })
+    expect(screen.getAllByRole('button')).toHaveLength(2)
+    expect(name).not.toHaveAttribute('aria-current')
+    if (selected) expect(year).toHaveAttribute('aria-current', 'true')
+    fireEvent.click(name)
+    expect(onSelect).toHaveBeenLastCalledWith(['name'], name)
+    fireEvent.click(year)
+    expect(onSelect).toHaveBeenLastCalledWith(['year'], year)
+    expect(contexts()).toEqual(selected ? ['Name: ', ' Rome '] : [])
   })
 })
 

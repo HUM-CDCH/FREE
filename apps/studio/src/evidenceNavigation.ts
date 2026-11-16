@@ -26,7 +26,8 @@ export function sourceEvidenceLinks(link: EvidenceLink, anchors: ReadonlySet<str
   }
   for (const { segment } of link.contextSpans ?? []) {
     const id = `a_${segment}`
-    if (!anchors.has(id) || links.some(each => each.evidenceAnchorId === id)) continue
+    // A record's context often shares the value's own segment: it is drawn beside the value's marks, never folded into them.
+    if (!anchors.has(id) || links.some(each => each.contextOnly && each.evidenceAnchorId === id)) continue
     // Context locates attribution; the primary value's highlights do not belong on it.
     links.push({ ...link, contextOnly: true, evidenceAnchorId: id, precision: 'segment', valueBoxes: undefined,
       location: undefined, grounding: undefined })
