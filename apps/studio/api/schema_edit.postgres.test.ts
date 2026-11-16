@@ -22,6 +22,7 @@ import { startScriptedModelServer, type ScriptedModelServer } from '../test/supp
 import { suggestionResearcherStore } from '../test/support/suggestionWorkflow.js'
 import { deploymentModels } from './_deployment_models.js'
 import { createModelKeyCache } from './_model_keys.js'
+import { respondToSchemaEdit } from './_schema_chat.js'
 import { proposeSchemaEdit } from './_schema_edit.js'
 import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { registerSchemaEditWorkflow, type SchemaEditPorts } from './_schema_edit_workflow.js'
@@ -52,6 +53,8 @@ const ports: SchemaEditPorts = {
   propose: proposeSchemaEdit,
   generate: (caller, input) =>
     generateSchemaWithModel(caller, input, undefined, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
+  respond: (caller, input, question) =>
+    respondToSchemaEdit(caller, input, question, { keys, keyWaitMs: 400, deployment: deploymentModels({}) }),
 }
 
 type Base = { extractionSchemaId: string; schemaRevisionId: string }

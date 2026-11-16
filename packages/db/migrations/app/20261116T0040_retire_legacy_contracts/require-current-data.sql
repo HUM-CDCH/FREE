@@ -4,6 +4,7 @@ WITH methods(value) AS (
   UNION ALL SELECT method->'settings' FROM extraction_runtime.selection
 ), retired AS (
   SELECT 1 FROM methods WHERE value IS NULL OR jsonb_typeof(value) <> 'object'
+    OR value ?| ARRAY['generic','recipe']
     OR (value ? 'article' AND (jsonb_typeof(value->'article') <> 'object'
       OR value->'article' ?| ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing']))
     OR (value ? 'unified' AND (value->'unified'->'defaults' IS DISTINCT FROM '11'::jsonb OR value->'unified' ? 'verification'))

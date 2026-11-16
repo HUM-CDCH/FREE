@@ -5,7 +5,7 @@ import { cpSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
 import { Client } from 'pg'
-import { migrate, provisionDatabase, seedExtraction, seedResearchPins } from './postgres-fixture.js'
+import { CATALOG_TREE, migrate, provisionDatabase, seedExtraction, seedResearchPins } from './postgres-fixture.js'
 
 test('retirement refuses historical pins before changes, preserves current pins, and replays once', async t => {
   const base = process.env.PROJECT_STORE_POSTGRES_URL
@@ -31,13 +31,13 @@ test('retirement refuses historical pins before changes, preserves current pins,
   const pins = await seedResearchPins(client)
   const seed = async (settings: unknown) => {
     const id = await seedExtraction(client, pins)
-    const unified = settings !== null && typeof settings === 'object' && 'unified' in settings
-    if (unified) await client.query(`UPDATE public.extraction SET strategy='CATALOG',"schemaRevisionId"=$2 WHERE id=$1`, [id, pins.revisions.catalog])
+    const catalog = settings !== null && typeof settings === 'object' && ['unified', 'generic', 'recipe'].some(key => key in settings)
+    if (catalog) await client.query(`UPDATE public.extraction SET strategy='CATALOG',"schemaRevisionId"=$2 WHERE id=$1`, [id, pins.revisions.catalog])
     await client.query('UPDATE public.extraction SET "requestedSettings"=$2 WHERE id=$1', [id, settings])
     await client.query(`INSERT INTO extraction_runtime.head
       (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,fence,"leaseEpoch",generation,"snapshotVersion",deleted)
       VALUES ($1,$2,$3,$4,$6,$5,'STOP',0,false,'STOPPED',0,0,1,0,false)`,
-    [id, pins.projectContextId, pins.documents.d1.sourceRepresentationRevisionId, {}, randomUUID(), unified ? 'CATALOG' : 'ARTICLE'])
+    [id, pins.projectContextId, pins.documents.d1.sourceRepresentationRevisionId, {}, randomUUID(), catalog ? 'CATALOG' : 'ARTICLE'])
     return id
   }
   const refuses = async () => {
@@ -50,13 +50,29 @@ test('retirement refuses historical pins before changes, preserves current pins,
     assert.equal((await client.query(`SELECT count(*)::int AS n FROM information_schema.columns
       WHERE table_schema='public' AND table_name='extraction' AND column_name='requestedPages'`)).rows[0].n, 1)
   }
-  for (const settings of [null, { article: null }, ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, '11'].map(defaults => ({ unified: { defaults } })),
+  for (const settings of [null, { article: null }, { generic: null }, { recipe: null },
+    { generic: { discovery_chars: 48_000 } }, { recipe: { input_tokens: 4_096 } },
+    ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, '11'].map(defaults => ({ unified: { defaults } })),
     { unified: {} }, { unified: { defaults: 11, verification: false } }, { unified: { defaults: 11, verification: true } },
     ...['identity', 'identity_fields', 'prompt', 'selection', 'grounding_schedule', 'grounding_routing'].map(key => ({ article: { [key]: null } }))]) {
     const id = await seed(settings)
     await refuses()
     await client.query('DELETE FROM public.extraction WHERE id=$1', [id])
     await client.query('DELETE FROM extraction_runtime.head WHERE id=$1', [id])
+  }
+  // Historical methods also live on batches and producing selections, independently of the public Extraction pin.
+  const current = await seed({ unified: { defaults: 11 } })
+  for (const settings of [{ generic: null }, { recipe: null }]) {
+    const batch = randomUUID()
+    await client.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings")
+      VALUES ($1,$2,$3,'CATALOG',$4)`, [batch, pins.projectContextId, pins.revisions.catalog, settings])
+    await refuses()
+    await client.query('DELETE FROM public."batchExtraction" WHERE id=$1', [batch])
+    await client.query(`INSERT INTO extraction_runtime.selection (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
+      SELECT "selectionId",id,1,$2,$3,$4,$5,'{}',$3 FROM extraction_runtime.head WHERE id=$1`,
+    [current, pins.revisions.catalog, 'a'.repeat(64), CATALOG_TREE, { strategy: 'CATALOG', models: null, settings }])
+    await refuses()
+    await client.query('DELETE FROM extraction_runtime.selection WHERE "extractionId"=$1', [current])
   }
   for (const settings of [{ article: null }, { article: { identity: 'reference' } }, { catalog: { unified: { verification: false } } }]) {
     await client.query('INSERT INTO public."modelConfiguration" ("researcherAccountId",document) VALUES ($1,$2)',
@@ -95,12 +111,12 @@ test('retirement refuses historical pins before changes, preserves current pins,
   const suggestionId = randomUUID()
   await client.query('INSERT INTO public."batchSchemaSuggestion" (id,"projectContextId","selectionKey",coverage) VALUES ($1,$2,$3,$4)',
     [suggestionId, pins.projectContextId, randomBytes(32).toString('hex'), JSON.stringify(coverage)])
-  const ids = await Promise.all([seed({ unified: { defaults: 11 } }), seed({ unified: { defaults: 11, overlap: 0 } })])
+  const ids = [current, ...await Promise.all([seed({ unified: { defaults: 11 } }), seed({ unified: { defaults: 11, overlap: 0 } })])]
   const before = (await client.query('SELECT id,"requestedSettings" FROM public.extraction ORDER BY id')).rows
   assert.deepEqual((await migrate(target.url)).applied, ['20261116T0040_retire_legacy_contracts', '20261116T0847_unified_catalog'])
   assert.deepEqual((await client.query('SELECT id,"requestedSettings" FROM public.extraction ORDER BY id')).rows, before)
   assert.deepEqual((await client.query('SELECT coverage FROM public."batchSchemaSuggestion" WHERE id=$1', [suggestionId])).rows[0].coverage, coverage)
-  assert.equal(ids.length, 2)
+  assert.equal(ids.length, 3)
   const tables = (await client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public'`)).rows.map(r => r.table_name)
   for (const table of ['annotationSetRevision', 'extractionReview', 'reviewDecision']) assert.ok(!tables.includes(table), table)
   const required = (await client.query(`SELECT table_name,column_name,is_nullable FROM information_schema.columns

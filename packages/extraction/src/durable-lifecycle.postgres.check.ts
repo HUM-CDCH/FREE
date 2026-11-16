@@ -14,7 +14,7 @@ import { ensureKeiRole } from '../../db/src/kei-role.js'
 import { createDurableRepository,initializeDurableExtraction } from './durable-repository.js'
 import { durableTestNetwork } from './durable-test-network.js'
 
-test('all four real durable methods drain Pause, cancel pending Resume and retain work through Resume or Stop',
+test('both real durable methods drain Pause, cancel pending Resume and retain work through Resume or Stop',
   {skip:process.env.FREE_SKIP_PYTHON==='1'?'Python worker checks run on the full verification host.':false},async t=> {
   const network=durableTestNetwork()
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
@@ -90,8 +90,8 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     process.env.DURABLE_TEST_WORKER_IMAGE??'free-parsing_worker','-c',
     'uv pip install --python /app/.venv/bin/python pytest==9.1.1 && /app/.venv/bin/python -m pytest -q --tb=short -o cache_dir=/tmp/pytest_cache tests/test_durable_lifecycle.py'],
     {timeout:300000,maxBuffer:4*1024*1024}).catch((error:{stdout?:string;stderr?:string})=> {
-      console.info(error.stdout);throw new Error('Guarded four-method lifecycle verification failed.')
+      console.info(error.stdout);throw new Error('Guarded two-method lifecycle verification failed.')
     })
-  assert.match(stdout,/16 passed/)
+  assert.match(stdout,/10 passed/)
   console.info('Article and unified Catalog native Pause/Resume/Stop/Retry and queued lane-release checks passed.')
 })

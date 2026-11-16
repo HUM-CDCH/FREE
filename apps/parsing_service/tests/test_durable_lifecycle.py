@@ -50,8 +50,7 @@ def test_both_strategies_pause_and_continue_at_saved_boundaries(tmp_path,index):
                 system,user=messages[0]['content'],messages[-1]['content']
                 schema=body['response_format']['json_schema']['schema']
                 if case['method']=='unified':parsed=unified(system,user,schema)
-                elif 'record boundaries' in system:parsed={'starts':['B1','B2','B3'],'end':None}
-                elif '### Claims' in user:parsed={key:{'label':'NONE','attribution':False} for key in schema['properties']}
+                elif '### Claims' in user:parsed={key:[] if 'items' in spec else 'NONE' for key,spec in schema['properties'].items()}
                 else:parsed={'name':'Valley' if 'Valley' in user else 'Hill'}
                 output={'choices':[{'message':{'content':'{' if number==failed_at else json.dumps(parsed)},'finish_reason':'stop'}],
                     'usage':{'prompt_tokens':counted,'completion_tokens':10}}
@@ -230,7 +229,8 @@ def test_truncated_discovery_is_saved_and_split_until_complete_or_exhausted(tmp_
 def test_queued_pause_starts_no_provider_call_and_releases_the_attempt_lane(tmp_path):
     fixture=json.loads(Path(FIXTURE).read_text())
     fields=checked_conninfo(fixture['admin'])
-    paused,next_case=fixture['cases'][12:14]
+    paused,next_case=(next(case for case in fixture['cases'] if case['terminal']==terminal)
+                      for terminal in ('queued-pause','after-queued-pause'))
     source=tmp_path/'runs'/next_case['source']['runId']
     catalogue.write({'transcriber':'native','pages':[{'page':1,'units':[{'index':0,'segments':['Hill. Material: gold.']}]}]},source,
         generation=next_case['source']['generation'])
@@ -244,7 +244,7 @@ def test_queued_pause_starts_no_provider_call_and_releases_the_attempt_lane(tmp_
             else:
                 calls.append(body)
                 user=body['messages'][-1]['content'];schema=body['response_format']['json_schema']['schema']
-                parsed={key:{'label':'NONE','attribution':False} for key in schema['properties']} if '### Claims' in user else {'name':'Hill'}
+                parsed={key:[] if 'items' in spec else 'NONE' for key,spec in schema['properties'].items()} if '### Claims' in user else {'name':'Hill'}
                 output={'choices':[{'message':{'content':json.dumps(parsed)},'finish_reason':'stop'}],
                     'usage':{'prompt_tokens':100,'completion_tokens':10}}
             raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')

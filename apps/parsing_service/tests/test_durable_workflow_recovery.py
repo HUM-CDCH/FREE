@@ -18,8 +18,10 @@ import psycopg
 import pytest
 from dbos import DBOSClient, WorkflowSerializationFormat
 
+from kei_exp.kie.passages import load
 from tests.helpers import catalogue
 from tests.helpers.postgres import checked_conninfo
+from tests.test_unified_catalog import Model as CatalogModel, candidate
 
 FIXTURE=os.environ.get('DURABLE_RECOVERY_FIXTURE')
 pytestmark=[pytest.mark.postgres,pytest.mark.slow,pytest.mark.skipif(not FIXTURE,reason='run durable-recovery.postgres.check.ts')]
@@ -86,6 +88,10 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
     catalogue.write({'transcriber':'native','pages':[{'page':1,'units':[{'index':0,
       'segments':['1. Hill.','2. Valley.']}]}]},source,generation=case['source']['generation'])
     (source/'params.json').write_text('{}')
+    def entry(record, *_):
+        name = 'Valley' if 'Valley' in record else 'Hill'
+        return {'name': candidate(name, name)}
+    model = CatalogModel(load(source), entry=entry)
     requests=[]
     class Model(BaseHTTPRequestHandler):
         def log_message(self,*_):pass
@@ -98,12 +104,8 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
             else:
                 requests.append(body)
                 system,user=messages[0]['content'],messages[-1]['content']
-                if 'record boundaries' in system:
-                    parsed={'starts':['B1','B2'],'end':None}
-                elif '### Claims' in user:
-                    shape=body['response_format']['json_schema']['schema']
-                    parsed={key:{'label':'NONE','attribution':False} for key in shape['properties']}
-                else:parsed={'name':'Valley' if 'Valley' in user else 'Hill'}
+                schema=body['response_format']['json_schema']['schema']
+                parsed=model(system,user,schema)
                 output={'choices':[{'message':{'content':json.dumps(parsed)},'finish_reason':'stop'}],
                         'usage':{'prompt_tokens':counted,'completion_tokens':10}}
             raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')

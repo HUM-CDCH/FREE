@@ -1158,7 +1158,7 @@ class _Run:
             policy = evidence_policy(self.nodes, _field_path(found.path))
             if policy != "quoted":
                 found.kind, found.reason = "proposed", f"evidence_policy_{policy}"
-            elif found.path not in nodes:  # code located it in the record: linked `lexical`
+            elif not outside(found):  # code located this candidate in the record: linked `lexical`
                 found.kind, found.reason = "accepted", None
         system = VERIFY_RECORD.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
