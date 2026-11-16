@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from './extraction-method.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { randomBytes,randomUUID } from 'node:crypto'
@@ -8,7 +9,7 @@ import { resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { test } from 'node:test'
 import { Client,Pool } from 'pg'
-import { migrate,provisionDatabase,seedPreMigrationHistory } from '../../db/src/record-scope-history-fixture.js'
+import { migrate,provisionDatabase,seedResearchPins } from '../../db/src/postgres-fixture.js'
 import { ensureKeiRole } from '../../db/src/kei-role.js'
 import { createDurableRepository,initializeDurableExtraction } from './durable-repository.js'
 import { durableTestNetwork } from './durable-test-network.js'
@@ -28,7 +29,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     try{await client.query(`DROP ROLE IF EXISTS ${role}`)}finally{await client.end()}
   })
   await migrate(target.url);await admin.connect()
-  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d2,password=randomBytes(24).toString('hex')
+  const fixture=await seedResearchPins(admin),document=fixture.documents.d2,password=randomBytes(24).toString('hex')
   await ensureKeiRole(admin,{role,password,schema:'kei_dbos'})
   const worker=new URL(target.url);worker.username=role;worker.password=password
   const cases:{method:string;terminal:string;id:string;attempt:string;workflow:string;source:unknown}[]=[]
@@ -50,7 +51,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
       [schemaRevisionId,2+index,tree,method==='article'?'document':'records',fixture.revisions.catalog])
-    const settings={[method]:method==='unified'?{defaults:1}:null},strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
+    const settings={[method]:method==='unified'?{defaults: 5}:method==='article'?REFERENCE_ARTICLE:null},strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
     await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"catalogRecipe","requestedSettings") VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,strategy,recipe,settings])
     await admin.query('BEGIN')
@@ -73,7 +74,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
         const current=await repository.read(input.id)
         const saved=await repository.saveSelection(input.id,{expectedVersion:current.controlVersion,
           schemaRevisionId:current.selection.schemaRevisionId,method:{models:{fields:'instruct',reasoning:'instruct'},
-            settings:{unified:{defaults:1}}}})
+            settings:{unified:{defaults: 5}}}})
         await repository.adoptSelection(input.id,{expectedVersion:saved.controlVersion,selectionId:saved.selectionId,reprocessValueIds:[]})
         await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:'resume'})
       } else if(input.action)await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:input.action})

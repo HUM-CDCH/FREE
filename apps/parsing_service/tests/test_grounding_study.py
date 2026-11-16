@@ -40,8 +40,8 @@ def frozen(tmp_path, monkeypatch):
                                                               "year": 1827 if "1827" in u else None}),
                            directory / "calls", "fields")
     reason = study.Capture(CountingChat(reasoning), directory / "calls", "reasoning")
-    options = {"strategy": "article", "article": {"context": "bounded", "identity": "conservative",
-               "identity_fields": ["site"], "prompt": "schema", "grounding": "semantic"}}
+    options = {"strategy": "article", "article": {"context": "bounded",
+                 "grounding": "semantic"}}
     request = run.ExtractRequest(schema=SCHEMA, options=options)
     count = grounding_study.RecordedCounts(WordCounter(), tmp_path / "counts", provider)
     artifact = run.extract(tmp_path, request, Router(fields, reason), counter={"fields": count, "reasoning": count})
@@ -76,7 +76,7 @@ def registered(frozen, tmp_path):
 def test_preparation_reproduces_records_and_origins_without_a_grounding_reply(frozen, tmp_path):
     _, bundles, original, _ = frozen
     bundle = read(bundles / "Doc.json")
-    assert bundle["records"] == original["records"] and bundle["inventory"] == original["inventory"]
+    assert bundle["records"] == original["records"]
     assert {call["stage"] for call in bundle["upstream_calls"]} == {"document", "record", "arbitration"}
     assert bundle["provenance"]["fresh_calls"] == 0
     assert bundle["value_origins"][0][1] == {"path": ["year"], "kind": "value",
@@ -108,7 +108,7 @@ def test_registration_refuses_upstream_drift_even_when_records_look_unchanged(fr
     elif change == "origins":
         bundle["value_origins"][0][1]["sources"][0]["unit"] = 0
     else:
-        bundle["upstream_options"]["article"]["prompt"] = "reference"
+        bundle["upstream_options"]["article"]["rendering"] = "structured"
     path.write_text(json.dumps(bundle))
     with pytest.raises(ValueError, match="differs from exact replay"):
         grounding_study.register(parent, bundles, tmp_path / "bad")
@@ -128,14 +128,14 @@ def test_fixed_runner_uses_only_grounding_and_preserves_upstream_across_all_meth
         request = manifest.request(source, method)
         result = grounding_study.fixed_grounding(source, request, Router(fields, CountingChat(reason)),
             {"reasoning": WordCounter()}, model_seconds=10800)
-        assert result["records"] == original["records"] and result["inventory"] == original["inventory"]
+        assert result["records"] == original["records"]
         assert not fields.calls and all(call["stage"] == "grounding" for call in result["calls"])
         assert result["execution_scope"] == "grounding_on_fixed_upstream"
         assert diagnostic(result)["populated_record_leaves"] == 2
         seen.append(result["fingerprint"])
-    assert len(set(seen)) == len(configured["methods"]) == 6
+    assert len(set(seen)) == len(configured["methods"]) == 3
     cells = manifest.validate(configured, Path(__file__).resolve().parents[1])
-    assert len(cells) == 6
+    assert len(cells) == 3
     configured["methods"]["spans"]["article"]["context"] = "full"
     with pytest.raises(ValueError, match="not exactly"):
         manifest.validate(configured, Path(__file__).resolve().parents[1])
@@ -144,7 +144,7 @@ def test_fixed_runner_uses_only_grounding_and_preserves_upstream_across_all_meth
 def test_fixed_runner_refuses_a_shared_upstream_option_change_before_generation(frozen, tmp_path):
     configured, source, _, _, _ = registered(frozen, tmp_path)
     method = deepcopy(configured["methods"]["spans"])
-    method["article"]["prompt"] = "reference"
+    method["article"]["rendering"] = "structured"
     chat = CountingChat(lambda *_: pytest.fail("changed upstream must not generate"))
     with pytest.raises(ValueError, match="only grounding options"):
         grounding_study.fixed_grounding(source, manifest.request(source, method), Router(chat, chat),
@@ -155,7 +155,7 @@ def test_preflight_is_an_all_none_scenario_and_caches_every_admission_probe(froz
     configured, source, output, original, provider = registered(frozen, tmp_path)
     cells = manifest.validate(configured, Path(__file__).resolve().parents[1])
     report = grounding_study.preflight_fixed(configured, cells, output, WordCounter())
-    assert len(report) == 6 and all(item["grounding_requests"] > 0 for item in report)
+    assert len(report) == 3 and all(item["grounding_requests"] > 0 for item in report)
     assert all(item["all_record_leaves"] == 2 for item in report)
     probes = list((output / "token-counts").rglob("*.json"))
     assert probes and all(read(path)["provider"] == provider for path in probes)
@@ -234,7 +234,7 @@ def test_runner_dispatch_and_offline_replay_preserve_completed_and_budget_outcom
     report = runpy.run_path(str(report_path))["report"]
     monkeypatch.setitem(report.__globals__, "load", lambda _: run.load(tmp_path))
     reported = report(configured, all_cells, output, output / "verified.json")
-    assert reported["cell_statuses"] == {terminal["status"]: 1, "pending": 5}
+    assert reported["cell_statuses"] == {terminal["status"]: 1, "pending": 2}
     row = next(row for row in reported["cells"] if row["id"] == cell["id"])
     assert row["cost"]["saved_replies"] == len(generated)
     assert row["cost"]["recorded_call_seconds"] == len(generated)

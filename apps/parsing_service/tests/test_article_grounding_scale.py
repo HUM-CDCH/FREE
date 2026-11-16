@@ -183,7 +183,7 @@ def test_a_bounded_article_root_with_many_items_is_grounded_where_each_value_was
     item_users = [user for user in users if "77" in user]
     assert item_users and all(len(set(re.findall(r"Page (\d)", user.split("### Evidence")[1]))) == 1
                               for user in item_users)  # each item claim is checked in the context it was read from
-    assert result["article_version"] == article.ARTICLE_VERSION == 17
+    assert result["article_version"] == article.ARTICLE_VERSION == 18
 
 
 def test_contested_unsupported_and_uncompleted_claims_stay_distinct_through_the_article_path():
@@ -324,25 +324,6 @@ def test_a_claim_refused_over_the_whole_source_is_verified_in_windows_of_it():
     assert all(len(user.split()) + 2048 <= 6600 for user in checks)
 
 
-def test_settings_without_overflow_windows_send_the_requests_9ef058d2_sent():
-    """Requests captured from 9ef058d2 (before `grounding_overflow`): an omitted article (Studio's legacy `article:
-    null`), explicit full and explicit bounded settings without the factor, refused and fitting alike."""
-    refused, fits = ("f63fa23d8a209e86b0b01391328d2b04eabc30e31ee485a58a6bb97cc95c8a51",
-                     "5e6e2bd270c9b7ab59d00f27fe63d851367c15ce615e92c08c9cd5cd6e6b41d3")
-    captured = {
-        (None, 6600): refused, ("full", 6600): refused,
-        ("bounded", 6600): "fd01a94ec4eb28bba52bc9b0b8a641f001de4653828f77fb002c5c7c6a23729e",
-        (None, 9000): fits, ("full", 9000): fits,
-        ("bounded", 9000): "a2e86e466876c6efb7b732cbc60f8d95389dc53040675fa00217aa8742439c4d",
-    }
-    for (context, reasoning), digest in captured.items():
-        settings = None if context is None else {"context": context, **({"context_tokens": 8192} if context ==
-                                                                       "bounded" else {})}
-        sent, result = article_requests(settings, reasoning)
-        assert hashlib.sha256("\n".join(sent).encode()).hexdigest() == digest, (context, reasoning)
-        assert "grounding_overflow_version" not in result
-    sent, result = article_requests(None, 6600)
-    assert [issue["code"] for issue in result["issues"]] == ["grounding_exceeds_budget"] * 2
 
 
 def test_a_claim_too_large_for_any_window_keeps_its_refusal_without_a_call():

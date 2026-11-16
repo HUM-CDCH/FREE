@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { Client } from 'pg'
-import { migrate, provisionDatabase } from '../../db/src/record-scope-history-fixture.js'
+import { migrate, provisionDatabase } from '../../db/src/postgres-fixture.js'
 import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
 import { accountMethod, REFERENCE_ARTICLE } from './extraction-method.js'
 import type { ExtractionExecution } from './dependencies.js'
@@ -67,7 +67,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   assert.deepEqual(await counts(), { extractions: 1, batches: 0, heads: 1, dispatches: 1, queued: 1 })
   assert.equal((await persistence.scheduleExtraction(single))?.disposition, 'replayed')
   assert.equal((await counts()).queued, 1)
-  const changedArticle={...REFERENCE_ARTICLE,prompt:'schema' as const}
+  const changedArticle={...REFERENCE_ARTICLE,rendering:'structured' as const}
   const changedMethod={models:null,settings:{article:changedArticle}}
   const beforeRefusals=await counts()
   await assert.rejects(persistence.scheduleExtraction({...single,method:changedMethod}),{code:'extraction_id_conflict'})
@@ -182,8 +182,9 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   assert.equal(changedBatch?.disposition,'created')
   assert.notEqual(changedBatch?.batch.batchExtractionId,nativeBatch?.batch.batchExtractionId)
   assert.equal(changedBatch?.batch.members.length,documents.length)
-  // `article: null` is never a saved method (Studio records Article's default explicitly): it is refused as stale.
-  const stale={models:null,settings:{article:null}}
+  // A page loaded before Studio recorded Article's service defaults submits `article: REFERENCE_ARTICLE`: stale once the account
+  // has saved Article settings (admitted while it has none, at the end).
+  const stale={models:null,settings:{article: REFERENCE_ARTICLE}}
   await assert.rejects(persistence.scheduleExtraction({...single,extractionId:randomUUID(),
     sourceRepresentationRevisionId:documents[1].revisionId,method:stale}),{code:'method_changed'})
 
@@ -221,9 +222,12 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   const last=await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()})
   assert.equal(last?.disposition,'created')
 
-  // Without saved Article settings it is still stale: the account runs Studio's recorded Article default.
+  // Without saved Article settings, that stale `article: REFERENCE_ARTICLE` is admitted as recorded: the method its page showed.
   await settle(last!.extraction.extractionId,'RUN','COMPLETED')
   await admin.query('UPDATE public."modelConfiguration" SET document=$2 WHERE "researcherAccountId"=$1',
     [owner,{...savedConfiguration,extractionSettings:{}}])
-  await assert.rejects(persistence.scheduleExtraction({...spareRun,extractionId:randomUUID(),method:stale}),{code:'method_changed'})
+  const admittedStale=await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID(),method:stale})
+  assert.equal(admittedStale?.disposition,'created')
+  assert.deepEqual((await admin.query('SELECT "requestedSettings" FROM public.extraction WHERE id=$1',
+    [admittedStale!.extraction.extractionId])).rows[0].requestedSettings,{article: REFERENCE_ARTICLE})
 })

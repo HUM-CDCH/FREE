@@ -29,8 +29,6 @@ import {
   accountMethod,
   canonicalIntent,
   unifiedCatalogEnabled,
-  identityFieldIssues,
-  identityFieldsMessage,
   modelChoice,
   type ActiveSettings,
   type ExtractionMethodIntent,
@@ -39,7 +37,7 @@ import { documentAttempts } from './postgres-attempts.js'
 import { readBatchForResearcher, snapshot } from './postgres-batches.js'
 import { ownsResearcherExtraction } from './postgres-ownership.js'
 import { refuseRecordScope, storedRecordScope } from './record-scope.js'
-import { parseExtractionSchema, type RecordScope } from './schema.js'
+import { type RecordScope } from './schema.js'
 import { initializeDurableExtraction, DURABLE_RECONCILE } from './durable-repository.js'
 import { EXTRACTION_QUEUE, extractionAttributes } from './workflows.js'
 import type {
@@ -56,10 +54,7 @@ const BATCH_KEY = 'batchExtraction_pkey'
 export const METHOD_CHANGED_MESSAGE =
   'Your saved advanced settings changed after this summary was shown. Nothing was started; review the updated summary and start again.'
 
-/** Whether the account's saved method, read under its configuration row's lock, is still the one the researcher saw.
- *  The comparison and the snapshot write share one transaction, so an Apply commits wholly before or after it. Where the
- *  deployment enables the unified Catalog, a new Catalog Extraction is admitted on it alone: a legacy recipe or generic
- *  method is a stale one, and legacy Catalog preferences refuse it until their migration is applied. */
+/** Resolve and validate the executable method against the saved account configuration. */
 export async function savedMethodStillCurrent(
   client: Parameters<typeof lockModelConfiguration>[0],
   owner: string,
@@ -68,22 +63,8 @@ export async function savedMethodStillCurrent(
   method: ExtractionMethodIntent,
 ): Promise<boolean> {
   const document = await lockModelConfiguration(client, owner)
-  return isDeepStrictEqual(accountMethod(document, strategy, catalogRecipe, unifiedCatalogEnabled()), method)
-}
-
-/** Identity fields the pinned schema cannot key records by refuse the Extraction before anything is enqueued; the
- *  Parsing Service checks the same again when it runs (`ExtractRequest._identity_fields_exist`). */
-export function refuseUnusableIdentityFields(settings: ActiveSettings, schemaTree: unknown): void {
-  const article = 'article' in settings ? settings.article : null
-  if (!article || article.identity_fields.length === 0) return
-  let nodes
-  try {
-    nodes = parseExtractionSchema(schemaTree).schemaNodes
-  } catch {
-    throw new ExtractionError('invalid_extraction_pins', 'The selected Schema Revision is invalid.')
-  }
-  const issues = identityFieldIssues(nodes, article.identity_fields)
-  if (issues.length > 0) throw new ExtractionError('invalid_identity_fields', identityFieldsMessage(issues))
+  const saved = accountMethod(document, strategy, catalogRecipe, unifiedCatalogEnabled())
+  return isDeepStrictEqual(saved, method)
 }
 
 function canonicalIds(ids: readonly string[]): string[] {
@@ -189,7 +170,6 @@ type AdmittedIdentity = Readonly<{
   catalogRecipe: string | null
   requestedModels: unknown
   requestedSettings: unknown
-  requestedPages: unknown
   batchExtractionId: string | null
 }>
 
@@ -204,8 +184,7 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
     row.strategy === pins.strategy &&
     row.catalogRecipe === pins.catalogRecipe &&
     isDeepStrictEqual(modelChoice(row.requestedModels), pins.requestedModels) &&
-    isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings) &&
-    row.requestedPages === null
+    isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings)
 }
 
 /** DBOS refused the workflow ID (workflowIDReusePolicy 'reject'): its Extraction is gone, so the ID is spent. */
@@ -229,7 +208,7 @@ export async function admitInteractiveExtraction(
       if (pins === null) return 'missing'
       const identity = () => transaction.orm.public.Extraction.select(
         'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
-        'requestedModels', 'requestedSettings', 'requestedPages', 'batchExtractionId',
+        'requestedModels', 'requestedSettings', 'batchExtractionId',
       ).first({ id: input.extractionId })
       // Another researcher's Extraction under this ID is concealed behind the same missing answer.
       const replay = async (row: AdmittedIdentity) => {
@@ -261,7 +240,7 @@ export async function admitInteractiveExtraction(
       if (!(await savedMethodStillCurrent(client, pins.owner, pins.strategy, pins.catalogRecipe,
         { models: pins.requestedModels, settings: pins.requestedSettings })))
         return 'method-changed'
-      refuseUnusableIdentityFields(pins.requestedSettings, pins.schemaTree)
+
       refuseIncompatibleGliformer({ models: pins.requestedModels, settings: pins.requestedSettings }, pins.schemaTree)
       // ADR 0020, as Studio's Run: a single run waits while the newest Extraction on this revision, a batch member
       // included, is unfinished. Read under the document lock, so of two concurrent runs one is refused.
@@ -439,7 +418,7 @@ export async function admitBatchExtraction(
       // Every Source Document row is locked (sorted) before the configuration row, as in single admission.
       if (!(await savedMethodStillCurrent(client, researcherAccountId, input.strategy, null, method)))
         return 'method-changed' as const
-      refuseUnusableIdentityFields(method.settings, schema.schemaTree)
+
       refuseIncompatibleGliformer(method, schema.schemaTree)
       await orm.public.BatchExtraction.create({
         id: batchExtractionId,

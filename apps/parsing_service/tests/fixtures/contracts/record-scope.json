@@ -15,9 +15,9 @@
   "requests": [
     {"recordScope": "document", "options": {"strategy": "article"}, "valid": true},
     {"recordScope": "document", "options": {"strategy": "catalog"}, "valid": false},
-    {"recordScope": "document", "options": {"strategy": "catalog", "unified": {"defaults": 1}}, "valid": false},
+    {"recordScope": "document", "options": {"strategy": "catalog", "unified": {"defaults": 5}}, "valid": false},
     {"recordScope": "records", "options": {"strategy": "catalog"}, "valid": true},
-    {"recordScope": "records", "options": {"strategy": "catalog", "unified": {"defaults": 1}}, "valid": true},
+    {"recordScope": "records", "options": {"strategy": "catalog", "unified": {"defaults": 5}}, "valid": true},
     {"recordScope": "records", "options": {"strategy": "article"}, "valid": false},
     {"recordScope": null, "options": {"strategy": "article"}, "valid": true, "derived": "document"},
     {"recordScope": null, "options": {"strategy": "catalog"}, "valid": true, "derived": "records"}

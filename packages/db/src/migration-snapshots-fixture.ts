@@ -31,7 +31,7 @@ export function planTwoMigrations() {
   const readRef = () => JSON.parse(readFileSync(join(refs, 'db.json'), 'utf8')) as { hash: string }
   /** Plans `column` through `pnpm --filter db db:migration plan`, or straight through prisma-next when `raw`. */
   const plan = (column: string, name: string, raw = false): PlannedMigration => {
-    writeFileSync(contract, readFileSync(contract, 'utf8').replace('model EvaluationRound {\n', `model EvaluationRound {\n  ${column} String?\n`))
+    writeFileSync(contract, readFileSync(contract, 'utf8').replace(/model EvaluationRound \{\r?\n/, `model EvaluationRound {\n  ${column} String?\n`))
     run(bin('prisma-next'), ['contract', 'emit', '--no-color'])
     const before = new Set(migrationDirectories(migrations))
     // Plan from the scratch `db` ref's current hash, as local-development.md prescribes while a self-edge is the tip:

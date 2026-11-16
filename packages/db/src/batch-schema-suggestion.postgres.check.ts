@@ -344,7 +344,7 @@ test('Batch Schema Suggestion attempts on PostgreSQL and DBOS', { timeout: 120_0
 
   await t.test('a spreadsheet template is saved as an Extraction Schema with its suggestion row', async () => {
     const version = await db.orm.public.ProjectSpreadsheetVersion.create({
-      projectContextId, revisionNumber: 1, originalFilename: 'sites.xlsx', columns: [{ columnName: 'place' }],
+      projectContextId, revisionNumber: 1, originalFilename: 'sites.xlsx', columns: [{ columnName: 'place' }], rows: [],
     })
     const created = await researcher.createSpreadsheetSchemaSuggestion(projectContextId, definition('place'), { place: 'place' }, version.id)
     assert.ok(created && 'suggestion' in created)

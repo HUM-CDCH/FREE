@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
+import { articleSettingsSchema } from 'extraction/extraction-method'
+const UNWINDOWED_ARTICLE = articleSettingsSchema.parse({})
 import '@testing-library/jest-dom/vitest'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { REFERENCE_ARTICLE, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuide'
-import { EVIDENCE_SOURCES, FLOW_NOTE, GUIDE_TOPICS } from './advancedGuide.data'
+import { EVIDENCE_SOURCES, GUIDE_TOPICS } from './advancedGuide.data'
 import { STARTING_POINTS } from './advancedSettings'
 
 afterEach(cleanup)
@@ -118,51 +120,6 @@ describe('the Explain guide', () => {
     }
   })
 
-  it('every topic has a purpose, stage, example, figure text, combinations and a verbatim takeaway', () => {
-    expect(GUIDE_TOPICS.map((topic) => topic.id)).toEqual(['scope', 'grouping', 'selection', 'identity', 'format', 'grounding', 'policy', 'scheduling', 'catalog'])
-    for (const topic of GUIDE_TOPICS) {
-      for (const text of [topic.purpose, topic.stage, topic.combinations, topic.takeaway, topic.technical]) expect(text.length).toBeGreaterThan(10)
-      expect(topic.example.options.length).toBeGreaterThan(topic.id === 'scheduling' ? 0 : 1)
-      for (const option of topic.example.options) expect(option.outcome.length).toBeGreaterThan(10)
-      for (const row of topic.evidence) expect(EVIDENCE_SOURCES.map((source) => source.id)).toContain(row.source)
-    }
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'selection')!.takeaway)
-      .toBe('Lower value-call count could omit relevant evidence; this is history, not a current choice.')
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.takeaway)
-      .toBe("For a recipe, Verification Off yields proposals; a recipe's applicability is source-specific.")
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'catalog')!.combinations).toContain('retired limits and recipe factors are never converted')
-    for (const source of EVIDENCE_SOURCES) for (const field of [source.date, source.corpus, source.revision, source.evidence, source.limits]) expect(field).not.toBe('')
-  })
-
-  it('the retired schedule and routing controls are described as history, not as live choices', () => {
-    const scheduling = GUIDE_TOPICS.find((topic) => topic.id === 'scheduling')!
-    expect(scheduling.purpose).toMatch(/^Retired:/)
-    expect(scheduling.combinations).toContain('reset individually under Additional saved settings')
-    expect(scheduling.technical).toContain('RETIRED_ARTICLE_KEYS')
-    const affectsVerification = /(routing|scheduling)[^.]*\baffects? verification|\b(routing|scheduling)\b[^.]*\bonly orders verification/i
-    for (const topic of GUIDE_TOPICS) expect(topic.combinations, topic.id).not.toMatch(affectsVerification)
-    expect(FLOW_NOTE).not.toMatch(affectsVerification)
-  })
-
-  it('retired-only topics say Retired in their title and purpose, never Choose', () => {
-    for (const id of ['selection', 'identity', 'scheduling']) {
-      const topic = GUIDE_TOPICS.find((candidate) => candidate.id === id)!
-      expect(topic.purpose, id).toMatch(/^Retired:/)
-      expect(topic.purpose, id).not.toMatch(/^Choose/)
-      expect(topic.title, id).toMatch(/\(retired\)$/)
-      expect(topic.example.caption, id).toMatch(/^Historical: |: Article now\.$/)
-    }
-    const scheduling = GUIDE_TOPICS.find((topic) => topic.id === 'scheduling')!
-    expect(scheduling.purpose).toContain('Choosing a starting point clears them.')
-    for (const gap of scheduling.gaps) expect(gap.text).toMatch(/^Historical \(controls retired\): /)
-    const [, unit1, unit3] = scheduling.example.options[0]!.blocks
-    expect([unit1, unit3].map((block) => block && 'inactive' in block ? block.inactive : undefined)).toEqual([true, true])
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.purpose).toContain('Saved instructions still affect preliminary bounded source sizing')
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'identity')!.purpose).toContain('Saved identity settings still affect preliminary bounded source sizing')
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.combinations).toContain('document-value extraction prompt stays the same')
-    expect(GUIDE_TOPICS.find((topic) => topic.id === 'format')!.technical).toContain('inventory_request counted by source_contexts')
-  })
-
   it('every study names its document count and states the semantic review it still lacks', () => {
     for (const source of EVIDENCE_SOURCES) {
       expect(source.corpus, source.id).toMatch(/\b(one|two|five|six|\d+)\b[^;]*\bdocuments?\b/i)
@@ -198,7 +155,7 @@ describe('the Explain guide', () => {
     // What the studies did, not an inference from how many choices changed.
     expect(guide.getByText(/completed studies changed one choice at a time/)).toBeInTheDocument()
     // The reference, and one choice changed in a draft saved before large checks existed (no windows), are studied.
-    for (const article of [REFERENCE_ARTICLE, { ...UNRECORDED_ARTICLE, grounding: 'spans' as const }]) {
+    for (const article of [REFERENCE_ARTICLE, { ...UNWINDOWED_ARTICLE, grounding: 'spans' as const }]) {
       cleanup()
       renderGuide(vi.fn(), article)
       fireEvent.click(screen.getByRole('button', { name: 'How this works' }))

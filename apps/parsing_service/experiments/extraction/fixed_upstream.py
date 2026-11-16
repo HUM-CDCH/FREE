@@ -88,8 +88,7 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     chats = {role: Captured(directory / "calls", role, provider["model"], provider["context_tokens"])
              for role, provider in study["providers"].items()}
     # Routing settings collect origins without changing any upstream request.
-    method = ArticleOptions.model_validate({**expected["options"]["article"], "grounding": "spans",
-        "grounding_schedule": "unresolved", "grounding_routing": "origin_lexical"})
+    method = ArticleOptions.model_validate({**expected["options"]["article"], "grounding": "spans"})
     counters = {role: LimitedCounter(ReplayCounts(chats[role], provider, verified["tokenizer_probes"]),
                                      method.context_tokens) for role, provider in study["providers"].items()}
     contexts = restore_contexts(expected["contexts"], evidence.passages)
@@ -103,7 +102,7 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     issues += extracted.issues
     records = [merge(fields, document, evidence.source_name, schema) for _, fields in extracted.slices]
     value_contexts = [[unit.dumped() for unit in groups] for groups in extracted.value_contexts]
-    current = {"records": records, "inventory": extracted.identities, "value_contexts": value_contexts,
+    current = {"records": records, "value_contexts": value_contexts,
                "conflicts": {"document": conflicts, "records": extracted.conflicts}}
     if normalized(current) != {key: expected[key] for key in current}:
         raise ValueError("fixed upstream differs from the original bounded extraction")
@@ -124,7 +123,7 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     return {"version": 1, "source": source_id, "run_id": evidence.run_id, "generation": evidence.generation,
         "digest": evidence.digest, "source_name": evidence.source_name, "schema": annotated,
         "policy_annotations": annotations, "upstream_options": expected["options"], **current,
-        "fields": [fields for _, fields in extracted.slices], "document": document,
+        "inventory": extracted.identities, "fields": [fields for _, fields in extracted.slices], "document": document,
         "contexts": expected["contexts"], "value_origins": extracted.origins,
         "upstream_calls": [asdict(call) for call in calls], "upstream_issues": [asdict(issue) for issue in issues],
         "provenance": {"manifest": pin(parent / "manifest.json"), "result": verified["result"],

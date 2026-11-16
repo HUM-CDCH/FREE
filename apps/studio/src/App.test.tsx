@@ -242,7 +242,7 @@ const reopened: DocumentWorkspaceProps = {
     strategy: 'ARTICLE',
     catalogRecipe: null,
     requestedModels: null,
-    requestedSettings: null,
+    requestedSettings: { article: REFERENCE_ARTICLE },
     executionStatus: 'COMPLETED',
     finalizedReview: null,
     batchExtractionId: null,
@@ -347,7 +347,7 @@ function runningAttempt(extractionId: string) {
     sourceDocumentId: '51000000-0000-4000-8001-000000000001',
     sourceRepresentationRevisionId: reopened.sourceRepresentationId,
     schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null, executionStatus: 'RUNNING',
+    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, executionStatus: 'RUNNING',
     finalizedReview: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z',
   }
 }
@@ -2399,7 +2399,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: savedSchemaRevisionId,
-      strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: null, requestedModels: null, batchExtractionId: null,
+      strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { article: REFERENCE_ARTICLE }, requestedModels: null, batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z' }))
     expect(
       await screen.findByText(
@@ -2466,7 +2466,7 @@ describe('reopened Source Document workspace', () => {
             strategy: 'CATALOG', catalogRecipe: body.catalogRecipe ?? null,
             executionStatus: 'COMPLETED',
             finalizedReview: null,
-            requestedSettings: null,
+            requestedSettings: { generic: null },
             requestedModels: null,
             batchExtractionId: null,
             createdAt: '2026-08-12T00:00:00.000Z' }, { status: 201 }))
@@ -2548,14 +2548,14 @@ describe('reopened Source Document workspace', () => {
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', catalogRecipe: null, executionStatus: 'FAILED', finalizedReview: null, requestedSettings: null, requestedModels: null, batchExtractionId: null,
+        strategy: 'CATALOG', catalogRecipe: null, executionStatus: 'FAILED', finalizedReview: null, requestedSettings: { generic: null }, requestedModels: null, batchExtractionId: null,
         createdAt: '2026-08-12T00:00:00.000Z' },
       SUCCEEDED: {
         extractionId: '51000000-0000-4000-8006-000000000042',
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: null, requestedModels: null, batchExtractionId: null,
+        strategy: 'CATALOG', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { generic: null }, requestedModels: null, batchExtractionId: null,
         createdAt: '2026-08-12T00:00:00.000Z' },
     }
 
@@ -2779,7 +2779,7 @@ describe('reopened Source Document workspace', () => {
       strategy: body.strategy, catalogRecipe: null,
       executionStatus: 'COMPLETED',
       finalizedReview: null,
-      requestedSettings: null,
+      requestedSettings: { article: REFERENCE_ARTICLE },
       requestedModels: null,
       batchExtractionId: null, createdAt: '2026-08-12T00:00:00.000Z' }, { status: 201 }), headScope = reopened.extractionSchema!.recordScope) {
       const writes: RevisionWrite[] = []
@@ -3402,7 +3402,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-      strategy: 'ARTICLE', catalogRecipe: null, requestedModels: body.models ?? null, requestedSettings: null, executionStatus,
+      strategy: 'ARTICLE', catalogRecipe: null, requestedModels: body.models ?? null, requestedSettings: { article: REFERENCE_ARTICLE }, executionStatus,
       finalizedReview: null, batchExtractionId: null, createdAt: '2026-08-12T00:00:00.000Z',
     })
     function stubFetch(models: () => Response, executionStatus: 'RUNNING' | 'FAILED') {
@@ -3549,7 +3549,7 @@ describe('reopened Source Document workspace', () => {
       catalogRecipe: null,
       executionStatus: 'RUNNING' as const,
       finalizedReview: null,
-      requestedSettings: null,
+      requestedSettings: { generic: null },
       requestedModels: null,
       batchExtractionId: null,
       createdAt: reopened.persistedExtraction!.createdAt }
@@ -3661,7 +3661,7 @@ describe('reopened Source Document workspace', () => {
             catalogRecipe: null,
             executionStatus,
             finalizedReview: null,
-            requestedSettings: null,
+            requestedSettings: { article: REFERENCE_ARTICLE },
             requestedModels: null,
             batchExtractionId: null,
             createdAt: '2026-08-10T00:00:00.000Z' }, { status: 201 })
@@ -3705,7 +3705,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     sourceDocumentId: '51000000-0000-4000-8001-000000000001',
     sourceRepresentationRevisionId,
     schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-    strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: null, requestedModels: null, batchExtractionId: null,
+    strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { article: REFERENCE_ARTICLE }, requestedModels: null, batchExtractionId: null,
     createdAt: '2026-07-31T12:03:00.000Z',
     ...overrides })
 
@@ -3763,7 +3763,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
             schemaRevisionId: run.schemaRevisionId,
             executionStatus: 'FAILED',
             finalizedReview: null,
-            requestedSettings: null,
+            requestedSettings: { article: REFERENCE_ARTICLE },
             requestedModels: null }), { status: 201 }))
         }
         if (url.startsWith('/api/extractions/') && init?.method === 'DELETE') {

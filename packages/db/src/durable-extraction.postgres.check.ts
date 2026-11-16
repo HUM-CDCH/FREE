@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import { existsSync, readdirSync } from 'node:fs'
 import { after, test } from 'node:test'
 import { Client } from 'pg'
-import { migrate, provisionDatabase, seedPreMigrationHistory, snapshotHistory } from './record-scope-history-fixture.js'
+import { migrate, provisionDatabase, seedResearchPins, seedExtraction } from './postgres-fixture.js'
 import { ensureKeiRole, EXTRACTION_RUNTIME_ROUTINES } from './kei-role.js'
 
 const baseUrl = process.env.PROJECT_STORE_POSTGRES_URL
@@ -12,28 +12,6 @@ const baseUrl = process.env.PROJECT_STORE_POSTGRES_URL
 const migrations = new URL('../migrations/app/', import.meta.url)
 const sharedChain = readdirSync(migrations)
   .filter((name) => name > '20261005T0832_durable_after_pilot' && existsSync(new URL(`${name}/migration.json`, migrations))).sort()
-
-test('the durable-first upgrade converges with pilot-first without rewriting history', async () => {
-  if (!baseUrl) throw new Error('Set PROJECT_STORE_POSTGRES_URL to an explicit disposable free_test_* target.')
-  const target = await provisionDatabase(baseUrl, `free_test_durable_bridge_${randomBytes(5).toString('hex')}`)
-  const owner = new Client({ connectionString: target.url })
-  try {
-    await migrate(target.url, '20261003T1357_start_page')
-    await owner.connect()
-    await seedPreMigrationHistory(owner)
-    const before = await snapshotHistory(owner)
-    assert.deepEqual((await migrate(target.url, '20261004T1351_durable_retry_history')).applied,
-      ['20261004T1159_durable_extraction', '20261004T1351_durable_retry_history'])
-    assert.deepEqual((await migrate(target.url)).applied, ['20261005T0831_pilot_after_durable', ...sharedChain])
-    assert.deepEqual(await snapshotHistory(owner), before)
-    assert.deepEqual((await migrate(target.url)).applied, [])
-    assert.equal((await owner.query('SELECT extraction_runtime.capabilities() AS value')).rows[0].value.protocol, 1)
-    await owner.query('SELECT "stabilisedAt" FROM public."schemaRevision" LIMIT 1')
-  } finally {
-    await owner.end()
-    await target.drop()
-  }
-})
 
 test('protocol expansion preserves existing public rows and exposes only fenced worker routines', async () => {
   if (!baseUrl) throw new Error('Set PROJECT_STORE_POSTGRES_URL to an explicit disposable free_test_* target.')
@@ -53,12 +31,9 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     await maintenance.connect()
     try { await maintenance.query(`DROP ROLE IF EXISTS ${role}`) } finally { await maintenance.end() }
   })
-  await migrate(target.url, '20261003T1357_start_page')
+  await migrate(target.url)
   await owner.connect()
-  const history = await seedPreMigrationHistory(owner)
-  const before = await snapshotHistory(owner)
-  assert.deepEqual((await migrate(target.url)).applied, ['20261004T1635_project_spreadsheet_and_schema_issue_flags', '20261005T0832_durable_after_pilot', ...sharedChain])
-  assert.deepEqual(await snapshotHistory(owner), before)
+  const history = await seedResearchPins(owner)
   assert.deepEqual((await migrate(target.url)).applied, [])
   await ensureKeiRole(owner, { role, schema, password })
   await ensureKeiRole(owner, { role, schema, password })
@@ -75,7 +50,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
     JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'extraction_runtime'`, [role])
   assert.equal(grants.rows.filter(r => r.allowed).length, EXTRACTION_RUNTIME_ROUTINES.length)
   // Calls admitted before PAUSE drain; newly captured calls are refused.
-  const extraction = history.extractions.article.inFlight, selection = randomUUID(), attempt = randomUUID(), process = randomUUID()
+  const extraction = await seedExtraction(owner, history), selection = randomUUID(), attempt = randomUUID(), process = randomUUID()
   const flagNode={id:'flag',name:'flag',type:'boolean'},arrayNode={id:'items',name:'items',type:'array',itemType:'integer'}
   const workNode={id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]}
   const titleNode={id:'title',name:'title',type:'string'}
@@ -238,7 +213,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
       VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`,[selected,id,history.revisions.catalog,'a'.repeat(64),{recordDescription:'record',schemaNodes:[flagNode]}])
     await owner.query(`INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,1,$4)`,[active,id,selected,`test:${active}`])
     const lease=await invoke('claim',[id,active,randomUUID()])
-    const configuration={models:{fields:provider,reasoning:provider},options:policy.unified?{unified:{defaults:1}}:{},planner:1,protocols:{calls:1,source:'records'}}
+    const configuration={models:{fields:provider,reasoning:provider},options:policy.unified?{unified:{defaults: 5}}:{},planner:1,protocols:{calls:1,source:'records'}}
     await invoke('resolve_selection',[id,active,lease.epoch,configuration])
     const savedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'record',
       {plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'policy'}],coverage:{}}])
@@ -345,12 +320,12 @@ test('deleting a template with its Extractions stops their runs in the same tran
   const target = await provisionDatabase(baseUrl, `free_test_durable_template_${randomBytes(5).toString('hex')}`)
   const owner = new Client({ connectionString: target.url })
   try {
-    await migrate(target.url, '20261003T1357_start_page')
+    await migrate(target.url)
     await owner.connect()
-    const history = await seedPreMigrationHistory(owner)
+    const history = await seedResearchPins(owner)
     await migrate(target.url)
     // A run paused on the template, waiting for Resume: what a forced deletion of the template must end.
-    const extraction = history.extractions.article.inFlight
+    const extraction = await seedExtraction(owner, history)
     await owner.query(`INSERT INTO extraction_runtime.head
       (id,"projectId","sourceRevisionId","sourcePin",strategy,"selectionId",intent,"controlVersion","pendingResume",acknowledgement,"attemptId",fence,"leaseEpoch",generation,"snapshotVersion",deleted)
       VALUES ($1,$2,$3,$4,'ARTICLE',$5,'PAUSE',0,true,'PAUSED',NULL,1,0,1,0,false)`,

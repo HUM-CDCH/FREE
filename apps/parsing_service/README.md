@@ -244,88 +244,22 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md)).
   `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
   candidates?, headings?, verification?}` runs the unified Catalog: result version 3, no
-  recipe and no character limits (a request naming either is refused). From
-  `defaults` 3 a durable run reads the entries the windows already read decide
-  while discovery asks the rest, lists them under its `unified-prefix:<attempt>:<count>`
-  plans and shows their candidates, and verifies them once discovery has ended;
-  an entry's calls are captured by where it starts and what it covers, not by
-  its number. From `defaults` 4 an entry's reply may use the served context its
-  counted input leaves, its reserve the floor (an explicit `output_tokens` or a
-  native fields model keeps the reserve). Defaults 5 lets discovery span physical pages
-  within the counted token budget, retaining internal sections and lists as record content.
-  The existing verification call reads scalar fields afresh, without the draft
-  values anchoring its answer, and returns each complete value with a source quote;
-  code checks the field type and the quoted record text before acceptance. List
-  identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
-  corrected passages. Defaults 6 drops that compulsory verification: the entry call
-  is shown the full reply schema, code checks each value once (type, quoted
-  record text, table row, list item occurrence) and links a located value `lexical`,
-  never as verified; a value whose quote is missing or found nowhere stays a proposal
-  without Evidence, one printed neither in its located quote nor in source text
-  enclosing that quote stays rejected. Located
-  values that disagree still go to arbitration; `verification: true` adds verdicts on
-  the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
-  Defaults 7 builds on the same single pass, with heading context selected within counted
-  budgets. Discovery also retries a copied boundary that cannot be located uniquely in
-  its source line on the window's two halves, within the existing split bound. Superseded
-  replies keep their calls and issues; only final readings own source text, and exhausted
-  recovery leaves affected text unresolved. Discovery keeps all preceding record-free
-  ranges as candidates. Primary windows and overlap are fixed first; whole excerpts are considered newest first,
-  skipping an oversized one so smaller older excerpts can still fit. When the full
-  context does not fit, `candidates` (default 32, range 1–1024) bounds individual
-  measurements; older excerpts are omitted unmeasured. Split retries reconsider
-  kept and omitted context. Every omission is named in `context_omitted`.
-  Shown excerpts retain source order and source identities, marking the latest;
-  labels are metadata, never quotable evidence. A scalar outside lists may inherit
-  only a printed non-Boolean literal from shown context. Derived heading values
-  retain their supporting spans as proposals, never accepted Evidence. A candidate
-  whose spans all lie in shown context followed by an omitted excerpt stays a
-  `context_incomplete` proposal: the unseen excerpt could supersede it. Older
-  omissions do not prevent acceptance. List values and item occurrences still
-  require the entry's own text. Without verification, eligible literals are linked
-  `lexical`; `verification: true` checks applicability and supersession against the
-  same shown context, without re-extracting values.
-  Defaults 8 is defaults 6 with two discovery readings for prose reports. A copied
-  record start found nowhere in its named line is placed where it occurs exactly once
-  in a neighbouring line or across the named line's break (`boundary_relocated`).
-  Once discovery is complete, one more counted reading per window of the entries' own
-  lines lists the records printed inside them (a numbered find in a grave's list):
-  each becomes its own entry owning its whole lines, names its enclosing entry as
-  `parent` and is read with that entry's remaining text as context, from which a scalar
-  stated for the enclosing record as a whole may be taken. The ledger stays disjoint;
-  a child that is not whole lines of one entry after its first line, or that repeats
-  the entry's own printed label, is dropped (`child_dropped`); a failed children reply
-  leaves the parents whole and processing incomplete. Entries are read only after the
-  whole discovery, so a durable run shows no records before it. Known limits: a durable
-  run asks the children windows one per planning round; a cut-off or invalid children
-  reply is not split or retried; children windows have no overlap, so a child listed
-  across a window cut is lost to its parent; a rerun masks retained records' text, so a
-  child reread after its parent was retained loses that parent as context; a child may
-  still take its parent's identifier from context when the parent states it for itself.
-  Defaults 9 retains defaults 8's children pass and lets the schema determine the
-  discovery unit: primary table entries are peers, while titles and indices that
-  only repeat records described elsewhere are record-free. Requested enclosing
-  records stay whole until the children pass. Discovery explicitly marks shared
-  table qualifications (units, abbreviation definitions and note meanings);
-  those ranges within or immediately after a table are shared with its entries
-  as context, never added to their owned text. Ordinary narrative, another table,
-  a heading or another record ends following qualifications. Field instructions
-  ask for complete source expressions, preserve identifying qualifiers, and
-  distinguish a verbatim quote from a value's editorial note markers. This is a
-  model decision, with no punctuation stripping or field-specific cleanup.
-  Defaults 1–8 retain their prompts and recorded versions.
-  Defaults 10 is defaults 9 with the children pass pipelined: the same discovery and
-  entry readings, asked earlier. While discovery still reads, a durable run carves the
-  records its read windows settle, then reads, lists and saves each entry whose ranges
-  and context can no longer change. No children window crosses the entries one
-  discovery window settles, so nothing found later changes a window already asked
-  (defaults 9 packs them over the whole discovery: defaults 10 asks more, smaller ones);
-  an entry is final once every children window up to its last line is answered, and a
-  table entry also once the notes after its table are read. A children call is
-  admitted before the next discovery window, and the windows that wait are asked
-  together. The first records wait for the first discovery window alone; a later
-  record still waits for every window before it.
-  Defaults 8 and 9 keep reading no entry before the whole discovery.
+  recipe and no character limits (a request naming either is refused). Only
+  defaults versions 5 (Pro) and 10 are accepted. Both discover records across
+  physical pages within counted token budgets. An entry's reply may use the
+  served context its input leaves, with its reply reserve as the floor.
+  Pro reads scalar values afresh in verification, without draft values anchoring
+  the answer; code checks each returned value and quote before accepting it.
+  Version 10 reads each value once and links located values by rule (`lexical`).
+  A missing or unlocated quote stays a proposal without Evidence. Optional
+  verification checks fixed candidates. Disagreeing accepted values go to arbitration.
+  Version 10 discovers peer records according to the schema, identifies shared
+  table qualifications, and pipelines children discovery for settled records.
+  A child owns its lines and reads its enclosing record's remaining text as
+  context. Durable runs save entries once their ranges and context are settled,
+  while discovery continues over later windows. Later discoveries cannot change
+  already captured calls. Field instructions preserve complete source expressions
+  and identifying qualifications, without field-specific cleanup.
   Studio admits defaults 10 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces

@@ -27,13 +27,9 @@ from .manifest import checked, code_pin, digest, pin, read, validate, write_new
 FACTORS = {
     "quoted": {"grounding": "quoted"},
     "spans": {"grounding": "spans"},
-    "spans_unresolved": {"grounding": "spans", "grounding_schedule": "unresolved"},
     "spans_policy": {"grounding": "spans", "evidence_policy": "schema"},
-    "spans_unresolved_policy": {"grounding": "spans", "grounding_schedule": "unresolved", "evidence_policy": "schema"},
-    "spans_routed": {"grounding": "spans", "grounding_schedule": "unresolved", "evidence_policy": "schema",
-                     "grounding_routing": "origin_lexical"},
 }
-GROUNDING_OPTIONS = {"grounding", "grounding_schedule", "evidence_policy", "grounding_routing"}
+GROUNDING_OPTIONS = {"grounding", "evidence_policy"}
 
 
 def validate_fixed_options(options: dict, original: dict) -> None:
@@ -115,7 +111,7 @@ def fixed_grounding(source: dict, request, chat, counters, *, model_seconds: flo
         "schema": bundle["schema"], "strategy": "article", "options": request.options.dumped(),
         "model": chat.model, "models": chat.models, "prompt_version": PROMPT_VERSION, "method_version": 1,
         "started": started, "seconds": round(time.monotonic() - clock, 3), "complete": False,
-        "records": bundle["records"], "inventory": bundle["inventory"], "contexts": bundle["contexts"],
+        "records": bundle["records"], "contexts": bundle["contexts"],
         "value_contexts": bundle["value_contexts"], "conflicts": bundle["conflicts"],
         "evidence": [link_json(link) for link in support.links],
         "quoted_support": support.proofs, "ungrounded": ungrounded,
@@ -135,11 +131,10 @@ def fixed_grounding(source: dict, request, chat, counters, *, model_seconds: flo
             "eligible_record_leaves": len(eligible), "skipped": support.skipped}
         artifact["completion"]["eligible_grounding"] = (
             "not_applicable" if not eligible else "complete" if eligible <= grounded else "partial")
-    if method.grounding_routing:
-        artifact["grounding_routing_version"] = ROUTING_VERSION
-        artifact["value_origins"] = [{**item, "path": ["records", number, *item["path"]]}
-            for number, origins in enumerate(bundle["value_origins"]) for item in origins]
-        artifact["grounding_routes"] = support.routes
+    artifact["grounding_routing_version"] = ROUTING_VERSION
+    artifact["value_origins"] = [{**item, "path": ["records", number, *item["path"]]}
+        for number, origins in enumerate(bundle["value_origins"]) for item in origins]
+    artifact["grounding_routes"] = support.routes
     artifact["fingerprint"] = digest(json.dumps({"method": fingerprint(artifact, request, chat.models),
         "upstream_sha256": source["fixed_upstream"]["sha256"], "scope": artifact["execution_scope"]}, sort_keys=True).encode())
     checked(source["fixed_upstream"])
@@ -158,7 +153,7 @@ def validate_bundle(source: dict, parent_pin: dict) -> None:
     for item in bundle["provenance"]["captures"] + bundle["provenance"]["tokenizer_probes"]:
         checked(item)
     parent = read(checked(bundle["provenance"]["result"]))["artifact"]
-    for name in ("records", "inventory", "contexts", "value_contexts", "conflicts"):
+    for name in ("records", "contexts", "value_contexts", "conflicts"):
         if bundle[name] != parent[name]:
             raise ValueError(f"fixed upstream {name} differ from original bounded artifact")
     from kei_exp.kie.extract.schema import Schema
@@ -216,13 +211,8 @@ def register(parent: Path, bundles: Path, output: Path) -> dict:
         method["article"].update(factors)
         study["methods"][name] = method
     study["comparisons"] = [{"control": a, "treatment": b, "factor": "article." + factor} for a, b, factor in [
-        ("quoted", "spans", "grounding"), ("spans", "spans_unresolved", "grounding_schedule"),
-        ("spans", "spans_policy", "evidence_policy"),
-        ("spans_unresolved", "spans_unresolved_policy", "evidence_policy"),
-        ("spans_policy", "spans_unresolved_policy", "grounding_schedule"),
-        ("spans_unresolved_policy", "spans_routed", "grounding_routing")]]
-    study["interactions"] = [{"name": "scheduling_x_policy", "baseline": "spans", "a": "spans_unresolved",
-                              "b": "spans_policy", "ab": "spans_unresolved_policy"}]
+        ("quoted", "spans", "grounding"), ("spans", "spans_policy", "evidence_policy")]]
+    study["interactions"] = []
     study["grounding_study"] = {"parent": pin(parent / "manifest.json"),
         "protocol": pin(protocol), "model_seconds_per_cell": 10800,
         "interpretation": "Fresh grounding only; identical replay-verified upstream records. No held-out semantic labels."}

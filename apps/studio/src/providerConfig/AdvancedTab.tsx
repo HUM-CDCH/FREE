@@ -1,6 +1,6 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
-  articleSettingsIssues, canonicalArticle, canonicalUnified, CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
+  canonicalUnified, CATALOG_DEFAULTS, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
   UNIFIED_CATALOG_DEFAULTS_VERSION, UNIFIED_CATALOG_PRO_VERSION, type ArticleSettings, type CatalogSettings, type UnifiedCatalogSettings,
 } from 'extraction/extraction-method'
 import { settingsHeadline, UNIFIED_LABELS, unifiedLines } from '../methodSummary'
@@ -8,9 +8,9 @@ import type { ModelConfig } from '../../shared/modelConfig.contract'
 import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuide'
 import { SECTION_TOPIC, type GuideTopicId } from './advancedGuide.data'
 import {
-  ADDITIONAL_ARTICLE_KEYS, ARTICLE_CHOICES, ARTICLE_CONTROL_SECTIONS, CATALOG_LABELS, CONTROL_HINTS, CONTROL_LABELS,
-  changedSections, describeArticleValue, effectiveSummary, resetArticleSetting, unavailableReason,
-  type AdditionalArticleKey, type AdvancedStrategy, type ArticleKey, type CatalogFactor, type NumberPath,
+  ARTICLE_CHOICES, ARTICLE_CONTROL_SECTIONS, CATALOG_LABELS, CONTROL_HINTS, CONTROL_LABELS,
+  changedSections, effectiveSummary, unavailableReason,
+  type AdvancedStrategy, type ArticleKey, type CatalogFactor, type NumberPath,
 } from './advancedSettings'
 import type { ProviderConfigDraft } from './useProviderConfigDraft'
 import { SettingsViews } from './SettingsViews'
@@ -32,9 +32,6 @@ type Props = {
   extractionStrategy?: AdvancedStrategy
   /** An Extraction's own unified defaults version; absent, the account's, where verification on is Pro mode. */
   unifiedDefaults?: UnifiedCatalogSettings['defaults']
-  /** A pending input editor for an Extraction recorded with `article: null`: Save keeps that record while the Article
-   *  draft equals the saved one. */
-  unrecordedArticle?: boolean
 }
 
 /** The starting point last used, and the Article draft (with its number text) that Undo restores. `shown` is the
@@ -67,7 +64,7 @@ function requestEntries(value: unknown, path = ''): [string, unknown][] {
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
 export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, unifiedCatalog = false, extractionStrategy,
-  unifiedDefaults, unrecordedArticle = false }: Props) {
+  unifiedDefaults }: Props) {
   const [strategy, setStrategy] = useState<AdvancedStrategy>(extractionStrategy ?? 'article')
   const root = useRef<HTMLElement>(null)
   const guideTrigger = useRef<HTMLButtonElement>(null)
@@ -155,7 +152,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
           </div>
         </div>
         {strategy === 'article'
-          ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} unrecordedArticle={unrecordedArticle} />
+          ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />
           : unifiedView
             ? <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue}
                 unifiedDefaults={unifiedDefaults ?? UNIFIED_CATALOG_DEFAULTS_VERSION} pinned={unifiedDefaults !== undefined} />
@@ -165,9 +162,8 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
   )
 }
 
-function ArticleSettingsView({ draft, saved, editor, focusIssue, unrecordedArticle }:
-  Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue' | 'unrecordedArticle'>) {
-  const savedId = useId()
+function ArticleSettingsView({ draft, saved, editor, focusIssue }:
+  Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>) {
   const explicit = draft.extractionSettings.article
   const custom = explicit !== undefined
   const article = explicit ?? REFERENCE_ARTICLE
@@ -185,17 +181,6 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue, unrecordedArtic
     grouping: choice('grouping'), overlap_passages: choice('overlap_passages'), rendering: choice('rendering'),
     grounding: choice('grounding'), grounding_overflow: choice('grounding_overflow'), evidence_policy: choice('evidence_policy'),
   }
-  const existingIssues = new Set(articleSettingsIssues(article).map(({ path }) => path))
-  const savedArticle = saved.extractionSettings.article ?? REFERENCE_ARTICLE
-  const valueOf = (settings: ArticleSettings, key: AdditionalArticleKey) => [describeArticleValue(settings, key),
-    ...(key === 'identity' ? [describeArticleValue(settings, 'identity_fields')] : [])].join(' · ')
-  const sameSetting = (left: ArticleSettings, right: ArticleSettings, key: AdditionalArticleKey) =>
-    key === 'identity' ? left.identity === right.identity && JSON.stringify(left.identity_fields) === JSON.stringify(right.identity_fields)
-      : (left[key] ?? undefined) === (right[key] ?? undefined)
-  const savedIssue = (key: AdditionalArticleKey) => editor.settingsIssues.find(({ path }) => path === `article.${key}` ||
-    (key === 'identity' && path === 'article.identity_fields'))
-  const additional = ADDITIONAL_ARTICLE_KEYS.filter((key) =>
-    savedIssue(key) || [article, savedArticle].some((settings) => !sameSetting(settings, REFERENCE_ARTICLE, key)))
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('article.')) : undefined
   const issueKey = issue?.path.slice('article.'.length) as ArticleKey | undefined
   const pages = ARTICLE_CONTROL_SECTIONS.flatMap(({ section, title, keys }) => keys.map((key) => ({
@@ -211,31 +196,10 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue, unrecordedArtic
       {key === 'grounding' && <p className="text-[11px] text-ink-faint">Article document-level fields currently remain unverified.</p>}
     </section>,
   })))
-  const kept = unrecordedArticle && JSON.stringify(canonicalArticle(article)) === JSON.stringify(canonicalArticle(savedArticle))
   const options = editor.settingsIssues.some((item) => item.path.startsWith('article.')) ? null :  // what admission, or Save of pending inputs, sends
-    keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article: kept ? null : article }))
+    keiMethodOptions(extractionMethod('ARTICLE', null, draft.extractionModels, { article }))
   const entries = options ? requestEntries(options) : []
   return <>
-    {additional.length > 0 && <section aria-label="Additional saved settings" className="flex flex-col gap-1 text-[11px] text-ink-muted [overflow-wrap:anywhere]">
-      <h4 className="font-semibold">Additional saved settings</h4>
-      <p>Saved identity and instructions still affect preliminary bounded source sizing. Resets take effect for future Extractions when applied, or for pending inputs when saved.</p>
-      {additional.map((key) => {
-        const next = resetArticleSetting(article, key)
-        const reason = articleSettingsIssues(next).find(({ path }) => !existingIssues.has(path))?.message ?? null
-        const issue = savedIssue(key)
-        const label = key === 'identity' ? 'Record identity' : CONTROL_LABELS[key]
-        const value = valueOf(article, key), before = valueOf(savedArticle, key)
-        return <div key={key} className="flex flex-wrap items-baseline gap-x-2">
-          <span>{label}: {value}</span>
-          {!sameSetting(article, savedArticle, key) && <span className="text-accent">Changed from {before}</span>}
-          <button type="button" disabled={!custom || reason !== null || sameSetting(article, REFERENCE_ARTICLE, key)} data-setting={issue?.path ?? `article.${key}`}
-            aria-label={`Reset ${label}`} aria-describedby={reason || issue ? `${savedId}-${key}-issue` : undefined}
-            className={`${textButton} text-accent disabled:text-ink-faint`}
-            onClick={() => editor.replaceArticle(next, editor.numberEdits)}>Reset</button>
-          <FieldError id={`${savedId}-${key}-issue`} message={reason ?? issue?.message ?? null} />
-        </div>
-      })}
-    </section>}
     <SettingsViews label="Article setting" titles={[...pages.map((page) => page.title), 'Effective settings', 'Technical details']}
       selected={pages.find((page) => page.key === issueKey)?.title}>
       {pages.map((page) => page.content)}
@@ -260,7 +224,7 @@ function FieldError({ id, message }: { id: string; message: string | null }) {
   return <p id={id} aria-live="polite" className="text-[11px] font-semibold text-danger [overflow-wrap:anywhere]">{message}</p>
 }
 
-type ArticleChoiceKey = Exclude<keyof typeof ARTICLE_CHOICES, AdditionalArticleKey>
+type ArticleChoiceKey = keyof typeof ARTICLE_CHOICES
 
 function ChoiceGroup<K extends ArticleChoiceKey>({ settingKey, article, custom, error, onChange }: {
   settingKey: K; article: ArticleSettings; custom: boolean; error: string | null
@@ -428,7 +392,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
     ['output_tokens', number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.${'entry_reply' in defaults ? ' An entry reply may also use the context its input leaves (not with a native fields model); a value here caps every reply at it.' : ''}`, 'Stage defaults')],
     ['overlap', number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))],
     ['headings', toggle('headings')],
-    ['candidates', number('candidates', 'excerpts, 1 to 1024', 'From defaults 7: how many earlier excerpts each request measures against its budget, latest first. Older ones are left out without being measured; a value read behind an omitted excerpt stays a proposal.', String(UNIFIED_CATALOG_DEFAULTS[7].candidates))],
+    ['candidates', number('candidates', 'excerpts, 1 to 1024', 'From defaults 7: how many earlier excerpts each request measures against its budget, latest first. Older ones are left out without being measured; a value read behind an omitted excerpt stays a proposal.', String(32))],
     ['verification', toggle('verification')],
   ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${label(key)}`, control }))
   return (

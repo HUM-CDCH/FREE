@@ -141,8 +141,7 @@ def test_skip_paths_distinguish_records_and_array_positions():
     assert [link.path for link in links] == [("records", 1, "finds", 1)]
 
 
-@pytest.mark.parametrize("schedule,expected", [(None, [1, 1]), ("unresolved", [1, 1])])
-def test_each_claim_is_checked_where_its_value_is_printed_whatever_the_schedule(monkeypatch, schedule, expected):
+def test_each_claim_is_checked_where_its_value_is_printed(monkeypatch):
     """Article routes every claim to the context printing its value first and stops at support (`ARTICLE_VERSION` 4),
     so the research schedule no longer changes its calls: one check per claim here, under either schedule."""
     source = passages(["Hill", "1827"])
@@ -155,24 +154,24 @@ def test_each_claim_is_checked_where_its_value_is_printed_whatever_the_schedule(
                 for claim in schema["properties"]}
     chat = CountingChat(reasoning)
     request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
-        "context": "bounded", "grounding": "spans", "grounding_schedule": schedule,
-        "identity": "conservative", "identity_fields": ["site"]}})
+        "context": "bounded", "grounding": "spans",
+         }})
     result = run.extract(None, request, Router(CountingChat(lambda *_: {"site": "Hill", "year": 1827}), chat),
         counter={role: WordCounter() for role in ("fields", "reasoning")})
     grounding = [c for c in chat.calls if "### Claims" in c["user"]]
-    assert [len(c["schema"]["required"]) for c in grounding] == expected
+    assert [len(c["schema"]["required"]) for c in grounding] == [1, 1]
     assert result["span_grounding_version"] == 2 and result["quoted_support"]
     assert {tuple(link["path"]) for link in result["evidence"]} == {
         ("records", 0, "site"), ("records", 0, "year")}
 
 
-def test_factors_are_independent_and_old_serialization_omits_new_defaults():
+def test_grounding_modes_have_distinct_fingerprints():
     assert "grounding_schedule" not in ArticleOptions().model_dump()
-    with pytest.raises(ValueError, match="requires verification"):
-        ArticleOptions(grounding="off", grounding_schedule="unresolved")
+    with pytest.raises(ValueError, match="require verification"):
+        ArticleOptions(grounding="off", grounding_overflow="windows")
     requests = [run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": settings})
                 for settings in [{"grounding": "quoted"}, {"grounding": "spans"},
-                                 {"grounding": "spans", "grounding_schedule": "unresolved"}]]
+                                 {"grounding": "semantic"}]]
     assert len({assembly.fingerprint({"generation": "g", "digest": "d"}, r, {}) for r in requests}) == 3
 
 

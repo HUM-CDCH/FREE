@@ -7,7 +7,6 @@ import { keiRunOf } from './kei-handoff.js'
 import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, durableHeadSchema,
   durableSelectionSchema, durableStatus, durableValueSchema, plannedRecords, type DurableHead, type DurableValue } from './durable-contract.js'
 import { correctionValueFits, fieldMeaning, adaptedCorrection, modelDigest, resolvedValue } from './durable-feedback.js'
-import { refuseUnusableIdentityFields } from './postgres-admission.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import { groundedEvidenceLink, plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
@@ -219,7 +218,6 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const prior = (await client.query('SELECT method,resolved FROM extraction_runtime.selection WHERE id=$1', [head.selectionId])).rows[0]
         const method = canonicalIntent(input.method,head.strategy,prior.resolved.catalogRecipe)
         if (!method) throw new DurableInvalid('The Extraction settings are invalid.')
-        refuseUnusableIdentityFields(method.settings,row.schemaTree)
         refuseIncompatibleGliformer(method,executionDefinition(tree))
         const ordinal = (await client.query('SELECT coalesce(max(ordinal),0)+1 AS n FROM extraction_runtime.selection WHERE "extractionId"=$1', [id])).rows[0].n
         const selectionId = randomUUID()

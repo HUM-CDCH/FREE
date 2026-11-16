@@ -57,7 +57,7 @@
     "options": {
       "strategy": "catalog",
       "unified": {
-        "defaults": 1
+        "defaults": 5
       }
     }
   },
@@ -257,7 +257,7 @@
       "strategy": "catalog",
       "models": null,
       "unified": {
-        "defaults": 1
+        "defaults": 5
       }
     },
     "started": "2026-09-29T12:00:00+00:00",
@@ -271,26 +271,43 @@
       },
       "schema_sha256": "03fdb1e37c99bf5a615c986b72ac5f716f162857db57c16276e73e86115d4c1b",
       "method": {
-        "defaults": 1
+        "defaults": 5
       },
       "defaults": {
         "reserves": {
           "discovery": 4096,
           "entry": 4096,
-          "verification": 2048,
+          "verification": 4096,
           "arbitration": 512,
           "document": 2048
         },
-        "overlap": 1,
-        "headings": true,
-        "verification": true,
-        "splits": 6
-      },
-      "effective": {
-        "overlap": 1,
+        "overlap": 3,
         "headings": true,
         "verification": true,
         "splits": 6,
+        "windows": "budget",
+        "pipelined": true,
+        "entry_reply": "context",
+        "corrections": true,
+        "single_pass": false,
+        "nearby": false,
+        "children": false,
+        "complete_text": false
+      },
+      "effective": {
+        "overlap": 3,
+        "headings": true,
+        "verification": true,
+        "splits": 6,
+        "windows": "budget",
+        "pipelined": true,
+        "entry_reply": "context",
+        "corrections": true,
+        "single_pass": false,
+        "nearby": false,
+        "children": false,
+        "complete_text": false,
+        "candidates": 32,
         "stages": {
           "discovery": {
             "role": "reasoning",
@@ -304,8 +321,8 @@
           },
           "verification": {
             "role": "reasoning",
-            "input_tokens": 14336,
-            "output_tokens": 2048
+            "input_tokens": 12288,
+            "output_tokens": 4096
           },
           "arbitration": {
             "role": "reasoning",
@@ -342,10 +359,10 @@
         }
       }
     },
-    "execution_sha256": "f9f2a093ff72a4e53fbfd3f5336317f5939fd75c7ff75f644c883786c0418161",
+    "execution_sha256": "a208acb70b2bad4bc34f2578f668def851fb1850358bf9f0a2552428da904edd",
     "discovery": {
       "version": 8,
-      "execution_sha256": "f9f2a093ff72a4e53fbfd3f5336317f5939fd75c7ff75f644c883786c0418161",
+      "execution_sha256": "a208acb70b2bad4bc34f2578f668def851fb1850358bf9f0a2552428da904edd",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -435,12 +452,12 @@
         {
           "stage": "discovery",
           "record": null,
-          "input_tokens": 267,
+          "input_tokens": 311,
           "output_tokens": 5,
           "finish": "stop",
           "ok": true,
           "error": null,
-          "counted_input_tokens": 267,
+          "counted_input_tokens": 311,
           "context_tokens": 16384,
           "max_output_tokens": 4096,
           "recovered": false,
@@ -448,7 +465,7 @@
         }
       ]
     },
-    "discovery_sha256": "b35bf0a481700515b7bcd793e29428bee33c9b75edb28fbc956efa08d385536d",
+    "discovery_sha256": "2cbbfcf8f26281949945436cf13268ea5bcc5d5e5aeafa033cf41dc352740113",
     "records": [
       {
         "label": "12",
@@ -843,13 +860,13 @@
       {
         "stage": "discovery",
         "record": null,
-        "input_tokens": 267,
+        "input_tokens": 311,
         "output_tokens": 5,
         "seconds": 0.0,
         "finish": "stop",
         "ok": true,
         "error": null,
-        "counted_input_tokens": 267,
+        "counted_input_tokens": 311,
         "context_tokens": 16384,
         "max_output_tokens": 4096,
         "recovered": false
@@ -865,21 +882,21 @@
         "error": null,
         "counted_input_tokens": 168,
         "context_tokens": 16384,
-        "max_output_tokens": 4096,
+        "max_output_tokens": 16216,
         "recovered": false
       },
       {
         "stage": "verification",
         "record": 0,
-        "input_tokens": 150,
+        "input_tokens": 158,
         "output_tokens": 5,
         "seconds": 0.0,
         "finish": "stop",
         "ok": true,
         "error": null,
-        "counted_input_tokens": 150,
+        "counted_input_tokens": 158,
         "context_tokens": 16384,
-        "max_output_tokens": 2048,
+        "max_output_tokens": 4096,
         "recovered": false
       },
       {
@@ -893,7 +910,7 @@
         "error": null,
         "counted_input_tokens": 166,
         "context_tokens": 16384,
-        "max_output_tokens": 4096,
+        "max_output_tokens": 16218,
         "recovered": false
       },
       {
@@ -907,7 +924,7 @@
         "error": null,
         "counted_input_tokens": 146,
         "context_tokens": 16384,
-        "max_output_tokens": 2048,
+        "max_output_tokens": 4096,
         "recovered": false
       },
       {
@@ -926,9 +943,9 @@
       }
     ],
     "tokens": {
-      "input": 1003,
+      "input": 1055,
       "output": 30
     },
-    "fingerprint": "a788b571d3640aebd95fd4bc0c2fa554f2e51346911b4999bda7f87c049ab93d"
+    "fingerprint": "b6374e9329e9bb257a4bc3885605bfdd1cd97f315cb2932356faf3454626cc8f"
   }
 }

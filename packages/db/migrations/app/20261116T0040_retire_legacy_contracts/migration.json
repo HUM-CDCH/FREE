@@ -1,0 +1,9 @@
+{
+  "from": "sha256:9a5c9519c9e620a2582782734688ad87aed2929ece762be272eeea4435ed1142",
+  "to": "sha256:fbeb9698789eafab32f78fe52a5d41a9c6cbcd945b9a34cecf4814f691bcccf7",
+  "providedInvariants": [
+    "retired-contracts.require-current-data"
+  ],
+  "createdAt": "2026-11-16T00:40:05.808Z",
+  "migrationHash": "sha256:d154f21bc74669aac4f6f63b65faaebb1a053bcac79cef0e9951333e66448f96"
+}

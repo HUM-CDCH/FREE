@@ -134,9 +134,10 @@ function modelAttribution(sourceCoverage: unknown): { sourceCoverage: unknown } 
 }
 
 function declaredSourceCoverage(attribution: unknown): unknown {
-  return attribution !== null && typeof attribution === 'object' && 'sourceCoverage' in attribution
-    ? (attribution.sourceCoverage ?? null)
-    : null
+  if (attribution === null) return null
+  if (typeof attribution !== 'object' || Array.isArray(attribution) || Object.keys(attribution).length !== 1 || !('sourceCoverage' in attribution))
+    throw new Error('The saved source coverage is invalid.')
+  return attribution.sourceCoverage
 }
 
 async function ownedSchemaRevision(
@@ -390,11 +391,6 @@ export type DocumentReopenSnapshot = {
     revisionNumber: number
     createdAt: Date
   }
-  annotationSet: {
-    annotationSetId: string
-    revisionNumber: number
-    snapshot: unknown
-  } | null
   extractionSchema: {
     extractionSchemaId: string
     name: string
@@ -1979,14 +1975,6 @@ export function createResearcherProjectStore(
               .first()
         if (!representation) return null
 
-        const annotationSet = await orm.public.AnnotationSetRevision.where({
-          sourceDocumentId,
-          sourceRepresentationRevisionId: representation.id,
-        })
-          .select('id', 'revisionNumber', 'snapshot')
-          .orderBy((revision) => revision.revisionNumber.desc())
-          .first()
-
         const schemaRevision = pins
           ? await ownedSchemaRevision(
               transaction,
@@ -2042,11 +2030,6 @@ export function createResearcherProjectStore(
             sourceRepresentationId: representation.id,
             revisionNumber: representation.revisionNumber,
             createdAt: representation.createdAt,
-          },
-          annotationSet: annotationSet && {
-            annotationSetId: annotationSet.id,
-            revisionNumber: annotationSet.revisionNumber,
-            snapshot: annotationSet.snapshot,
           },
           extractionSchema:
             extractionSchema && currentSchemaRevision

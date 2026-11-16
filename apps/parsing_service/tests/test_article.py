@@ -1,5 +1,4 @@
-"""Article reads one document root with complete input and served-token admission; the inventory of
-noncontiguous records it used to take lives in research tooling and is tested here as a unit."""
+"""Article reads one document root with complete input and served-token admission."""
 import dataclasses
 
 import pytest
@@ -47,8 +46,8 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert len(systems) == 1 and DOCUMENT in systems[0] and "Extract ONLY the record" not in systems[0]
     assert result["records"] == [{"entry_no": "31", "site": "Hill", "year": 1827, "finds": ["spear", "spear"],
                                   "title": "Sites", "filename": "bauer.pdf"}]
-    assert result["inventory"] == [{"identity": {}, "label": DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1", "p1_s2"]}]
-    assert not result["issues"] and result["article_version"] == 17
+    assert "inventory" not in result
+    assert not result["issues"] and result["article_version"] == 18
     assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert all(call["counted_input_tokens"] + call["max_output_tokens"] <= call["context_tokens"]
                for call in result["calls"])
@@ -254,3 +253,20 @@ def test_a_bounded_root_context_keeps_as_many_reply_tokens_as_its_request_counts
     assert all(call["ok"] and call["max_output_tokens"] == 11264 - call["counted_input_tokens"]
                >= call["counted_input_tokens"] for call in roots)
     assert result["records"][0]["finds"] == FINDS
+
+
+def test_bounded_contexts_are_sized_against_the_document_value_request():
+    from kei_exp.kie.extract.article import source_contexts
+    from kei_exp.kie.extract.method import ArticleOptions
+    source = passages(["first context", "second context"])
+    measured = []
+    class Counter(WordCounter):
+        context_tokens = 8192
+        def request_tokens(self, system, user, schema=None):
+            measured.append((system, user, schema))
+            assert system.startswith(DOCUMENT)
+            assert schema == record_request('', SCHEMA, None, None, document=True)[2]
+            return 5000 if all(p.text in user for p in source) else 1000
+    groups = source_contexts(source, SCHEMA, ArticleOptions(context="bounded"), Counter())
+    assert [list(group.primary) for group in groups] == [[source[0]], [source[1]]]
+    assert measured

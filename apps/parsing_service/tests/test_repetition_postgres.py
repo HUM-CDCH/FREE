@@ -20,7 +20,7 @@ def test_guarded_retry_keeps_sibling_checkpoint_and_stops_split(database, coordi
     provider = {"key": "nuextract", "adapterVersion": 1, "adapter": "nuextract", "model": "test",
                 "url": "http://127.0.0.1:1/v1/chat/completions", "timeout": 1, "maxTokens": 256}
     configuration = {"models": {"fields": provider, "reasoning": provider},
-                     "options": {"strategy": "catalog", "unified": {"defaults": 3}},
+                     "options": {"strategy": "catalog", "unified": {"defaults": 5}},
                      "planner": 1, "protocols": {"calls": 1, "source": "document"}}
     schema = {"type": "object", "properties": {"value": {"type": "string"}}}
     pool = CoordinationPool(coordination_database)

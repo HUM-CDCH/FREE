@@ -41,7 +41,7 @@ const suggestion: BatchSchemaSuggestionRecord = {
   columnFieldMapping: null,
   projectSpreadsheetVersionId: null,
   proposal: definition,
-  coverage: [{ nodeId: 'place', present: 1, total: 1 }],
+  coverage: [{ sourceDocumentId, sourceCoverage: { complete: true }, combined: true }],
   draft: definition,
   failure: null,
   savedSchema: null,
@@ -108,13 +108,19 @@ describe('Batch Schema Suggestion APIs', () => {
   it.each([
     ['still suggesting', { ...suggestion, executionStatus: 'RUNNING' as const, phase: null, draft: null }],
     ['found no common fields', { ...suggestion, phase: 'HETEROGENEOUS' as const, draft: null }],
-    ['holds a stored result that is no schema definition', { ...suggestion, draft: { recordDescription: 'Nothing.', schemaNodes: 'none' } }],
   ] satisfies [string, BatchSchemaSuggestionRecord][])('apply refuses a suggestion that %s with 409 operation_not_ready, saving nothing', async (_, read) => {
     const applyBatchSchemaSuggestion = vi.fn()
     const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => read), applyBatchSchemaSuggestion })(applyRequest())
 
     expect(response.status).toBe(409)
     expect(batchSchemaSuggestionErrorResponseSchema.parse(await response.json()).error.code).toBe('operation_not_ready')
+    expect(applyBatchSchemaSuggestion).not.toHaveBeenCalled()
+  })
+
+  it.each([null, { retired: true }])('apply refuses an invalid retained draft as unavailable', async draft => {
+    const applyBatchSchemaSuggestion = vi.fn()
+    const response = await handlerFor({ getBatchSchemaSuggestion: vi.fn(async () => ({ ...suggestion, draft })), applyBatchSchemaSuggestion })(applyRequest())
+    expect(response.status).toBe(503)
     expect(applyBatchSchemaSuggestion).not.toHaveBeenCalled()
   })
 
@@ -210,22 +216,21 @@ describe('Batch Schema Suggestion APIs', () => {
     expect(store.retryBatchSchemaSuggestion).not.toHaveBeenCalled()
   })
 
-  it('reads the stored source declaration, and still loads a suggestion stored with schema-path counts', async () => {
+  it('reads the stored source declaration', async () => {
     const declared = [{
       sourceDocumentId,
       sourceCoverage: { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] },
-      combined: false,
+      combined: true,
     }]
     // Rows published before the declaration hold the retired path-agreement counts in the same column.
-    const legacy = { ...suggestion, batchSchemaSuggestionId: '51000000-0000-4000-8008-000000000002' }
     const current = { ...suggestion, coverage: declared }
-    const { GET } = handlersFor({ listBatchSchemaSuggestions: vi.fn(async () => [legacy, current]) })
+    const { GET } = handlersFor({ listBatchSchemaSuggestions: vi.fn(async () => [current]) })
 
     const listed = await GET(new Request(`http://test/api/batch-schema-suggestions?projectContextId=${projectContextId}`))
 
     expect(listed.status).toBe(200)
     const body = await listed.json()
-    expect(body.batchSchemaSuggestions.map((item: Record<string, unknown>) => item.sourceCoverage)).toEqual([null, declared])
+    expect(body.batchSchemaSuggestions.map((item: Record<string, unknown>) => item.sourceCoverage)).toEqual([declared])
     expect(body.batchSchemaSuggestions[0]).not.toHaveProperty('coverage')
   })
 

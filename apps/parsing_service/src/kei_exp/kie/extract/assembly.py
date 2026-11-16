@@ -25,11 +25,10 @@ from kei_exp.kie.extract.calls import Call
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, assemble_document, sharing
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.method import ArticleOptions
-from kei_exp.kie.extract.routing import OVERFLOW_VERSION, VERSION as GROUNDING_ROUTING_VERSION, verify_routed
+from kei_exp.kie.extract.routing import OVERFLOW_VERSION, verify_routed
 from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.rendering import RENDERING_VERSION
 from kei_exp.kie.extract.schema import Schema, evidence_policy
-from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.stages import Issue, Link, extract_document, leaves, merge
 from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import Evidence, Passage
@@ -75,7 +74,8 @@ PROMPT_VERSION = 18
 # again shortened or differently cased after exactly one earlier item (a running header's initials) may be its repeat;
 # `of` is asked as the shortest excerpt naming the work.
 # 17: resolution constrains its reply without showing its schema (RESOLUTION states the shape).
-ARTICLE_VERSION = 17
+# 18: bounded contexts use the document-value request; retired settings and inventory output are removed.
+ARTICLE_VERSION = 18
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -90,12 +90,8 @@ def fingerprint(result: dict, request, model: dict) -> str:
            and request.options.article.rendering is not None else {}),
         **({"grouping_version": GROUPING_VERSION} if request.options.article is not None
            and request.options.article.grouping is not None else {}),
-        **({"selection_version": SELECTION_VERSION}
-           if request.options.article is not None and request.options.article.selection is not None else {}),
         **({"span_grounding_version": SPAN_GROUNDING_VERSION}
            if request.options.article is not None and request.options.article.grounding == "spans" else {}),
-        **({"grounding_routing_version": GROUNDING_ROUTING_VERSION}
-           if request.options.article is not None and request.options.article.grounding_routing is not None else {}),
         **({"grounding_overflow_version": OVERFLOW_VERSION}
            if request.options.article is not None and request.options.article.grounding_overflow is not None else {}),
     })).hexdigest()
@@ -189,8 +185,7 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
             groups = []
         for group in groups:
             links, calls, issues = verifier(group, fields, schema, chat,
-                skip_paths=frozenset(skipped_paths | ({link.path for link in result.links}
-                    if method is not None and method.grounding_schedule == "unresolved" else set())), **verification)
+                skip_paths=frozenset(skipped_paths), **verification)
             # Retain the first support in execution order; all calls/proofs remain auditable.
             known = {link.path for link in result.links}
             result.links += [link for link in links if link.path not in known]

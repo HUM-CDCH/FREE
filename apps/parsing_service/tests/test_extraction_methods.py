@@ -31,11 +31,11 @@ def test_invalid_method_settings_are_rejected(settings):
 
 
 def test_options_validate_schema_identity_fields_and_change_fingerprint():
-    with pytest.raises(ValueError, match="scalar record fields"):
+    with pytest.raises(ValueError, match="Extra inputs"):
         run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"identity_fields": ["nope"]}})
     base = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article"})
     selected = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"grounding": "off"}})
-    assert "article" not in base.options.dumped()
+    assert base.options.dumped()["article"]["grounding_overflow"] == "windows"
     assert assembly.fingerprint({"generation": "g", "digest": "d"}, base, {}) != assembly.fingerprint(
         {"generation": "g", "digest": "d"}, selected, {})
 
@@ -50,8 +50,7 @@ def test_bounded_pipeline_reaches_late_evidence_and_never_claims_measured_recall
     def fields(system, user, schema):
         return {"year": 1827 if "Late result" in user else None}
     request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
-        "context": "bounded", "context_tokens": 8192, "identity": "conservative", "identity_fields": ["site"],
-        "prompt": "schema", "grounding": "off"}})
+        "context": "bounded", "context_tokens": 8192, "grounding": "off"}})
     result = run.extract(None, request, Router(CountingChat(fields), CountingChat(reason)),
                          counter={role: WordCounter() for role in ("fields", "reasoning")})
     assert result["records"][0]["year"] == 1827 and len(result["contexts"]) >= 2
@@ -122,18 +121,4 @@ def test_contract_cases_and_their_dumps_match_the_shared_fixture():
 def test_categorical_inventory_verdicts_match_the_shared_fixture():
     inventory = fixture("article-options")["inventory"]
     assert article_options.verdicts(inventory) == inventory["verdicts"]
-    # The specification's receipt (contract-check.json) pins 1560/4584 at one ceiling and key set; `grounding_overflow`
-    # doubles the inventory and is refused with grounding off.
-    assert (inventory["accepted"], inventory["rejected"]) == (3016, 9272)
-
-
-def test_identity_fields_are_checked_against_the_schema_as_the_shared_fixture_says():
-    shared = fixture("identity-fields")
-    for case in shared["cases"]:
-        options = {"strategy": "article", "article": {"identity_fields": case["fields"]}}
-        if not case["issues"]:
-            run.ExtractRequest(schema=shared["schema"], options=options)
-            continue
-        with pytest.raises(ValueError) as refused:
-            run.ExtractRequest(schema=shared["schema"], options=options)
-        assert str(sorted(issue["name"] for issue in case["issues"])) in str(refused.value)
+    assert (inventory["accepted"], inventory["rejected"]) == (154, 230)

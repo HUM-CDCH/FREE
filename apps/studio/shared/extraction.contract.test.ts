@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { describe, expect, it } from 'vitest'
 import {
   extractionRequestSchema,
@@ -10,7 +11,7 @@ const id = (digit: string) =>
   `${digit.repeat(8)}-${digit.repeat(4)}-4${digit.repeat(3)}-8${digit.repeat(3)}-${digit.repeat(12)}`
 
 /** The saved method a start view submits when the account keeps every service default, per settings slot. */
-const ARTICLE_DEFAULTS = { models: null, settings: { article: null } } as const
+const ARTICLE_DEFAULTS = { models: null, settings: { article: REFERENCE_ARTICLE } } as const
 const GENERIC_DEFAULTS = { models: null, settings: { generic: null } } as const
 const RECIPE_DEFAULTS = { models: null, settings: { recipe: null } } as const
 
@@ -22,7 +23,7 @@ const completed = {
   strategy: 'ARTICLE',
   catalogRecipe: null,
   requestedModels: null,
-  requestedSettings: { article: null },
+  requestedSettings: { article: REFERENCE_ARTICLE },
   executionStatus: 'COMPLETED',
   finalizedReview: null,
   batchExtractionId: null,
@@ -49,8 +50,8 @@ describe('durable Extraction contracts', () => {
     expect(extractionAttemptSchema.parse({ ...completed, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', requestedSettings: { recipe: null } }).catalogRecipe)
       .toBe('numbered-catalogue-de@1')
     expect(extractionAttemptSchema.safeParse({ ...completed, catalogRecipe: 'numbered-catalogue-de@1' }).success).toBe(false)
-    expect(extractionAttemptSchema.parse({ ...completed, requestedSettings: null }).requestedSettings).toBeNull()
-    expect(extractionAttemptSchema.safeParse({ ...completed, requestedSettings: { article: null, generic: null } }).success).toBe(false)
+    expect(extractionAttemptSchema.parse({ ...completed, requestedSettings: { article: REFERENCE_ARTICLE } }).requestedSettings).toEqual({ article: REFERENCE_ARTICLE })
+    expect(extractionAttemptSchema.safeParse({ ...completed, requestedSettings: { article: REFERENCE_ARTICLE, generic: null } }).success).toBe(false)
   })
 })
 
@@ -123,12 +124,12 @@ describe('numbered-catalogue recipe contracts', () => {
   })
 
   it('refuses a method that breaks a rule of the method contract at the field that breaks it', () => {
-    const article = { context: 'full', grounding: 'semantic', grounding_schedule: 'unresolved', grounding_routing: 'origin_lexical' }
+    const article = { context: 'full', grounding: 'off', grounding_overflow: 'windows' }
     const parsed = extractionRequestSchema.safeParse({ ...fresh, strategy: 'ARTICLE', method: { models: null, settings: { article } } })
     expect(parsed.success).toBe(false)
     expect(parsed.error?.issues).toContainEqual(expect.objectContaining({
-      path: ['method', 'settings', 'article', 'grounding_routing'],
-      message: 'Use generated quotes or source spans, and stop after support.',
+      path: ['method', 'settings', 'article', 'grounding_overflow'],
+      message: 'Choose a verification method to check large claims in windows.',
     }))
   })
 
@@ -142,7 +143,7 @@ describe('Extraction Model Choice contracts', () => {
   it('takes a model choice only inside the saved method', () => {
     expect(extractionRequestSchema.parse(fresh)).not.toHaveProperty('models')
     expect(extractionRequestSchema.parse({ ...fresh, method: { ...ARTICLE_DEFAULTS, models: { fields: 'nuextract' } } }).method)
-      .toEqual({ models: { fields: 'nuextract' }, settings: { article: null } })
+      .toEqual({ models: { fields: 'nuextract' }, settings: { article: REFERENCE_ARTICLE } })
     for (const models of [{ fields: 'nuextract', reasoning: 'instruct' }, {}, 'instruct'])
       expect(extractionRequestSchema.safeParse({ ...fresh, models }).success).toBe(false)
     expect(extractionRequestSchema.safeParse({ ...fresh, model: 'instruct' }).success).toBe(false)

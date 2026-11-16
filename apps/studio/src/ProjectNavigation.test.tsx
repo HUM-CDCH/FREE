@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 
 import '@testing-library/jest-dom/vitest'
 import {
@@ -170,7 +171,7 @@ function snapshot(sourceDocument = beretning, projectContext = project) {
         parsedDocumentUrl: `/api/project-contexts/${projectContext.projectContextId}/source-representations/${representationId}/source`,
       },
     },
-    annotationSet: null,
+
     extractionSchema: null,
     latestAttempt: null,
     latestReviewed: null,
@@ -185,18 +186,6 @@ function secondSnapshot() {
 function hydratedSnapshot() {
   return {
     ...snapshot(),
-    annotationSet: {
-      annotationSetId: '51000000-0000-4000-8003-000000000001',
-      revisionNumber: 1,
-      annotations: [
-        {
-          annotationId: '51000000-0000-4000-8004-000000000001',
-          evidenceAnchorId: 'anchor-1',
-          text: 'The restored annotation',
-          pageNumber: 1,
-        },
-      ],
-    },
     extractionSchema: {
       extractionSchemaId: '51000000-0000-4000-8005-000000000001',
       name: 'Places',
@@ -216,7 +205,7 @@ function hydratedSnapshot() {
       strategy: 'ARTICLE',
       catalogRecipe: null,
       requestedModels: null,
-      requestedSettings: null,
+      requestedSettings: { article: REFERENCE_ARTICLE },
       executionStatus: 'COMPLETED',
       finalizedReview: null,
       batchExtractionId: null,

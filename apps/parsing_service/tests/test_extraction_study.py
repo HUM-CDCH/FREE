@@ -104,3 +104,28 @@ def test_exact_document_summary_does_not_hide_a_normalized_only_sample_row():
                "expected": "Title", "actual": actual} for actual in ["title", "Title"]]
     assert document_fields(fields, {"title"})[0]["result"] == "correct"
     assert document_fields(exact_projected_fields(fields), {"title"})[0]["result"] == "incorrect"
+
+
+def test_article_preflight_counts_the_fields_request_with_its_rendering(monkeypatch):
+    from experiments.extraction import study
+    from kei_exp.kie.extract.run import ExtractRequest
+    from kei_exp.kie.extract.rendering import structured_source
+    from kei_exp.kie.extract.stages import record_request
+    from tests.test_extract_grounded import WordCounter
+    from tests.test_extract_stages import SCHEMA, evidence, passages
+    canonical = evidence(passages(["Whole source"]))
+    request = ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"rendering": "structured"}})
+    measured, routes = [], []
+    class Counter(WordCounter):
+        def request_tokens(self, system, user, schema=None):
+            measured.append((system, user, schema))
+            return super().request_tokens(system, user, schema)
+    monkeypatch.setattr(study, "OpenAIChat", lambda **route: route)
+    monkeypatch.setattr(study, "counter_for", lambda route: (routes.append(route), Counter())[1])
+    monkeypatch.setattr(study, "load", lambda _: canonical)
+    providers = {role: {"base_url": "http://unused", "model": role} for role in ("fields", "reasoning")}
+    report = study.preflight({"providers": providers, "sources": [{"id": "source", "run": "."}]},
+                            [{"id": "cell", "source": "source", "request": request}])
+    assert routes[0]["model"] == "fields"
+    assert measured == [record_request(structured_source(canonical.passages), SCHEMA, None, None, document=True)]
+    assert report[0]["value_units"] == 1

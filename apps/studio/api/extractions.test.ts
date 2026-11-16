@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { describe, expect, it, vi } from 'vitest'
 import type { ResearcherProjectStore } from 'db'
 import {
@@ -36,7 +37,7 @@ const attemptSnapshot: ExtractionAttemptSnapshot = {
   strategy: 'ARTICLE',
   catalogRecipe: null,
   requestedModels: null,
-  requestedSettings: { article: null },
+  requestedSettings: { article: REFERENCE_ARTICLE },
   executionStatus: 'QUEUED',
   finalizedReview: null,
   batchExtractionId: null,
@@ -80,7 +81,7 @@ const fresh = {
   sourceRepresentationRevisionId: REPRESENTATION,
   schemaRevisionId: REVISION,
   strategy: 'ARTICLE',
-  method: { models: null, settings: { article: null } },
+  method: { models: null, settings: { article: REFERENCE_ARTICLE } },
 }
 
 describe('/api/extractions transport', () => {
@@ -100,7 +101,7 @@ describe('/api/extractions transport', () => {
         sourceRepresentationRevisionId: REPRESENTATION,
         schemaRevisionId: REVISION,
         strategy: 'ARTICLE',
-        method: { models: null, settings: { article: null } },
+        method: { models: null, settings: { article: REFERENCE_ARTICLE } },
         startPage: null,
       },
     )
@@ -138,7 +139,7 @@ describe('/api/extractions transport', () => {
 
   it('hands the submitted method to admission unchanged; the handler never reads the account', async () => {
     const module = extractionModule()
-    const method = { models: { fields: 'instruct' }, settings: { article: null } }
+    const method = { models: { fields: 'instruct' }, settings: { article: REFERENCE_ARTICLE } }
     expect((await handlerFor(module)(request({ ...fresh, method }))).status).toBe(201)
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ method }))
   })
@@ -148,7 +149,6 @@ describe('/api/extractions transport', () => {
     ['catalog_migration_required', 409],
     ['record_scope_required', 409],
     ['record_scope_mismatch', 409],
-    ['invalid_identity_fields', 422],
     ['invalid_schema_revision', 422],
     ['incompatible_extraction_model', 422],
     ['invalid_model_config', 500],
@@ -163,19 +163,18 @@ describe('/api/extractions transport', () => {
 
   it('refuses an incompatible method field by field, before admission', async () => {
     const module = extractionModule()
-    const article = { context: 'full', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
-      prompt: 'reference', grounding: 'semantic', grounding_schedule: 'unresolved', grounding_routing: 'origin_lexical' }
+    const article = { context: 'full', context_tokens: 12288, overlap_passages: 0, grounding: 'off', grounding_overflow: 'windows' }
     const response = await handlerFor(module)(request({ ...fresh, method: { models: null, settings: { article } } }))
     expect(response.status).toBe(422)
     expect((await response.json()).error.details.issues).toContainEqual({
-      path: 'method.settings.article.grounding_routing', message: 'Use generated quotes or source spans, and stop after support.',
+      path: 'method.settings.article.grounding_overflow', message: 'Choose a verification method to check large claims in windows.',
     })
     expect(module.runSingle).not.toHaveBeenCalled()
   })
 
   it('hands a unified Catalog method to admission; a recipe never travels with it', async () => {
     const module = extractionModule()
-    const method = { models: null, settings: { unified: { defaults: 1, overlap: 0 } } }
+    const method = { models: null, settings: { unified: { defaults: 5, overlap: 0 } } }
     const catalog = { ...fresh, strategy: 'CATALOG', method }
     expect((await handlerFor(module)(request(catalog))).status).toBe(201)
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ method }))
@@ -210,7 +209,7 @@ describe('/api/extractions transport', () => {
         extraction: { ...attemptSnapshot, requestedModels: models },
       })),
     })
-    const method = { models, settings: { article: null } }
+    const method = { models, settings: { article: REFERENCE_ARTICLE } }
     const response = await handlerFor(module)(request({ ...fresh, method }))
     expect(response.status).toBe(201)
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', method }))

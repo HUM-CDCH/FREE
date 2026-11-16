@@ -468,9 +468,6 @@
    "context": "bounded",
    "context_tokens": 8192,
    "overlap_passages": 0,
-   "identity": "reference",
-   "identity_fields": [],
-   "prompt": "reference",
    "grounding": "quoted",
    "evidence_policy": "schema"
   }

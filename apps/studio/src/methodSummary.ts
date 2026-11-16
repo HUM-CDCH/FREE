@@ -1,5 +1,5 @@
 import {
-  canonicalArticle, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS, UNRECORDED_ARTICLE, type ActiveSettings, type UnifiedCatalogSettings,
+  canonicalArticle, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS, type ActiveSettings, type UnifiedCatalogSettings,
 } from 'extraction/extraction-method'
 import type { ExtractionModelChoice } from '../shared/extraction.contract'
 import {
@@ -12,8 +12,7 @@ export type MethodLine = Readonly<{ label: string; value: string }>
 const amount = (value: number | undefined, unit: string) => (value === undefined ? 'service default' : `${value.toLocaleString('en-US')} ${unit}`)
 const FACTORS = ['glossary', 'headings', 'overlap', 'verification'] as const
 
-export function methodLines(settings: ActiveSettings | null): readonly MethodLine[] {
-  if (settings === null) return []
+export function methodLines(settings: ActiveSettings): readonly MethodLine[] {
   if ('article' in settings) {
     const article = settings.article
     if (!article) return []
@@ -49,7 +48,7 @@ export function unifiedLines(unified: UnifiedCatalogSettings): readonly MethodLi
     { label: UNIFIED_LABELS.output_tokens, value: unified.output_tokens === undefined ? `service defaults per stage${'entry_reply' in defaults ? '; an entry reply may use the rest of the context (not with a native fields model)' : ''}` : amount(unified.output_tokens, 'tokens') },
     { label: UNIFIED_LABELS.overlap, value: unified.overlap === undefined ? `service default (${defaults.overlap} source line)` : `${unified.overlap} source line${unified.overlap === 1 ? '' : 's'}` },
     { label: UNIFIED_LABELS.headings, value: onOff(unified.headings, defaults.headings) },
-    { label: UNIFIED_LABELS.candidates, value: unified.candidates === undefined ? `service default (${UNIFIED_CATALOG_DEFAULTS[7].candidates} excerpts; from defaults 7)` : `${unified.candidates} excerpt${unified.candidates === 1 ? '' : 's'} (from defaults 7)` },
+    { label: UNIFIED_LABELS.candidates, value: unified.candidates === undefined ? `service default (${32} excerpts)` : `${unified.candidates} excerpt${unified.candidates === 1 ? '' : 's'}` },
     { label: UNIFIED_LABELS.verification, value: onOff(unified.verification, defaults.verification) },
   ]
 }
@@ -59,14 +58,12 @@ export const UNIFIED_LABELS = {
   headings: 'Heading context', candidates: 'Heading excerpts measured', verification: 'Verification',
 } as const
 
-export function settingsHeadline(settings: ActiveSettings | null): string {
-  if (settings === null) return 'Not recorded'
+export function settingsHeadline(settings: ActiveSettings): string {
   if ('unified' in settings) {
     const custom = Object.keys(settings.unified).length > 1
     return `Unified Catalog, defaults version ${settings.unified.defaults}${custom ? ' with custom settings' : ''}`
   }
   if ('article' in settings) {  // recorded without settings: the whole source, the service defaults of its time
-    if (!settings.article) return `${effectiveSummary(UNRECORDED_ARTICLE)} (service defaults when admitted)`
     const defaults = JSON.stringify(canonicalArticle(settings.article)) === JSON.stringify(canonicalArticle(REFERENCE_ARTICLE))
     return `${defaults ? 'Service defaults · ' : ''}${effectiveSummary(settings.article)}`
   }

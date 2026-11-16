@@ -209,14 +209,6 @@ export const documentReopenResponseSchema = z
         resources: sourceRepresentationResourcesSchema,
       })
       .strict(),
-    annotationSet: z
-      .object({
-        annotationSetId: canonicalUuidSchema,
-        revisionNumber,
-        annotations: z.array(annotationSchema),
-      })
-      .strict()
-      .nullable(),
     extractionSchema: z
       .object({
         extractionSchemaId: canonicalUuidSchema,

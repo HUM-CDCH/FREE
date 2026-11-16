@@ -36,7 +36,7 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 BASELINE_SRC = os.environ.get("BASELINE_SRC")  # an earlier worker's `src`, e.g. a checkout of the release before reuse
 IDS = {name: f"00000000-0000-4000-8000-{n:012d}" for n, name in enumerate(
     ("extraction", "project", "selection", "attempt", "revision", "source"), 1)}
-OPTIONS = {"strategy": "catalog", "unified": {"defaults": 3}}
+OPTIONS = {"strategy": "catalog", "unified": {"defaults": 5}}
 
 
 def texts(pages, per_page):

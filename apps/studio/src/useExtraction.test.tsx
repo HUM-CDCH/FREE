@@ -1,17 +1,18 @@
 // @vitest-environment jsdom
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExtractionAttempt } from '../shared/extraction.contract'
 import { EXTRACTION_UNAVAILABLE, MONITOR_DISCONNECTED, useExtraction } from './useExtraction'
 
 const target = { sourceRepresentationId: '51000000-0000-4000-8002-000000000001', schemaRevisionId: '51000000-0000-4000-8005-000000000001' }
-const method = { models: null, settings: { article: null } }
+const method = { models: null, settings: { article: REFERENCE_ARTICLE } }
 
 function attempt(extractionId: string, executionStatus: ExtractionAttempt['executionStatus'] = 'QUEUED'): ExtractionAttempt {
   return {
     extractionId, sourceDocumentId: '51000000-0000-4000-8001-000000000001',
     sourceRepresentationRevisionId: target.sourceRepresentationId, schemaRevisionId: target.schemaRevisionId,
-    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null,
+    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE },
     executionStatus, finalizedReview: null, batchExtractionId: null, createdAt: '2026-10-05T00:00:00.000Z',
   }
 }

@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import ExcelJS from 'exceljs'
 import {randomUUID} from 'node:crypto'
 import {readFile,writeFile} from 'node:fs/promises'
@@ -18,7 +19,7 @@ type Method=typeof methods[number]
 const hasColumn=(header:string,name:string)=>header.split(',').some(column=>column===name||column.startsWith(`${name}.`))
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:2|3}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:5|10}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
@@ -33,8 +34,8 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
   }
   const id=randomUUID()
   const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-  const settings={[method]:method==='unified'?{defaults:options.defaults??2}:method==='article'&&options.articleContext
-    ?{context:options.articleContext,context_tokens:8192}:null},models=options.models??null
+  const settings={[method]:method==='unified'?{defaults:options.defaults??10}:method==='article'
+    ?{...REFERENCE_ARTICLE,...(options.articleContext?{context:options.articleContext,context_tokens:8192}:{})}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
   // its owned guarded stack. Use the normal initializer to seed saved producer data.
   await withPoolClientTransaction(async(_tx,client)=>{
@@ -137,7 +138,7 @@ test('native unified defaults 3: a Pause while discovery still reads keeps and s
     const sourceId=ingestion.sourceDocumentId
     // The last page's discovery call is held (its window labels entry 5): the entries before it are read meanwhile.
     service.holdExtractionMatching(/^\[L\d+[^\]]*\] 5\. /m)
-    const id=await seedNative(page,project,sourceId,'unified',{defaults:3})
+    const id=await seedNative(page,project,sourceId,'unified',{defaults: 5})
     await service.reconcileDurable()
     const state=async()=>(await page.request.get(`/api/extractions/${id}/durable`)).json()
     const shown=async()=>new Set(((await (await page.request.get(`/api/extractions/${id}/durable/values?limit=500`)).json()).values as {path:unknown[];modelValue:unknown}[])
@@ -300,7 +301,7 @@ test(`native ${context} Article: an ungrounded UI correction guides a later work
       const batchId=randomUUID()
       await withPoolClientTransaction(async(_tx,client)=>{
         await client.query(`INSERT INTO public."batchExtraction" (id,"projectContextId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,'ARTICLE',$4)`,
-          [batchId,project,value.schemaRevisionId,{article:null}])
+          [batchId,project,value.schemaRevisionId,{article: REFERENCE_ARTICLE}])
         await client.query('UPDATE public.extraction SET "batchExtractionId"=$1 WHERE id=ANY($2::uuid[])',[batchId,[extractionA,extractionB]])
       })
       await page.goto(`/projects/${project}/documents/${sourceA.sourceDocumentId}?extractionId=${extractionA}&fromBatchExtractionId=${batchId}&value=${encodeURIComponent(value.id)}`)
@@ -423,8 +424,8 @@ function liveCataloguePages(): string[][] {
 
 // ADR 0017's live results on a real worker and reasoning server; live-results-evidence.json keeps what the researcher
 // saw and what the model received.
-// Defaults 2 reads every entry after discovery; 3 reads them while discovery still asks later windows.
-for(const defaults of [2,3] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
+// Both current methods pipeline entries; Pro verifies them after discovery.
+for(const defaults of [5,10] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
   test.setTimeout(30*60_000)
   test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
   const service=await startRealService(info.outputPath('live-results-worker.log'))

@@ -13,7 +13,6 @@ export type ExtractionErrorCode =
   /** The Schema Revision is not stabilised, so a collection-scale Batch Extraction may not run against it. */
   | 'schema_not_stabilised'
   | 'method_changed'
-  | 'invalid_identity_fields'
   | 'incompatible_extraction_model'
   | 'invalid_model_config'
   | 'invalid_extraction_method'

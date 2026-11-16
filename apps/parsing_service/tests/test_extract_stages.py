@@ -375,7 +375,7 @@ def test_an_article_whose_document_states_nothing_is_one_empty_root():
     result = extract_over(evidence(), request, chat)
     assert result["records"] == [{"entry_no": None, "site": None, "year": None, "finds": None, "title": None,
                                   "filename": "bauer.pdf"}]
-    assert result["issues"] == [] and result["ungrounded"] == [] and result["complete"] is True
+    assert result["issues"] == [] and result["ungrounded"] == [] and result["complete"] is False
 
 
 def test_document_fields_are_declared_unverified():
@@ -390,12 +390,12 @@ def test_document_fields_are_declared_unverified():
         return {"title": "Bauer 1988"} if "title" in schema["properties"] else {"C1": "E2"}
     chat = FakeChat(script)
     result = extract_over(evidence(), request, chat)
-    assert result["unverified"] == ["title"] and result["complete"] is True
+    assert result["unverified"] == ["title"] and result["complete"] is False
     record_only = {"recordDescription": "x",
                    "schemaNodes": [{"id": "no", "name": "entry_no", "type": "verbatim-string"}]}
     request = ExtractRequest.model_validate({"schema": record_only, "options": {"strategy": "article"}})
     result = extract_over(evidence(), request, FakeChat(script))
-    assert result["unverified"] == [] and result["complete"] is True
+    assert result["unverified"] == [] and result["complete"] is False
 
 
 def test_an_integral_float_is_verified_as_its_integer_text():

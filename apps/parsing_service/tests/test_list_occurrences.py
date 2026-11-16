@@ -176,7 +176,7 @@ class Careless(Model):
 
 
 def keywords(source, **settings):
-    result, _ = extract(source, Careless(source), schema=KEYWORDS, input_tokens=520, output_tokens=64, **settings)
+    result, _ = extract(source, Careless(source), schema=KEYWORDS, input_tokens=520, output_tokens=64, **{"overlap": 1, **settings})
     issues = {issue["code"]: json.loads(issue["detail"]) for issue in result["issues"]
               if issue["code"] in ("overlap_items_joined", "possible_repeated_items")}
     return result, issues

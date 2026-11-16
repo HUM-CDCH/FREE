@@ -28,7 +28,7 @@ export type DurableBatchExtraction = Readonly<{
   /** The batch's one admitted method, which every member was admitted with; null for a batch admitted before
    *  methods were recorded. */
   requestedModels: ExtractionModelChoice | null
-  requestedSettings: ActiveSettings | null
+  requestedSettings: ActiveSettings
   executionStatus: ProjectOperationStatus
   createdAt: Date
   /** Opened before its Schema Revision was approved: a trial round. */

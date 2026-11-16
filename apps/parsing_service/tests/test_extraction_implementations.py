@@ -51,11 +51,10 @@ def test_article_reads_the_evidence_it_is_given():
     counter = {role: FixedCounter() for role in ("fields", "reasoning")}
     result = article.extract(None, evidence(), request, as_router(FakeChat(script)), counter=counter)
     assert result["strategy"] == "article" and result["extraction_version"] == assembly.EXTRACTION_VERSION
-    assert result["inventory"] == [{"identity": {}, "label": article.DOCUMENT_LABEL,
-                                    "passages": [p.id for p in evidence().passages]}]  # the document, no inventory
+    assert "inventory" not in result
     assert [call["stage"] for call in result["calls"]] == ["document", "record", "grounding"]
     assert result["ungrounded"] == [["records", 0, "entry_no"], ["records", 0, "site"]]
-    assert "method_version" not in result and result["complete"] is False
+    assert "method_version" in result and result["complete"] is False
     assert result["fingerprint"] == assembly.fingerprint(result, request, result["models"])
 
 
