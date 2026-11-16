@@ -331,22 +331,23 @@ def test_a_claim_refused_over_the_whole_source_is_verified_in_windows_of_it():
 
 
 def test_record_aware_requests_remain_pinned_for_full_bounded_and_legacy_settings():
-    """The record-aware prompts change fitting requests; refused requests still make no model call."""
-    refused, fits = ("f63fa23d8a209e86b0b01391328d2b04eabc30e31ee485a58a6bb97cc95c8a51",
-                     "fa09b7360dfd844e108c5f7c05e93e0a634729582e029d67d0b2472bcda8a36f")
+    """The record-aware prompts change fitting requests; refused requests still make no model call. Omitted
+    settings are the reference (`grounding_overflow` windows), so its refused claim is verified in windows; a bounded
+    context uses the document-value request, which fits either budget."""
+    refused, fits, bounded = ("f63fa23d8a209e86b0b01391328d2b04eabc30e31ee485a58a6bb97cc95c8a51",
+                              "fa09b7360dfd844e108c5f7c05e93e0a634729582e029d67d0b2472bcda8a36f",
+                              "47bce5fae6fac9994b312eb401698ac27891becd85c458d45cda82ef26b27daa")
     captured = {
-        (None, 6600): refused, ("full", 6600): refused,
-        ("bounded", 6600): "653c89afc9ea76a0a02b076b4b2f50b4a79f7ec5a6f47469e0109f7a9627b07a",
-        (None, 9000): fits, ("full", 9000): fits,
-        ("bounded", 9000): "47bce5fae6fac9994b312eb401698ac27891becd85c458d45cda82ef26b27daa",
+        (None, 6600): "7797badc66119f488ccb9b556aea1a85b7707425f61ec06d8757e902cf8e757d", ("full", 6600): refused,
+        ("bounded", 6600): bounded, (None, 9000): fits, ("full", 9000): fits, ("bounded", 9000): bounded,
     }
     for (context, reasoning), digest in captured.items():
         settings = None if context is None else {"context": context, **({"context_tokens": 8192} if context ==
                                                                        "bounded" else {})}
         sent, result = article_requests(settings, reasoning)
         assert hashlib.sha256("\n".join(sent).encode()).hexdigest() == digest, (context, reasoning)
-        assert "grounding_overflow_version" not in result
-    sent, result = article_requests(None, 6600)
+        assert ("grounding_overflow_version" in result) == (context is None)  # the reference windows its overflow
+    sent, result = article_requests({"context": "full"}, 6600)
     assert [issue["code"] for issue in result["issues"]] == ["grounding_exceeds_budget"] * 2
 
 

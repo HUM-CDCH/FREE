@@ -8,7 +8,7 @@ from kei_exp.kie.extract.assembly import link_json
 from kei_exp.kie.extract.discovery import Unit, Window
 from kei_exp.kie.extract.models import as_router
 from kei_exp.kie.extract.schema import Schema
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import passages
 from tests.test_unified_catalog import candidate, evidence, extract, Model, PARTS, table_passage
 
@@ -496,9 +496,8 @@ def test_a_catalog_counts_the_reading_its_records_share_once():
     assert [call["record"] for call in result["calls"] if call["stage"] == "verification"] == [0]
 
 
-@pytest.mark.parametrize("defaults", [10, 11])
 @pytest.mark.parametrize("verdict", ["supported", "unsupported"])
-def test_local_table_values_keep_single_pass_outside_the_item_identity_cell(defaults, verdict):
+def test_local_table_values_keep_single_pass_outside_the_item_identity_cell(verdict):
     table = replace(table_passage([["A-1", "Skull"], ["A-2", "Tibia"]]), id="p1_s1", index=1)
     source = evidence("1. Remains.")
     source = replace(source, passages=(*source.passages, table))
@@ -510,7 +509,7 @@ def test_local_table_values_keep_single_pass_outside_the_item_identity_cell(defa
         if system.startswith("Read the source independently"):
             return {key: verdict for key in schema["properties"]}
         return model(system, user, schema)
-    result, _ = extract(source, answer, schema=PARTS, defaults=defaults, verification=False)
+    result, _ = extract(source, answer, schema=PARTS)
     assert not any(call["stage"] == "verification" for call in result["calls"])
     assert result["records"] == [{"parts": parts}]
     descriptions = [link for link in result["evidence"] if link["path"][-1] == "description"]

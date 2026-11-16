@@ -279,25 +279,24 @@ def test_unified_planning_shows_discovery_progress_until_its_records_are_planned
 
 
 
-@pytest.mark.parametrize("defaults,windows,overlap",[(5,"budget",3),(10,"budget",3)])
-def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans(defaults,windows,overlap):
+def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans():
     """The discovery windows and overlap a run read with stay auditable in the database (`publish_plan`)."""
     source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
-    request=unified_request(defaults=defaults)
+    request=unified_request()
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     result=finish(lease,CountingChat(Model(source)),lambda router,counter: run.dispatch(None,source,request,router,counter=counter))
     kept=[plan["manifest"] for stage,plan in lease.plans.items() if stage.startswith("unified-execution:")]
     assert kept==[lease.plans[f"unified-execution:{unified.digest(result['execution'])[:16]}"]["manifest"]]
     kept=kept[0]
     assert kept["units"]==[] and kept["execution"]==result["execution"]
-    assert (kept["execution"]["effective"].get("windows"),kept["execution"]["effective"]["overlap"])==(windows,overlap)
-    assert kept["execution"]["method"]=={"defaults":defaults}
+    assert kept["execution"]["effective"]["overlap"]==3
+    assert kept["execution"]["method"]=={"defaults":11}
 
 
 def test_a_paused_unified_run_plans_on_without_its_execution_record():
     """The record is no gate: while the attempt does not run, planning goes on and the next running round keeps it."""
     source=unified_evidence("1. Hill. Material: gold.")
-    request=unified_request(defaults=5)
+    request=unified_request()
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     lease.intent="PAUSE"
     counter=Counter();planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
@@ -313,7 +312,7 @@ def test_a_changed_execution_record_adds_a_plan_instead_of_failing_the_attempt()
     """A round resumed after its record changed (here the served context, so every stage budget) plans on: both
     records stay, each under its own digest."""
     source=unified_evidence("1. Hill. Material: gold.")
-    request=unified_request(defaults=5)
+    request=unified_request()
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     class Smaller(Counter):
         context_tokens=32768
@@ -758,10 +757,10 @@ def drive(lease, chat, extract, chunks, until=lambda answered: False):
 
 
 
-def test_version_4_entry_replies_may_use_the_context_their_counted_input_leaves():
+def test_entry_replies_may_use_the_context_their_counted_input_leaves():
     """The captured entry request asks for the served context its finalized input leaves, the reserve its floor."""
     source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,5)))
-    request=unified_request(defaults=5)
+    request=unified_request()
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
     result,_,_=drive(lease,CountingChat(Model(source)),extract,2)

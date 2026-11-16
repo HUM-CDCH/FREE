@@ -139,7 +139,7 @@ def title(source: str) -> dict:
 
 def request(schema=SCHEMA, start_page: int | None = None, **settings) -> run.ExtractRequest:
     return run.ExtractRequest.model_validate({"schema": schema, "options": {
-        "strategy": "catalog", "unified": {"defaults": 5, **settings},
+        "strategy": "catalog", "unified": {"defaults": 11, **settings},
         **({"start_page": start_page} if start_page is not None else {})}})
 
 
@@ -219,7 +219,7 @@ def test_the_evidence_of_a_value_in_an_unspaced_script_is_its_exact_span():
 
     def entry(record, user, schema):
         return {**dict.fromkeys(schema["properties"]), "site": candidate("北京", "北京出土的玉器")}
-    result, _ = extract(source, Model(source, entry=entry), defaults=10, verification=True)
+    result, _ = extract(source, Model(source, entry=entry))
     (link,) = result["evidence"]
     assert link["path"] == ["records", 0, "site"] and link["support"] == "literal"
     assert link["raw"] == "北京" and link["spans"] == [{"segment": "p1_s0", "start": 4, "end": 6}]
@@ -249,7 +249,7 @@ def test_a_record_cut_by_the_end_of_the_supplied_source_ends_at_the_source_end()
         return {**answer, "ends_inside_record": True} if "und weiter" in section(user, "WINDOW") else answer
     result, _ = extract(source, Model(source, discovery=excerpt), overlap=0, input_tokens=520, output_tokens=64)
     assert result["processing"]["discovery"]["windows"] > 1
-    assert result["discovery"]["version"] == 8  # historical defaults retain discovery version 8
+    assert result["discovery"]["version"] == discovery.VERSION
     ends = [entry["end"] for entry in result["discovery"]["entries"]]
     assert ends == ["validated"] * 5 + ["source_end"]
     assert result["completeness"]["boundaries"] is True and result["complete"] is True
@@ -313,7 +313,9 @@ def test_silence_or_disagreement_at_a_window_boundary_leaves_the_head_unresolved
         return {**answer, "begins_inside_record": None} if not answer["places"] else answer
     result, _ = extract(source, Model(source, discovery=unsure), overlap=0, input_tokens=520, output_tokens=64)
     unresolved = ranges(result, "unresolved")
-    assert unresolved and text(source, result["discovery"]["ledger"][-1]).startswith("more of three")
+    last = result["discovery"]["ledger"][-1]
+    assert unresolved[-1] == (last["segment"], last["start"], last["end"]) and last["end"] == len(source.passages[0].text.rstrip())
+    assert "more of three" in text(source, last)
     assert result["discovery"]["entries"][-1]["end"] == "unresolved"
     assert result["completeness"]["boundaries"] is False and result["complete"] is False
     assert_accounted(source, result)
@@ -725,26 +727,22 @@ def test_a_read_prefix_of_windows_yields_its_final_entries_and_nothing_raised():
     assert read(3, failed="Material: Stein.")["entries"] == whole["entries"][:1]  # page 2's halves still unanswered
 
 
-@pytest.mark.parametrize("defaults", [5, 10])
-def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them(defaults):
+def test_discovery_asks_for_places_as_one_line_line_ids_and_reads_them():
     """A place is its line's id, kind and label on one line; start text is copied only for a place inside a line."""
     source = evidence("Kreis Nord\n1. Adorf. Material: Holz. 2. Bdorf. Material: Stein.")
 
     def compact(user):
         return {"places": [["L1", "other", None], ["L2", "record", "1."], ["L2", "record", "2.", "2. Bdorf"]],
                 "begins_inside_record": False, "ends_inside_record": False}
-    result, chat = extract(source, Model(source, discovery=compact), defaults=defaults)
+    result, chat = extract(source, Model(source, discovery=compact))
     asked = next(call for call in chat.calls if call["system"].startswith("You find where records begin"))
     assert "on one line, without indentation" in asked["system"]
-    if defaults == 7:
-        assert "include that label in the copied start" in asked["system"]
-        assert "Omit the fourth item for a place at the line's start" in asked["system"]
     place = asked["schema"]["properties"]["places"]["items"]
-    assert [item.get("enum") for item in place["prefixItems"]] == [["L1", "L2"], ["record", "other", *(["context"] if defaults == 10 else [])], None, None]
+    assert [item.get("enum") for item in place["prefixItems"]] == [["L1", "L2"], ["record", "other", "context"], None, None]
     assert (place["minItems"], place["maxItems"]) == (3, 4)
     assert [(entry["label"], text(source, {**entry["ranges"][0]})) for entry in result["discovery"]["entries"]] == \
         [("1.", "1. Adorf. Material: Holz."), ("2.", "2. Bdorf. Material: Stein.")]
-    assert result["prompt_version"] == (unified.PROMPT_VERSION if defaults == 10 else 8)  # the reply schema is visible under every defaults version
+    assert result["prompt_version"] == unified.PROMPT_VERSION
     assert_accounted(source, result)
 
 
@@ -863,13 +861,12 @@ def test_the_children_pass_over_1500_records_stays_fast():
     assert_accounted(source, {"discovery": result})
 
 
-@pytest.mark.parametrize("defaults", [10])
-def test_current_methods_read_a_child_record_beside_its_parents_text(defaults):
+def test_current_methods_read_a_child_record_beside_its_parents_text():
     source = evidence("\n".join(GRAVES[:4]) + "\nMaterial: Holz.\n" + GRAVES[4])
     model = Model(source, discovery=lambda user: {"places": [["L1", "record", "Grave 1"], ["L6", "record", "Grave 2"]],
                                                   "begins_inside_record": False, "ends_inside_record": False},
                   children=lambda user: {"children": [["L3", "L3", "1."], ["L4", "L4", "2."]]})
-    result, chat = extract(source, model, defaults=defaults)
+    result, chat = extract(source, model)
     assert (result["execution"]["discovery_version"], result["prompt_version"]) == (discovery.VERSION, unified.PROMPT_VERSION)
     reads = [call for call in chat.calls if call["system"].startswith("You extract structured data from one record")]
     child = [call for call in reads if "is printed inside another record" in call["system"]]
@@ -914,29 +911,10 @@ def test_a_child_repeating_its_records_printed_label_is_the_record_itself():
 
 def test_a_failed_children_reply_keeps_the_parents_and_leaves_processing_incomplete():
     source = evidence("\n".join(GRAVES))
-    result, _ = extract(source, Model(source, discovery=graves, children=lambda user: {"rows": []}), defaults=10)
+    result, _ = extract(source, Model(source, discovery=graves, children=lambda user: {"rows": []}))
     assert len(result["records"]) == 2 and result["discovery"]["children"] == {"windows": 1, "failed": 1}
     assert not result["completeness"]["processing"]
     assert "children_window_failed" in [issue["code"] for issue in result["issues"]]
-
-
-def test_verification_of_a_child_record_reads_its_parents_text_as_context():
-    source = evidence("\n".join(GRAVES))
-    model = Model(source, discovery=graves, children=lambda user: {"children": [["L3", "L3", "1."]]})
-    result, chat = extract(source, model, defaults=10, verification=True)
-    checks = [call for call in chat.calls if call["system"].startswith("You check values")]
-    child = [call for call in checks if "printed inside another record" in call["system"]]
-    assert len(child) == 1 and "### CONTEXT" in child[0]["user"] and "Grave 1. Inhumation.\nFinds:" in child[0]["user"]
-    assert section(child[0]["user"], "RECORD") == "1. Bowl, red ware."
-    assert len(result["records"]) == 3
-
-
-
-
-
-
-
-
 
 
 def test_restarted_labels_stay_distinct_and_an_entry_continues_across_pages():
@@ -1157,9 +1135,9 @@ def test_a_table_item_value_can_continue_verbatim_into_the_next_page():
     assert [span["segment"] for span in link["spans"]] == ["p1_s1", "p2_s0"]
 
 
-def test_entry_and_verification_input_preserve_empty_table_cells_across_a_page_break():
-    """Verification checks a candidate against the same aligned table text the extraction read: the tabs of empty
-    cells at either end of a line, and a description continued in its own column on the next page."""
+def test_entry_input_preserves_empty_table_cells_across_a_page_break():
+    """The entry reads the aligned table text: the tabs of empty cells at either end of a line, and a description
+    continued in its own column on the next page."""
     first = replace(table_passage([["Number", "Description", "Notes"],
                                   ["A-1", "Tooth", ""], ["A-2", "Bone fragments,", ""]], "\t"),
                     id="p1_s1", index=1)
@@ -1170,7 +1148,7 @@ def test_entry_and_verification_input_preserve_empty_table_cells_across_a_page_b
         passage("p1_s0", "1. Remains."), first, second))
     _, chat = extract(source)
     shown = {stage: [section(call["user"], "RECORD") for call in chat.calls if call["system"].startswith(start)]
-             for stage, start in (("entry", "You extract structured data"), ("verification", "You check values"))}
+             for stage, start in (("entry", "You extract structured data"),)}
     for stage, records in shown.items():
         assert records, stage
         for record in records:
@@ -1193,7 +1171,7 @@ def test_a_value_in_the_quoted_table_row_is_literal_in_its_own_cell():
         answer["site"] = candidate(f"Ort{site[1]}", number)
         answer["material"] = candidate("M9" if number == "3." else f"M{site[1]}", number)
         return answer
-    result, _ = extract(source, Model(source, entry=keyed), defaults=10, verification=True)
+    result, _ = extract(source, Model(source, entry=keyed))
     assert [record["site"] for record in result["records"]] == ["Ort1", "Ort2", "Ort3"]
     assert [record["material"] for record in result["records"]] == ["M1", "M2", None]
     sites = [link for link in result["evidence"] if link["path"][2] == "site"]
@@ -1229,7 +1207,7 @@ def test_a_merged_cell_never_widens_the_quoted_row_to_the_rows_it_spans():
                            [("Fund: B", 1, 1, 1), ("Material: Stein", 1, 2, 1)],
                            [("Fund: C", 2, 1, 1), ("Material: Zinn", 2, 2, 1)]])
     source = replace(evidence(table.text), passages=(table,))
-    result, _ = extract(source, Model(source, entry=keyed_to(("Adorf", "Fund: C"), ("Holz", "Fund: C"))), defaults=10, verification=True)
+    result, _ = extract(source, Model(source, entry=keyed_to(("Adorf", "Fund: C"), ("Holz", "Fund: C"))))
     assert len(result["records"]) == 1 and result["records"][0]["material"] is None
     assert [row["reason"] for row in result["rejected"] if row["path"][2] == "material"] == ["value_not_in_quote"]
     (site,) = [link for link in result["evidence"] if link["path"][2] == "site"]
@@ -1241,7 +1219,7 @@ def test_the_row_rule_applies_only_to_a_quote_found_in_one_place():
     table = printed_table([[("1. Adorf", 0, 0, 1), ("Typ A", 0, 1, 1), ("Material: Holz", 0, 2, 1)],
                            [("Teil", 1, 0, 1), ("Typ A", 1, 1, 1), ("Material: Stein", 1, 2, 1)]])
     source = replace(evidence(table.text), passages=(table,))
-    result, _ = extract(source, Model(source, entry=keyed_to(("Adorf", "Adorf"), ("Holz", "Typ A"))), defaults=10, verification=True)
+    result, _ = extract(source, Model(source, entry=keyed_to(("Adorf", "Adorf"), ("Holz", "Typ A"))))
     assert len(result["records"]) == 1 and result["records"][0]["material"] is None
     assert [row["reason"] for row in result["rejected"] if row["path"][2] == "material"] == ["value_not_in_quote"]
 
@@ -1262,9 +1240,9 @@ def test_an_unfittable_minimum_request_is_refused():
         extract(source, input_tokens=512, output_tokens=64, schema={**SCHEMA, "recordDescription": "x " * 499})
 
 
-def test_from_defaults_4_an_entry_reply_may_use_the_context_its_input_leaves():
+def test_an_entry_reply_may_use_the_context_its_input_leaves():
     source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
-    result, chat = extract(source, defaults=5)
+    result, chat = extract(source)
     entries = [call for call in chat.calls if call["system"].startswith("You extract structured")]
     assert entries and [call["max_tokens"] for call in entries] == [
         WordCounter.context_tokens - WordCounter().request_tokens(call["system"], call["user"], call["schema"])
@@ -1275,8 +1253,8 @@ def test_from_defaults_4_an_entry_reply_may_use_the_context_its_input_leaves():
 
 
 @pytest.mark.parametrize(("settings", "reply", "effective"), [
-    ({"defaults": 5, "output_tokens": 1000}, 1000, "reserve")])
-def test_earlier_defaults_or_an_explicit_reply_keep_the_entry_reply_at_its_reserve(settings, reply, effective):
+    ({"output_tokens": 1000}, 1000, "reserve")])
+def test_an_explicit_reply_keeps_the_entry_reply_at_its_reserve(settings, reply, effective):
     result, chat = extract(evidence("1. Adorf. Material: Holz."), **settings)
     assert {call["max_tokens"] for call in chat.calls if call["system"].startswith("You extract structured")} == {reply}
     assert result["execution"]["effective"].get("entry_reply") == effective
@@ -1297,7 +1275,7 @@ def test_a_value_quoted_from_a_neighbouring_record_is_rejected():
         if record.startswith("2."):
             answer["material"] = candidate("Holz", "Material: Holz")
         return answer
-    result, _ = extract(source, Model(source, entry=neighbour), defaults=10, verification=True)
+    result, _ = extract(source, Model(source, entry=neighbour))
     assert result["records"][1]["material"] == "Holz"
     assert not [link for link in result["evidence"] if link["path"] == ["records", 1, "material"]]
     (rejected,) = [item for item in result["proposed"] if item["path"] == ["records", 1, "material"]]
@@ -1315,7 +1293,7 @@ def test_a_yes_no_value_has_a_supporting_passage_never_a_literal_span():
 def test_a_text_value_is_located_without_editing_its_quote_or_stripping_punctuation(printed, value):
     source = evidence(f'1. Adorf. Site: {printed}.')
     result, _ = extract(source, Model(source, entry=noted(None, site=candidate(value, printed))),
-                        schema=NOTES, defaults=10)
+                        schema=NOTES)
     assert result['records'][0]['site'] == value
     (link,) = [link for link in result['evidence'] if link['path'] == ['records', 0, 'site']]
     assert link['raw'] == value and link['support'] == 'literal'
@@ -1367,7 +1345,7 @@ def noted(notes, site=None, count=None):
 ])
 def test_text_copied_nearly_verbatim_is_the_source_text(value, quote):
     source = evidence(f"1. Adorf. {PARAGRAPH}")
-    result, _ = extract(source, Model(source, entry=noted(candidate(value, quote))), schema=NOTES, defaults=10, verification=True)
+    result, _ = extract(source, Model(source, entry=noted(candidate(value, quote))), schema=NOTES)
     assert result["records"][0]["notes"] == PARAGRAPH
     (link,) = [link for link in result["evidence"] if link["path"][2] == "notes"]
     assert link["verbatim"] and link["raw"] == PARAGRAPH
@@ -1384,7 +1362,7 @@ def test_text_copied_nearly_verbatim_is_the_source_text(value, quote):
 def test_short_numeric_or_ambiguous_text_is_never_repaired(text, answer, reason):
     """A short value, a number one edit off, and a quote nearly printed in two places stay refused."""
     source = evidence(text)
-    result, _ = extract(source, Model(source, entry=answer), schema=NOTES, defaults=10, verification=True)
+    result, _ = extract(source, Model(source, entry=answer), schema=NOTES)
     assert [row["reason"] for row in result["rejected"] + result["proposed"]] == [reason]
     assert not [issue for issue in result["issues"] if issue["code"] == "quote_repaired"]
 
@@ -1395,38 +1373,6 @@ def test_a_document_field_is_never_repaired_since_nothing_verifies_it():
     result, _ = extract(source, Model(source, document=lambda text: {"title": candidate(near, near)}))
     assert result["records"][0]["title"] is None
     assert not [issue for issue in result["issues"] if issue["code"] == "quote_repaired"]
-
-
-def test_verification_decides_acceptance_and_off_leaves_proposals():
-    source = evidence("1. Adorf. Material: Holz.")
-
-    def verdict(path, value, record):
-        return "unsupported" if path == "site" else "unclear" if path == "label" else "supported"
-    result, _ = extract(source, Model(source, verdict=verdict), defaults=10, verification=True)
-    assert result["records"][0]["material"] == "Holz" and result["records"][0]["site"] is None
-    assert [(item["path"], item["reason"]) for item in result["rejected"]] == [
-        (["records", 0, "site"], "verification_rejected")]
-    assert [(item["path"], item["reason"]) for item in result["proposed"]] == [
-        (["records", 0, "label"], "verification_unclear")]
-    off, chat = extract(source, verification=False)
-    assert all(value is None for value in off["records"][0].values() if value != "catalogue.pdf")
-    assert {item["reason"] for item in off["proposed"]} == {"verification_disabled"}
-    assert not any(call["stage"] == "verification" for call in off["calls"]) and off["proposed"][0]["spans"]
-
-
-def test_candidates_are_verified_in_counted_batches_halved_on_overflow():
-    source = evidence("1. Adorf. Material: Holz. Find: Nadel (2). Find: Fibel (1). Gilded.")
-    model = Model(source)
-
-    def fussy(system, user, schema):
-        if system.startswith("You check values") and len(schema["properties"]) > 2:
-            return Reply("{", 10, 64, "length", 0.0)
-        return model(system, user, schema)
-    result, _ = extract(source, fussy)
-    verification = [call for call in result["calls"] if call["stage"] == "verification"]
-    assert any(not call["ok"] for call in verification) and result["records"][0]["finds"] == [
-        {"name": "Nadel", "count": 2}, {"name": "Fibel", "count": 1}]
-    assert result["processing"]["verification"]["undecided"] == 0
 
 
 def test_evidence_eligibility_does_not_depend_on_field_names():
@@ -1529,9 +1475,11 @@ def test_one_windows_identical_items_are_both_kept_and_flagged():
 def test_an_item_whose_values_were_all_refused_leaves_no_gap_in_the_list():
     source = evidence("1. Adorf. Find: Nadel (2). Find: Fibel (1). Find: Perle (3).")
 
-    def verdict(path, value, record):
-        return "unsupported" if value in ("Nadel", 2) else "supported"
-    result, _ = extract(source, Model(source, verdict=verdict), defaults=10, verification=True)
+    def entry(record, user, schema):  # the first item's quotes print neither of its values
+        answer = fields(record, user, schema)
+        answer["finds"][0].update({"name": candidate("Nadeln", "Nadel"), "count": candidate(5, "(2)")})
+        return answer
+    result, _ = extract(source, Model(source, entry=entry))
     assert result["records"][0]["finds"] == [{"name": "Fibel", "count": 1}, {"name": "Perle", "count": 3}]
     assert sorted(link["path"][3] for link in result["evidence"] if link["path"][2] == "finds") == [0, 0, 1, 1]
     assert {tuple(item["path"]) for item in result["rejected"]} == {
@@ -1760,21 +1708,26 @@ def test_an_already_bounded_or_prompt_only_entry_is_not_recovered(monkeypatch, m
 def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
     with pytest.raises(ValueError, match="record_chars"):
         run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
-            "strategy": "catalog", "record_chars": 24_000, "unified": {"defaults": 5}}})
+            "strategy": "catalog", "record_chars": 24_000, "unified": {"defaults": 11}}})
     with pytest.raises(ValueError, match="recipe"):
         run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
-            "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}, "unified": {"defaults": 5}}})
+            "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}, "unified": {"defaults": 11}}})
     assert request(overlap=0).options.dumped() == {"strategy": "catalog", "models": None,
-                                                   "unified": {"defaults": 5, "overlap": 0}}
+                                                   "unified": {"defaults": 11, "overlap": 0}}
+    for retired in (5, 10):  # only the current version is admitted; earlier ones are refused, never run
+        with pytest.raises(ValueError, match="defaults"):
+            request(defaults=retired)
+    with pytest.raises(ValueError, match="verification"):  # the retired Pro switch
+        request(verification=True)
 
 
 def test_a_start_page_is_a_strict_one_based_integer_that_the_artifact_never_records():
     """The start page orders the work (service README, start_page); the artifact and its fingerprint are those of the
     request without it."""
-    with_page = run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 5}, "start_page": 6})
+    with_page = run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 11}, "start_page": 6})
     assert with_page.start_page == 6
     assert "start_page" not in with_page.dumped()
-    assert with_page.dumped() == run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 5}}).dumped()
+    assert with_page.dumped() == run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 11}}).dumped()
     assert run.Options.model_validate({"strategy": "article", "start_page": 400}).start_page == 400  # beyond the document: an order from its end
     for refused in (0, -1, "6", 6.0, True):  # strict, as UnifiedOptions is: a page is an integer, never coerced
         with pytest.raises(ValidationError):
@@ -1852,7 +1805,7 @@ def test_the_version_3_contract_fixture_is_what_the_service_produces(tmp_path, m
     assert produced["complete"] is True and len(produced["records"]) == 2
     assert "extraction_id" not in produced["execution"] and not (run_dir / "extractions").exists()
     fixture = {"source": {"run_id": source.run_id, "generation": source.generation},
-               "request": {"schema": scoped, "options": {"strategy": "catalog", "unified": {"defaults": 5}}},
+               "request": {"schema": scoped, "options": {"strategy": "catalog", "unified": {"defaults": 11}}},
                "manifest": json.loads((run_dir / "result" / "result.json").read_text(encoding="utf-8")),
                "pages": [json.loads((run_dir / "result" / "pages" / "1.json").read_text(encoding="utf-8"))],
                "artifact": produced}
@@ -1875,9 +1828,8 @@ def test_the_defaults_and_option_bounds_match_the_shared_fixture():
 
 
 
-@pytest.mark.parametrize('defaults', [10])
 @pytest.mark.parametrize('inside_table', [False, True])
-def test_table_qualifications_are_shared_context_not_record_text(defaults, inside_table):
+def test_table_qualifications_are_shared_context_not_record_text(inside_table):
     note = 'Units and reference-marker meanings apply to every entry above.'
     table = 'Entry\tMaterial\n1. Alpha.\twood\n2. Beta.\tstone'
     qualifications = note + '\nUnrelated continuation.'
@@ -1888,13 +1840,13 @@ def test_table_qualifications_are_shared_context_not_record_text(defaults, insid
         passage('p1_s3', 'Unrelated text after the next heading.')))
     def boundaries(user):
         return {'places': [['L1', 'other', None], ['L2', 'record', '1.'], ['L3', 'record', '2.'],
-                           ['L4', 'context' if defaults == 10 else 'other', None], ['L5', 'other', None]],
+                           ['L4', 'context', None], ['L5', 'other', None]],
                 'begins_inside_record': False, 'ends_inside_record': False}
-    result, chat = extract(source, Model(source, discovery=boundaries), defaults=defaults)
+    result, chat = extract(source, Model(source, discovery=boundaries))
     reads = [c for c in chat.calls if c['system'].startswith('You extract structured')]
     assert len(reads) == 2
     for call in reads:
-        assert (note in section(call['user'], 'CONTEXT (not part of the record)')) == (defaults == 10)
+        assert note in section(call['user'], 'CONTEXT (not part of the record)')
         assert note not in section(call['user'], 'RECORD')
         assert 'Another section' not in section(call['user'], 'CONTEXT (not part of the record)')
         assert 'Unrelated continuation.' not in section(call['user'], 'CONTEXT (not part of the record)')
@@ -1911,7 +1863,7 @@ def test_a_table_qualification_between_entries_is_shared_once(lines):
         return {'places': [['L1', 'other', None], ['L2', 'record', '1.'], ['L3', 'context', None],
                            [f'L{3 + lines}', 'record', '2.']],
                 'begins_inside_record': False, 'ends_inside_record': False}
-    result, chat = extract(source, Model(source, discovery=boundaries), defaults=10)
+    result, chat = extract(source, Model(source, discovery=boundaries))
     reads = [c for c in chat.calls if c['system'].startswith('You extract structured')]
     assert len(reads) == 2
     for call in reads:
@@ -1934,7 +1886,7 @@ def test_ordinary_text_ends_table_qualifications_at_its_exact_range(ordinary_fir
                            ['L5', 'context' if ordinary_first else 'other', None],
                            ['L6', 'context', None], ['L7', 'other', None]],
                 'begins_inside_record': False, 'ends_inside_record': False}
-    result, chat = extract(source, Model(source, discovery=boundaries), defaults=10)
+    result, chat = extract(source, Model(source, discovery=boundaries))
     for call in (c for c in chat.calls if c['system'].startswith('You extract structured')):
         context = section(call['user'], 'CONTEXT (not part of the record)')
         assert (note in context) == (not ordinary_first)

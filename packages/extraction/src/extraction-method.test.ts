@@ -6,7 +6,7 @@ import {
   canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
   keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE,
   type ExtractionSettings, storedSettings, unifiedCatalogSettingsSchema, UNIFIED_CATALOG_DEFAULTS,
-  validateArticleOptions,
+  UNIFIED_CATALOG_DEFAULTS_VERSION, validateArticleOptions,
 } from './extraction-method.js'
 import { gliformerIssues } from './gliformer-compatibility.js'
 import { ExtractionError } from './errors.js'
@@ -90,10 +90,10 @@ test('a Catalog Extraction pins the unified method, and Pro mode its verifying v
     strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 11, overlap: 0, verification: false },
   })
   assert.deepEqual(activeSettings(saved, 'ARTICLE'), { article: REFERENCE_ARTICLE })
-  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { verification: false, defaults: 5 } } }, 'CATALOG'),
-    { models: null, settings: { unified: { defaults: 5, verification: false } } })
-  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 5 } } }, 'ARTICLE'), null)
-  assert.deepEqual(storedSettings({ unified: { defaults: 5 } }, 'CATALOG'), { unified: { defaults: 5 } })
+  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { verification: false, defaults: 11 } } }, 'CATALOG'),
+    { models: null, settings: { unified: { defaults: 11, verification: false } } })
+  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 11 } } }, 'ARTICLE'), null)
+  assert.deepEqual(storedSettings({ unified: { defaults: 11 } }, 'CATALOG'), { unified: { defaults: 11 } })
   const applied = canonicalExtractionSettings({ catalog: { unified: { overlap: 2 } } })
   assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG').settings, { unified: { defaults: 11, overlap: 2 } })
   const pro = accountMethod(account({ unified: { verification: true, overlap: 0 } }), 'CATALOG').settings
@@ -105,10 +105,10 @@ test('a Catalog Extraction pins the unified method, and Pro mode its verifying v
   assert.equal(extractionSettingsSchema.safeParse({ catalog: { unified: { input_tokens: 100 } } }).success, false)
 })
 
-test('heading candidate overrides survive saved settings and pinned defaults 7 methods', () => {
+test('heading candidate overrides survive saved settings and pinned methods', () => {
   const settings: ExtractionSettings = { catalog: { unified: { candidates: 8, headings: true } } }
   assert.deepEqual(canonicalExtractionSettings(settings), settings)
-  const pinned = { unified: { defaults: 10 as const, candidates: 8, headings: true } }
+  const pinned = { unified: { defaults: 11 as const, candidates: 8, headings: true } }
   assert.deepEqual(storedSettings(pinned, 'CATALOG'), pinned)
   assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, pinned)), {
     strategy: 'catalog', ...pinned,
@@ -118,7 +118,7 @@ test('heading candidate overrides survive saved settings and pinned defaults 7 m
 
 
 test('Catalog always pins unified defaults and refuses retired methods and preferences', () => {
-  assert.deepEqual(activeMethod(null, {}, 'CATALOG'), { models: null, settings: { unified: { defaults: 10 } } })
+  assert.deepEqual(activeMethod(null, {}, 'CATALOG'), { models: null, settings: { unified: { defaults: 11 } } })
   assert.deepEqual(accountMethod(null, 'CATALOG'), activeMethod(null, {}, 'CATALOG'))
   for (const settings of [{ generic: null }, { recipe: null }]) {
     assert.equal(canonicalIntent({ models: null, settings }, 'CATALOG'), null)

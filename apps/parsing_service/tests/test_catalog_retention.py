@@ -11,6 +11,17 @@ SCHEMA = {"recordDescription": "A numbered entry", "schemaNodes": [
     {"id": "ref", "name": "reference", "type": "string"}]}
 
 
+def inherited(reading):
+    """A reference printed in the heading above its record, so its value is read again independently: `reading`."""
+    source = evidence('Kreis Reference: 42\n1. Adorf.')
+    model = Model(source, entry=lambda *_: {'reference': candidate('42', 'Kreis Reference: 42')})
+
+    def answer(system, user, schema):
+        return {'C1': reading} if system.startswith('Read the source independently') else model(system, user, schema)
+    result, _ = extract(source, answer, schema=SCHEMA)
+    return result
+
+
 def retained(result, tree=SCHEMA):
     lease = MemoryLease(tree)
     lease.state["recordScopes"] = {str(i): [{"segment": "p1_s0", "start": i, "end": i + 1}]
@@ -21,23 +32,20 @@ def retained(result, tree=SCHEMA):
     return [value for publication in lease.publications.values() for value in publication["values"]]
 
 
-@pytest.mark.parametrize('reply', [candidate(None, 'Reference: 42'), candidate('An invented value', 'Reference: 42')])
-def test_an_answered_but_doubtful_scalar_remains_saved_for_review(reply):
-    source = evidence('1. Reference: 42')
-    model = Model(source, entry=lambda *_: {'reference': candidate('42', 'Reference: 42')}, verdict=lambda *_: reply)
-    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
-    assert result['records'][0]['reference'] is None  # the accepted-only artifact keeps its meaning
-    assert result['proposed'][0]['value'] == '42'
+@pytest.mark.parametrize('reply', [candidate(None, 'Kreis Reference: 42'),
+                                   candidate('An invented value', 'Kreis Reference: 42')])
+def test_an_inherited_scalar_whose_independent_reading_disagrees_is_rejected(reply):
+    """Not Pro's doubtful verdict, kept for review: a reading that answers otherwise refuses the inherited value."""
+    result = inherited(reply)
+    assert result['records'][0]['reference'] is None and not result['proposed']
+    assert [(row['value'], row['reason']) for row in result['rejected']] == [('42', 'verification_rejected')]
     value, = retained(result)
-    assert (value['modelValue'], value['processing'], value['grounding'], value['evidence']) == ('42', 'saved', 'ungrounded', [])
+    assert (value['modelValue'], value['grounding'], value['evidence']) == (None, 'ungrounded', [])
     assert result['completeness']['processing']
 
 
 def test_an_accepted_value_and_its_evidence_take_priority_over_proposals():
-    source = evidence('1. Reference: 42')
-    model = Model(source, entry=lambda *_: {'reference': candidate('42', 'Reference: 42')},
-                  verdict=lambda *_: candidate('42', 'Reference: 42'))
-    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    result = inherited(candidate('42', 'Kreis Reference: 42'))
     result['proposed'].append({'path': ['records', 0, 'reference'], 'value': 'wrong'})
     value, = retained(result)
     assert value['modelValue'] == '42' and value['grounding'] == 'grounded' and value['evidence']
@@ -45,7 +53,7 @@ def test_an_accepted_value_and_its_evidence_take_priority_over_proposals():
 
 @pytest.mark.parametrize(('proposals', 'expected'), [(['42', '42'], '42'), (['42', '43'], None), ([42], None)])
 def test_only_one_distinct_typed_proposal_can_fill_an_absent_scalar(proposals, expected):
-    result = {'strategy': 'catalog', 'options': {'unified': {'defaults': 5}}, 'records': [{'reference': None}],
+    result = {'strategy': 'catalog', 'options': {'unified': {'defaults': 11}}, 'records': [{'reference': None}],
               'proposed': [{'path': ['records', 0, 'reference'], 'value': value} for value in proposals]}
     value, = retained(result)
     assert value['modelValue'] == expected and value['grounding'] == 'ungrounded' and not value['evidence']
@@ -55,7 +63,7 @@ def test_proposals_follow_object_fields_without_inventing_list_identity():
     tree = {'recordDescription': 'An entry', 'schemaNodes': [
         {'id': 'group', 'name': 'details', 'type': 'object', 'children': SCHEMA['schemaNodes']},
         {'id': 'items', 'name': 'items', 'type': 'array', 'children': SCHEMA['schemaNodes']}]}
-    result = {'strategy': 'catalog', 'options': {'unified': {'defaults': 5}},
+    result = {'strategy': 'catalog', 'options': {'unified': {'defaults': 11}},
               'records': [{'details': None, 'items': [{'reference': None}]}], 'proposed': [
                   {'path': ['records', 0, 'details', 'reference'], 'value': '42'},
                   {'path': ['records', 0, 'items', 0, 'reference'], 'value': '43'},
@@ -74,11 +82,9 @@ def test_recipe_proposals_keep_their_existing_contract():
     assert value['modelValue'] is None and value['processing'] == 'absent'
 
 
-@pytest.mark.parametrize('reply', [{}, {'quote': 'Reference: 42'}])
+@pytest.mark.parametrize('reply', [{}, {'quote': 'Kreis Reference: 42'}])
 def test_a_missing_verifier_value_is_not_an_explicit_null(reply):
-    source = evidence('1. Reference: 42')
-    model = Model(source, entry=lambda *_: {'reference': candidate('42', 'Reference: 42')}, verdict=lambda *_: reply)
-    result, _ = extract(source, model, schema=SCHEMA, defaults=5)
+    result = inherited(reply)
     assert [(proposal['value'], proposal['reason']) for proposal in result['proposed']] == [('42', 'verification_unresolved')]
     value, = retained(result)
     assert value['modelValue'] == '42' and value['grounding'] == 'ungrounded' and not value['evidence']
