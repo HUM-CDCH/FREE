@@ -55,6 +55,7 @@ from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
 from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
 from kei_exp.kie.extract.discovery import Window, occurrences, plan, ranges_json, split, text_of
+from kei_exp.kie.extract.durable import NeedsCall
 from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, nearly, normalise, printed, raw_range
 from kei_exp.kie.extract.llm import bounded
 from kei_exp.kie.extract.models import ROLE, Router
@@ -361,7 +362,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     linked_by = _linked_by(effective)
     budget = _Budget(chat, counters, effective["stages"],
                      frozenset({"entry"}) if effective.get("entry_reply") == "context" else frozenset())
-    from kei_exp.kie.extract.durable import Boundary, NeedsCall
+    from kei_exp.kie.extract.durable import Boundary
     from kei_exp.kie.extract.retained import ahead, discovering, plan_execution, plan_records, saved_record
     from kei_exp.kie.extract.value_mark import place_links
     pdf = None if run_dir is None else run_dir / "input.pdf"
@@ -1003,7 +1004,7 @@ class _Run:
         # or an entry with context that does not precede it (a table qualification), is in none and reads alone.
         self.groups: dict[int, tuple[Unit, tuple[int, ...]]] = {}
         self._readings: dict[tuple, Any] = {}
-        self._lock = threading.Lock()
+        self._asking: dict[tuple, threading.Lock] = {}  # per reading: its members wait for it, other readings run
         if effective.get("record_evidence") and effective.get("headings"):
             order = {segment: index for index, segment in enumerate(texts)}
             at = lambda each: (order[each["segment"]], each["start"])
@@ -1213,7 +1214,7 @@ class _Run:
                 end[1] if index == end[0] else len(self.texts[names[index]]))]
         while len(chunk) > 1:
             key = (chunk, path)
-            with self._lock:
+            with self._asking.setdefault(key, threading.Lock()):  # setdefault is atomic: one lock per reading
                 if key not in self._readings:
                     labels = [f"R{n}" for n in range(1, len(chunk) + 1)]
                     owned = sorted(((Unit(each["segment"], each["start"], each["end"]), label)
@@ -1246,7 +1247,7 @@ class _Run:
                             out.unit and f"heading:{earliest.segment}:{earliest.start}", out.page) \
                             if self.budget.fits("verification", system, user, schema) else None
                         if answer is not None and not all(answer[label] is None or isinstance(answer[label], dict)
-                                                          for label in labels):
+                                                          and "value" in answer[label] for label in labels):
                             answer = None
                         self._readings[key] = (answer, calls, issues)
                     except BaseException as waiting:  # noqa: BLE001 - asking again this round would be another call
@@ -1272,8 +1273,7 @@ class _Run:
         # A lexical match outside the record is never accepted by switching off the optional all-value verifier.
         outside = lambda found: any(not any(own.segment == span.segment_id and own.start <= span.start
                                             and span.end <= own.end for own in owned) for span in found.spans)
-        inherited = {found.path for found in out.found if found.reason in UNCITED or outside(found)} \
-            if independent else set()
+        inherited = {found.path for found in out.found if outside(found)} if independent else set()
         for found in out.found:
             if found.kind != "candidate":
                 continue
@@ -1295,22 +1295,31 @@ class _Run:
         system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
-                found.kind == "candidate" or found.kind == "rejected" and found.path in nodes and
+                found.kind == "candidate" or not independent and found.kind == "rejected" and found.path in nodes and
                 found.reason in ("no_quote", "quote_not_in_source", "value_not_in_quote"))]
             # A value located outside the record is read with the records sharing its heading. Which those are is
             # known once discovery is complete: until then it waits as a proposal, and the entry is read again.
-            shared = {}
+            shared, waiting = {}, None
             for found in batch:
                 if found.kind == "candidate" and found.path in nodes and outside(found) and number in self.groups:
                     if not settled:
                         found.kind, found.reason = "proposed", "verification_pending"
-                    elif (reading := self._shared(number, found.path, out)) is not _ALONE:
+                        continue
+                    try:
+                        reading = self._shared(number, found.path, out)
+                    except NeedsCall as captured:  # the other fields' readings are captured in this round too
+                        waiting = captured
+                        continue
+                    if reading is not _ALONE:
                         shared[id(found)] = reading
+            if waiting is not None:
+                raise waiting
             alone = [found for found in batch if id(found) not in shared and found.reason != "verification_pending"]
             pending = [[found] for found in batch if id(found) in shared] + ([alone] if alone else [])
             while pending:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
+                fits = True
                 if id(group[0]) in shared:
                     answer = {labels[0]: shared[id(group[0])]}
                 else:
@@ -1326,12 +1335,12 @@ class _Run:
                         label: _leaf(nodes[found.path]) if found.path in nodes else verdict
                         for label, found in zip(labels, group, strict=True)},
                               "required": labels, "additionalProperties": False}
+                    fits = self.budget.fits("verification", system, user, schema)
                     answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
-                                             out.unit, out.page) \
-                        if self.budget.fits("verification", system, user, schema) else None
+                                             out.unit, out.page) if fits else None
                 if answer is not None and all(label in answer and (
-                        (answer[label] is None or isinstance(answer[label], dict)) if found.path in nodes
-                        else isinstance(answer[label], str) and answer[label] in VERDICTS)
+                        (answer[label] is None or isinstance(answer[label], dict) and "value" in answer[label])
+                        if found.path in nodes else isinstance(answer[label], str) and answer[label] in VERDICTS)
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
@@ -1376,6 +1385,11 @@ class _Run:
                             found.kind, found.reason = "proposed", "verification_unresolved"
                 elif len(group) > 1:
                     pending[0:0] = [group[:len(group) // 2], group[len(group) // 2:]]
+                elif not fits:  # one value whose check never fits this budget: final, left for review
+                    if group[0].kind == "candidate":
+                        group[0].kind, group[0].reason = "proposed", "verification_over_budget"
+                    out.issues.append(Issue("verification_over_budget", "the value's own check does not fit the "
+                                            "verification budget", number, ("records", number, *group[0].path)))
                 else:
                     if group[0].kind == "candidate":
                         group[0].kind, group[0].reason = "proposed", "verification_unresolved"

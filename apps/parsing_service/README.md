@@ -237,12 +237,13 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   Article whose root no value context answered (`article_root_unanswered: ...`)
   rather than retain an all-null root.
 - Article extracts the document as one object, which may contain arrays;
-  `options.article` holds its research settings. Version 21 grounds in one
+  `options.article` holds its research settings. Version 22 grounds in one
   call the claims that fit its input and reply budgets. A claim answers with its
   primary evidence; the context attributing a list item or nested object is asked
   once for that item's claims and retained on each of them, and a claim of the record
-  itself carries none. Evidence cut at its end, inside a word at a page or column end
-  or mid-sentence at a page end, is cited with the passage that finishes it.
+  itself carries none. The model's evidence stays primary. A word a hyphen splits at
+  a page or column end is cited with its other half as context, whichever half was
+  chosen; a page end without a hyphen joins nothing.
   Complete structured replies are budgeted before admission; oversized batches split
   without truncating source evidence. Unanswered claims and malformed context replies
   remain incomplete; NONE is a completed rejection.
@@ -356,6 +357,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   `verification_pending` proposal until then. Following shared table qualifications
   remain available, and children retain their enclosing record's context even with
   ordinary headings disabled. Arbitration includes the inherited source spans.
+  A value whose own check cannot fit the verification budget (the source from its heading
+  to the record is too long) stays a `verification_over_budget` proposal: final, so the
+  record is saved and processing completes, with a `verification_over_budget` issue; only
+  a failed or invalid reply stays undecided.
   Earlier admissions keep their defaults.
   Studio admits defaults 11 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's

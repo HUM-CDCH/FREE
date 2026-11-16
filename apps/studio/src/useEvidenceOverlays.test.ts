@@ -78,6 +78,39 @@ describe('focused Evidence navigation', () => {
     expect(context.style.pointerEvents).toBe('none')
   })
 
+  it.each([null, 'name'])('outlines context on the value\'s own segment once, adding no click target or value box, with %s selected', selected => {
+    const parsed = decodeParsedDocument(parsedFixture)
+    const anchor = { ...parsed.evidence_index.anchors.find(anchor => anchor.kind === 'text')!, anchor_id: 'a_p1_s0' }
+    const parsedDocument = { ...parsed, evidence_index: { ...parsed.evidence_index, anchors: [anchor] } }
+    const page = anchor.producer_observations[0].page_number
+    const container = document.createElement('div')
+    container.innerHTML = `<div class="page" data-page-number="${page}"></div>`
+    document.body.append(container)
+    const box = verifiedEvidenceBbox(parsedDocument, anchor.producer_observations[0])!
+    const describe = new Map<string, MarkInfo>([
+      ['name', { name: 'Name', value: 'Smith', word: null, style: 'link' }],
+      ['year', { name: 'Year', value: '1901', word: null, style: 'link' }],
+    ])
+    // Both values and their shared record range lie in one segment.
+    const savedLinks = [...describe.keys()].flatMap(key => sourceEvidenceLinks({
+      resultPath: ['records', 0, key], evidenceAnchorId: anchor.anchor_id, precision: 'segment', valueBoxes: [box],
+      contextSpans: [{ segment: 'p1_s0', start: 0, end: 1 }],
+    }, new Set([anchor.anchor_id])).map(link => ({ key, link })))
+    renderHook(() => usePublishedEvidence({
+      containerRef: { current: container }, viewer: null, parsedDocument, attempt: null, active: true,
+      marks: { describe, selected, savedLinks, onSelect: vi.fn() },
+    }))
+    const blocks = [...container.querySelectorAll<HTMLElement>(`[data-evidence-anchor-id="${anchor.anchor_id}"]`)]
+    const shownHere = anchor.producer_observations.filter(each => each.page_number === page && verifiedEvidenceBbox(parsedDocument, each))
+    expect(blocks.map(each => each.dataset.occurrenceId)).toEqual(shownHere.map(each => each.occurrence_id))
+    for (const block of blocks) {
+      expect(block.tagName).toBe('BUTTON')
+      expect(JSON.parse(block.dataset.hoverKeys!)).toEqual(['name', 'year'])
+      expect(block.classList.contains('parsed-evidence-focus')).toBe(selected !== null)
+    }
+    expect(container.querySelectorAll('.parsed-evidence-value')).toHaveLength(2)
+  })
+
   it('repaints after a PDF page reset and releases the focus listener on selection and source changes', async () => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]

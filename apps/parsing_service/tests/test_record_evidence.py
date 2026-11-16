@@ -39,38 +39,51 @@ def test_record_evidence_shares_the_source_and_reserves_the_complete_reply():
     assert seen[0]["max_tokens"] >= len(json.dumps(longest).encode("utf-8")) > 2048
 
 
-def test_evidence_cut_inside_a_word_is_cited_with_the_passage_that_finishes_it():
-    source = passages(["The RF group was signifi-", "Running Header", "cantly higher than the CF group (34.51)."])
-    source[1] = replace(source[1], label="PageHeader")
-    schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
-        {"id": "c", "name": "cf", "type": "number"}, {"id": "s", "name": "significant", "type": "string"}]})
-    links, _, issues = grounding.verify(source, {"cf": 34.51, "significant": "yes"}, schema,
-                                        CountingChat(lambda *_: {"C1": "E1", "C2": "E1"}), record=0, projected=True)
-    whole = lambda passage: {"segment": passage.id, "start": 0, "end": len(passage.text)}
-    # The half printing the value is primary; a value neither half prints keeps the model's choice.
-    assert not issues and [(link.segment, link.context) for link in links] == [
-        (source[2].id, (whole(source[0]),)), (source[0].id, (whole(source[2]),))]
-
-
-def test_evidence_a_page_end_cuts_mid_sentence_is_cited_with_the_next_pages_first_text():
-    # No hyphen marks it, and the parser glued the page number to the rest: the page end alone says it continues.
-    first = passages(["Higher than snapper (39.57), silver"])
-    rest = passages(["Running Header", "10 of 16 pomfret (40.89) and sole.", "A new paragraph."], page=2)
+@pytest.mark.parametrize("page", [2, 1], ids=["page-end", "column-end"])
+def test_a_word_split_by_a_hyphen_is_cited_whole_whichever_half_the_model_chooses(page):
+    # I3: the first half names the sample, the second prints the value, on the next page or in the next column of
+    # the same page, with page furniture between them.
+    first = passages(["For Sample A, a sig-"])
+    rest = [replace(each, id=f"q{n}") for n, each in enumerate(
+        passages(["Running Header", "nificant yield of 20 fragments was recorded."], page=page))]
     rest[0] = replace(rest[0], label="PageHeader")
-    schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
-        {"id": "p", "name": "pomfret", "type": "number"}, {"id": "s", "name": "species", "type": "string"}]})
-    fields = {"pomfret": 40.89, "species": "silver pomfret"}
-    answer = lambda *_: {"C1": "E1", "C2": "E1"}
-    links, _, issues = grounding.verify([*first, *rest], fields, schema, CountingChat(answer), record=0, projected=True)
+    schema = Schema.model_validate({"recordDescription": "One sample", "schemaNodes": [
+        {"id": "y", "name": "yield", "type": "number"}]})
     whole = lambda passage: {"segment": passage.id, "start": 0, "end": len(passage.text)}
-    assert not issues and [(link.segment, link.context) for link in links] == [
-        (rest[1].id, (whole(first[0]),)), (first[0].id, (whole(rest[1]),))]
-    # On one page nothing says the next text continues it, nor does a finished sentence at a page end.
-    for source in ([*first, *passages(["pomfret (40.89) and sole."])[:1]],
-                   [*passages(["Higher than snapper (39.57)."]), *rest]):
-        source[1:] = [replace(each, id=f"q{n}") for n, each in enumerate(source[1:])]
-        links, _, _ = grounding.verify(source, fields, schema, CountingChat(answer), record=0, projected=True)
-        assert [(link.segment, link.context) for link in links] == [(source[0].id, ())] * 2
+    seen = {}
+    for chosen in ("E1", "E3"):
+        links, _, issues = grounding.verify([*first, *rest], {"yield": 20}, schema,
+                                            CountingChat(lambda *_, chosen=chosen: {"C1": chosen}), record=0,
+                                            projected=True, located=True)
+        assert not issues
+        seen[chosen] = [(link.segment, link.verbatim, link.location and link.location["raw"], link.context)
+                        for link in links]
+    # Either choice stays primary, verbatim and located only where it prints the value; the other half is context.
+    assert seen == {"E1": [(first[0].id, False, None, (whole(rest[1]),))],
+                    "E3": [(rest[1].id, True, "20", (whole(first[0]),))]}
+
+
+@pytest.mark.parametrize("label", ["Text", "ListItem"])
+def test_a_page_end_never_moves_the_models_evidence_to_another_subject_on_the_next_page(label):
+    # I1: the next page's first text of the same kind prints the value, but for Sample B; the model chose Sample A.
+    schema = Schema.model_validate({"recordDescription": "One sample", "schemaNodes": [
+        {"id": "f", "name": "fragments", "type": "number"}]})
+    whole = lambda passage: {"segment": passage.id, "start": 0, "end": len(passage.text)}
+    def grounded(end, start):
+        first = [replace(passages([end])[0], label=label)]
+        rest = passages(["Running Header", start], page=2)
+        rest = [replace(rest[0], label="PageHeader"), replace(rest[1], label=label)]
+        links, _, issues = grounding.verify([*first, *rest], {"fragments": 20}, schema,
+                                            CountingChat(lambda *_: {"C1": "E1"}), record=0, projected=True,
+                                            located=True)
+        assert not issues
+        return [(link.segment, link.verbatim, link.location, link.context) for link in links], first[0], rest[1]
+    # A page end without a hyphen joins nothing: Sample B's sentence is neither primary nor context.
+    links, first, _ = grounded("Sample A contained twenty fragments", "Sample B contained 20 fragments.")
+    assert links == [(first.id, False, None, ())]
+    # A hyphen joins the word's other half as context; the half printing the value still does not become primary.
+    links, first, rest = grounded("Sample A contained twenty frag-", "ments; Sample B contained 20.")
+    assert links == [(first.id, False, None, (whole(rest),))]
 
 
 def test_a_word_break_never_crosses_content_or_a_heading_to_move_the_models_evidence():
@@ -86,10 +99,31 @@ def test_a_word_break_never_crosses_content_or_a_heading_to_move_the_models_evid
     # A heading between the halves is not the word's end either, even in lower case.
     source = passages(["The RF group was signifi-", "foods", "cantly higher than the CF group (34.51)."])
     source[1] = replace(source[1], label="SectionHeader")
-    links, _, issues = grounding.verify(source, {"cf": 34.51}, Schema.model_validate({
-        "recordDescription": "One study", "schemaNodes": [{"id": "c", "name": "cf", "type": "number"}]}),
-        CountingChat(answer), record=0, projected=True)
+    cf = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
+        {"id": "c", "name": "cf", "type": "number"}]})
+    links, _, issues = grounding.verify(source, {"cf": 34.51}, cf, CountingChat(answer), record=0, projected=True)
     assert not issues and [(link.segment, link.context) for link in links] == [(source[0].id, ())]
+    # Nor is the second half, chosen itself, joined back across a heading or other content to the hyphen before them.
+    for between in ("SectionHeader", "Text"):
+        source[1] = replace(source[1], label=between)
+        links, _, issues = grounding.verify(source, {"cf": 34.51}, cf, CountingChat(lambda *_: {"C1": "E3"}),
+                                            record=0, projected=True)
+        assert not issues and [(link.segment, link.context) for link in links] == [(source[2].id, ())]
+
+
+def test_a_cells_table_named_again_as_its_items_context_is_cited_once():
+    table = table_passage([["Sample", "Yield"], ["A", "20"]])
+    schema = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
+        {"id": "t", "name": "title", "type": "string"},
+        {"id": "s", "name": "samples", "type": "array", "children": [
+            {"id": "n", "name": "name", "type": "string"}, {"id": "y", "name": "yield", "type": "number"}]}]})
+    # E1 is the whole table (offered for the title, which no cell prints), E4 and E5 the item's cells.
+    reply = {"C1": "E1", "G1": ["E1"], "C2": "E4", "C3": "E5"}
+    links, _, issues = grounding.verify([table], {"title": "Yields", "samples": [{"name": "A", "yield": 20}]},
+                                        schema, CountingChat(lambda *_: reply), record=0, projected=True)
+    whole = {"segment": table.id, "start": 0, "end": len(table.text)}
+    assert not issues and [(link.cell, link.context) for link in links] == [
+        (None, ()), ("r1_c0", (whole,)), ("r1_c1", (whole,))]
 
 
 def test_article_retains_an_items_identity_evidence_on_its_claims_and_no_context_for_the_record_itself():
@@ -206,21 +240,76 @@ def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="r
 
 @pytest.mark.parametrize("context", [False, True], ids=["no-admitted-heading", "intervening-record"])
 def test_other_records_cannot_supply_inherited_evidence_even_if_the_verifier_agrees(monkeypatch, context):
-    text = "Group North\n1. Owner lives in West.\n2. Second."
+    text = "Group North\n1. Owner lives in North.\n2. Second."
     start = text.index("2.")
     entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
              "context": [{"segment": "p1_s0", "start": 0, "end": 11}] if context else []}
     window = Window((Unit("p1_s0", start, len(text)),))
-    wrong = candidate("West", "Owner lives in West")
     seen = []
     def answer(system, user, schema):
         seen.append(user)
-        return {"C1": wrong}
-    runner = record_runner(monkeypatch, evidence(text), [(window, {"region": wrong})], answer)
+        return {"C1": candidate("North", "Owner lives in North")}  # agrees, quoting the other record
+    runner = record_runner(monkeypatch, evidence(text), [(window, {"region": candidate("North", "Group North")})],
+                           answer)
     work = runner.entry(0, entry)
-    assert seen and not any(found.kind == "accepted" for found in work.found)
-    assert all(found.value == "West" for found in work.found)
-    assert ("Owner lives in West" in seen[0]) == context  # intervening text is for judging supersession only
+    assert not any(found.kind == "accepted" for found in work.found)
+    assert work.record == {"region": "North"}  # a proposal for review, without Evidence
+    # Without an admitted heading the quote is located nowhere it may be: nothing reads it again.
+    assert len(seen) == context
+    assert all("Owner lives in North" in user for user in seen)  # intervening text is for judging supersession only
+
+
+def tight_runner(text, reads, answer, input_tokens, **entries):
+    """A defaults 11 runner over `text` whose verification input budget is `input_tokens` (WordCounter words)."""
+    schema = Schema.model_validate({"recordDescription": "One numbered entry", "schemaNodes": [
+        {"id": "r", "name": "region", "type": "string"}]})
+    chat = as_router(CountingChat(answer))
+    counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
+    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(
+        defaults=11, input_tokens=input_tokens), chat, counters)["effective"]
+    runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective,
+                          **entries)
+    runner._read = lambda stage, number, *args, **kwargs: reads[number]
+    return runner
+
+
+@pytest.mark.parametrize("words,reply,reason,undecided", [
+    (1000, {"C1": None}, "verification_over_budget", 0),  # the source up to the record never fits: final
+    (5, {}, "verification_unresolved", 1),                # an invalid reply: another attempt may decide it
+    (5, {"C1": {}}, "verification_unresolved", 1)])       # so is a reading without its value, never a rejection
+def test_an_inherited_value_whose_own_check_cannot_fit_is_a_final_proposal(words, reply, reason, undecided):
+    text = "Group North\n1. " + "word " * words + "\n2. Last."
+    start = text.index("2.")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}]}
+    seen = []
+    def answer(system, user, schema):
+        seen.append(user)
+        return reply
+    runner = tight_runner(text, [[(Window((Unit("p1_s0", start, len(text)),)),
+                                   {"region": candidate("North", "Group North")})]], answer, 1024)
+    work = runner.entry(0, entry)
+    assert [(found.kind, found.reason) for found in work.found] == [("proposed", reason)]
+    assert work.undecided == undecided and len(seen) == undecided and not work.failed
+    assert work.record == {"region": "North"}
+    assert ("verification_over_budget" in [issue.code for issue in work.issues]) == (not undecided)
+
+
+@pytest.mark.parametrize("quote", ["Lives in West", "nowhere printed"], ids=["local-beside", "alone"])
+def test_a_value_cited_nowhere_stays_in_the_record_without_a_second_reading(monkeypatch, quote):
+    text = "Group North\n1. Lives in West.\nContinued."
+    start, middle = text.index("1."), text.index("Continued")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}]}
+    # One record read in two windows; the second quotes the same field where it is printed nowhere.
+    reads = [(Window((Unit("p1_s0", start, middle),)), {"region": candidate("West", quote)}),
+             (Window((Unit("p1_s0", middle, len(text)),)), {"region": candidate("West", "nowhere printed")})]
+    seen = []
+    runner = record_runner(monkeypatch, evidence(text), reads, lambda *args: seen.append(args) or {})
+    work = runner.entry(0, entry)
+    assert not seen and work.record == {"region": "West"}
+    assert {(found.kind, found.reason) for found in work.found} == {("proposed", "quote_not_in_source")} | (
+        {("accepted", None)} if quote == "Lives in West" else set())
 
 
 @pytest.mark.parametrize("reading,accepted", [(candidate("metres", "Units: metres"), True),
@@ -345,9 +434,9 @@ def test_a_local_or_uncited_value_is_not_read_with_the_records_sharing_the_headi
     runner, entries = heading_group(monkeypatch, "Group North\n1. Lives in West.\n2. Second.",
                                     [candidate("West", "Lives in West")] * 2, answer)
     assert runner.entry(0, entries[0]).found[0].kind == "accepted" and not seen  # local: the single pass
-    work = runner.entry(1, entries[1])  # cited nowhere it may be: read alone, and never from another record
-    assert [each.startswith(ALONE) for each in seen] == [True] and not work.shared
-    assert work.found[0].kind != "accepted"
+    work = runner.entry(1, entries[1])  # cited nowhere it may be: never read, nor from another record
+    assert not seen and not work.shared
+    assert (work.found[0].kind, work.found[0].reason) == ("proposed", "quote_not_in_source")
 
 
 def test_a_shared_reading_without_a_valid_reply_leaves_each_record_its_own_reading(monkeypatch):
@@ -487,3 +576,173 @@ def test_small_heading_group_call_count_depends_on_inherited_fields(monkeypatch,
         assert all(link["linked_by"] == "verification" for link in result["evidence"])
         counts.append(sum(call["stage"] == "verification" for call in result["calls"]))
     assert counts == [2, shared_calls]
+
+
+def test_readings_of_different_headings_are_asked_at_once_and_each_once(monkeypatch):
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+    text = "Group North\n1. First.\n2. Second.\nGroup South\n3. Third.\n4. Fourth."
+    entries, reads = [], []
+    for number, name in enumerate(("North", "North", "South", "South")):
+        start = text.index(f"{number + 1}.")
+        end = text.find("\n", start) if number < 3 else len(text)
+        heading = text.index(f"Group {name}")
+        entries.append({"ranges": [{"segment": "p1_s0", "start": start, "end": end}],
+                        "context": [{"segment": "p1_s0", "start": heading, "end": heading + len(f"Group {name}")}]})
+        reads.append([(Window((Unit("p1_s0", start, end),)), {"region": candidate(name, f"Group {name}")})])
+    both = threading.Barrier(2, timeout=5)  # a third call, or one heading's call held behind the other's, breaks it
+    seen = []
+    def answer(system, user, schema):
+        seen.append(user)
+        both.wait()
+        name = "North" if "Group North" in user else "South"
+        return dict.fromkeys(schema["properties"], candidate(name, f"Group {name}"))
+    runner = record_runner(monkeypatch, evidence(text), None, answer, entries=entries)
+    monkeypatch.setattr(runner, "_read", lambda stage, number, *args, **kwargs: reads[number])
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        works = list(pool.map(lambda number: runner.entry(number, entries[number]), range(4)))
+    assert len(seen) == 2
+    assert [work.found[0].kind for work in works] == ["accepted"] * 4
+    assert len({key for work in works for key in work.shared}) == 2
+
+
+@pytest.mark.parametrize("stop,asked", [("NeedsCall", ["a", "b", "c"]), ("Boundary", ["a"])])
+def test_one_planning_round_captures_the_shared_reading_of_every_inherited_field(stop, asked):
+    from kei_exp.kie.extract import durable
+    stop = getattr(durable, stop)  # a call captured for later, or no call may start: the round ends at once
+    text = "Group North\n1. First.\n2. Second."
+    schema = Schema.model_validate({"recordDescription": "One numbered entry", "schemaNodes": [
+        {"id": name, "name": name, "type": "string"} for name in ("a", "b", "c")]})
+    seen = []
+    def answer(system, user, reply_schema):
+        seen.append(user.rsplit("### FIELD\n", 1)[1].split("\n", 1)[0])
+        raise stop
+    chat = as_router(CountingChat(answer))
+    counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
+    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=11), chat,
+                                   counters)["effective"]
+    heading = {"segment": "p1_s0", "start": 0, "end": len("Group North")}
+    units = [Unit("p1_s0", text.index(line), text.index(line) + len(line)) for line in ("1. First.", "2. Second.")]
+    entries = [{"ranges": [{"segment": "p1_s0", "start": unit.start, "end": unit.end}], "context": [heading]}
+               for unit in units]
+    runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective,
+                          entries=entries)
+    north = candidate("North", "Group North")
+    runner._read = lambda stage, number, *args, **kwargs: [(Window((units[number],)), dict.fromkeys("abc", north))]
+    for number, entry in enumerate(entries):
+        with pytest.raises(stop):
+            runner.entry(number, entry)
+    assert seen == asked
+
+
+def test_a_group_halves_its_shared_reading_and_leaves_the_records_no_check_can_fit_final():
+    from collections import Counter
+    text = "Group North\n" + "\n".join(f"{n}. {' '.join(['word'] * 60)}." for n in range(1, 17))
+    lines = text.split("\n")
+    heading = {"segment": "p1_s0", "start": 0, "end": len(lines[0])}
+    units = [Unit("p1_s0", text.index(line), text.index(line) + len(line)) for line in lines[1:]]
+    entries = [{"ranges": [{"segment": "p1_s0", "start": unit.start, "end": unit.end}], "context": [heading]}
+               for unit in units]
+    north = candidate("North", "Group North")
+    seen = []
+    def answer(system, user, schema):
+        seen.append(system)
+        return dict.fromkeys(schema["properties"], north)
+    runner = tight_runner(text, [[(Window((unit,)), {"region": north})] for unit in units], answer, 1024,
+                          entries=entries)
+    works = [runner.entry(number, entry) for number, entry in enumerate(entries)]
+    # The 16 records do not fit one reading: its halves read the first 12, two calls; the source up to each of the
+    # last 4 is too long for any reading of theirs, which leaves them final proposals, not undecided.
+    assert Counter((work.found[0].kind, work.found[0].reason) for work in works) == {
+        ("accepted", None): 12, ("proposed", "verification_over_budget"): 4}
+    assert [each.startswith(SHARED) for each in seen] == [True, True]
+    assert not any(work.undecided or work.failed for work in works)
+
+
+def test_durable_planning_asks_every_inherited_fields_shared_reading_in_the_same_round():
+    from dataclasses import asdict
+    from kei_exp.kie.extract import calls, run
+    from kei_exp.kie.extract.durable import CapturePlanner, NeedsCall
+    from kei_exp.kie.extract.models import Router
+    from tests.test_durable_extraction import Counter, MemoryLease
+    from tests.test_unified_catalog import request
+
+    def rounds(fields):
+        """Planning rounds to the result, every call captured in a round answered before the next."""
+        source = evidence("Kreis Moor\n1. Adorf.\n2. Bedorf.")
+        schema = {"recordDescription": "One numbered entry", "schemaNodes": [
+            {"id": f"f{n}", "name": f"field{n}", "type": "string"} for n in range(fields)]}
+        moor = candidate("Moor", "Kreis Moor")
+        model = Model(source, entry=lambda *_: {node["name"]: moor for node in schema["schemaNodes"]})
+        def answer(system, user, reply_schema):
+            if system.startswith(SHARED):
+                return dict.fromkeys(reply_schema["properties"], moor)
+            return model(system, user, reply_schema)
+        chat, asked = CountingChat(answer), request(schema, defaults=11)
+        lease = MemoryLease(asked.schema_.model_dump(by_alias=True, exclude_none=True))
+        for count in range(1, 40):
+            counter = Counter()
+            planner = CapturePlanner(lease, {"fields": counter, "reasoning": counter})
+            try:
+                result = run.dispatch(None, source, asked, Router(chat, chat, planner), counter=counter)
+            except NeedsCall:
+                for unit in lease.units.values():
+                    if unit["id"] in planner.pending:
+                        body = dict(unit["input"]["request"]["body"])
+                        body.pop("max_whitespace")
+                        parsed, attempts = calls.complete(chat, **body, counter=counter)
+                        unit["checkpoint"] = {"output": {"parsed": parsed, "calls": [asdict(c) for c in attempts]}}
+                continue
+            assert result["records"] == [{node["name"]: "Moor" for node in schema["schemaNodes"]}] * 2
+            assert sum(each.startswith(SHARED) for each in (call["system"] for call in chat.calls)) == fields
+            return count
+        raise AssertionError("planning never completed")
+    assert rounds(3) == rounds(1)
+
+
+def test_a_catalog_whose_later_checks_cannot_fit_completes_processing_and_keeps_their_values_for_review():
+    text = "Kreis Moor\n" + "\n".join(f"{n}. Fund {' '.join(['wort'] * 60)}." for n in range(1, 17))
+    source = evidence(text)
+    schema = {"recordDescription": "One numbered entry", "schemaNodes": [{"id": "r", "name": "region", "type": "string"}]}
+    moor = candidate("Moor", "Kreis Moor")
+    model = Model(source, entry=lambda *_: {"region": moor})
+    def answer(system, user, reply_schema):
+        if system.startswith(SHARED):
+            return dict.fromkeys(reply_schema["properties"], moor)
+        return model(system, user, reply_schema)
+    result, _ = extract(source, answer, schema=schema, defaults=11, input_tokens=1024)
+    # The source from the heading to each of the last 4 records is longer than any check of theirs can show.
+    over = [issue["path"][1] for issue in result["issues"] if issue["code"] == "verification_over_budget"]
+    assert result["records"] == [{"region": "Moor"}] * 16 and over == [12, 13, 14, 15]
+    assert sorted({link["path"][1] for link in result["evidence"]}) == list(range(12))
+    assert result["completeness"]["processing"] and not result["completeness"]["evidence"]
+
+
+def test_a_value_cited_nowhere_is_not_read_again_because_another_window_inherits_the_field(monkeypatch):
+    text = "Group North\n1. Lives somewhere.\nContinued."
+    start, middle = text.index("1."), text.index("Continued")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}]}
+    # One record read in two windows: the first inherits North from the heading, the second cites West nowhere.
+    reads = [(Window((Unit("p1_s0", start, middle),)), {"region": candidate("North", "Group North")}),
+             (Window((Unit("p1_s0", middle, len(text)),)), {"region": candidate("West", "nowhere printed")})]
+    seen = []
+    def answer(system, user, schema):
+        seen.append(user)
+        return dict.fromkeys(schema["properties"], candidate("South", "somewhere south"))
+    work = record_runner(monkeypatch, evidence(text), reads, answer).entry(0, entry)
+    assert len(seen) == 1 and work.record == {"region": "West"}  # the reading contradicts the inherited value only
+    assert [(found.value, found.kind, found.reason) for found in work.found] == [
+        ("North", "rejected", "verification_rejected"), ("West", "proposed", "quote_not_in_source")]
+
+
+def test_a_shared_reading_without_a_records_value_is_asked_again_never_a_rejection(monkeypatch):
+    north = candidate("North", "Group North")
+    seen = []
+    def answer(system, user, schema):
+        seen.append(system)
+        return {"R1": north, "R2": {}} if system.startswith(SHARED) else {"C1": north}
+    runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.", [north] * 2, answer)
+    works = [runner.entry(number, entry) for number, entry in enumerate(entries)]
+    assert [each.startswith(SHARED) for each in seen] == [True, False, False]  # then each record alone
+    assert all(work.record == {"region": "North"} and work.found[0].kind == "accepted" for work in works)

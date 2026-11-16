@@ -80,7 +80,9 @@ PROMPT_VERSION = 18
 # 20: share evidence across the claims that fit the input and reply budgets.
 # 21: a claim answers with its label alone; the context attributing a list item or object is asked once for its
 # claims, and evidence a page end cuts mid-sentence is cited with the text that finishes it.
-ARTICLE_VERSION = 21
+# 22: the model's evidence stays primary; a word a hyphen splits across passages is cited with its other half as
+# context, whichever half was chosen, and a page end without a hyphen joins nothing.
+ARTICLE_VERSION = 22
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
