@@ -207,7 +207,7 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
     assert seen and (work.found[0].kind == "accepted") == accepted
     assert work.found[0].value == "North"
     if accepted:
-        link = unified._link(work.found[0], 0, {p.id: p for p in source.passages})
+        link = unified._link(work.found[0], 0, {p.id: p for p in source.passages}, entry["ranges"])
         assert link["context"] == entry["ranges"] and link["linked_by"] == "verification"
 
 
@@ -293,6 +293,29 @@ def test_an_inherited_value_whose_own_check_cannot_fit_is_a_final_proposal(words
     assert work.undecided == undecided and len(seen) == undecided and not work.failed
     assert work.record == {"region": "North"}
     assert ("verification_over_budget" in [issue.code for issue in work.issues]) == (not undecided)
+
+
+def test_an_invalid_reading_of_a_records_inherited_fields_is_asked_again_in_halves(monkeypatch):
+    text = "Kreis Moor\n1. Adorf."
+    start = text.index("1.")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 10}]}
+    schema = Schema.model_validate({"recordDescription": "One numbered entry", "schemaNodes": [
+        {"id": "r", "name": "region", "type": "string"}, {"id": "d", "name": "district", "type": "string"}]})
+    asked = []
+    def answer(system, user, reply_schema):
+        asked.append(list(reply_schema["properties"]))
+        return {} if len(asked) == 1 else {"C1": candidate("Moor", "Kreis Moor")}
+    chat = as_router(CountingChat(answer))
+    counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
+    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=11), chat,
+                                   counters)["effective"]
+    runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective)
+    read = {"region": candidate("Moor", "Kreis Moor"), "district": candidate("Moor", "Kreis Moor")}
+    monkeypatch.setattr(runner, "_read", lambda *args, **kwargs: [(Window((Unit("p1_s0", start, len(text)),)), read)])
+    work = runner.entry(0, entry)
+    assert asked == [["C1", "C2"], ["C1"], ["C1"]]  # one record alone: its fields read together, then each alone
+    assert [(found.kind, found.verified) for found in work.found] == [("accepted", True)] * 2 and not work.undecided
 
 
 @pytest.mark.parametrize("quote", ["Lives in West", "nowhere printed"], ids=["local-beside", "alone"])

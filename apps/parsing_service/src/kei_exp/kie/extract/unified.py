@@ -73,7 +73,7 @@ PROMPT_VERSION = 11  # 3: compact discovery places; 4: discovery WINDOW labels n
 # 8: every defaults version shows the full reply schema, included in token counts; replaces the unwrapped structure.
 # 9 (defaults 7): ordered heading excerpts, counted selection and literal scalar inheritance.
 # 10 (defaults 8): a child record's entry and verification calls read it beside its enclosing record's text
-# (`CHILD`, `VERIFY_CHILD`).
+# (`CHILD`; the child verification prompt went with the verification switch).
 # 11 (defaults 9): schema-defined peer records versus containers/indices, and complete text expressions.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
@@ -107,7 +107,7 @@ ITEM = "_item_text"  # a list item's occurrence in the record: its identity, apa
 # value, and a value left unrepaired would stay in the record anyway, without Evidence.
 NEAR = 40
 # The versioned service defaults: engineering choices. Reserves are sized for replies that list many boundaries or
-# candidates; Auto input is the served context minus the stage's reserve; heading context and verification on; a failed
+# candidates; Auto input is the served context minus the stage's reserve; heading context on; a failed
 # window is halved at most six times. 1: discovery windows cut by the budget alone, one unit of overlap. 2: discovery
 # windows never cross a printed page, ingestion's unit (`discovery.groups_of`), three units of overlap. Measured on one
 # scanned 3-page catalogue excerpt (29 numbered entries; Qwen3.8-27B and NuExtract3, 7 October 2026, two runs each):
@@ -132,7 +132,7 @@ NEAR = 40
 # 7: version 6 with counted, newest-first heading selection that skips oversized excerpts. Shown heading literals
 # can supply scalars outside lists; derived values and values behind omitted excerpts stay proposals. Record/list
 # ownership is unchanged. This keeps usable standing headings without accepting unseen supersession.
-# Switching verification on judges the fixed candidates (`VERIFY`); nothing re-extracts them.
+# The verification switch, since retired, judged the fixed candidates; nothing re-extracted them.
 # Unplaceable discovery boundaries use the existing split bound; superseded replies retain calls and issues,
 # while only final readings own source text (discovery version 10). Defaults 1–6 keep discovery version 8.
 # 10: version 9 with its children pass pipelined too (`"children": "pipelined"`): the same discovery and entry
@@ -404,9 +404,10 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                 return kept
             work = run.entry(number, entry, verify=complete, unit=unit, page=page)
             if not work.failed and not work.undecided:
-                # A finished entry's accepted values are verified: their links are the final artifact's, so the
+                # A finished entry's accepted values are settled: their links are the final artifact's, so the
                 # researcher sees them on the source while the other entries are still read.
-                links = [_link(each, number, passages, "lexical") for each in work.found if each.kind == "accepted"]
+                links = [_link(each, number, passages, entry["ranges"])
+                         for each in work.found if each.kind == "accepted"]
                 place_links(links, evidence.passages, pdf)  # as `run.dispatch` places the artifact's
                 saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"], links=links)
                 if place is not None:
@@ -479,7 +480,6 @@ class _Found:
     item: tuple | None = None         # (list path, window, local position) of the outermost list item it is in
     anchor: tuple | None = None       # that item's occurrence in the entry, when it was located exactly once
     repaired: bool = False            # its quote or value is the source's text a model copied nearly verbatim
-    context: list[Span] = field(default_factory=list)
     verified: bool = False
 
 
@@ -819,9 +819,6 @@ REPAIRED = "a nearly verbatim copy was replaced by the source text it was copied
 
 UNCITED = ("no_quote", "quote_not_in_source")
 
-VERDICTS = {"supported": ("accepted", None), "unsupported": ("rejected", "verification_rejected"),
-            "unclear": ("proposed", "verification_unclear")}
-
 
 def _notes(nodes: list[Node]) -> str:
     return "".join(f"{line}\n" for line in notes(nodes))
@@ -1064,10 +1061,7 @@ class _Run:
                                          found.path, nodes[found.path], {"value": found.value, "quote": found.quote},
                                          found.item, found.anchor)
                 if recovered.kind == "candidate":
-                    out.found[index] = found = recovered
-            # Source ownership, not another extracted field, supplies the record's identity.
-            found.context = ([Span(segment_id=s, start=a, end=b) for s, a, b in found.anchor]
-                             if found.anchor else [Span(segment_id=u.segment, start=u.start, end=u.end) for u in units])
+                    out.found[index] = recovered
         return [(replace(window, heading=heading), answer) for window, answer in replies]
 
     def _shared(self, number: int, path: tuple, out: _Work) -> Any:
@@ -1146,33 +1140,34 @@ class _Run:
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
                 owned: list[Unit], parent: bool = False, context: tuple[Unit, ...] = (),
                 settled: bool = True) -> None:
-        """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure.
-        `settled` says discovery is complete, so the records sharing a heading are known (`_shared`)."""
-        # A lexical match outside the record is never accepted by switching off the optional all-value verifier.
+        """Code accepts a value it located in the record (linked `lexical`). A field with a scalar located outside it
+        (inherited from a heading) is read again, independently and never shown its candidate, in counted requests per
+        window that are halved on failure; `settled` says discovery is complete, so the records sharing a heading,
+        which share that reading, are known (`_shared`)."""
+        # A lexical match outside the record is never accepted without that reading.
         outside = lambda found: any(not any(own.segment == span.segment_id and own.start <= span.start
                                             and span.end <= own.end for own in owned) for span in found.spans)
         inherited = {found.path for found in out.found if outside(found)}
+        # Only a scalar is read again: a list item would need its identity rediscovered, and code locates its values
+        # in the record's own text alone (`_Checker` admits context for scalars only).
+        nodes = {path: node for path, node in _scalar_nodes(self.nodes)
+                 if path in inherited and evidence_policy(self.nodes, path) == "quoted"}
         for found in out.found:
             if found.kind != "candidate":
                 continue
             policy = evidence_policy(self.nodes, _field_path(found.path))
             if policy != "quoted":
                 found.kind, found.reason = "proposed", f"evidence_policy_{policy}"
-            elif found.path not in inherited:  # code located it in the record: linked `lexical`
+            elif found.path not in nodes:  # code located it in the record: linked `lexical`
                 found.kind, found.reason = "accepted", None
-        # Only an inherited scalar is read again, never shown its candidate; a list item located outside the record
-        # is judged. A list item is never read again: that would require rediscovering its identity.
-        nodes = {path: node for path, node in _scalar_nodes(self.nodes)
-                 if path in inherited and evidence_policy(self.nodes, path) == "quoted"}
         system = VERIFY_RECORD.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
-            batch = [found for found in out.found if found.window == index and (
-                found.kind == "candidate")]
+            batch = [found for found in out.found if found.window == index and found.kind == "candidate"]
             # A value located outside the record is read with the records sharing its heading. Which those are is
             # known once discovery is complete: until then it waits as a proposal, and the entry is read again.
             shared, waiting = {}, None
             for found in batch:
-                if found.kind == "candidate" and found.path in nodes and outside(found) and number in self.groups:
+                if outside(found) and number in self.groups:
                     if not settled:
                         found.kind, found.reason = "proposed", "verification_pending"
                         continue
@@ -1197,22 +1192,17 @@ class _Run:
                     user = _user(window, self.texts, "RECORD", self.tables,
                                  heading_context=True,
                                  parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
-                        f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
-                        ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
-                         f"(quoted: {json.dumps(found.quote, ensure_ascii=False)})")
+                        f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}"
                         for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
-                    verdict = {"type": "string", "enum": list(VERDICTS)}
                     schema = {"type": "object", "properties": {
-                        label: _leaf(nodes[found.path]) if found.path in nodes else verdict
-                        for label, found in zip(labels, group, strict=True)},
+                        label: _leaf(nodes[found.path]) for label, found in zip(labels, group, strict=True)},
                               "required": labels, "additionalProperties": False}
                     fits = self.budget.fits("verification", system, user, schema)
                     answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
                                              out.unit, out.page) if fits else None
                 if answer is not None and all(label in answer and (
-                        (answer[label] is None or isinstance(answer[label], dict) and "value" in answer[label])
-                        if found.path in nodes else isinstance(answer[label], str) and answer[label] in VERDICTS)
-                        for label, found in zip(labels, group, strict=True)):
+                        answer[label] is None or isinstance(answer[label], dict) and "value" in answer[label])
+                        for label in labels):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
                         # Shared readings see the whole owned record; siblings and unadmitted context cannot ground it.
@@ -1220,19 +1210,18 @@ class _Run:
                                      [*window.before, *window.primary, *window.after], self.texts)
                         checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False,
                             context=_view(list(context), self.texts) if context else None)
-                        if isinstance(value, dict) and "value" in value and value["value"] is None:
+                        if value is None or value["value"] is None:
                             # A null quoting the candidate's own printed value contradicts itself: left for review.
-                            quote = value.get("quote")
-                            value = "unclear" if isinstance(quote, str) and quote.strip() and found.spans and any(
+                            quote = value and value.get("quote")
+                            unclear = isinstance(quote, str) and quote.strip() and found.spans and any(
                                 all(any(s.segment_id == q.segment_id and q.start <= s.start and s.end <= q.end
                                         for q in spans) for s in found.spans)
-                                for spans in checker._places(quote)) else None
-                        if value is None or isinstance(value, str):
-                            if found.kind == "candidate":
-                                found.kind, found.reason = VERDICTS[value or "unsupported"]
+                                for spans in checker._places(quote))
+                            found.kind, found.reason = ("proposed", "verification_unclear") if unclear else \
+                                ("rejected", "verification_rejected")
                             continue
                         corrected = checker._scalar(found.path, nodes[found.path], value, None, None)
-                        if typed_value(value.get("value"), nodes[found.path]) != found.value:
+                        if typed_value(value["value"], nodes[found.path]) != found.value:
                             found.kind, found.reason = "rejected", "verification_rejected"
                         elif corrected.kind == "candidate":
                             found.spans, found.alternatives, found.support = corrected.spans, corrected.alternatives, corrected.support
@@ -1243,13 +1232,11 @@ class _Run:
                 elif len(group) > 1:
                     pending[0:0] = [group[:len(group) // 2], group[len(group) // 2:]]
                 elif not fits:  # one value whose check never fits this budget: final, left for review
-                    if group[0].kind == "candidate":
-                        group[0].kind, group[0].reason = "proposed", "verification_over_budget"
+                    group[0].kind, group[0].reason = "proposed", "verification_over_budget"
                     out.issues.append(Issue("verification_over_budget", "the value's own check does not fit the "
                                             "verification budget", number, ("records", number, *group[0].path)))
                 else:
-                    if group[0].kind == "candidate":
-                        group[0].kind, group[0].reason = "proposed", "verification_unresolved"
+                    group[0].kind, group[0].reason = "proposed", "verification_unresolved"
                     out.undecided += 1
 
     def _settle(self, number: int, out: _Work, view: BlockText) -> list[dict]:
@@ -1346,9 +1333,9 @@ def _accepted(leaf: _Found) -> bool:
 def _kept_in_items(found: list[_Found]) -> Callable[[_Found], bool]:
     """What a single pass's record keeps: an accepted value, and a proposal inside a list item code located by another
     of its values, so the item stays whole, with Evidence where it has it. An item none of whose values code located
-    has no occurrence to tell it from an equal item another window read, nor a place in the list: it stays a proposal,
-    as with verification (a partial item, at a null position, stays out too). A scalar field's proposals are settled
-    as `retained._reviewable_scalars` settles them."""
+    has no occurrence to tell it from an equal item another window read, nor a place in the list: it stays a proposal
+    (a partial item, at a null position, stays out too). A scalar field's proposals are settled as
+    `retained._reviewable_scalars` settles them."""
     located = {leaf.item for leaf in found if leaf.kind == "accepted" and leaf.item is not None}
     return lambda leaf: leaf.kind == "accepted" or (leaf.kind == "proposed" and leaf.item in located
                                                      and None not in leaf.path)
@@ -1468,16 +1455,18 @@ def _merged(found: list[_Found], view: BlockText, edges: dict[int, list[Unit]], 
 
 # --- the artifact --------------------------------------------------------------------------------------------------
 
-def _link(found: _Found, number: int, passages: dict, linked_by: str = "verification") -> dict:
-    """An accepted value's Evidence. `linked_by` names who accepted it: `verification`, a separate verification call;
-    `lexical`, code alone, which located the model's quote and the value in it (a single pass with verification off)."""
+def _link(found: _Found, number: int, passages: dict, ranges: Sequence[dict] = ()) -> dict:
+    """An accepted value's Evidence, `linked_by` who accepted it: `verification`, the independent reading of an
+    inherited value; `lexical`, code alone, which located the model's quote and the value in it. Its context is its
+    record's identity, from source ownership, not another extracted field: a list item's own located occurrence, else
+    `ranges`, its entry's own."""
     shared = evidence_link(Outcome("accepted", ("records", number, *found.path), found.value, spans=found.spans,
                                    alternatives=found.alternatives), passages)
     keep = ("path", "segment", "page", "bbox_pt", "cell", "precision", "spans", "alternatives", "raw")
+    item = [{"segment": s, "start": a, "end": b} for s, a, b in found.anchor] if found.anchor else None
     return {**{key: shared[key] for key in keep}, "verbatim": found.support == "literal", "support": found.support,
-            "linked_by": "verification" if found.verified else linked_by,
-            "item": [{"segment": s, "start": a, "end": b} for s, a, b in found.anchor] if found.anchor else None,
-            **({"context": spans_json(found.context)} if found.context else {})}
+            "linked_by": "verification" if found.verified else "lexical",
+            "item": item, **({"context": [dict(each) for each in item or ranges]} if ranges else {})}
 
 
 def _review(found: _Found, number: int | None, texts: dict[str, str]) -> dict:
@@ -1551,7 +1540,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         "execution": execution, "execution_sha256": digest(execution),
         "discovery": found, "discovery_sha256": digest(found),
         "records": records,
-        "evidence": [_link(each, number, passages, "lexical") for number, entry
+        "evidence": [_link(each, number, passages, found["entries"][number]["ranges"]) for number, entry
                      in enumerate(entries) for each in entry.found if each.kind == "accepted"],
         "proposed": [_review(each, number, texts) for number, entry in enumerate(entries) for each in entry.found
                      if each.kind == "proposed"],

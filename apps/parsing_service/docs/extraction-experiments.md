@@ -45,7 +45,7 @@ flowchart LR
 | `locate.py` | Locate a quoted value in a block's own text as raw code-point spans, matching on a normalised view that maps back to raw offsets. |
 | `windows.py` | Partition Catalog source Units into counted windows with optional overlap. |
 | `catalog_result.py` | Place values and expose common canonical spans and cell Evidence. |
-| `unified.py` | The unified Catalog, result version 3: per-stage budgets resolved from the served context, record discovery, then each entry's extraction, verification (mandatory in Pro, optional in defaults 10) and arbitration. |
+| `unified.py` | The unified Catalog, result version 3: per-stage budgets resolved from the served context, record discovery, then each entry's extraction, an independent reading of each value inherited from a heading, and arbitration. |
 | `discovery.py` | The unified Catalog's source units, counted windows and record discovery with its source ledger. |
 | `durable.py` | Plan and capture calls for every method: planning runs the algorithms against committed call outputs, and an unexecuted request yields to the durable workflow instead of reaching a provider. |
 | `captured_provider.py` | Send a captured request's saved HTTP body without recomposition. |
