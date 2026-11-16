@@ -50,14 +50,15 @@ test('retirement refuses historical pins before changes, preserves current pins,
     assert.equal((await client.query(`SELECT count(*)::int AS n FROM information_schema.columns
       WHERE table_schema='public' AND table_name='extraction' AND column_name='requestedPages'`)).rows[0].n, 1)
   }
-  for (const settings of [null, { article: null }, ...[1, 2, 3, 4, 6, 7, 8, 9].map(defaults => ({ unified: { defaults } })),
+  for (const settings of [null, { article: null }, ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, '11'].map(defaults => ({ unified: { defaults } })),
+    { unified: {} }, { unified: { defaults: 11, verification: false } }, { unified: { defaults: 11, verification: true } },
     ...['identity', 'identity_fields', 'prompt', 'selection', 'grounding_schedule', 'grounding_routing'].map(key => ({ article: { [key]: null } }))]) {
     const id = await seed(settings)
     await refuses()
     await client.query('DELETE FROM public.extraction WHERE id=$1', [id])
     await client.query('DELETE FROM extraction_runtime.head WHERE id=$1', [id])
   }
-  for (const settings of [{ article: null }, { article: { identity: 'reference' } }]) {
+  for (const settings of [{ article: null }, { article: { identity: 'reference' } }, { catalog: { unified: { verification: false } } }]) {
     await client.query('INSERT INTO public."modelConfiguration" ("researcherAccountId",document) VALUES ($1,$2)',
       [pins.accountId, { extractionSettings: settings }])
     await refuses()
@@ -94,7 +95,7 @@ test('retirement refuses historical pins before changes, preserves current pins,
   const suggestionId = randomUUID()
   await client.query('INSERT INTO public."batchSchemaSuggestion" (id,"projectContextId","selectionKey",coverage) VALUES ($1,$2,$3,$4)',
     [suggestionId, pins.projectContextId, randomBytes(32).toString('hex'), JSON.stringify(coverage)])
-  const ids = await Promise.all([seed({ unified: { defaults: 5 } }), seed({ unified: { defaults: 10 } })])
+  const ids = await Promise.all([seed({ unified: { defaults: 11 } }), seed({ unified: { defaults: 11, overlap: 0 } })])
   const before = (await client.query('SELECT id,"requestedSettings" FROM public.extraction ORDER BY id')).rows
   assert.deepEqual((await migrate(target.url)).applied, ['20261116T0040_retire_legacy_contracts', '20261116T0847_unified_catalog'])
   assert.deepEqual((await client.query('SELECT id,"requestedSettings" FROM public.extraction ORDER BY id')).rows, before)

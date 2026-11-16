@@ -48,7 +48,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
       [schemaRevisionId,2+index,tree,method==='article'?'document':'records',fixture.revisions.catalog])
-    const settings={[method]:method==='unified'?{defaults: 5}:REFERENCE_ARTICLE},strategy=method==='article'?'ARTICLE':'CATALOG'
+    const settings={[method]:method==='unified'?{defaults: 11}:REFERENCE_ARTICLE},strategy=method==='article'?'ARTICLE':'CATALOG'
     await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,$5,$6)`,
       [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,strategy,settings])
     await admin.query('BEGIN')
@@ -71,7 +71,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
         const current=await repository.read(input.id)
         const saved=await repository.saveSelection(input.id,{expectedVersion:current.controlVersion,
           schemaRevisionId:current.selection.schemaRevisionId,method:{models:{fields:'instruct',reasoning:'instruct'},
-            settings:{unified:{defaults: 5}}}})
+            settings:{unified:{defaults: 11}}}})
         await repository.adoptSelection(input.id,{expectedVersion:saved.controlVersion,selectionId:saved.selectionId,reprocessValueIds:[]})
         await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:'resume'})
       } else if(input.action)await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:input.action})

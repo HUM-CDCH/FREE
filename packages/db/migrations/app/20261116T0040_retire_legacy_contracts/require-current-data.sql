@@ -6,12 +6,13 @@ WITH methods(value) AS (
   SELECT 1 FROM methods WHERE value IS NULL OR jsonb_typeof(value) <> 'object'
     OR (value ? 'article' AND (jsonb_typeof(value->'article') <> 'object'
       OR value->'article' ?| ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing']))
-    OR (value ? 'unified' AND COALESCE(value->'unified'->'defaults', 'null'::jsonb) NOT IN ('5'::jsonb,'10'::jsonb))
+    OR (value ? 'unified' AND (value->'unified'->'defaults' IS DISTINCT FROM '11'::jsonb OR value->'unified' ? 'verification'))
   UNION ALL SELECT 1 FROM public.extraction e WHERE e."requestedPages" IS NOT NULL
     OR NOT EXISTS (SELECT FROM extraction_runtime.head h WHERE h.id=e.id)
   UNION ALL SELECT 1 FROM public."modelConfiguration" WHERE
     (document->'extractionSettings' ? 'article' AND jsonb_typeof(document->'extractionSettings'->'article') <> 'object')
     OR document->'extractionSettings'->'article' ?| ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing']
+    OR document->'extractionSettings'->'catalog'->'unified' ? 'verification'
   UNION ALL SELECT 1 FROM public."schemaRevision" WHERE "modelAttribution" IS NOT NULL AND
     (jsonb_typeof("modelAttribution") <> 'object' OR NOT ("modelAttribution" ? 'sourceCoverage')
      OR "modelAttribution" - 'sourceCoverage' <> '{}'::jsonb)
