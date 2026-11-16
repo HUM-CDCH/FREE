@@ -215,22 +215,20 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
       options: [
         { label: 'Default single pass', blocks: [unit('Entry', '7. Bronze pin', 'quote located')],
           outcome: 'Code locates the quote and links the value by rule. A value without a locatable quote stays for review.' },
-        { label: 'Pro mode', blocks: [unit('Entry', '7. Bronze pin', 'second reading')],
-          outcome: 'A second call checks every value against the source and may correct it.' },
         { label: 'Heading context off', blocks: [unit('Entry', '7. Bronze pin', 'entry text only')],
           outcome: 'Heading excerpts are not offered as context; the record still keeps its owned source text.' },
         { label: 'Smaller input ceiling', blocks: [unit('Window 1', '7. Bronze pin'), unit('Window 2', 'continued source')],
           outcome: 'More requests read the same admitted source. Text is split rather than clipped.' },
       ],
     },
-    combinations: 'In Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; from defaults version 6 verification is off and each value is read once: a value code locates in its entry is linked by rule, unverified, and one without a locatable quote stays for review; Pro mode (verification on) runs version 5 instead, where a second call reads every value again and may correct it.',
-    takeaway: "Pro mode reads every value a second time. Default Catalog keeps values without locatable quotes for review.",
+    combinations: 'In Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; each value is read once: a value code locates in its own entry is linked by rule, unverified, and one without a locatable quote stays for review; a value inherited from a shared heading is accepted only when an independent reading agrees.',
+    takeaway: "Catalog reads each value once. Values without locatable quotes stay for review.",
     evidence: [{ source: 'r1catalog', finding: 'An earlier study compared the retired recipe and generic Catalog methods. Those counts do not measure the current unified Catalog.' }],
     gaps: [
-      { kind: 'Not measured', text: 'Current Catalog accuracy, exhaustive recall and the effect of Pro mode on independent documents.' },
+      { kind: 'Not measured', text: 'Current Catalog accuracy and exhaustive recall on independent documents.' },
       { kind: 'Not measured', text: 'The unified Catalog on independent document families; its default reserves and overlap are engineering choices, not measured settings.' },
     ],
-    technical: 'unified.{defaults,input_tokens,output_tokens,overlap,candidates,headings,verification}, result version 3 with its execution and discovery records (unified).',
+    technical: 'unified.{defaults,input_tokens,output_tokens,overlap,candidates,headings}, result version 3 with its execution and discovery records (unified).',
   },
 ]
 

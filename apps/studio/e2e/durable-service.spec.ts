@@ -425,7 +425,7 @@ function liveCataloguePages(): string[][] {
 
 // ADR 0017's live results on a real worker and reasoning server; live-results-evidence.json keeps what the researcher
 // saw and what the model received.
-// Both current methods pipeline entries; Pro verifies them after discovery.
+// The current method pipelines entries after discovery.
 for(const defaults of [11] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
   test.setTimeout(30*60_000)
   test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')

@@ -14,8 +14,8 @@ afterEach(() => vi.unstubAllGlobals())
 
 it('derives each strategy\'s method from the saved document', () => {
   expect(savedMethodFor({ config }, 'ARTICLE')).toEqual({ models: { reasoning: 'instruct' }, settings: { article: REFERENCE_ARTICLE } })
-  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 10, input_tokens: 30000 } } })
-  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 10, input_tokens: 30000 } } })
+  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 11, input_tokens: 30000 } } })
+  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 11, input_tokens: 30000 } } })
 })
 
 it('derives the unified Catalog method, and no recipe, where the deployment enables it', () => {

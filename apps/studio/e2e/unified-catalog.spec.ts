@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { UNIFIED_CATALOG_DEFAULTS_VERSION, UNIFIED_CATALOG_PRO_VERSION } from 'extraction/extraction-method'
+import { UNIFIED_CATALOG_DEFAULTS_VERSION } from 'extraction/extraction-method'
 import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
 import { activateWithKeyboard, expectOperableInViewport, REQUIRED_VIEWPORTS } from './accessibility.js'
@@ -56,21 +56,19 @@ test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found
   await ceiling.fill('')
   await showPage(dialog, 'Catalog: Window overlap')
   await dialog.getByRole('textbox', { name: 'Window overlap' }).fill('0')
-  await showPage(dialog, 'Catalog: Pro mode')
+  await showPage(dialog, 'Effective settings')
   await expect(dialog.getByText(/Shared headings are checked separately/)).toBeVisible()
-  await dialog.getByRole('switch', { name: 'Pro mode' }).click()
-  await expect(dialog.getByText(`Pro mode runs defaults version ${UNIFIED_CATALOG_PRO_VERSION}`)).toBeVisible()
   const saved = page.waitForResponse((response) => new URL(response.url()).pathname === '/api/model_config' &&
     response.request().method() === 'PUT')
   await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
   expect((await saved).ok()).toBe(true)
-  expect((await stored(page)).extractionSettings).toEqual({ catalog: { unified: { overlap: 0, verification: true } } })
+  expect((await stored(page)).extractionSettings).toEqual({ catalog: { unified: { overlap: 0 } } })
 })
 
 test('retired Catalog preferences are refused without changing saved settings', async ({ page }) => {
   await signIn(page)
   const current = await stored(page)
-  for (const catalog of [{ generic: { record_chars: 30_000 } }, { recipe: { input_tokens: 4096 } }]) {
+  for (const catalog of [{ generic: { record_chars: 30_000 } }, { recipe: { input_tokens: 4096 } }, { unified: { verification: true } }]) {
     const put = await page.request.put('/api/model_config', {
       data: { config: { ...current, extractionSettings: { catalog } } }, headers: { origin: E2E_ORIGIN },
     })
@@ -91,8 +89,8 @@ test('the Catalog group reflows without horizontal scrolling at 360 px and the r
     await dialog.getByRole('button', { name: 'Customize' }).click()
     await showPage(dialog, 'Catalog: Input token ceiling')
     await expectOperableInViewport(page, dialog.getByRole('textbox', { name: 'Input token ceiling' }))
-    await showPage(dialog, 'Catalog: Pro mode')
-    await expectOperableInViewport(page, dialog.getByRole('switch', { name: 'Pro mode' }))
+    await showPage(dialog, 'Catalog: Heading context')
+    await expectOperableInViewport(page, dialog.getByRole('switch', { name: 'Heading context' }))
     // Every view fits without an inner scroll area, as the other Advanced settings do.
     for (const title of await pageSelector(dialog).locator('option').allTextContents()) {
       await showPage(dialog, title)

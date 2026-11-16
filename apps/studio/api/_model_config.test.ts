@@ -513,6 +513,7 @@ describe('advanced extraction settings', () => {
     ['an unknown recipe factor', { catalog: { recipe: { factors: { vocabulary: false } } } }, 'config.extractionSettings.catalog'],
     ['a record limit below the minimum', { catalog: { generic: { record_chars: 999 } } }, 'config.extractionSettings.catalog'],
     ['a made-up version switch', { article: { ...REFERENCE_ARTICLE, span_grounding_version: 1 } }, 'config.extractionSettings.article'],
+    ['the retired verification switch', { catalog: { unified: { verification: false } } }, 'config.extractionSettings.catalog.unified'],
   ])('refuses %s as a structural 400 and stores nothing', async (_label, extractionSettings, path) => {
     const configurations = inMemoryModelConfigurations()
     const response = await handlers({ configurations }).PUT(putRequest({ config: configured({ extractionSettings } as never) }))
@@ -527,13 +528,13 @@ describe('advanced extraction settings', () => {
     const configurations = inMemoryModelConfigurations()
     const submitted = configured({ extractionSettings: {
       article: { ...UNWINDOWED_ARTICLE, context_tokens: 16384, grouping: null },
-      catalog: { unified: { verification: false } },
+      catalog: { unified: { headings: false } },
     } as never })
     const response = await handlers({ configurations }).PUT(putRequest({ config: submitted }))
     expect(response.status).toBe(200)
     const expected = configured({ extractionSettings: {
       article: UNWINDOWED_ARTICLE,
-      catalog: { unified: { verification: false } },
+      catalog: { unified: { headings: false } },
     } })
     await expect(response.json()).resolves.toEqual({ config: expected })
     await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(expected)

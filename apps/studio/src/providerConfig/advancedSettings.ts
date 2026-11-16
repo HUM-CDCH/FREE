@@ -142,7 +142,7 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
   ]
 }
 
-const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
+const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings'] as const
 
 /** A Catalog draft in contract order, without unset values; validation is the contract's. */
 export function orderedCatalog(catalog: Readonly<{ unified?: Record<string, unknown> }>): CatalogSettings {

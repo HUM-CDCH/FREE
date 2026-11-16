@@ -22,24 +22,23 @@ export function methodLines(settings: ActiveSettings): readonly MethodLine[] {
   return unifiedLines(settings.unified)
 }
 
-/** The unified Catalog's six controls, each as requested: a value left to the defaults says so. */
+/** The unified Catalog's five controls, each as requested: a value left to the defaults says so. */
 export function unifiedLines(unified: UnifiedCatalogSettings): readonly MethodLine[] {
   const defaults = UNIFIED_CATALOG_DEFAULTS[unified.defaults]
   const onOff = (value: boolean | undefined, fallback: boolean) =>
     value === undefined ? `service default (${fallback ? 'on' : 'off'})` : value ? 'On' : 'Off'
   return [
     { label: UNIFIED_LABELS.input_tokens, value: unified.input_tokens === undefined ? 'Auto (served context minus the reply reserve)' : amount(unified.input_tokens, 'tokens') },
-    { label: UNIFIED_LABELS.output_tokens, value: unified.output_tokens === undefined ? `service defaults per stage${'entry_reply' in defaults ? '; an entry reply may use the rest of the context (not with a native fields model)' : ''}` : amount(unified.output_tokens, 'tokens') },
+    { label: UNIFIED_LABELS.output_tokens, value: unified.output_tokens === undefined ? 'service defaults per stage; an entry reply may use the rest of the context (not with a native fields model)' : amount(unified.output_tokens, 'tokens') },
     { label: UNIFIED_LABELS.overlap, value: unified.overlap === undefined ? `service default (${defaults.overlap} source line)` : `${unified.overlap} source line${unified.overlap === 1 ? '' : 's'}` },
     { label: UNIFIED_LABELS.headings, value: onOff(unified.headings, defaults.headings) },
     { label: UNIFIED_LABELS.candidates, value: unified.candidates === undefined ? `service default (${32} excerpts)` : `${unified.candidates} excerpt${unified.candidates === 1 ? '' : 's'}` },
-    { label: UNIFIED_LABELS.verification, value: onOff(unified.verification, defaults.verification) },
   ]
 }
 
 export const UNIFIED_LABELS = {
   input_tokens: 'Input token ceiling', output_tokens: 'Reply token reserve', overlap: 'Window overlap',
-  headings: 'Heading context', candidates: 'Heading excerpts measured', verification: 'Verification',
+  headings: 'Heading context', candidates: 'Heading excerpts measured',
 } as const
 
 export function settingsHeadline(settings: ActiveSettings): string {

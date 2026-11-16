@@ -555,7 +555,7 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
       SELECT $1,$2,max("revisionNumber")+1,'RESEARCHER_EDIT',$3,'records' FROM public."schemaRevision" WHERE "extractionSchemaId"=$2`,
       [revision,fixture.extractionSchemaId,{recordDescription:'One record.',schemaNodes:[{id:'title',name:'title',type:'number'}]}])
     const head=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
-    const pending=await page.request.post(`/api/extractions/${id}/durable/selection`,{headers:{Origin:new URL(page.url()).origin},data:{expectedVersion:head.controlVersion,schemaRevisionId:revision,method:{models:null,settings:{ unified: { defaults: 10 } }}}})
+    const pending=await page.request.post(`/api/extractions/${id}/durable/selection`,{headers:{Origin:new URL(page.url()).origin},data:{expectedVersion:head.controlVersion,schemaRevisionId:revision,method:{models:null,settings:{ unified: { defaults: 11 } }}}})
     expect(pending.status()).toBe(200)
     // A settled view reads inputs changed elsewhere when the researcher comes back to it.
     await page.evaluate(()=>window.dispatchEvent(new Event('focus')))

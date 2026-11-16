@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
   canonicalUnified, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
-  UNIFIED_CATALOG_DEFAULTS_VERSION, type ArticleSettings, type UnifiedCatalogSettings,
+  type ArticleSettings,
 } from 'extraction/extraction-method'
 import { settingsHeadline, UNIFIED_LABELS, unifiedLines } from '../methodSummary'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
@@ -28,8 +28,6 @@ type Props = {
   onIssueFocused: () => void
   /** A pending input editor changes only the current Extraction's strategy. */
   extractionStrategy?: AdvancedStrategy
-  /** An Extraction's own unified defaults version; absent, the account's, where verification on is Pro mode. */
-  unifiedDefaults?: UnifiedCatalogSettings['defaults']
 }
 
 /** The starting point last used, and the Article draft (with its number text) that Undo restores. `shown` is the
@@ -61,8 +59,7 @@ function requestEntries(value: unknown, path = ''): [string, unknown][] {
 
 /** Saved method settings for future Extractions, per strategy, in the page's one draft. Choosing which strategy's
  *  settings to edit never changes any Extraction's strategy. */
-export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, extractionStrategy,
-  unifiedDefaults }: Props) {
+export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, extractionStrategy }: Props) {
   const [strategy, setStrategy] = useState<AdvancedStrategy>(extractionStrategy ?? 'article')
   const root = useRef<HTMLElement>(null)
   const guideTrigger = useRef<HTMLButtonElement>(null)
@@ -151,8 +148,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
         </div>
         {strategy === 'article'
           ? <ArticleSettingsView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />
-          : <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue}
-              unifiedDefaults={unifiedDefaults ?? UNIFIED_CATALOG_DEFAULTS_VERSION} pinned={unifiedDefaults !== undefined} />}
+          : <UnifiedCatalogView draft={draft} saved={saved} editor={editor} focusIssue={focusIssue} />}
       </section>
     </GuideProvider>
   )
@@ -283,16 +279,14 @@ function NumberField({ path, label, hint, unit, value, edit, disabled, inactive 
   )
 }
 
-/** The unified Catalog's six controls: one group for every new single and batch Catalog Extraction. Retired generic
+/** The unified Catalog's five controls: one group for every new single and batch Catalog Extraction. Retired generic
  *  and recipe values are shown, never converted; replacing them is the researcher's explicit Apply. */
-function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults, pinned }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>
-  & { unifiedDefaults: UnifiedCatalogSettings['defaults']; pinned: boolean }) {
+function UnifiedCatalogView({ draft, saved, editor, focusIssue }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>) {
   const catalog = draft.extractionSettings.catalog
   const unified = catalog?.unified
   const custom = unified !== undefined
   const shown = unified ?? {}
-  const method = canonicalUnified(pinned ? { ...shown, defaults: unifiedDefaults } : shown)
-  // The version admitted, Pro mode's included, so placeholders and reply reserves are that version's.
+  const method = canonicalUnified(shown)
   const defaults = UNIFIED_CATALOG_DEFAULTS[method.defaults]
   const issueAt = (path: NumberPath) => editor.settingsIssues.find((issue) => issue.path === path)?.message ?? null
   const number = (key: 'input_tokens' | 'output_tokens' | 'overlap' | 'candidates', unit: string, hint: string, placeholder: string) => {
@@ -300,13 +294,12 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
     return <NumberField path={path} label={UNIFIED_LABELS[key]} hint={hint} unit={unit} value={shown[key]} placeholder={placeholder}
       edit={editor.numberEdits[path]} disabled={!custom} error={issueAt(path)} onText={editor.setNumber} />
   }
-  // The account's verification switch is Pro mode: on, new Extractions run the version that reads every value twice.
-  const label = (key: keyof typeof UNIFIED_LABELS) => key === 'verification' && !pinned ? 'Pro mode' : UNIFIED_LABELS[key]
-  const toggle = (key: 'headings' | 'verification') => (
+  const headings = shown.headings ?? defaults.headings
+  const toggle = (
     <label className="flex items-center gap-2 text-[12px] text-ink">
-      <input type="checkbox" role="switch" aria-checked={shown[key] ?? defaults[key]} checked={shown[key] ?? defaults[key]}
-        data-setting={`catalog.unified.${key}`} onChange={(event) => editor.setUnified(key, event.target.checked)} />
-      {label(key)}
+      <input type="checkbox" role="switch" aria-checked={headings} checked={headings}
+        data-setting="catalog.unified.headings" onChange={(event) => editor.setUnified('headings', event.target.checked)} />
+      {UNIFIED_LABELS.headings}
     </label>
   )
   const reserves = Object.entries(defaults.reserves).map(([stage, tokens]) => `${stage} ${tokens.toLocaleString('en-US')}`).join(', ')
@@ -315,15 +308,14 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('catalog.')) : undefined
   const pages = ([
     ['input_tokens', number('input_tokens', 'tokens, 512 or more; empty for Auto', 'The largest request of any call. Auto is the served context minus the reply reserve. A smaller ceiling splits the source into more requests; no source text is left out to fit.', 'Auto')],
-    ['output_tokens', number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}.${'entry_reply' in defaults ? ' An entry reply may also use the context its input leaves (not with a native fields model); a value here caps every reply at it.' : ''}`, 'Stage defaults')],
+    ['output_tokens', number('output_tokens', 'tokens, 64 or more; empty for the stage defaults', `Reserved for each reply and counted before the call; a cut-off reply never counts as complete. Stage defaults: ${reserves}. An entry reply may also use the context its input leaves (not with a native fields model); a value here caps every reply at it.`, 'Stage defaults')],
     ['overlap', number('overlap', 'source lines, 0 to 4', 'Neighboring lines shown again as context where the source is split. Each line is read as its own text once; a record continues across a split only when both sides say so.', String(defaults.overlap))],
-    ['headings', toggle('headings')],
-    ['candidates', number('candidates', 'excerpts, 1 to 1024', 'From defaults 7: how many earlier excerpts each request measures against its budget, latest first. Older ones are left out without being measured; a value read behind an omitted excerpt stays a proposal.', String(32))],
-    ['verification', toggle('verification')],
-  ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${label(key)}`, control }))
+    ['headings', toggle],
+    ['candidates', number('candidates', 'excerpts, 1 to 1024', 'How many earlier excerpts each request measures against its budget, latest first. Older ones are left out without being measured; a value read behind an omitted excerpt stays a proposal.', String(32))],
+  ] as const).map(([key, control]) => ({ path: `catalog.unified.${key}`, title: `Catalog: ${UNIFIED_LABELS[key]}`, control }))
   return (
     <>
-      <p className="text-[12px] text-ink">{custom ? settingsHeadline({ unified: method }) : `Service defaults, version ${unifiedDefaults}`}</p>
+      <p className="text-[12px] text-ink">{custom ? settingsHeadline({ unified: method }) : `Service defaults, version ${method.defaults}`}</p>
       <SettingsViews label="Catalog setting" titles={[...pages.map((page) => page.title), 'Effective settings']}
         selected={pages.find((page) => page.path === issue?.path)?.title}>
         {pages.map((page) => <section key={page.path} aria-label="Catalog" className="flex flex-col gap-2">
@@ -334,14 +326,13 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
           </div>
           <p className="text-[11px] text-ink-faint">One method for every new single and batch Catalog Extraction.</p>
           <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">{page.control}</fieldset>
-          {page.path === 'catalog.unified.candidates' && !(shown.headings ?? defaults.headings) &&
+          {page.path === 'catalog.unified.candidates' && !headings &&
             <p className="text-[11px] text-ink-muted">Heading context is off, so no excerpt is measured or shown.</p>}
-          {page.path === 'catalog.unified.verification' && !(shown.verification ?? defaults.verification) &&
-            <p className="text-[11px] text-ink-muted">Values found inside a record keep their source links. Shared headings are checked separately; uncertain matches stay ungrounded.</p>}
         </section>)}
         <section aria-label="Effective settings" className="flex flex-col gap-2">
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>
           <p className="text-[10.5px] text-ink-faint">Records and fields come from the template; models from the Models tab. Document-level fields remain unverified.</p>
+          <p className="text-[11px] text-ink-muted">Values found inside a record keep their source links. Shared headings are checked separately; uncertain matches stay ungrounded.</p>
           <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
             {unifiedLines(method).map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="min-w-0 text-ink [overflow-wrap:anywhere]">{line.value}</dd>])}
           </dl>

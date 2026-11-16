@@ -1518,7 +1518,7 @@ describe('BatchExtractionsPanel', () => {
       expect.objectContaining({
         strategy: 'CATALOG',
         schemaRevisionId: appendedRevisionId,
-        method: { models: { fields: 'instruct' }, settings: { unified: { defaults: 10, input_tokens: 30_000 } } },
+        method: { models: { fields: 'instruct' }, settings: { unified: { defaults: 11, input_tokens: 30_000 } } },
       }),
     )
   })

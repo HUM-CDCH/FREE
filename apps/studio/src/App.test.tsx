@@ -2486,14 +2486,14 @@ describe('reopened Source Document workspace', () => {
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', executionStatus: 'FAILED', finalizedReview: null, requestedSettings: { unified: { defaults: 10 } }, requestedModels: null, batchExtractionId: null,
+        strategy: 'CATALOG', executionStatus: 'FAILED', finalizedReview: null, requestedSettings: { unified: { defaults: 11 } }, requestedModels: null, batchExtractionId: null,
         createdAt: '2026-08-12T00:00:00.000Z' },
       SUCCEEDED: {
         extractionId: '51000000-0000-4000-8006-000000000042',
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { unified: { defaults: 10 } }, requestedModels: null, batchExtractionId: null,
+        strategy: 'CATALOG', executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { unified: { defaults: 11 } }, requestedModels: null, batchExtractionId: null,
         createdAt: '2026-08-12T00:00:00.000Z' },
     }
 
@@ -2509,7 +2509,7 @@ describe('reopened Source Document workspace', () => {
       // run records explicitly.
       method: {
         models: null,
-        settings: strategy === 'ARTICLE' ? { article: REFERENCE_ARTICLE } : { unified: { defaults: 10 } },
+        settings: strategy === 'ARTICLE' ? { article: REFERENCE_ARTICLE } : { unified: { defaults: 11 } },
       },
     })
 
@@ -3460,7 +3460,7 @@ describe('reopened Source Document workspace', () => {
       strategy: 'CATALOG' as const,
       executionStatus: 'RUNNING' as const,
       finalizedReview: null,
-      requestedSettings: { unified: { defaults: 10 } },
+      requestedSettings: { unified: { defaults: 11 } },
       requestedModels: null,
       batchExtractionId: null,
       createdAt: reopened.persistedExtraction!.createdAt }

@@ -15,13 +15,11 @@ afterEach(()=>{cleanup();vi.resetAllMocks()})
 
 it.each([
   {strategy:'ARTICLE',settings:{article: REFERENCE_ARTICLE}},
-  {strategy:'CATALOG',settings:{unified:{defaults: 5}}},
+  {strategy:'CATALOG',settings:{unified:{defaults: 11}}},
   {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',context_tokens:8192}}},
   {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',grounding:'spans',}}},
-  {strategy:'CATALOG',settings:{unified:{defaults: 5,input_tokens:8192,output_tokens:1024,overlap:0,headings:false,verification:false}}},
-  // A pinned version keeps its own verification: verification on never turns into Pro mode's version here.
-  {strategy:'CATALOG',settings:{unified:{defaults: 10,verification:true}}},
-  {strategy:'CATALOG',settings:{unified:{defaults: 10,candidates:8,verification:true}}},
+  {strategy:'CATALOG',settings:{unified:{defaults: 11,input_tokens:8192,output_tokens:1024,overlap:0,headings:false}}},
+  {strategy:'CATALOG',settings:{unified:{defaults: 11,candidates:8}}},
 ])('can save unchanged $strategy inputs with pinned settings $settings',async({strategy,settings})=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
   const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings},resolved:{}},pendingSelection:null} as unknown as DurableRead
@@ -32,7 +30,7 @@ it.each([
   expect(screen.queryByRole('alert')).toBeNull()
   expect(save).toBeEnabled()
   expect(screen.getByRole('radio',{name:strategy==='ARTICLE'?'Article':'Catalog'})).toBeChecked()
-  // A unified Extraction's editor shows the defaults version it runs under, not the latest.
+  // A unified Extraction's editor shows the defaults version it runs under.
   if('unified' in settings&&settings.unified&&Object.keys(settings.unified).length===1)expect(screen.getByText(`Service defaults, version ${settings.unified.defaults}`)).toBeInTheDocument()
   fireEvent.click(save)
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/selection',{

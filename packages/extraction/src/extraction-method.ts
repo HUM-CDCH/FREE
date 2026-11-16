@@ -69,18 +69,16 @@ const UNIFIED_BASE = {
 } as const
 export const UNIFIED_CATALOG_DEFAULTS_VERSION = 11 as const
 export const UNIFIED_CATALOG_DEFAULTS = {
-  // shortcut: `verification` stays until Studio retires its switch; the service no longer has one.
-  [UNIFIED_CATALOG_DEFAULTS_VERSION]: { ...UNIFIED_BASE, overlap: 3, verification: false, entry_reply: 'context' },
+  [UNIFIED_CATALOG_DEFAULTS_VERSION]: { ...UNIFIED_BASE, overlap: 3, entry_reply: 'context' },
 } as const
 
-/** The unified Catalog's six controls as the account saves them: each an override, absent for the defaults. */
+/** The unified Catalog's five controls as the account saves them: each an override, absent for the defaults. */
 export const unifiedCatalogPreferenceSchema = z.object({
   input_tokens: wholeNumber(METHOD_MESSAGES.inputTokens, 512).max(1_048_576, METHOD_MESSAGES.inputTokens).optional(),
   output_tokens: wholeNumber(METHOD_MESSAGES.replyTokens, 64).max(65_536, METHOD_MESSAGES.replyTokens).optional(),
   overlap: wholeNumber(METHOD_MESSAGES.catalogOverlap, 0).max(4, METHOD_MESSAGES.catalogOverlap).optional(),
   candidates: wholeNumber(METHOD_MESSAGES.catalogCandidates, 1).max(1_024, METHOD_MESSAGES.catalogCandidates).optional(),
   headings: z.boolean().optional(),
-  verification: z.boolean().optional(),
 }).strict()
 export type UnifiedCatalogPreference = z.output<typeof unifiedCatalogPreferenceSchema>
 /** The unified Catalog method one Extraction is admitted with (`options.unified`): the defaults version it runs under
@@ -89,7 +87,7 @@ export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.exten
   defaults: z.literal(UNIFIED_CATALOG_DEFAULTS_VERSION),
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
-const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
+const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings'] as const
 
 /** One group of Catalog controls for single and batch work. */
 export const catalogSettingsSchema = z.object({ unified: unifiedCatalogPreferenceSchema.optional() }).strict()

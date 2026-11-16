@@ -1093,7 +1093,7 @@ describe('Advanced', () => {
     fireEvent.change(ceiling, { target: { value: '100' } })
     expect(screen.getByText(METHOD_MESSAGES.inputTokens, { selector: 'p' })).toBeVisible()
     // One control per view: from another view, the issue summary brings the ceiling back and focuses it.
-    setting('Pro mode')
+    setting('Heading context')
     expect(screen.queryByRole('textbox', { name: 'Input token ceiling' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '1 issue blocks Apply' }))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Input token ceiling' })).toHaveFocus())
@@ -1108,17 +1108,12 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Heading context' }))
     setting('Heading excerpts measured')
     expect(screen.getByText('Heading context is off, so no excerpt is measured or shown.')).toBeVisible()
-    setting('Pro mode')
-    // Shared-heading attribution is checked even when the all-value Pro mode is off.
-    expect(screen.getByText(/Shared headings are checked separately/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('switch', { name: 'Pro mode' }))
-    expect(screen.queryByText(/Shared headings are checked separately/)).not.toBeInTheDocument()
-    expect(screen.getByText(/Pro mode runs defaults version 5/)).toBeInTheDocument()
     setting('Effective settings')
-    expect(screen.getByText('Unified Catalog, defaults version 5 with custom settings')).toBeInTheDocument()
+    expect(screen.getByText(/Shared headings are checked separately/)).toBeInTheDocument()
+    expect(screen.getByText('Unified Catalog, defaults version 11 with custom settings')).toBeInTheDocument()
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, candidates: 8, headings: false, verification: true } })
+    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, candidates: 8, headings: false } })
   })
 
   it('the issue summary opens Advanced from another tab on the issue\'s strategy and focuses its control', async () => {

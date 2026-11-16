@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { activeMethod, canonicalExtractionSettings, canonicalUnified } from 'extraction/extraction-method'
+import { activeMethod, canonicalExtractionSettings } from 'extraction/extraction-method'
 import type { DurableRead } from 'extraction/durable-types'
 import type { ExtractionAttempt, ExtractionModelListing } from '../shared/extraction.contract'
 import type { ModelConfig } from '../shared/modelConfig.contract'
@@ -28,7 +28,6 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
   const initialized=useRef<typeof baseline|null>(null)
   const selection=baseline.read.pendingSelection??baseline.read.selection
   const used=selection.method
-  const pinned=used.settings&&'unified' in used.settings?used.settings.unified.defaults:undefined
   const [schemaId,setSchemaId]=useState<string>(selection.schemaRevisionId)
   const [listing,setListing]=useState<ExtractionModelListing|null>(null)
   const [error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
@@ -66,12 +65,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
     if(!editor.draft)return
     setBusy(true);setError(null)
     try {
-      const edited=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy)
-      // The editor holds account-shaped settings, which carry no defaults version: keep the one this Extraction runs under
-      // (so verification stays that version's, never Pro mode's).
-      // Left as the whole source it ran, an Extraction recorded without Article settings keeps that record.
-      const method=pinned!==undefined&&'unified' in edited.settings
-        ?{...edited,settings:{unified:canonicalUnified({...editor.draft.extractionSettings.catalog?.unified,defaults:pinned})}}:edited
+      const method=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy)
       await durableRequest(`${durableRoot(attempt.extractionId)}/selection`,{expectedVersion:baseline.controlVersion,schemaRevisionId:schemaId,method})
       onSaved()
     } catch(error){setError(error instanceof Error?error.message:'Unable to save pending inputs.')}
@@ -90,7 +84,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
             defaultKey={listing?.defaults[role]} choices={listing?.models.filter(model=>model.roles.includes(role)).map(model=>({key:model.key,name:model.repo,serving:model.serving}))??null}
             unserved="Not serving" onChange={(key:string)=>editor.setExtractionModel(role,key)}/>
         </label>)}
-        <AdvancedTab draft={editor.draft} saved={editor.saved} editor={editor} focusIssue={false} onIssueFocused={noProbe} unifiedDefaults={pinned}
+        <AdvancedTab draft={editor.draft} saved={editor.saved} editor={editor} focusIssue={false} onIssueFocused={noProbe}
           extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'}/>
       </>}
       {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{issue.message}</p>)}
