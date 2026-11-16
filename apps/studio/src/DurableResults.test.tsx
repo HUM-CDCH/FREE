@@ -737,7 +737,7 @@ it('keeps saying an opened cut could not be read once the latest state arrives',
 
 it('acknowledges editing once per inputs edit session and saves the draft under that acknowledgement',async()=>{
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
-  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{catalogRecipe:null}}
+  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{}}
   const state={projectId:'project',status:'PAUSED',controlVersion:4,snapshotVersion:1,selection,pendingSelection:null,counts:{saved:0,inFlight:0}}
   vi.mocked(readDurable).mockResolvedValue({state,page} as never)
   vi.mocked(durableRequest).mockImplementation(async url=>url.endsWith('/control')?{controlVersion:5}:{})
@@ -758,7 +758,7 @@ it('acknowledges editing once per inputs edit session and saves the draft under 
 
 it('closes the inputs editor on Cancel, saving nothing, and offers Change inputs again',async()=>{
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
-  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{catalogRecipe:null}}
+  const selection={id:'selection',ordinal:1,schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{}}
   const state={projectId:'project',status:'PAUSED',controlVersion:4,snapshotVersion:1,selection,pendingSelection:null,counts:{saved:0,inFlight:0}}
   vi.mocked(readDurable).mockResolvedValue({state,page} as never)
   vi.mocked(durableRequest).mockImplementation(async url=>url.endsWith('/control')?{controlVersion:5}:{})

@@ -48,9 +48,9 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
       [schemaRevisionId,2+index,tree,method==='article'?'document':'records',fixture.revisions.catalog])
-    const settings={[method]:method==='unified'?{defaults: 5}:method==='article'?REFERENCE_ARTICLE:null},strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-    await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"catalogRecipe","requestedSettings") VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,strategy,recipe,settings])
+    const settings={[method]:method==='unified'?{defaults: 5}:REFERENCE_ARTICLE},strategy=method==='article'?'ARTICLE':'CATALOG'
+    await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,$5,$6)`,
+      [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,strategy,settings])
     await admin.query('BEGIN')
     try{await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
       sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId,schemaTree:tree,strategy,

@@ -43,7 +43,7 @@ it.each([
 
 it('an Article input editor always previews the explicit settings Save sends',async()=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
-  const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{catalogRecipe:null}},pendingSelection:null} as unknown as DurableRead
+  const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings:{article: REFERENCE_ARTICLE}},resolved:{}},pendingSelection:null} as unknown as DurableRead
   render(<DurableInputs attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} state={state} acknowledged={3} currentSchema='schema' onSaved={vi.fn()} onEdited={async()=>{}} onCancel={vi.fn()}/>)
   await screen.findByRole('button',{name:'Save pending inputs'})
   const view=screen.getByRole('combobox',{name:'Article setting'})
