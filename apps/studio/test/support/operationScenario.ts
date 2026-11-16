@@ -6,6 +6,7 @@ import { createCanonicalPackageStore } from '../../../../packages/db/src/artifac
 import { deploymentModels } from '../../api/_deployment_models.js'
 import { generateSchemaWithModel } from '../../api/_schema_suggestion.js'
 import { createModelKeyCache } from '../../api/_model_keys.js'
+import { respondToSchemaEdit } from '../../api/_schema_chat.js'
 import { proposeSchemaEdit } from '../../api/_schema_edit.js'
 import { registerSchemaEditWorkflow, type SchemaEditPorts } from '../../api/_schema_edit_workflow.js'
 import { registerSchemaGenerationWorkflow, type SchemaGenerationPorts } from '../../api/_schema_generation_workflow.js'
@@ -75,6 +76,7 @@ export async function runOperationScenario(
     readSource: (id) => worker.readRevisionSchemaSource(id),
     propose: proposeSchemaEdit,
     generate: (caller, input) => generateSchemaWithModel(caller, input, undefined, dependencies),
+    respond: (caller, input, question) => respondToSchemaEdit(caller, input, question, dependencies),
   }
   await launchStudioDbos({
     databaseUrl: required(env, 'DATABASE_URL'),

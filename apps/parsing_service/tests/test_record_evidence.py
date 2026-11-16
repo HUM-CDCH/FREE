@@ -758,6 +758,26 @@ def test_a_value_cited_nowhere_is_not_read_again_because_another_window_inherits
         ("North", "rejected", "verification_rejected"), ("West", "proposed", "quote_not_in_source")]
 
 
+@pytest.mark.parametrize("words,checks", [(5, 1), (1000, 0)])
+def test_a_local_value_keeps_its_evidence_when_another_window_inherits_the_field(words, checks):
+    text = "Group North\n1. " + "word " * words + "\n2. Lives in West.\nContinued."
+    start, middle = text.index("2."), text.index("Continued")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}]}
+    reads = [(Window((Unit("p1_s0", start, middle),)), {"region": candidate("West", "Lives in West")}),
+             (Window((Unit("p1_s0", middle, len(text)),)), {"region": candidate("North", "Group North")})]
+    seen = []
+    def answer(system, user, schema):
+        seen.append(user)
+        return {"C1": None}
+    work = tight_runner(text, [reads], answer, 1024).entry(0, entry)
+    # Only the inherited candidate depends on this check, whether it rejects or never fits the budget.
+    local, inherited = work.found
+    assert (local.value, local.kind, local.reason, local.verified) == ("West", "accepted", None, False)
+    assert inherited.reason == ("verification_rejected" if checks else "verification_over_budget")
+    assert work.record == {"region": "West"} and len(seen) == checks
+
+
 def test_a_shared_reading_without_a_records_value_is_asked_again_never_a_rejection(monkeypatch):
     north = candidate("North", "Group North")
     seen = []
