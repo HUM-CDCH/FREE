@@ -12,7 +12,7 @@ function attempt(extractionId: string, executionStatus: ExtractionAttempt['execu
   return {
     extractionId, sourceDocumentId: '51000000-0000-4000-8001-000000000001',
     sourceRepresentationRevisionId: target.sourceRepresentationId, schemaRevisionId: target.schemaRevisionId,
-    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE },
+    strategy: 'ARTICLE', requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE },
     executionStatus, finalizedReview: null, batchExtractionId: null, createdAt: '2026-10-05T00:00:00.000Z',
   }
 }

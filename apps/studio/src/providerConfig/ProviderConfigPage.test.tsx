@@ -1077,26 +1077,6 @@ describe('Advanced', () => {
     expect(server.puts()[0]!.extractionSettings.article?.context_tokens).toBe(8192)
   })
 
-  it('Catalog keeps generic limits and recipe factors apart; Use service defaults removes only Catalog', async () => {
-    const server = studio(config({ extractionSettings: { article: REFERENCE_ARTICLE } }))
-    await renderPage()
-    openAdvanced()
-    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
-    openSection('Recipe Catalog')
-    expect(screen.getByRole('region', { name: 'Recipe Catalog' })).toHaveTextContent('Applies when a Catalog Extraction uses a numbered-catalogue recipe.')
-    setting('Verification')
-    fireEvent.click(screen.getByRole('switch', { name: 'Verification' }))
-    expect(screen.getByText('Off keeps typed values as proposals, not accepted evidence.')).toBeInTheDocument()
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.catalog?.recipe?.factors?.verification).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(2))
-    expect(server.puts()[1]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE })
-  })
-
   it('with the unified Catalog, one group replaces Generic and Recipe; a cleared ceiling is Auto again', async () => {
     const server = studio(config(), { deployment: { ...NO_DEPLOYMENT, } })
     await renderPage()

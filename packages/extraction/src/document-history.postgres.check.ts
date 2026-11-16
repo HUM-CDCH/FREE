@@ -24,7 +24,7 @@ async function fixture(t: TestContext, name: string) {
       VALUES ($1,$2,$3,$4,'ARTICLE',$5,$6)`, [id, d1.sourceDocumentId, d1.sourceRepresentationRevisionId, history.revisions.article, { article: REFERENCE_ARTICLE }, createdAt])
     await admin.query('BEGIN')
     await repository.initializeDurableExtraction(admin as never, id, { projectContextId: history.projectContextId, sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,
-      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', catalogRecipe: null, preprocessId,
+      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', preprocessId,
       requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
     await admin.query('COMMIT')
     return { id, selectionId: (await admin.query('SELECT "selectionId" FROM extraction_runtime.head WHERE id=$1', [id])).rows[0].selectionId as string }

@@ -56,7 +56,7 @@ const defaultInspection: ExtractionInspection = {
 
 const attempt = {
   extractionId: 'extraction-1', sourceDocumentId: 'document-1', sourceRepresentationRevisionId: 'source-1',
-  schemaRevisionId: 'revision-1', strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE },
+  schemaRevisionId: 'revision-1', strategy: 'ARTICLE', requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE },
   executionStatus: 'PAUSED', finalizedReview: null, batchExtractionId: null, createdAt: '2026-10-05T00:00:00.000Z',
 } satisfies ExtractionAttempt
 

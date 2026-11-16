@@ -26,7 +26,7 @@ test('value history reads one value from ten 20 MB results in under 1.5 s', { sk
       VALUES ($1,$2,$3,$4,'ARTICLE',$5,$6)`, [id, d1.sourceDocumentId, d1.sourceRepresentationRevisionId, history.revisions.article, { article: REFERENCE_ARTICLE }, new Date(Date.UTC(2026, 9, 1 + index)).toISOString()])
     await admin.query('BEGIN')
     await initializeDurableExtraction(admin as never, id, { projectContextId: history.projectContextId, sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,
-      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', catalogRecipe: null, preprocessId,
+      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', preprocessId,
       requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
     await admin.query('COMMIT')
     const selectionId = (await admin.query('SELECT "selectionId" FROM extraction_runtime.head WHERE id=$1', [id])).rows[0].selectionId

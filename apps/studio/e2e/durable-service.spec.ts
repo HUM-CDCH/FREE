@@ -32,7 +32,7 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
     schemaRevisionId=(await revision.json()).revision.schemaRevisionId as string
   }
   const id=randomUUID()
-  const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
+  const strategy=method==='article'?'ARTICLE':'CATALOG'
   const settings={[method]:method==='unified'?{defaults:options.defaults??10}:method==='article'
     ?{...REFERENCE_ARTICLE,...(options.articleContext?{context:options.articleContext,context_tokens:8192}:{})}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except

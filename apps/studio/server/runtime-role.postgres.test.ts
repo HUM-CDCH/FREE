@@ -219,7 +219,7 @@ describe('Studio on its restricted runtime role', () => {
     await admin.query('BEGIN')
     await initializeDurableExtraction(admin as never, reviewed, { projectContextId: seeded.projectContextId,
       sourceRepresentationRevisionId: seeded.sourceRepresentationRevisionId, schemaRevisionId: seeded.schemaRevisionId,
-      schemaTree: tree, strategy: 'ARTICLE', catalogRecipe: null, preprocessId, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
+      schemaTree: tree, strategy: 'ARTICLE', preprocessId, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
     await admin.query('COMMIT')
     const head = (await admin.query('SELECT "selectionId" FROM extraction_runtime.head WHERE id=$1', [reviewed])).rows[0]
     const value = { id: 'title', recordId: 'record', fieldId: 'title', path: ['records', 0, 'title'], selectionId: head.selectionId,

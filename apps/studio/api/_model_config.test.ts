@@ -510,8 +510,8 @@ describe('advanced extraction settings', () => {
     ['a non-integer ceiling', { article: { ...REFERENCE_ARTICLE, context: 'bounded', context_tokens: 12288.5 } }, 'config.extractionSettings.article.context_tokens'],
     ['a ceiling below the minimum', { article: { ...REFERENCE_ARTICLE, context: 'bounded', context_tokens: 8191 } }, 'config.extractionSettings.article.context_tokens'],
     ['an empty identity field', { article: { ...REFERENCE_ARTICLE, identity_fields: [''] } }, 'config.extractionSettings.article'],
-    ['an unknown recipe factor', { catalog: { recipe: { factors: { vocabulary: false } } } }, 'config.extractionSettings.catalog.recipe.factors'],
-    ['a record limit below the minimum', { catalog: { generic: { record_chars: 999 } } }, 'config.extractionSettings.catalog.generic.record_chars'],
+    ['an unknown recipe factor', { catalog: { recipe: { factors: { vocabulary: false } } } }, 'config.extractionSettings.catalog'],
+    ['a record limit below the minimum', { catalog: { generic: { record_chars: 999 } } }, 'config.extractionSettings.catalog'],
     ['a made-up version switch', { article: { ...REFERENCE_ARTICLE, span_grounding_version: 1 } }, 'config.extractionSettings.article'],
   ])('refuses %s as a structural 400 and stores nothing', async (_label, extractionSettings, path) => {
     const configurations = inMemoryModelConfigurations()
@@ -527,13 +527,13 @@ describe('advanced extraction settings', () => {
     const configurations = inMemoryModelConfigurations()
     const submitted = configured({ extractionSettings: {
       article: { ...UNWINDOWED_ARTICLE, context_tokens: 16384, grouping: null },
-      catalog: { generic: {}, recipe: { factors: { verification: false } } },
+      catalog: { unified: { verification: false } },
     } as never })
     const response = await handlers({ configurations }).PUT(putRequest({ config: submitted }))
     expect(response.status).toBe(200)
     const expected = configured({ extractionSettings: {
       article: UNWINDOWED_ARTICLE,
-      catalog: { recipe: { factors: { glossary: true, headings: true, overlap: true, verification: false } } },
+      catalog: { unified: { verification: false } },
     } })
     await expect(response.json()).resolves.toEqual({ config: expected })
     await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(expected)

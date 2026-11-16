@@ -133,8 +133,8 @@ describe('extractionAttemptDto', () => {
 
   it('names no finalized cut and no admitted choice when there is none', async () => {
     const { extractionAttemptDto } = await import('./_extractions.js')
-    const dto = extractionAttemptDto({ ...snapshot, strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, finalizedReview: null })
-    expect(dto).toMatchObject({ catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, finalizedReview: null })
+    const dto = extractionAttemptDto({ ...snapshot, strategy: 'ARTICLE', requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, finalizedReview: null })
+    expect(dto).toMatchObject({ requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, finalizedReview: null })
   })
 
 })

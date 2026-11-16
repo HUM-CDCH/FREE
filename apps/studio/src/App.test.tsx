@@ -346,7 +346,7 @@ function runningAttempt(extractionId: string) {
     sourceDocumentId: '51000000-0000-4000-8001-000000000001',
     sourceRepresentationRevisionId: reopened.sourceRepresentationId,
     schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, executionStatus: 'RUNNING',
+    strategy: 'ARTICLE', requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, executionStatus: 'RUNNING',
     finalizedReview: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z',
   }
 }
@@ -2398,7 +2398,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: savedSchemaRevisionId,
-      strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { article: REFERENCE_ARTICLE }, requestedModels: null, batchExtractionId: null,
+      strategy: 'ARTICLE', executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { article: REFERENCE_ARTICLE }, requestedModels: null, batchExtractionId: null,
       createdAt: '2026-08-10T00:00:00.000Z' }))
     expect(
       await screen.findByText(
@@ -2437,67 +2437,6 @@ describe('reopened Source Document workspace', () => {
     fireEvent.keyDown(firstPage, { key: 'Escape' })
     expect(screen.queryByRole('navigation', { name: 'Page navigation' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Page thumbnails' })).toHaveFocus()
-  })
-
-  it.each([[null], ['numbered-catalogue-de@1']])('saves Catalog as the template\'s record scope and runs it with record boundaries (%s); only the boundaries are one-shot', async (recipe) => {
-    const extractionRequests: Array<{ strategy?: string; catalogRecipe?: string; schemaRevisionId?: string }> = []
-    const writes: RevisionWrite[] = []
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input: string | URL | Request, init?: RequestInit) => {
-        const url = String(input)
-        const durable = durableRead(url)
-        if (durable) return Promise.resolve(durable)
-        if (url.endsWith('/source')) return Promise.resolve(Response.json(parsedDocument))
-        if (url.endsWith('/markdown')) return Promise.resolve(new Response('# Beretning'))
-        if (url.startsWith('/api/schema-revisions?'))
-          return Promise.resolve(Response.json({ revisions: [] }))
-        if (url === '/api/schema-revisions' && init?.method === 'POST')
-          return Promise.resolve(appendRevision(init, writes))
-        if (url.endsWith('/api/extractions')) {
-          const body = JSON.parse(String(init?.body)) as { strategy?: string; catalogRecipe?: string }
-          extractionRequests.push(body)
-          return Promise.resolve(Response.json({
-            extractionId: '51000000-0000-4000-8006-000000000021',
-            sourceDocumentId: '51000000-0000-4000-8001-000000000001',
-            sourceRepresentationRevisionId: reopened.sourceRepresentationId,
-            schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-            strategy: 'CATALOG', catalogRecipe: body.catalogRecipe ?? null,
-            executionStatus: 'COMPLETED',
-            finalizedReview: null,
-            requestedSettings: { generic: null },
-            requestedModels: null,
-            batchExtractionId: null,
-            createdAt: '2026-08-12T00:00:00.000Z' }, { status: 201 }))
-        }
-        return Promise.resolve(new Response('pdf'))
-      }),
-    )
-    render(<DocumentWorkspace {...reopened} persistedExtraction={null} />)
-    await waitFor(() =>
-      expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument(),
-    )
-    const selector = screen.getByLabelText('Record scope')
-    expect(selector).toHaveValue('document')
-    // The Boundaries choice appears only for a Catalog; generic model discovery stays the default.
-    expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
-    fireEvent.change(selector, { target: { value: 'records' } })
-    const boundaries = screen.getByLabelText('Boundaries')
-    expect(boundaries).toHaveValue('')
-    if (recipe) fireEvent.change(boundaries, { target: { value: recipe } })
-    fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
-
-    await waitFor(() => expect(extractionRequests).toHaveLength(1))
-    // Catalog is a schema change: the run flushes it as a revision that names the scope, then runs that revision.
-    expect(writes).toEqual([expect.objectContaining({ expectedRevisionNumber: 1, recordScope: 'records' })])
-    expect(extractionRequests[0]).toEqual(
-      expect.objectContaining({ strategy: 'CATALOG', schemaRevisionId: appendedRevisionId(2) }),
-    )
-    if (recipe) expect(extractionRequests[0].catalogRecipe).toBe(recipe)
-    else expect(extractionRequests[0]).not.toHaveProperty('catalogRecipe')
-    // The schema stays a Catalog; only the boundaries return to model discovery.
-    await waitFor(() => expect(screen.getByLabelText('Boundaries')).toHaveValue(''))
-    expect(screen.getByLabelText('Record scope')).toHaveValue('records')
   })
 
   it('with the unified Catalog enabled, a Catalog start offers no recipe and submits the unified method', async () => {
@@ -2547,14 +2486,14 @@ describe('reopened Source Document workspace', () => {
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', catalogRecipe: null, executionStatus: 'FAILED', finalizedReview: null, requestedSettings: { generic: null }, requestedModels: null, batchExtractionId: null,
+        strategy: 'CATALOG', executionStatus: 'FAILED', finalizedReview: null, requestedSettings: { unified: { defaults: 10 } }, requestedModels: null, batchExtractionId: null,
         createdAt: '2026-08-12T00:00:00.000Z' },
       SUCCEEDED: {
         extractionId: '51000000-0000-4000-8006-000000000042',
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { generic: null }, requestedModels: null, batchExtractionId: null,
+        strategy: 'CATALOG', executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { unified: { defaults: 10 } }, requestedModels: null, batchExtractionId: null,
         createdAt: '2026-08-12T00:00:00.000Z' },
     }
 
@@ -3375,7 +3314,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-      strategy: 'ARTICLE', catalogRecipe: null, requestedModels: body.models ?? null, requestedSettings: { article: REFERENCE_ARTICLE }, executionStatus,
+      strategy: 'ARTICLE', requestedModels: body.models ?? null, requestedSettings: { article: REFERENCE_ARTICLE }, executionStatus,
       finalizedReview: null, batchExtractionId: null, createdAt: '2026-08-12T00:00:00.000Z',
     })
     function stubFetch(models: () => Response, executionStatus: 'RUNNING' | 'FAILED') {
@@ -3521,7 +3460,7 @@ describe('reopened Source Document workspace', () => {
       strategy: 'CATALOG' as const,
       executionStatus: 'RUNNING' as const,
       finalizedReview: null,
-      requestedSettings: { generic: null },
+      requestedSettings: { unified: { defaults: 10 } },
       requestedModels: null,
       batchExtractionId: null,
       createdAt: reopened.persistedExtraction!.createdAt }
@@ -3676,7 +3615,7 @@ describe('an Extraction reopened on a superseded Source Representation', () => {
     sourceDocumentId: '51000000-0000-4000-8001-000000000001',
     sourceRepresentationRevisionId,
     schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-    strategy: 'ARTICLE', catalogRecipe: null, executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { article: REFERENCE_ARTICLE }, requestedModels: null, batchExtractionId: null,
+    strategy: 'ARTICLE', executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { article: REFERENCE_ARTICLE }, requestedModels: null, batchExtractionId: null,
     createdAt: '2026-07-31T12:03:00.000Z',
     ...overrides })
 

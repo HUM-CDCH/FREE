@@ -3,7 +3,7 @@ import { articleSettingsSchema } from 'extraction/extraction-method'
 const UNWINDOWED_ARTICLE = articleSettingsSchema.parse({})
 import { act, renderHook } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { canonicalArticle, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG } from 'extraction/extraction-method'
+import { canonicalArticle, METHOD_MESSAGES, REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
 import { STARTING_POINTS, withStartingPoint } from './advancedSettings'
 import { useProviderConfigDraft } from './useProviderConfigDraft'

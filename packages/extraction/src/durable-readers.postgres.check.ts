@@ -52,7 +52,7 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   await admin.query('BEGIN')
   try {
     await initializeDurableExtraction(admin as never, id, { projectContextId: history.projectContextId, sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,
-      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', catalogRecipe: null, preprocessId: representation.preprocessId,
+      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', preprocessId: representation.preprocessId,
       requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
     await admin.query('COMMIT')
   } catch (error) { await admin.query('ROLLBACK'); throw error }

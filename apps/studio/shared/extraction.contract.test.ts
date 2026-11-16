@@ -12,8 +12,7 @@ const id = (digit: string) =>
 
 /** The saved method a start view submits when the account keeps every service default, per settings slot. */
 const ARTICLE_DEFAULTS = { models: null, settings: { article: REFERENCE_ARTICLE } } as const
-const GENERIC_DEFAULTS = { models: null, settings: { generic: null } } as const
-const RECIPE_DEFAULTS = { models: null, settings: { recipe: null } } as const
+const CATALOG_DEFAULTS = { models: null, settings: { unified: { defaults: 10 } } } as const
 
 const completed = {
   extractionId: id('1'),
@@ -45,9 +44,7 @@ describe('durable Extraction contracts', () => {
       expect(extractionAttemptSchema.safeParse({ ...completed, finalizedReview: wrong }).success).toBe(false)
   })
 
-  it('names its Catalog recipe, or null, and its admitted settings', () => {
-    expect(extractionAttemptSchema.parse({ ...completed, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', requestedSettings: { recipe: null } }).catalogRecipe)
-      .toBe('numbered-catalogue-de@1')
+  it('records its admitted settings and no Catalog recipe', () => {
     expect(extractionAttemptSchema.safeParse({ ...completed, catalogRecipe: 'numbered-catalogue-de@1' }).success).toBe(false)
     expect(extractionAttemptSchema.parse({ ...completed, requestedSettings: { article: REFERENCE_ARTICLE } }).requestedSettings).toEqual({ article: REFERENCE_ARTICLE })
     expect(extractionAttemptSchema.safeParse({ ...completed, requestedSettings: { article: REFERENCE_ARTICLE, generic: null } }).success).toBe(false)
@@ -83,25 +80,25 @@ describe('Extraction request contracts', () => {
 
 })
 
-describe('numbered-catalogue recipe contracts', () => {
+describe('Catalog request contracts', () => {
   const fresh = { id: id('1'), sourceRepresentationRevisionId: id('3'), schemaRevisionId: id('4') }
 
   it('Catalog accepts unified settings and refuses recipe and generic request shapes', () => {
-   expect(extractionRequestSchema.parse({ ...fresh, strategy: 'CATALOG', method: GENERIC_DEFAULTS }).method).toEqual(GENERIC_DEFAULTS)
+   expect(extractionRequestSchema.parse({ ...fresh, strategy: 'CATALOG', method: CATALOG_DEFAULTS }).method).toEqual(CATALOG_DEFAULTS)
    for (const settings of [{ recipe: null }, { generic: null }]) expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'CATALOG', method: { models: null, settings } }).success).toBe(false)
-   expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'CATALOG', method: GENERIC_DEFAULTS, catalogRecipe: 'numbered-catalogue-de@1' }).success).toBe(false)
+   expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'CATALOG', method: CATALOG_DEFAULTS, catalogRecipe: 'numbered-catalogue-de@1' }).success).toBe(false)
  })
 
   it("requires the saved method, with only the settings of the request's strategy", () => {
     for (const [strategy, method] of [
       ['ARTICLE', ARTICLE_DEFAULTS],
-      ['CATALOG', GENERIC_DEFAULTS],
+      ['CATALOG', CATALOG_DEFAULTS],
     ] as const) {
       const request = { ...fresh, strategy,  }
       expect(extractionRequestSchema.parse({ ...request, method }).method).toEqual(method)
       expect(extractionRequestSchema.safeParse(request).success).toBe(false)
     }
-    expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'ARTICLE', method: GENERIC_DEFAULTS }).success).toBe(false)
+    expect(extractionRequestSchema.safeParse({ ...fresh, strategy: 'ARTICLE', method: CATALOG_DEFAULTS }).success).toBe(false)
     expect(extractionRequestSchema.safeParse({
       ...fresh, strategy: 'CATALOG', method: ARTICLE_DEFAULTS,
     }).success).toBe(false)

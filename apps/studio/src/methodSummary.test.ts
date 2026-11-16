@@ -1,12 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { REFERENCE_ARTICLE, REFERENCE_CATALOG } from 'extraction/extraction-method'
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { methodLines, modelsLine, settingsHeadline, unifiedLines } from './methodSummary'
 
 describe('method summaries', () => {
   it('say what was requested, service defaults, or that nothing was recorded', () => {
     // Recorded without Article settings: the whole source it ran, the service defaults of its time.
     expect(settingsHeadline({ article: REFERENCE_ARTICLE })).toBe('Service defaults · Full source · Plain text · Source-label verification · Large checks in windows')
-    expect(settingsHeadline({ generic: null })).toBe('Service defaults')
     expect(settingsHeadline({ article: { ...REFERENCE_ARTICLE, context: 'bounded', grounding: 'spans' } }))
       .toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification · Large checks in windows')
   })
