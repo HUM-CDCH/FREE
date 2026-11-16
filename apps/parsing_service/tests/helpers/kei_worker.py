@@ -38,7 +38,7 @@ def _install(control: Path, crash_after: str | None) -> contextlib.AbstractConte
     from kei_exp.kie.extract import tokens
     from kei_exp.kie.stages import ocr
     from tests.helpers.fake import FakeTranscriber, registered
-    from tests.test_extract_grounded import WordCounter
+    from tests.helpers.extraction import WordCounter
 
     class Gated(FakeTranscriber):
         def transcribe(self, execution, crops, emit):

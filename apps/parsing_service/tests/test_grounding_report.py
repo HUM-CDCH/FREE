@@ -11,7 +11,7 @@ from experiments.extraction import manifest, study
 from experiments.extraction.manifest import pin, write_new
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.grounding import verify
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_extraction_rendering import table_passage
 from tests.test_extraction_span_grounding import span_chat
@@ -152,7 +152,7 @@ def test_all_pending_document_effects_are_unavailable_for_every_metric():
         assert effect["excluded_documents"] == [{"source": "Pending", "reason": "incomplete_pair"}]
 
 
-def test_complete_six_arm_report_checks_captures_locations_routes_and_changed_links(frozen, tmp_path, monkeypatch):
+def test_complete_current_arm_report_checks_captures_locations_routes_and_changed_links(frozen, tmp_path, monkeypatch):
     configured, source, output, _, provider = registered(frozen, tmp_path)
     cells = manifest.validate(configured, Path(__file__).resolve().parents[1])
     def answer(system, user, schema):
@@ -175,17 +175,15 @@ def test_complete_six_arm_report_checks_captures_locations_routes_and_changed_li
     report = reporter["report"]
     monkeypatch.setitem(report.__globals__, "load", lambda _: run.load(tmp_path))
     result = report(configured, cells, output, output / "verified.json")
-    assert result["cell_statuses"] == {"completed": 6}
+    assert result["cell_statuses"] == {"completed": 3}
     assert all(row["upstream_records_unchanged"] for row in result["cells"])
     quoted = next(row for row in result["cells"] if row["method"] == "quoted")
     assert quoted["literal_validity"]["status"] == "no_proofs"
     assert quoted["literal_validity"]["all_literal_locations_valid"] is None
-    routed = next(row for row in result["cells"] if row["method"] == "spans_routed")
+    routed = next(row for row in result["cells"] if row["method"] == "spans")
     assert routed["route_coverage"]["stopped_after_support"] == 2
     assert result["comparisons"][0]["documents"][0]["link_changes"] == {"added": 2}
-    assert all(value == 0 for value in result["interactions"][0]["documents"][0]["difference_of_differences"].values())
-    interaction = result["interactions"][0]["document_effects"]["metrics"]["captured_requests"]
-    assert interaction["documents"] == 1 and interaction["mean"] == 0 and interaction["percentile_95"] is None
+    assert result["interactions"] == []
     assert result["comparisons"][0]["document_effects"]["registered_documents"] == 1
     assert all(item["status"] == "unadjudicated" for item in result["link_review_queue"])
     # A valid old replay receipt cannot bless captures changed after verification.

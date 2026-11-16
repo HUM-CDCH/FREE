@@ -263,12 +263,6 @@ model ModelConfiguration {
   researcherAccount   ResearcherAccount @relation(fields:[researcherAccountId], references:[id], onDelete: Cascade)
 }
 
-enum ExtractionOutcome {
-  SUCCEEDED
-  FAILED
-  CANCELLED
-}
-
 enum SchemaRevisionOrigin {
   SUGGESTION
   RESEARCHER_EDIT
@@ -340,8 +334,7 @@ model ProjectChatEntry {
 // A project shares this one spreadsheet across every schema-suggestion action
 // that wants it, instead of each action carrying its own one-off upload.
 // `columns` is the header row schema suggestion reads; `rows` is the answer
-// data the developer evaluation reads (null on versions uploaded before rows
-// were kept). `exhaustive` says whether the answers cover every scored
+// data the developer evaluation reads. `exhaustive` says whether the answers cover every scored
 // document, which decides whether an unmatched prediction is a false positive.
 model ProjectSpreadsheetVersion {
   id                     Uuid                    @id @default(uuid())
@@ -349,7 +342,7 @@ model ProjectSpreadsheetVersion {
   revisionNumber         Int
   originalFilename       String
   columns                Json
-  rows                   Json?
+  rows                   Json
   exhaustive             Boolean                 @default(true)
   createdAt              Timestamptz6            @default(now())
   projectContext         ProjectContext          @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
@@ -395,7 +388,6 @@ model SourceDocument {
   createdAt              Timestamptz6                   @default(now())
   projectContext         ProjectContext                 @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
   representations        SourceRepresentationRevision[]
-  annotationSetRevisions AnnotationSetRevision[]
 
   @@unique([projectContextId, contentSha256])
 }
@@ -414,26 +406,12 @@ model SourceRepresentationRevision {
   reprocessFingerprint         String?
   createdAt                    Timestamptz6                  @default(now())
   sourceDocument               SourceDocument                @relation(fields:[sourceDocumentId], references:[id], onDelete: Cascade)
-  annotationSetRevisions       AnnotationSetRevision[]
   extractions                  Extraction[]
   batchSchemaSuggestionSources BatchSchemaSuggestionSource[]
 
   @@unique([sourceDocumentId, revisionNumber])
   @@unique([sourceDocumentId, reprocessKey])
   @@unique([id, sourceDocumentId])
-}
-
-model AnnotationSetRevision {
-  id                             Uuid                         @id @default(uuid())
-  sourceDocumentId               Uuid
-  sourceRepresentationRevisionId Uuid
-  revisionNumber                 Int
-  snapshot                       Json
-  createdAt                      Timestamptz6                 @default(now())
-  sourceDocument                 SourceDocument               @relation(fields:[sourceDocumentId], references:[id], onDelete: Cascade)
-  sourceRepresentationRevision   SourceRepresentationRevision @relation(fields:[sourceRepresentationRevisionId], references:[id], onDelete: Cascade)
-
-  @@unique([sourceDocumentId, revisionNumber])
 }
 
 model ExtractionSchema {
@@ -493,7 +471,7 @@ model BatchExtraction {
   strategy          String
   // The one method every member was admitted with (members carry the same values). Null before this was recorded.
   requestedModels   Json?
-  requestedSettings Json?
+  requestedSettings Json
   createdAt         Timestamptz6   @default(now())
   projectContext    ProjectContext @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
   schemaRevision    SchemaRevision @relation(fields:[schemaRevisionId], references:[id], onDelete: Cascade)
@@ -519,8 +497,6 @@ model BatchSchemaSuggestion {
   coverage                    Json?
   // The retained result an apply saves as revision 1; rows edited before 2026-11 keep the researcher's edits.
   draft                       Json?
-  // Retired in 2026-11 with suggestion draft editing: never written or read since; a later migration drops it.
-  draftVersion                Int                             @default(0)
   // SPREADSHEET-kind suggestions are built synchronously from the project's
   // shared spreadsheet slot; DOCUMENTS (the default) read Source Documents.
   sourceKind                  BatchSchemaSuggestionSourceKind @default(DOCUMENTS)
@@ -531,8 +507,6 @@ model BatchSchemaSuggestion {
   projectSpreadsheetVersion   ProjectSpreadsheetVersion?      @relation(fields:[projectSpreadsheetVersionId], references:[id], onDelete: Restrict)
   // Revision 1 of the Extraction Schema the retained result was saved as (by an apply, or a confirmation before them).
   confirmedSchemaRevisionId   Uuid?                           @unique
-  // Retired in 2026-11: the batch a confirmation used to start. Never written or read since; a later migration drops it.
-  batchExtractionId           Uuid?                           @unique
   createdAt                   Timestamptz6                    @default(now())
   projectContext              ProjectContext                  @relation(fields:[projectContextId], references:[id], onDelete: Cascade)
   sources                     BatchSchemaSuggestionSource[]
@@ -555,8 +529,7 @@ model BatchSchemaSuggestionSource {
 
 // One Extraction from admission through review (spec, *Background work*). Admission writes the pins, the requested
 // models and Catalog recipe, and the optional batch. Status and outcome live in extraction_runtime (the coordination
-// head and its attempts, ADR 0017); this row's `outcome`, `complete` and `failure` are never written for durable
-// Extractions. A batch's pending rows are its intended selection.
+// head and its attempts, ADR 0017). A batch's pending rows are its intended selection.
 model Extraction {
   id                             Uuid                         @id @default(uuid())
   sourceDocumentId               Uuid
@@ -564,47 +537,24 @@ model Extraction {
   sourceRepresentationRevisionId Uuid
   strategy                       String
   // The numbered-catalogue recipe (`id@version`) a Catalog Extraction segments by; null for generic Catalog and Article.
-  catalogRecipe                  String?
   // The Extraction Model Choice requested at admission; null keeps kei-exp's defaults. The models each role ran on are
-  // in `diagnostics.models`; `modelAttribution` names the fields model.
+  // recorded in the durable execution state and producing inputs.
   requestedModels                Json?
-  // The Extraction's admitted method settings (`ActiveSettings`: `{article}`, `{generic}` or `{recipe}`, each null for
-  // service defaults), frozen at admission with `requestedModels`; execution reads only these. Null: admitted before
-  // settings were recorded ("Not recorded"), never inferred from today's account configuration.
-  requestedSettings              Json?
+  // Explicit admitted ActiveSettings, frozen with requestedModels. Article records its full settings;
+  // generic and recipe Catalog slots may use null for their service defaults.
+  requestedSettings              Json
   // The page the researcher was reading when the run started (one-based): the order kei reads records in, never which
   // records. Not part of the admission identity; null for Batch Extractions and for rows admitted before it existed.
   startPage                      Int?
-  // Retired on 2026-10-02 with the sample workbench. Never written since; read only as a null check (a document's
-  // latest attempt and latest reviewed result, the project summary, the recent-activity feed, and sameAdmission,
-  // which refuses a reuse of a legacy sample's ID) to keep legacy sample rows out. A later migration disposes of
-  // those rows, then drops it.
-  requestedPages                 Json?
-  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
-  reviewTransfer                 Json?
-  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
-  reviewPairings                 Json?
-  outcome                        ExtractionOutcome?
-  complete                       Boolean?
-  modelAttribution               Json?
-  diagnostics                    Json?
-  failure                        Json?
-  resultPayload                  Json?
-  evidenceLinks                  Json?
-  reviewable                     Boolean                      @default(false)
   batchExtractionId              Uuid?
   // Admission time: attempts are ordered by it.
   createdAt                      Timestamptz6                 @default(now())
-  reviewedAt                     Timestamptz6?
-  reviewDraft                    Json?
-  reviewDraftVersion             Int                          @default(0)
   schemaRevision                 SchemaRevision               @relation(fields:[schemaRevisionId], references:[id], onDelete: Cascade)
   // The composite pin makes agreement a database guarantee: an Extraction can
   // only join a Batch Extraction that pinned the same Schema Revision and
   // Extraction Strategy. A null batch is a single-document Extraction.
   batchExtraction                BatchExtraction?             @relation(fields:[batchExtractionId, schemaRevisionId, strategy], references:[id, schemaRevisionId, strategy], onDelete: Cascade, map: "extraction_batch_pin_fkey")
   sourceRepresentationRevision   SourceRepresentationRevision @relation(fields:[sourceRepresentationRevisionId, sourceDocumentId], references:[id, sourceDocumentId], onDelete: Cascade)
-  reviews                        ExtractionReview[]
 
   @@unique([id, sourceDocumentId])
   // One member Extraction per selected Source Document; NULL batches (single Extractions) never collide.
@@ -613,37 +563,5 @@ model Extraction {
   @@index([sourceDocumentId, createdAt])
   @@index([sourceRepresentationRevisionId, sourceDocumentId])
   @@index([batchExtractionId, schemaRevisionId, strategy], map: "extraction_batch_pin_idx")
-  @@index([reviewedAt])
-}
 
-model ExtractionReview {
-  id             Uuid             @id @default(uuid())
-  extractionId   Uuid
-  revisionNumber Int
-  decisionDigest String
-  createdAt      Timestamptz6     @default(now())
-  extraction     Extraction       @relation(fields:[extractionId], references:[id], onDelete: Cascade)
-  decisions      ReviewDecision[]
-
-  @@unique([extractionId, revisionNumber])
-}
-
-model ReviewDecision {
-  id                    Uuid             @id @default(uuid())
-  extractionReviewId    Uuid
-  resultPath            Json
-  resultPathKey         String
-  evidenceAnchorId      String?
-  reviewedOccurrenceIds Json
-  action                String
-  reviewedValue         Json?
-  // A correction's own Evidence (`[{evidenceAnchorId, reviewedOccurrenceIds}]`): where its value is printed.
-  // Null: none recorded, so the correction never carries as fixed.
-  reviewedEvidence      Json?
-  // Retired on 2026-10-02 with the sample workbench. Never written or read since; a later migration drops it.
-  carriedFrom           Json?
-  createdAt             Timestamptz6     @default(now())
-  extractionReview      ExtractionReview @relation(fields:[extractionReviewId], references:[id], onDelete: Cascade)
-
-  @@unique([extractionReviewId, resultPathKey])
 }

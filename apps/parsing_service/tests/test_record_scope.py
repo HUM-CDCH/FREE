@@ -12,10 +12,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from kei_exp.kie.extract import article, catalog, contexts, run, stages, unified
+from kei_exp.kie.extract import article, contexts, run, stages, unified
 from kei_exp.kie.extract.schema import Schema
 from tests.helpers.chat import FakeChat
-from tests.test_extract_grounded import CountingChat, WordCounter, resolving
+from tests.helpers.extraction import CountingChat, WordCounter, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 CONTRACT = json.loads((Path(__file__).parent / "fixtures" / "contracts" / "record-scope.json").read_text())
@@ -62,7 +62,7 @@ def fake_implementation(count: int, calls: list):
 def test_every_contract_artifact_is_published_or_refused_at_dispatch(row, monkeypatch):
     calls = []
     strategy = {"document": "article", "records": "catalog"}[row["recordScope"]]
-    monkeypatch.setattr({"article": article, "catalog": catalog}[strategy], "extract",
+    monkeypatch.setattr({"article": article, "catalog": unified}[strategy], "extract",
                         fake_implementation(row["records"], calls))
     request = run.ExtractRequest.model_validate({"schema": definition(row["recordScope"]),
                                                  "options": {"strategy": strategy}})
@@ -89,7 +89,7 @@ def test_the_unified_catalog_passes_the_same_cardinality_point(monkeypatch):
     calls = []
     monkeypatch.setattr(unified, "extract", fake_implementation(0, calls))
     request = run.ExtractRequest.model_validate({"schema": definition("records"),
-                                                 "options": {"strategy": "catalog", "unified": {"defaults": 1}}})
+                                                 "options": {"strategy": "catalog", "unified": {"defaults": 11}}})
     assert run.dispatch(None, evidence(), request, FakeChat(dict))["records"] == [] and calls == ["records"]
 
 
@@ -128,8 +128,8 @@ NESTED = Schema.model_validate({"recordDescription": "One excavation report.", "
 
 
 def grounded_by_first_label(system, user, schema):
-    """Every claim attested by the first evidence offered: the semantic technique's reply."""
-    return {claim: spec["enum"][0] for claim, spec in schema["properties"].items()}
+    """Every claim attested by the first evidence offered, no item given context: the semantic technique's reply."""
+    return {key: spec["enum"][0] if "enum" in spec else [] for key, spec in schema["properties"].items()}
 
 
 def test_an_article_with_nested_arrays_is_one_root_with_evidence_for_every_leaf():
@@ -150,13 +150,13 @@ def test_an_article_with_nested_arrays_is_one_root_with_evidence_for_every_leaf(
     result = run.dispatch(None, evidence(source), request, CountingChat(script),
                           counter={role: WordCounter() for role in ("fields", "reasoning")})
     assert result["records"] == [reply] and result["schema"]["recordScope"] == "document"
-    assert result["inventory"] == [{"identity": {}, "label": article.DOCUMENT_LABEL, "passages": ["p1_s0", "p1_s1"]}]
+    assert "inventory" not in result
     assert [call["stage"] for call in result["calls"]] == ["record", "grounding"]  # no identity inventory
     assert len(systems) == 1 and stages.DOCUMENT in systems[0] and "Extract ONLY the record" not in systems[0]
     leaves = [["records", 0, *path] for path, _ in stages.leaves(reply)]
     assert ["records", 0, "finds", 1, "materials", 0] in leaves and ["records", 0, "authors", 1] in leaves
     assert sorted(link["path"] for link in result["evidence"]) == sorted(leaves)
-    assert not result["ungrounded"] and not result["issues"] and result["complete"]
+    assert not result["ungrounded"] and not result["issues"] and not result["complete"]
 
 
 def bounded_article(script, **method):
@@ -191,8 +191,7 @@ def two_parts(system, user, schema):
             "finds": [{"kind": "urn", "materials": None}, {"kind": "spear", "materials": None}]}
 
 
-@pytest.mark.parametrize("method", [{"grounding": "off"}, {"grounding": "quoted", "grounding_schedule": "unresolved",
-                                                           "grounding_routing": "origin_lexical"}])
+@pytest.mark.parametrize("method", [{"grounding": "off"}, {"grounding": "quoted"}])
 def test_a_bounded_article_resolves_one_root_across_contexts(method):
     """Each context answers the whole root; the model then settles each place: an UNSURE year stays a Value
     Disagreement, Ribe (read by one context only) is confirmed, and the urn the second context repeats is dropped."""
@@ -212,7 +211,7 @@ def test_a_bounded_article_resolves_one_root_across_contexts(method):
     assert issues["conflicting_values"]["record"] == 0
     assert sum(call["stage"] == "arbitration" for call in result["calls"]) == 1
     assert not any(call["stage"] == "inventory" for call in result["calls"])
-    assert result["inventory"][0]["passages"] == ["p1_s0", "p1_s1"] and result["complete"] is False
+    assert "inventory" not in result
 
 
 ENTRIES = Schema.model_validate({"recordDescription": "One numbered catalogue entry.", "schemaNodes": [
@@ -224,37 +223,12 @@ ENTRIES = Schema.model_validate({"recordDescription": "One numbered catalogue en
 ]})
 
 
-def test_a_records_scope_request_is_the_generic_catalogs_and_keeps_equal_items_of_different_records():
-    source = passages(["12. Adorf. Finds: axe of iron, pin of bronze. Tags: grave, grave.",
-                       "13. Bdorf. Finds: axe of iron. Tags: grave."])
-
-    def script(system, user, schema):
-        if "starts" in schema["properties"]:
-            return {"starts": re.findall(r"\[(B\d+)\] \d+\.", user), "end": None}
-        if "entry" not in schema["properties"]:
-            return grounded_by_first_label(system, user, schema)
-        if "12. Adorf" in user:
-            return {"entry": "12", "tags": ["grave", "grave"], "finds": [
-                {"kind": "axe", "materials": ["iron"]}, {"kind": "pin", "materials": ["bronze"]}]}
-        return {"entry": "13", "tags": ["grave"], "finds": [{"kind": "axe", "materials": ["iron"]}]}
-    request = run.ExtractRequest.model_validate({"schema": {**ENTRIES.model_dump(by_alias=True, exclude_none=True),
-                                                            "recordScope": "records"},
-                                                 "options": {"strategy": "catalog"}})
-    result = run.dispatch(None, evidence(source), request, FakeChat(script))
-    assert result["strategy"] == "catalog" and "inventory" not in result
-    assert result["records"] == [
-        {"entry": "12", "tags": ["grave", "grave"], "finds": [{"kind": "axe", "materials": ["iron"]},
-                                                              {"kind": "pin", "materials": ["bronze"]}]},
-        {"entry": "13", "tags": ["grave"], "finds": [{"kind": "axe", "materials": ["iron"]}]}]
-    assert ["records", 1, "finds", 0, "materials", 0] in [link["path"] for link in result["evidence"]]
-
-
 def test_a_records_scope_request_with_options_unified_is_the_unified_catalogs():
     from tests import test_unified_catalog as unified_tests
     source = unified_tests.evidence("12. Adorf. Material: Bronze. Find: Axe (1). Find: Pin (2).\n"
                                     "13. Bdorf. Material: Eisen. Find: Axe (1).")
     request = run.ExtractRequest.model_validate({"schema": {**unified_tests.SCHEMA, "recordScope": "records"},
-        "options": {"strategy": "catalog", "unified": {"defaults": 1}}})
+        "options": {"strategy": "catalog", "unified": {"defaults": 11}}})
     result = run.dispatch(None, source, request, CountingChat(unified_tests.Model(source)), counter=WordCounter())
     assert result["extraction_version"] == 3 and result["schema"]["recordScope"] == "records"
     assert [record["finds"] for record in result["records"]] == [

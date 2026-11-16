@@ -29,7 +29,7 @@ from kei_exp.kie.extract.schema import Schema
 from kei_exp.pagefile import PageTable, TableCell
 from kei_exp.workflows import durable_extract as worker
 from tests.test_durable_extraction import Counter, MemoryLease
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
@@ -313,7 +313,8 @@ def scheduled(monkeypatch, lease, chat, ground, *, chunks, delay):
             ground(Router(chat, chat, planner), Counter())
         except NeedsCall:
             pending.append(len(planner.pending))
-            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key]), "roles": planner.roles}
+            return {"pending": sorted(planner.pending, key=lambda key: planner.pending[key]), "roles": planner.roles,
+                    "priorities": planner.priorities}
         pending.append(0)
         return {"result": {"records": [], "completeness": {"processing": True}}, "scopes": planner.scopes}
 
@@ -333,7 +334,6 @@ def scheduled(monkeypatch, lease, chat, ground, *, chunks, delay):
             sleep(0.005)
         return handles[0]
     monkeypatch.setattr(worker.config, "CATALOG_CHUNKS", chunks)
-    monkeypatch.setattr(worker.DBOS, "deprecate_patch", lambda name: name == "extract-wait-first")
     monkeypatch.setattr(worker.DBOS, "start_workflow", start)
     monkeypatch.setattr(worker.DBOS, "wait_first", wait_first)
     monkeypatch.setattr(worker, "SetWorkflowID", lambda workflow_id: nullcontext())

@@ -28,7 +28,7 @@ export type DurableBatchExtraction = Readonly<{
   /** The batch's one admitted method, which every member was admitted with; null for a batch admitted before
    *  methods were recorded. */
   requestedModels: ExtractionModelChoice | null
-  requestedSettings: ActiveSettings | null
+  requestedSettings: ActiveSettings
   executionStatus: ProjectOperationStatus
   createdAt: Date
   /** Opened before its Schema Revision was approved: a trial round. */
@@ -116,7 +116,7 @@ export async function loadBatches(
       strategy: batch.strategy as ExtractionStrategy,
       requestedModels: modelChoice(batch.requestedModels),
       // A batch has no recipe: its members pin none.
-      requestedSettings: recordedSettings(batch.requestedSettings, batch.strategy as ExtractionStrategy, null),
+      requestedSettings: recordedSettings(batch.requestedSettings, batch.strategy as ExtractionStrategy),
       executionStatus,
       createdAt: batch.createdAt,
       // Approved after it was opened, or not at all: the round tried the revision before its approval.

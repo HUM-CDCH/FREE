@@ -16,7 +16,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.passages import Passage
 from tests.test_article_occurrence_origins import occurrence_input, occurrence_reply
 from tests.test_durable_extraction import MemoryLease, finish, linked_while_running
-from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
+from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import evidence, passages
 
 

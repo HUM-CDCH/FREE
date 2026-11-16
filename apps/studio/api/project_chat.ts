@@ -22,10 +22,11 @@ function target(request: Request): { projectContextId: string; entryId: string |
 
 const missing = () => new ApiError(404, 'not_found', 'Project Context was not found.')
 
-/** An entry as stored: one this Studio no longer reads is left out, not failed on. */
-const entries = (stored: readonly StoredEntry[]) => stored.flatMap(({ projectChatEntryId, position, entry, createdAt }) => {
+/** Every saved entry must satisfy the current chat contract. */
+const entries = (stored: readonly StoredEntry[]) => stored.map(({ projectChatEntryId, position, entry, createdAt }) => {
   const parsed = projectChatEntrySchema.safeParse(entry)
-  return parsed.success ? [{ projectChatEntryId, position, entry: parsed.data, createdAt: createdAt.toISOString() }] : []
+  if (!parsed.success) throw persistenceUnavailable(parsed.error)
+  return { projectChatEntryId, position, entry: parsed.data, createdAt: createdAt.toISOString() }
 })
 
 /**

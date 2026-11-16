@@ -1,9 +1,10 @@
+import { REFERENCE_ARTICLE } from './extraction-method.js'
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { Client, Pool } from 'pg'
 import type { TestContext } from 'node:test'
-import { migrate, provisionDatabase, seedPreMigrationHistory, ARTICLE_TREE } from '../../db/src/record-scope-history-fixture.js'
+import { migrate, provisionDatabase, seedResearchPins, ARTICLE_TREE } from '../../db/src/postgres-fixture.js'
 
 /** A migrated disposable database with the record-scope history, and Extractions of its first document on demand. */
 async function fixture(t: TestContext, name: string) {
@@ -14,17 +15,17 @@ async function fixture(t: TestContext, name: string) {
   t.after(async () => { await source.end(); await admin.end(); await target.drop() })
   await migrate(target.url); await admin.connect()
   const repository = await import('./durable-repository.js')
-  const history = await seedPreMigrationHistory(admin)
+  const history = await seedResearchPins(admin)
   const d1 = history.documents.d1
   const { preprocessId } = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1', [d1.sourceRepresentationRevisionId])).rows[0]
   const extraction = async (createdAt: string) => {
     const id = randomUUID()
     await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings","createdAt")
-      VALUES ($1,$2,$3,$4,'ARTICLE',$5,$6)`, [id, d1.sourceDocumentId, d1.sourceRepresentationRevisionId, history.revisions.article, { article: null }, createdAt])
+      VALUES ($1,$2,$3,$4,'ARTICLE',$5,$6)`, [id, d1.sourceDocumentId, d1.sourceRepresentationRevisionId, history.revisions.article, { article: REFERENCE_ARTICLE }, createdAt])
     await admin.query('BEGIN')
     await repository.initializeDurableExtraction(admin as never, id, { projectContextId: history.projectContextId, sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,
-      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', catalogRecipe: null, preprocessId,
-      requestedModels: null, requestedSettings: { article: null } })
+      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', preprocessId,
+      requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
     await admin.query('COMMIT')
     return { id, selectionId: (await admin.query('SELECT "selectionId" FROM extraction_runtime.head WHERE id=$1', [id])).rows[0].selectionId as string }
   }

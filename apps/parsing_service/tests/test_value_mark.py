@@ -26,7 +26,7 @@ from kei_exp.kie.passages import Evidence, Passage, load
 from kei_exp.pagefile import PageTable, TableCell
 from tests.helpers import catalogue
 from tests.test_durable_extraction import MemoryLease, finish, linked_while_running
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_extract_stages import SCHEMA
 from tests.test_unified_catalog import Model, request as unified_request
 
@@ -456,18 +456,3 @@ def test_unified_catalog_links_carry_their_value_marks_while_running_and_when_fi
     assert_marked(literal, evidence)
     assert_marked([link for link in result["evidence"] if link["support"] == "literal"], evidence)
     assert not any("value_boxes_pt" in link for link in producers if link["support"] != "literal")
-
-
-def test_recipe_catalog_links_carry_their_value_marks(tmp_path, monkeypatch):
-    """The recipe Catalog publishes links only with its result, which `dispatch` places."""
-    run_dir, evidence = source(tmp_path, ["1. Hill. Urne.", "2. Valley. Axt."], pages=False)
-    passages = {passage.id: passage for passage in evidence.passages}
-    links = [evidence_link(Outcome("accepted", ("records", n, "site"), raw, spans=[Span(segment_id=pid, start=3,
-                                   end=3 + len(raw))], linked_by="key"), passages, {})
-             for n, (pid, raw) in enumerate((("p1_s0", "Hill"), ("p1_s1", "Valley")))]
-    monkeypatch.setattr(run.grounded, "extract", lambda *_, **__: {"records": [{}, {}], "evidence": links})
-    request = run.ExtractRequest.model_validate({
-        "schema": {"recordDescription": "An entry", "schemaNodes": [{"id": "s", "name": "site", "type": "string"}]},
-        "options": {"strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}}})
-    result = run.dispatch(run_dir, evidence, request, CountingChat(lambda *_: {}))
-    assert_marked(result["evidence"], evidence)

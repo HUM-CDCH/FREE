@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -10,7 +11,7 @@ import { ensureKeiRole } from 'db/kei-role'
 import { ensureStudioRole } from 'db/studio-role'
 import { accountMethod } from 'extraction/extraction-method'
 import { spawnKeiStandIn, type KeiStandInProcess } from 'extraction/kei-stand-in-client'
-import { migrate, provisionDatabase } from '../../../packages/db/src/record-scope-history-fixture.js'
+import { migrate, provisionDatabase } from '../../../packages/db/src/postgres-fixture.js'
 import { runWorkflowChild } from '../test/support/crash.js'
 import { disposableDatabaseUrl, testSchemas } from '../test/support/postgres.js'
 
@@ -203,7 +204,7 @@ describe('Studio on its restricted runtime role', () => {
     const extractionId = randomUUID()
     await createResearcherExtractions(seeded.researcherAccountId).runSingle({
       kind: 'fresh', extractionId, sourceRepresentationRevisionId: seeded.sourceRepresentationRevisionId,
-      schemaRevisionId: seeded.schemaRevisionId, strategy: 'ARTICLE', method: accountMethod(null, 'ARTICLE', null),
+      schemaRevisionId: seeded.schemaRevisionId, strategy: 'ARTICLE', method: accountMethod(null, 'ARTICLE'),
     })
     const attempt = await eventually(async () => (await studioDbos().kei.listWorkflows({
       workflowName: 'extractDurableV1', loadInput: false, loadOutput: false })).find(() => true), 'kei has the attempt')
@@ -214,11 +215,11 @@ describe('Studio on its restricted runtime role', () => {
     const tree = { recordDescription: 'One page record.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' }] }
     const preprocessId = `kei-exp:${seeded.runId}:${seeded.generation}`
     await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
-      VALUES ($1,$2,$3,$4,'ARTICLE',$5)`, [reviewed, seeded.sourceDocumentId, seeded.sourceRepresentationRevisionId, seeded.schemaRevisionId, { article: null }])
+      VALUES ($1,$2,$3,$4,'ARTICLE',$5)`, [reviewed, seeded.sourceDocumentId, seeded.sourceRepresentationRevisionId, seeded.schemaRevisionId, { article: REFERENCE_ARTICLE }])
     await admin.query('BEGIN')
     await initializeDurableExtraction(admin as never, reviewed, { projectContextId: seeded.projectContextId,
       sourceRepresentationRevisionId: seeded.sourceRepresentationRevisionId, schemaRevisionId: seeded.schemaRevisionId,
-      schemaTree: tree, strategy: 'ARTICLE', catalogRecipe: null, preprocessId, requestedModels: null, requestedSettings: { article: null } })
+      schemaTree: tree, strategy: 'ARTICLE', preprocessId, requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
     await admin.query('COMMIT')
     const head = (await admin.query('SELECT "selectionId" FROM extraction_runtime.head WHERE id=$1', [reviewed])).rows[0]
     const value = { id: 'title', recordId: 'record', fieldId: 'title', path: ['records', 0, 'title'], selectionId: head.selectionId,

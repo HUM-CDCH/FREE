@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExtractionAttemptSnapshot } from 'extraction'
 
@@ -104,9 +105,8 @@ const snapshot: ExtractionAttemptSnapshot = {
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   schemaRevisionNumber: 4,
   strategy: 'CATALOG',
-  catalogRecipe: 'numbered-catalogue-de@1',
   requestedModels: { fields: 'nuextract' },
-  requestedSettings: { recipe: null },
+  requestedSettings: { unified: { defaults: 11 } },
   executionStatus: 'PAUSED',
   finalizedReview: { snapshotVersion: 3, feedbackVersion: 5, createdAt: new Date('2026-10-05T09:00:00.000Z') },
   batchExtractionId: null,
@@ -122,9 +122,8 @@ describe('extractionAttemptDto', () => {
       sourceRepresentationRevisionId: snapshot.sourceRepresentationRevisionId,
       schemaRevisionId: snapshot.schemaRevisionId,
       strategy: 'CATALOG',
-      catalogRecipe: 'numbered-catalogue-de@1',
       requestedModels: { fields: 'nuextract' },
-      requestedSettings: { recipe: null },
+      requestedSettings: { unified: { defaults: 11 } },
       executionStatus: 'PAUSED',
       finalizedReview: { snapshotVersion: 3, feedbackVersion: 5, createdAt: '2026-10-05T09:00:00.000Z' },
       batchExtractionId: null,
@@ -134,12 +133,8 @@ describe('extractionAttemptDto', () => {
 
   it('names no finalized cut and no admitted choice when there is none', async () => {
     const { extractionAttemptDto } = await import('./_extractions.js')
-    const dto = extractionAttemptDto({ ...snapshot, strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null, finalizedReview: null })
-    expect(dto).toMatchObject({ catalogRecipe: null, requestedModels: null, requestedSettings: null, finalizedReview: null })
+    const dto = extractionAttemptDto({ ...snapshot, strategy: 'ARTICLE', requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, finalizedReview: null })
+    expect(dto).toMatchObject({ requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE }, finalizedReview: null })
   })
 
-  it('refuses a recipe on an Article Extraction', async () => {
-    const { extractionAttemptDto } = await import('./_extractions.js')
-    expect(() => extractionAttemptDto({ ...snapshot, strategy: 'ARTICLE' })).toThrow()
-  })
 })

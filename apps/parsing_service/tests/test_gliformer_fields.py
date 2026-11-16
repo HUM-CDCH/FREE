@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from kei_exp.kie.extract import gliformer, models, run, unified
 from kei_exp.kie.extract.gliformer import GLiFormerFields, native_schema
 from kei_exp.kie.extract.models import Router
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_unified_catalog import Model, evidence
 
 SCHEMA = {"recordDescription": "Only numbered grave catalogue entries, excluding narrative summaries.",
@@ -31,7 +31,7 @@ def served(monkeypatch):
 
 def request(schema=SCHEMA, **settings):
     return run.ExtractRequest.model_validate({"schema": schema, "options": {
-        "models": {"fields": "gliformer"}, "unified": {"defaults": 1, **settings}}})
+        "models": {"fields": "gliformer"}, "unified": {"defaults": 11, **settings}}})
 
 
 class Counter(WordCounter):
@@ -85,8 +85,6 @@ def test_studio_admission_contract_matches_service(case, monkeypatch):
         options["models"] = method["models"]
     if settings is not None:
         options[slot] = settings
-    if slot == "recipe":
-        options["catalog"] = {"recipe": "numbered-catalogue-de@1"}
     body = {"schema": case["schema"], "options": options}
     if case["accepted"]:
         run.ExtractRequest.model_validate(body)
@@ -110,8 +108,8 @@ def test_unsupported_semantics_are_rejected_before_any_call(field):
 
 
 def test_unsupported_methods_and_explicit_controls_are_not_ignored():
-    for options in ({"strategy": "article"}, {}, {"unified": {"defaults": 1, "headings": True}},
-                    {"unified": {"defaults": 1, "verification": True}}):
+    for options in ({"strategy": "article"}, {"unified": {"defaults": 11, "headings": True}},
+                    {"unified": {"defaults": 11, "verification": False}}):
         with pytest.raises(ValidationError):
             run.ExtractRequest.model_validate({"schema": {**SCHEMA, "recordScope": None},
                                                "options": {"models": {"fields": "gliformer"}, **options}})
@@ -140,7 +138,7 @@ def test_entry_isolation_raw_values_and_scores(tmp_path):
     assert raw[1]["record_start"] == 3
     assert result["ungrounded"] == [["records", n, "grave_id"] for n in range(6)]
     assert result["evidence"] == [] and result["complete"] is False
-    assert result["processing"]["verification"]["enabled"] is False
+    assert result["processing"]["verification"] == {"undecided": 0}
     assert result["execution"]["effective"]["stages"]["entry"]["output_tokens"] == 0
     assert {call["stage"] for call in result["calls"]} == {"entry", "discovery"}
     assert not (tmp_path / "extractions").exists()
@@ -149,7 +147,7 @@ def test_entry_isolation_raw_values_and_scores(tmp_path):
 def test_uncertain_end_is_not_sent_to_model():
     native = Native()
     budget = unified._Budget(Router(native, None), {"fields": Counter()}, {"entry": {"input_tokens": 1000}})
-    reader = unified._Run(request().schema_, budget, {"p1_s0": "200. Male"}, {"overlap": 1})
+    reader = unified._Run(request().schema_, budget, {"p1_s0": "200. Male"}, {"overlap": 1, "headings": False})
     work = reader.entry(0, {"end": "unresolved", "ranges": []})
     assert native.inputs == [] and work.failed == 1 and work.native == []
 
@@ -200,7 +198,7 @@ def test_native_artifact_contract(tmp_path, monkeypatch):
                             counter={"fields": Counter(), "reasoning": WordCounter()})
     fixture = {"source": {"run_id": source.run_id, "generation": source.generation},
                "request": {"schema": SCHEMA, "options": {"strategy": "catalog", "models": {"fields": "gliformer"},
-                                                         "unified": {"defaults": 1}}},
+                                                         "unified": {"defaults": 11}}},
         "manifest": json.loads((directory / "result/result.json").read_text()),
         "pages": [json.loads((directory / "result/pages/1.json").read_text())], "artifact": produced}
     path = FIXTURES / "extract.gliformer.json"

@@ -58,13 +58,12 @@ export async function runOperationScenario(
     ...dbosSteps,
     step: async (name, run, config) => {
       const result = await dbosSteps.step(name, run, config)
-      if (firstRun && kill === 'after-step' && (name === 'generateSchema' || name === 'proposeSchemaEdit')) die()
+      if (firstRun && kill === 'after-step' && (name === 'suggestWindow:1' || name === 'proposeSchemaEdit')) die()
       return result
     },
   }
   const worker = createInternalProjectWorkerStore(db, { packages })
   const dependencies = { keys, keyWaitMs, deployment: deploymentModels({}) }
-  // No `patched`: these crash scenarios recover a run from before the schema-suggestion-windows patch.
   const generation: SchemaGenerationPorts = {
     steps,
     readSource: (id) => worker.readRevisionSchemaSource(id),

@@ -300,7 +300,7 @@ describe('the second trial', () => {
       documents: ['a', 'b', 'c'].map((id) => ({ id, name: `${id}.pdf` })), currentDocumentId: 'a',
       batches: [{ batchExtractionId: 'trial-1', projectContextId: 'project-1', schemaRevisionId: 'revision-2', extractionSchemaId: 'schema',
         extractionSchemaName: 'Letters', schemaRevisionNumber: 2, strategy: 'CATALOG' as const, executionStatus: 'COMPLETED' as const,
-        createdAt: '2026-11-01T00:00:00.000Z', members: [member('a'), member('b')] }],
+        createdAt: '2026-11-01T00:00:00.000Z', trial: true, members: [member('a'), member('b')] }],
       latest: null, roundId: null, busy: false, error: null,
     },
     start: vi.fn(), approve: vi.fn(), stopBatch: vi.fn(), open: vi.fn(), export: vi.fn(), id: 'project-1', addDocuments: vi.fn(),

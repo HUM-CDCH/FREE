@@ -12,7 +12,7 @@ from kei_exp.kie.extract.llm import ModelOutputError, parse_json
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import verify
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 
@@ -111,8 +111,7 @@ def test_assembled_structural_calls_retain_labels_heading_and_table_qualifiers(m
         {'label': 'Hill', 'identity': {'site': 'Hill'}, 'passages': [source[0].id]}]})
     fields = CountingChat(lambda *_: {'year': 1827})
     method = {'context': 'bounded', 'context_tokens': 8192, 'grouping': 'structural',
-              'rendering': 'structured', 'identity': 'conservative', 'identity_fields': ['site'],
-              'prompt': 'schema', 'grounding': 'off'}
+              'rendering': 'structured', 'grounding': 'off'}
     result = run.extract(None, run.ExtractRequest(schema=SCHEMA, options={'strategy': 'article', 'article': method}),
                          Router(fields, reason), counter={r: WordCounter() for r in ['fields', 'reasoning']})
     assert result['grouping_version'] == 1

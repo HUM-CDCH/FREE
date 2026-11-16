@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from './extraction-method.js'
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { randomBytes,randomUUID } from 'node:crypto'
@@ -8,7 +9,7 @@ import { resolve } from 'node:path'
 import { promisify } from 'node:util'
 import { test } from 'node:test'
 import { Client,Pool } from 'pg'
-import { migrate,provisionDatabase,seedPreMigrationHistory } from '../../db/src/record-scope-history-fixture.js'
+import { migrate,provisionDatabase,seedResearchPins } from '../../db/src/postgres-fixture.js'
 import { ensureKeiRole } from '../../db/src/kei-role.js'
 import { createDurableRepository,initializeDurableExtraction } from './durable-repository.js'
 import { durableTestNetwork } from './durable-test-network.js'
@@ -28,20 +29,17 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     try{await client.query(`DROP ROLE IF EXISTS ${role}`)}finally{await client.end()}
   })
   await migrate(target.url);await admin.connect()
-  const fixture=await seedPreMigrationHistory(admin),document=fixture.documents.d2,password=randomBytes(24).toString('hex')
+  const fixture=await seedResearchPins(admin),document=fixture.documents.d2,password=randomBytes(24).toString('hex')
   await ensureKeiRole(admin,{role,password,schema:'kei_dbos'})
   const worker=new URL(target.url);worker.username=role;worker.password=password
   const cases:{method:string;terminal:string;id:string;attempt:string;workflow:string;source:unknown}[]=[]
-  const scenarios=[...['article','generic','recipe','unified'].flatMap(method=>['complete','stop','failure'].map(terminal=>({method,terminal}))),
+  const scenarios=[...['article','unified'].flatMap(method=>['complete','stop','failure'].map(terminal=>({method,terminal}))),
     {method:'article',terminal:'queued-pause'},{method:'article',terminal:'after-queued-pause'},
     {method:'unified',terminal:'truncation'},{method:'unified',terminal:'truncation-exhausted'},
     {method:'unified',terminal:'repetition-recovery'}]
   for(const [index,{method,terminal}] of scenarios.entries()) {
     const schemaRevisionId=randomUUID(),id=randomUUID()
-    const nodes=method==='recipe'?[
-      {id:'n',name:'entry_no',type:'integer'},{id:'s',name:'site_name',type:'string'},
-      {id:'m',name:'mbl_old',type:'integer'},{id:'f',name:'fundart',type:'string'},
-    ]:method==='unified'?[
+    const nodes=method==='unified'?[
       {id:'l',name:'label',type:'string'},{id:'s',name:'site',type:'string'},
       {id:'m',name:'material',type:'string'},{id:'g',name:'gilded',type:'boolean'},
       {id:'f',name:'finds',type:'array',children:[{id:'fn',name:'name',type:'string'},{id:'fc',name:'count',type:'integer'}]},
@@ -50,12 +48,12 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
     await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
       [schemaRevisionId,2+index,tree,method==='article'?'document':'records',fixture.revisions.catalog])
-    const settings={[method]:method==='unified'?{defaults:1}:null},strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-    await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"catalogRecipe","requestedSettings") VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-      [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,strategy,recipe,settings])
+    const settings={[method]:method==='unified'?{defaults: 11}:REFERENCE_ARTICLE},strategy=method==='article'?'ARTICLE':'CATALOG'
+    await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,$5,$6)`,
+      [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,strategy,settings])
     await admin.query('BEGIN')
     try{await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
-      sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId,schemaTree:tree,strategy,catalogRecipe:recipe,
+      sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId,schemaTree:tree,strategy,
       preprocessId:`kei-exp:durable-${method}-${terminal}-${suffix}:g1`,requestedModels:terminal==='repetition-recovery'?{fields:'nuextract',reasoning:'instruct'}:null,requestedSettings:settings});await admin.query('COMMIT')}
     catch(error){await admin.query('ROLLBACK');throw error}
     const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
@@ -73,7 +71,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
         const current=await repository.read(input.id)
         const saved=await repository.saveSelection(input.id,{expectedVersion:current.controlVersion,
           schemaRevisionId:current.selection.schemaRevisionId,method:{models:{fields:'instruct',reasoning:'instruct'},
-            settings:{unified:{defaults:1}}}})
+            settings:{unified:{defaults: 11}}}})
         await repository.adoptSelection(input.id,{expectedVersion:saved.controlVersion,selectionId:saved.selectionId,reprocessValueIds:[]})
         await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:'resume'})
       } else if(input.action)await repository.command(input.id,{id:randomUUID(),expectedVersion:(await repository.read(input.id)).controlVersion,action:input.action})
@@ -95,5 +93,5 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
       console.info(error.stdout);throw new Error('Guarded four-method lifecycle verification failed.')
     })
   assert.match(stdout,/16 passed/)
-  console.info('Article, generic, recipe and unified native Pause/Resume/Stop/Retry and queued lane-release checks passed.')
+  console.info('Article and unified Catalog native Pause/Resume/Stop/Retry and queued lane-release checks passed.')
 })

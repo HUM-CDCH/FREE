@@ -313,7 +313,6 @@ describe('Playwright entry configs', () => {
       FREE_DURABLE_E2E_STATE: join(tmpdir(), 'free-durable-e2e-state-list'),
       FREE_DURABLE_E2E_INBOX: join(tmpdir(), 'free-durable-e2e-inbox-list'),
     }
-    delete environment.FREE_CATALOG_METHOD
     const { stdout } = await promisify(execFile)(process.execPath,
       [join(studio, 'node_modules/@playwright/test/cli.js'), 'test', '--config', config, '--list', '--reporter=json'],
       { cwd: studio, env: environment, maxBuffer: 64 * 1024 * 1024 })
@@ -338,14 +337,12 @@ describe('Playwright entry configs', () => {
       assert.equal(config.forbidOnly, true, configs[index])
   })
 
-  it('the unified Catalog suite runs with the rollout gate on in the runner and in Studio', async () => {
-    const { config, tests } = (await listed)[configs.indexOf('playwright.unified-catalog.config.ts')]
-    assert.equal(config.webServer.env.FREE_CATALOG_METHOD, 'unified')
-    assert.ok(tests.length > 0)
-    for (const test of tests) {
-      assert.equal(test.file, 'unified-catalog.spec.ts')
-      assert.equal(test.expectedStatus, 'passed', 'its specs skip only while the gate is off')
-    }
+  it('the default suite runs Catalog without a rollout gate', async () => {
+    const { config, tests } = (await listed)[configs.indexOf('playwright.config.ts')]
+    assert.equal(config.webServer.env.FREE_CATALOG_METHOD, undefined)
+    const catalog = tests.filter(test => test.file === 'unified-catalog.spec.ts')
+    assert.ok(catalog.length > 0)
+    assert.ok(catalog.every(test => test.expectedStatus === 'passed'))
   })
 
   it('the base-path suite serves Studio under /free', async () => {

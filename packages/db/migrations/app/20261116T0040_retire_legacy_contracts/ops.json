@@ -1,0 +1,1335 @@
+[
+  {
+    "id": "retired-contracts.require-current-data",
+    "invariantId": "retired-contracts.require-current-data",
+    "label": "Refuse incompatible historical data before schema changes",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "delete incompatible dev rows or use the guarded local pnpm db:reset before retrying",
+        "sql": "WITH methods(value) AS (\n  SELECT \"requestedSettings\" FROM public.extraction\n  UNION ALL SELECT \"requestedSettings\" FROM public.\"batchExtraction\"\n  UNION ALL SELECT method->'settings' FROM extraction_runtime.selection\n), retired AS (\n  SELECT 1 FROM methods WHERE value IS NULL OR jsonb_typeof(value) <> 'object'\n    OR (value ? 'article' AND (jsonb_typeof(value->'article') <> 'object'\n      OR value->'article' ?| ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing']))\n    OR (value ? 'unified' AND (value->'unified'->'defaults' IS DISTINCT FROM '11'::jsonb OR value->'unified' ? 'verification'))\n  UNION ALL SELECT 1 FROM public.extraction e WHERE e.\"requestedPages\" IS NOT NULL\n    OR NOT EXISTS (SELECT FROM extraction_runtime.head h WHERE h.id=e.id)\n  UNION ALL SELECT 1 FROM public.\"modelConfiguration\" WHERE\n    (document->'extractionSettings' ? 'article' AND jsonb_typeof(document->'extractionSettings'->'article') <> 'object')\n    OR document->'extractionSettings'->'article' ?| ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing']\n    OR document->'extractionSettings'->'catalog'->'unified' ? 'verification'\n  UNION ALL SELECT 1 FROM public.\"schemaRevision\" WHERE \"modelAttribution\" IS NOT NULL AND\n    (jsonb_typeof(\"modelAttribution\") <> 'object' OR NOT (\"modelAttribution\" ? 'sourceCoverage')\n     OR \"modelAttribution\" - 'sourceCoverage' <> '{}'::jsonb)\n  UNION ALL SELECT 1 FROM public.\"batchSchemaSuggestion\" WHERE\n    (coverage IS NOT NULL AND jsonb_typeof(coverage) <> 'array') OR\n    EXISTS (SELECT FROM jsonb_array_elements(CASE WHEN jsonb_typeof(coverage)='array' THEN coverage ELSE '[]'::jsonb END) c\n      WHERE jsonb_typeof(c->'combined') IS DISTINCT FROM 'boolean' OR c->'sourceCoverage' IS NULL)\n    OR (phase='READY' AND (draft IS NULL OR jsonb_typeof(draft) <> 'object'\n      OR NOT (draft ? 'recordDescription' AND draft ? 'schemaNodes')))\n  UNION ALL SELECT 1 FROM public.\"projectChatEntry\" WHERE\n    COALESCE(entry->>'kind','') NOT IN ('message','instruction','step','document')\n  UNION ALL SELECT 1 FROM public.\"projectSpreadsheetVersion\" WHERE rows IS NULL OR jsonb_typeof(rows) <> 'array'\n    OR EXISTS (SELECT FROM jsonb_array_elements(CASE WHEN jsonb_typeof(columns)='array' THEN columns ELSE '[]'::jsonb END) c\n      WHERE jsonb_typeof(c) <> 'object' OR c ? 'values')\n)\nSELECT NOT EXISTS (SELECT FROM retired) AS ok\n"
+      }
+    ],
+    "execute": [
+      {
+        "description": "leave compatible historical pins unchanged",
+        "sql": "SELECT true"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "compatible historical pins remain unchanged",
+        "sql": "WITH methods(value) AS (\n  SELECT \"requestedSettings\" FROM public.extraction\n  UNION ALL SELECT \"requestedSettings\" FROM public.\"batchExtraction\"\n  UNION ALL SELECT method->'settings' FROM extraction_runtime.selection\n), retired AS (\n  SELECT 1 FROM methods WHERE value IS NULL OR jsonb_typeof(value) <> 'object'\n    OR (value ? 'article' AND (jsonb_typeof(value->'article') <> 'object'\n      OR value->'article' ?| ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing']))\n    OR (value ? 'unified' AND (value->'unified'->'defaults' IS DISTINCT FROM '11'::jsonb OR value->'unified' ? 'verification'))\n  UNION ALL SELECT 1 FROM public.extraction e WHERE e.\"requestedPages\" IS NOT NULL\n    OR NOT EXISTS (SELECT FROM extraction_runtime.head h WHERE h.id=e.id)\n  UNION ALL SELECT 1 FROM public.\"modelConfiguration\" WHERE\n    (document->'extractionSettings' ? 'article' AND jsonb_typeof(document->'extractionSettings'->'article') <> 'object')\n    OR document->'extractionSettings'->'article' ?| ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing']\n    OR document->'extractionSettings'->'catalog'->'unified' ? 'verification'\n  UNION ALL SELECT 1 FROM public.\"schemaRevision\" WHERE \"modelAttribution\" IS NOT NULL AND\n    (jsonb_typeof(\"modelAttribution\") <> 'object' OR NOT (\"modelAttribution\" ? 'sourceCoverage')\n     OR \"modelAttribution\" - 'sourceCoverage' <> '{}'::jsonb)\n  UNION ALL SELECT 1 FROM public.\"batchSchemaSuggestion\" WHERE\n    (coverage IS NOT NULL AND jsonb_typeof(coverage) <> 'array') OR\n    EXISTS (SELECT FROM jsonb_array_elements(CASE WHEN jsonb_typeof(coverage)='array' THEN coverage ELSE '[]'::jsonb END) c\n      WHERE jsonb_typeof(c->'combined') IS DISTINCT FROM 'boolean' OR c->'sourceCoverage' IS NULL)\n    OR (phase='READY' AND (draft IS NULL OR jsonb_typeof(draft) <> 'object'\n      OR NOT (draft ? 'recordDescription' AND draft ? 'schemaNodes')))\n  UNION ALL SELECT 1 FROM public.\"projectChatEntry\" WHERE\n    COALESCE(entry->>'kind','') NOT IN ('message','instruction','step','document')\n  UNION ALL SELECT 1 FROM public.\"projectSpreadsheetVersion\" WHERE rows IS NULL OR jsonb_typeof(rows) <> 'array'\n    OR EXISTS (SELECT FROM jsonb_array_elements(CASE WHEN jsonb_typeof(columns)='array' THEN columns ELSE '[]'::jsonb END) c\n      WHERE jsonb_typeof(c) <> 'object' OR c ? 'values')\n)\nSELECT NOT EXISTS (SELECT FROM retired) AS ok\n"
+      }
+    ]
+  },
+  {
+    "id": "dropTable.annotationSetRevision",
+    "label": "Drop table \"annotationSetRevision\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "annotationSetRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"annotationSetRevision\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop table \"annotationSetRevision\"",
+        "sql": "DROP TABLE \"public\".\"annotationSetRevision\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"annotationSetRevision\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"annotationSetRevision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchSchemaSuggestion.draftVersion",
+    "label": "Drop column \"draftVersion\" from \"batchSchemaSuggestion\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "draftVersion",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"draftVersion\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "draftVersion"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"draftVersion\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" DROP COLUMN \"draftVersion\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"draftVersion\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "draftVersion"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropConstraint.batchSchemaSuggestion.batchSchemaSuggestion_batchExtractionId_key",
+    "label": "Drop constraint \"batchSchemaSuggestion_batchExtractionId_key\" on \"batchSchemaSuggestion\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "batchSchemaSuggestion_batchExtractionId_key",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_batchExtractionId_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_batchExtractionId_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop constraint \"batchSchemaSuggestion_batchExtractionId_key\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" DROP CONSTRAINT \"batchSchemaSuggestion_batchExtractionId_key\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_batchExtractionId_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_batchExtractionId_key",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.batchSchemaSuggestion.batchExtractionId",
+    "label": "Drop column \"batchExtractionId\" from \"batchSchemaSuggestion\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "batchExtractionId",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"batchExtractionId\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "batchExtractionId"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"batchExtractionId\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" DROP COLUMN \"batchExtractionId\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"batchExtractionId\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchSchemaSuggestion",
+          "batchExtractionId"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropCheckConstraint.extraction.extraction_outcome_check",
+    "label": "Drop check constraint \"extraction_outcome_check\" on \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "extraction_outcome_check",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"extraction_outcome_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_outcome_check",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop check constraint \"extraction_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP CONSTRAINT \"extraction_outcome_check\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"extraction_outcome_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "extraction_outcome_check",
+          "public",
+          "\"public\".\"extraction\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.complete",
+    "label": "Drop column \"complete\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "complete",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"complete\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "complete"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"complete\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"complete\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"complete\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "complete"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.diagnostics",
+    "label": "Drop column \"diagnostics\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "diagnostics",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"diagnostics\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "diagnostics"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"diagnostics\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"diagnostics\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"diagnostics\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "diagnostics"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.evidenceLinks",
+    "label": "Drop column \"evidenceLinks\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "evidenceLinks",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"evidenceLinks\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "evidenceLinks"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"evidenceLinks\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"evidenceLinks\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"evidenceLinks\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "evidenceLinks"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.failure",
+    "label": "Drop column \"failure\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "failure",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"failure\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "failure"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"failure\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"failure\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"failure\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "failure"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.modelAttribution",
+    "label": "Drop column \"modelAttribution\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "modelAttribution",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"modelAttribution\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "modelAttribution"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"modelAttribution\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"modelAttribution\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"modelAttribution\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "modelAttribution"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.outcome",
+    "label": "Drop column \"outcome\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "outcome",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"outcome\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "outcome"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"outcome\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"outcome\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"outcome\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "outcome"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.requestedPages",
+    "label": "Drop column \"requestedPages\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedPages",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedPages\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedPages"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"requestedPages\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"requestedPages\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedPages\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedPages"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.resultPayload",
+    "label": "Drop column \"resultPayload\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "resultPayload",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"resultPayload\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "resultPayload"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"resultPayload\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"resultPayload\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"resultPayload\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "resultPayload"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.reviewDraft",
+    "label": "Drop column \"reviewDraft\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewDraft",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewDraft\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewDraft"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"reviewDraft\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"reviewDraft\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewDraft\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewDraft"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.reviewDraftVersion",
+    "label": "Drop column \"reviewDraftVersion\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewDraftVersion",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewDraftVersion\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewDraftVersion"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"reviewDraftVersion\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"reviewDraftVersion\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewDraftVersion\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewDraftVersion"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.reviewPairings",
+    "label": "Drop column \"reviewPairings\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewPairings",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewPairings\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewPairings"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"reviewPairings\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"reviewPairings\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewPairings\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewPairings"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.reviewTransfer",
+    "label": "Drop column \"reviewTransfer\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewTransfer",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewTransfer\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewTransfer"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"reviewTransfer\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"reviewTransfer\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewTransfer\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewTransfer"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.reviewable",
+    "label": "Drop column \"reviewable\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewable",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewable\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewable"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"reviewable\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"reviewable\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewable\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewable"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropIndex.extraction.extraction_reviewedAt_idx",
+    "label": "Drop index \"extraction_reviewedAt_idx\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "extraction_reviewedAt_idx",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"extraction_reviewedAt_idx\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_reviewedAt_idx\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop index \"extraction_reviewedAt_idx\"",
+        "sql": "DROP INDEX \"public\".\"extraction_reviewedAt_idx\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"extraction_reviewedAt_idx\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extraction_reviewedAt_idx\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.reviewedAt",
+    "label": "Drop column \"reviewedAt\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reviewedAt",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reviewedAt\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewedAt"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"reviewedAt\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"reviewedAt\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reviewedAt\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "reviewedAt"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropTable.reviewDecision",
+    "label": "Drop table \"reviewDecision\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "reviewDecision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"reviewDecision\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop table \"reviewDecision\"",
+        "sql": "DROP TABLE \"public\".\"reviewDecision\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"reviewDecision\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"reviewDecision\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "dropTable.extractionReview",
+    "label": "Drop table \"extractionReview\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "extractionReview"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"extractionReview\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop table \"extractionReview\"",
+        "sql": "DROP TABLE \"public\".\"extractionReview\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"extractionReview\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"extractionReview\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.batchExtraction.requestedSettings",
+    "label": "Set NOT NULL on \"batchExtraction\".\"requestedSettings\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedSettings",
+        "table": "batchExtraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedSettings\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "requestedSettings"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"requestedSettings\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"batchExtraction\" WHERE \"requestedSettings\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"requestedSettings\"",
+        "sql": "ALTER TABLE \"public\".\"batchExtraction\" ALTER COLUMN \"requestedSettings\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedSettings\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "batchExtraction",
+          "requestedSettings",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.extraction.requestedSettings",
+    "label": "Set NOT NULL on \"extraction\".\"requestedSettings\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requestedSettings",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requestedSettings\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedSettings"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"requestedSettings\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"extraction\" WHERE \"requestedSettings\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"requestedSettings\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" ALTER COLUMN \"requestedSettings\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requestedSettings\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "requestedSettings",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.setNotNull.projectSpreadsheetVersion.rows",
+    "label": "Set NOT NULL on \"projectSpreadsheetVersion\".\"rows\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "rows",
+        "table": "projectSpreadsheetVersion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"rows\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "projectSpreadsheetVersion",
+          "rows"
+        ]
+      },
+      {
+        "description": "ensure no NULL values in \"rows\"",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"public\".\"projectSpreadsheetVersion\" WHERE \"rows\" IS NULL) AS \"result\"",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "set NOT NULL on \"rows\"",
+        "sql": "ALTER TABLE \"public\".\"projectSpreadsheetVersion\" ALTER COLUMN \"rows\" SET NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"rows\" is NOT NULL",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "projectSpreadsheetVersion",
+          "rows",
+          "NO"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_outcome_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_outcome_check\" on \"batchSchemaSuggestion\".\"outcome\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_outcome_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_outcome_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_outcome_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_outcome_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_outcome_check\" CHECK (\"outcome\" IN ('SUCCEEDED', 'FAILED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_outcome_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_outcome_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_phase_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_phase_check\" on \"batchSchemaSuggestion\".\"phase\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_phase_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_phase_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_phase_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_phase_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_phase_check\" CHECK (\"phase\" IN ('READY', 'HETEROGENEOUS'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_phase_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_phase_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.batchSchemaSuggestion.batchSchemaSuggestion_sourceKind_check",
+    "label": "Add check constraint \"batchSchemaSuggestion_sourceKind_check\" on \"batchSchemaSuggestion\".\"sourceKind\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "batchSchemaSuggestion_sourceKind_check",
+        "table": "batchSchemaSuggestion"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"batchSchemaSuggestion_sourceKind_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_sourceKind_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"batchSchemaSuggestion_sourceKind_check\"",
+        "sql": "ALTER TABLE \"public\".\"batchSchemaSuggestion\" ADD CONSTRAINT \"batchSchemaSuggestion_sourceKind_check\" CHECK (\"sourceKind\" IN ('DOCUMENTS', 'SPREADSHEET'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"batchSchemaSuggestion_sourceKind_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "batchSchemaSuggestion_sourceKind_check",
+          "public",
+          "\"public\".\"batchSchemaSuggestion\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.evaluationRound.evaluationRound_label_check",
+    "label": "Add check constraint \"evaluationRound_label_check\" on \"evaluationRound\".\"label\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "evaluationRound_label_check",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"evaluationRound_label_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_label_check",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"evaluationRound_label_check\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRound\" ADD CONSTRAINT \"evaluationRound_label_check\" CHECK (\"label\" IN ('PILOT_1', 'PILOT_2', 'BATCH'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"evaluationRound_label_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_label_check",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.evaluationRound.evaluationRound_status_check",
+    "label": "Add check constraint \"evaluationRound_status_check\" on \"evaluationRound\".\"status\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "evaluationRound_status_check",
+        "table": "evaluationRound"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"evaluationRound_status_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_status_check",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"evaluationRound_status_check\"",
+        "sql": "ALTER TABLE \"public\".\"evaluationRound\" ADD CONSTRAINT \"evaluationRound_status_check\" CHECK (\"status\" IN ('PENDING', 'RUNNING', 'SUCCEEDED', 'FAILED'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"evaluationRound_status_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "evaluationRound_status_check",
+          "public",
+          "\"public\".\"evaluationRound\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.schemaRevision.schemaRevision_origin_check",
+    "label": "Add check constraint \"schemaRevision_origin_check\" on \"schemaRevision\".\"origin\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "schemaRevision_origin_check",
+        "table": "schemaRevision"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"schemaRevision_origin_check\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_origin_check",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"schemaRevision_origin_check\"",
+        "sql": "ALTER TABLE \"public\".\"schemaRevision\" ADD CONSTRAINT \"schemaRevision_origin_check\" CHECK (\"origin\" IN ('SUGGESTION', 'RESEARCHER_EDIT', 'MODEL_EDIT'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"schemaRevision_origin_check\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "schemaRevision_origin_check",
+          "public",
+          "\"public\".\"schemaRevision\""
+        ]
+      }
+    ]
+  }
+]

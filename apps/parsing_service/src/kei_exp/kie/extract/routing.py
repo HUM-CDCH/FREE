@@ -23,7 +23,8 @@ VERSION = 2
 def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
                   identity_passages: Sequence[str], *, strict: bool = True,
                   item_sources: dict[tuple, list[dict]] | None = None) -> list[dict]:
-    """Map assembled leaves to their actual reply occurrences, or legacy exact-union origins without `item_sources`.
+    """Map assembled leaves to their actual reply occurrences: list items through `item_sources`, which several
+    candidates need; a single candidate keeps its own positions.
 
     A scalar at another field never counts. A merged array item must equal the
     entire original item, not merely contain the same leaf value. Bound identity
@@ -44,10 +45,9 @@ def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
         if not isinstance(candidate, list):
             return []
         # A single source was never reconciled: preserve repeated occurrences by index.
-        indexes = ([step] if len(candidates) == 1 and step < len(candidate) else
-                   [i for i, item in enumerate(candidate) if item == value[step]])
-        return [found for index in indexes
-                for found in locate(value[step], candidate[index], rest, (*candidate_path, index))]
+        if step >= len(candidate):
+            return []
+        return locate(value[step], candidate[step], rest, (*candidate_path, step))
 
     def assembled_sources(path):
         depth = next((index for index, step in enumerate(path) if isinstance(step, int)), None)
@@ -66,6 +66,8 @@ def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
                 sources.append({"unit": source["unit"], "path": [*source["path"], *suffix]})
         return sources
 
+    if item_sources is None and len(candidates) > 1:
+        raise ValueError("several candidates need item_sources")
     origins = []
     for path, _ in leaves(merged):
         if path[0] in identity:

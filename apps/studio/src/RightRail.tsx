@@ -60,7 +60,6 @@ type RightRailProps = {
   schemaName?: string | null
   onRenameSchema?: (name: string) => Promise<string | null>
   recordScope?: SchemaPanelProps['recordScope']
-  boundaries?: SchemaPanelProps['boundaries']
   /** Entries the workspace adds to the Results header's ⋯ menu: "Open latest reviewed". */
   resultsMenuItems?: readonly MenuItem[]
   /** The document's Extractions, above the shown one's own History; read only while `visible`. */
@@ -169,7 +168,6 @@ function RightRail({
   schemaName,
   onRenameSchema,
   recordScope,
-  boundaries,
   resultsMenuItems,
   documentHistory,
   onOpenLatest = null,
@@ -354,7 +352,6 @@ function RightRail({
           schemaName={schemaName}
           onRenameSchema={onRenameSchema}
           recordScope={recordScope}
-          boundaries={boundaries}
           proposalReview={chat.proposalReview}
           revealed={chat.revealed}
           onRegenerate={() => setRegenerating(schemaSnap.replacementVersion)}

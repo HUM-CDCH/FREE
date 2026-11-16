@@ -10,7 +10,14 @@ const { cases } = JSON.parse(readFileSync(new URL(
   '../../../apps/parsing_service/tests/fixtures/contracts/gliformer-compatibility.json', import.meta.url), 'utf8'))
 
 for (const item of cases) test(`GLiFormer service compatibility: ${item.id}`, () => {
-  const method = extractionMethodIntentSchema.parse(item.method)
+  const parsed = extractionMethodIntentSchema.safeParse(item.method)
+  // A retired control is refused by shape here, as the service's strict options refuse it.
+  if (!parsed.success) {
+    assert.equal(item.accepted, false)
+    for (const term of item.terms) assert.ok(parsed.error.message.includes(term), term)
+    return
+  }
+  const method = parsed.data
   const schema = parseSchemaDefinition(item.schema)
   const before = JSON.stringify({ method, schema })
   const issues = gliformerIssues(method, schema.schemaNodes)

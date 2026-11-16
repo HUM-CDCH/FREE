@@ -3,32 +3,15 @@ from dataclasses import replace
 
 import pytest
 
-from experiments.extraction.legacy_article import reconcile_values
 from kei_exp.kie.extract import article, run
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import spans
 from kei_exp.kie.extract.routing import rank_units, value_origins, verify_routed
-from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
+from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_extraction_rendering import table_passage
-
-
-def test_origins_follow_reconciled_array_items_and_never_equal_values_in_other_fields():
-    a, b = {"label": "A", "value": 37}, {"label": "B", "value": 37}
-    candidates = [{"site": "Hill", "year": 1800, "items": [a], "other": {"left": 37}},
-                  {"site": "Hill", "year": 1801, "items": [b, a], "other": {"right": 37}}]
-    merged, conflicts = reconcile_values(candidates)
-    assert merged["year"] is None and conflicts
-    origins = {tuple(item["path"]): item for item in value_origins(candidates, merged, {"site": "Hill"}, ["p1_s0"])}
-    assert ("year",) not in origins
-    assert origins[("site",)] == {"path": ["site"], "kind": "inventory", "passages": ["p1_s0"]}
-    assert origins[("items", 0, "value")]["sources"] == [
-        {"unit": 0, "path": ["items", 0, "value"]}, {"unit": 1, "path": ["items", 1, "value"]}]
-    assert origins[("items", 1, "value")]["sources"] == [{"unit": 1, "path": ["items", 0, "value"]}]
-    assert origins[("other", "left")]["sources"] == [{"unit": 0, "path": ["other", "left"]}]
-    assert origins[("other", "right")]["sources"] == [{"unit": 1, "path": ["other", "right"]}]
 
 
 def test_single_reply_preserves_duplicate_array_positions_and_rejects_untraceable_values():
@@ -130,56 +113,3 @@ def test_routing_preserves_table_header_and_qualifier_context_and_skips_policy_p
     assert len(routes) == 1 and "Measurements in water" in chat.calls[0]["user"]
     assert "colspan=2" in chat.calls[0]["user"] and "in water" in chat.calls[0]["user"]
     assert proofs[0]["cell"] == "r2_c0" and proofs[0]["quote"] == "37"
-
-
-def test_assembled_routing_changes_only_grounding_and_publishes_origin_paths(monkeypatch):
-    source = passages(["Hill background", "Hill year 1827"])
-    contexts = [Context((p,)) for p in source]
-    monkeypatch.setattr(run, "load", lambda _: evidence(source))
-    monkeypatch.setattr("kei_exp.kie.extract.article.source_contexts", lambda *_: contexts)
-    monkeypatch.setattr("kei_exp.kie.extract.article.partition", lambda *_args, **_kwargs: contexts)
-    def reason(system, user, schema):  # resolution and grounding: the document root takes no inventory
-        if resolving(user):
-            return keeps_every_reading(schema)
-        return {claim: {"label": prop["properties"]["label"]["enum"][0], "attribution": True}
-                for claim, prop in schema["properties"].items()}
-    results, requests = [], []
-    for routing in (None, "origin_lexical"):
-        values = CountingChat(lambda s, u, schema: {"site": "Hill", "year": 1827 if "1827" in u else None})
-        reasoning = CountingChat(reason)
-        request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
-            "context": "bounded", "identity": "conservative", "identity_fields": ["site"],
-            "grounding": "spans", "grounding_schedule": "unresolved", "grounding_routing": routing}})
-        results.append(run.extract(None, request, Router(values, reasoning),
-            counter={role: WordCounter() for role in ("fields", "reasoning")}))
-        requests.append(values.calls + [call for call in reasoning.calls if "### Claims" not in call["user"]])
-    plain, routed = results
-    assert requests[0] == requests[1] and plain["records"] == routed["records"]
-    assert plain["fingerprint"] != routed["fingerprint"] and "value_origins" not in plain
-    assert routed["grounding_routing_version"] == 2
-    assert routed["value_origins"] == [
-        {"path": ["records", 0, "site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]},
-                                                                      {"unit": 1, "path": ["site"]}]},
-        {"path": ["records", 0, "year"], "kind": "value", "sources": [{"unit": 1, "path": ["year"]}]}]
-    assert routed["grounding_routes"][1]["attempted"] == [1]
-
-
-@pytest.mark.parametrize("routing", [None, "origin_lexical"])
-def test_the_retired_routing_setting_never_refuses_an_untraceable_article_value(monkeypatch, routing):
-    """`grounding_routing` is retired for Article, which routes every claim to where it was read anyway: a root value
-    no reply returned as such has no origin and is routed by value match and relevance, never refused."""
-    conformed = article.conform
-    monkeypatch.setattr(article, "conform", lambda value, nodes: {**conformed(value, nodes), "entry_no": "31"})
-    found = article.document_root(passages(["Hill 1827"]), SCHEMA, CountingChat(lambda *_: {"site": "Hill"}),
-        counters={role: WordCounter() for role in ("fields", "reasoning")}, record_chars=24_000,
-        method=ArticleOptions(grounding="spans", grounding_schedule="unresolved", grounding_routing=routing))
-    assert found.origins[0] == [{"path": ["entry_no"], "kind": "value", "sources": []},
-                                {"path": ["site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]}]}]
-
-
-@pytest.mark.parametrize("settings", [{"grounding": "off"}, {"grounding": "spans"},
-    {"grounding": "semantic", "grounding_schedule": "unresolved"}])
-def test_routing_requires_an_explicit_unresolved_quoted_method(settings):
-    with pytest.raises(ValueError, match="routing requires"):
-        ArticleOptions(grounding_routing="origin_lexical", **settings)
-    assert "grounding_routing" not in ArticleOptions().model_dump()

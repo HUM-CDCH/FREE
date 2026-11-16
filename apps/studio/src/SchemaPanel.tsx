@@ -74,13 +74,6 @@ export type SchemaPanelProps = {
   onRenameSchema?: (name: string) => Promise<string | null>
   /** The Article/Catalog choice under the schema name; null until one is saved. */
   recordScope?: { value: RecordScope | null; onChange: (scope: RecordScope) => void; disabled?: boolean }
-  /** How catalogue entries are found, beside the record scope; omitted or null where it does not apply. */
-  boundaries?: {
-    value: string
-    options: ReadonlyArray<{ id: string; label: string }>
-    onChange: (id: string) => void
-    disabled?: boolean
-  } | null
   /** Host-owned review and conversation; the editor never starts a conversation. */
   proposalReview: SchemaProposalReview
   revealed: { seq: number; ids: Iterable<string> }
@@ -330,7 +323,6 @@ function SchemaPanel({
   schemaName,
   onRenameSchema,
   recordScope,
-  boundaries,
   proposalReview,
   revealed,
   onRegenerate,
@@ -878,7 +870,7 @@ function SchemaPanel({
             </div>
           )}
         </div>
-        {ready && (recordScope || boundaries) && (
+        {ready && recordScope && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-secondary text-ink-muted">
             {recordScope && (
               <span className="inline-flex items-center gap-0.5">
@@ -898,23 +890,6 @@ function SchemaPanel({
                 </select>
                 <span aria-hidden="true" className="text-ink-faint">▾</span>
               </span>
-            )}
-            {boundaries && (
-              <label className="inline-flex min-w-0 max-w-full items-center gap-1">
-                Boundaries
-                <select
-                  aria-label="Boundaries"
-                  className="min-h-6 min-w-0 cursor-pointer appearance-none bg-transparent text-ink outline-none disabled:cursor-default"
-                  value={boundaries.value}
-                  disabled={boundaries.disabled}
-                  title="How catalogue entries are found: by the model, or by a numbered-catalogue recipe with source-backed evidence"
-                  onChange={(event) => boundaries.onChange(event.target.value)}
-                >
-                  <option value="">Model discovery</option>
-                  {boundaries.options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-                </select>
-                <span aria-hidden="true" className="text-ink-faint">▾</span>
-              </label>
             )}
           </div>
         )}

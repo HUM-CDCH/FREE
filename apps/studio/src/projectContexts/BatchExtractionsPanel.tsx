@@ -48,7 +48,6 @@ function failureText(error: unknown, fallback: string): string {
  *  strategy is not the schema's saved Article/Catalog scope. Nothing started. */
 const METHOD_REFUSALS: ReadonlySet<string> = new Set([
   'method_changed',
-  'catalog_migration_required',
   'record_scope_required',
   'record_scope_mismatch',
 ])
@@ -244,7 +243,7 @@ export default function BatchExtractionsPanel({
           requestGeneration === historyGeneration.current
         ) {
           setBatches({ value: listed.batchExtractions, failure: null })
-          setNewest(listed.newestExtractionIds ? new Set(listed.newestExtractionIds) : null)
+          setNewest(new Set(listed.newestExtractionIds))
         }
       },
       (error: unknown) => {
@@ -400,7 +399,7 @@ export default function BatchExtractionsPanel({
   const runOpenBatchAgain = async (batch: BatchExtraction) => {
     if (opening.current || saved.state.status !== 'ready') return
     // A fresh run of the stored selection: its strategy, with today's saved method.
-    const method = savedMethodFor(saved.state, batch.strategy, null)
+    const method = savedMethodFor(saved.state, batch.strategy)
     const from = shown.current
     opening.current = true
     setOpeningBatch(true)
@@ -689,7 +688,7 @@ export default function BatchExtractionsPanel({
             runAgainRefusal={runAgainRefusal}
             runAgainMethod={
               <SavedMethodSummary saved={saved.state} conflict={methodConflict}
-                method={saved.state.status === 'ready' ? savedMethodFor(saved.state, openBatch.strategy, null) : null}
+                method={saved.state.status === 'ready' ? savedMethodFor(saved.state, openBatch.strategy) : null}
                 onRefresh={() => { setMethodConflict(null); void saved.refresh() }} />
             }
             documentName={documentName}

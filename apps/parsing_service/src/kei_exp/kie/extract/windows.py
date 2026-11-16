@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kei_exp.kie.blocks import Block
 
 
 @dataclass(frozen=True)
@@ -21,17 +20,6 @@ class Unit:
     end: int
 
 
-def units_of(block: Block, texts: dict[str, str]) -> list[Unit]:
-    """The block's primary text as source lines, each with its raw range."""
-    units = []
-    for span in block.primary_spans:
-        position = span.start
-        for raw in texts[span.segment_id][span.start:span.end].split("\n"):
-            start, end = position + len(raw) - len(raw.lstrip()), position + len(raw.rstrip())
-            if end > start:
-                units.append(Unit(span.segment_id, start, end))
-            position += len(raw) + 1
-    return units
 
 
 def windows_of(units: list[Unit], texts: dict[str, str], fits, *, overlap: bool) -> list[list[Unit]] | None:

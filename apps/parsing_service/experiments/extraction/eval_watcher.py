@@ -220,7 +220,7 @@ def evaluate_project(connection, project, documents, *, eval_root: Path, provide
     schema_path.parent.mkdir(parents=True, exist_ok=True)
     schema_path.write_text(json.dumps(schema_from_gold(project["columns"], strategy=strategy),
                                       ensure_ascii=False, indent=2), encoding="utf-8")
-    write_gold_workbook(golden_path, project["columns"], project["rows"] or [])
+    write_gold_workbook(golden_path, project["columns"], project["rows"])
 
     directories, pinned = _host_run_directories(documents)
     if not directories:

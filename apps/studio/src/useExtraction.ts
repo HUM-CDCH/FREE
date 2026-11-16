@@ -17,7 +17,6 @@ type ExtractionRunRequest = Readonly<{
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
   strategy: ExtractionStrategy
-  catalogRecipe?: string
   /** One-based page the researcher was reading when Run was clicked. */
   startPage?: number
   /** The saved method read at the click; admission refuses it if the account's changed since. */
@@ -87,11 +86,9 @@ const SOURCE_REPRESENTATION_SUPERSEDED = 'source_representation_superseded'
 /** ADR 0020: canRun's rule, enforced by admission against what this page may not have seen; it names the Extraction. */
 const EXTRACTION_IN_PROGRESS = 'extraction_in_progress'
 export const METHOD_CHANGED = 'method_changed'
-/** Legacy Catalog preferences wait for their migration: refreshable, like a changed method. */
-const MIGRATION_REQUIRED = 'catalog_migration_required'
 /** A strategy the schema's saved Article/Catalog scope does not name (or none saved): said like a changed method. */
 const ADMISSION_REFUSALS: ReadonlySet<string> = new Set([
-  METHOD_CHANGED, MIGRATION_REQUIRED, 'record_scope_required', 'record_scope_mismatch',
+  METHOD_CHANGED, 'record_scope_required', 'record_scope_mismatch',
 ])
 
 /** The server's own words for a refusal: `ApiRequestError` prefixes its message with `<code>: `. */
@@ -293,7 +290,6 @@ export function useExtraction({
     method: ExtractionMethodIntent,
     target: ReviewTarget | null = reviewTarget,
     strategy: ExtractionStrategy = 'ARTICLE',
-    catalogRecipe: string | null = null,
     startPage: number | null = null,
   ) {
     if (!target?.schemaRevisionId) return null
@@ -301,7 +297,6 @@ export function useExtraction({
       sourceRepresentationRevisionId: target.sourceRepresentationId,
       schemaRevisionId: target.schemaRevisionId,
       strategy,
-      ...(strategy === 'CATALOG' && catalogRecipe ? { catalogRecipe } : {}),
       ...(startPage === null ? {} : { startPage }),
       method,
     })

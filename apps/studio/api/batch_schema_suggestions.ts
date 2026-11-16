@@ -48,11 +48,11 @@ function failureDto(value: unknown) {
   return null
 }
 
-/** The `coverage` column's source declaration. Rows published before it hold schema-path agreement counts (or
- *  nothing), which declare nothing about the source: they read as not recorded. */
+/** The saved declaration is either absent or a valid source declaration. */
 function storedSourceCoverage(value: unknown): BatchSourceCoverage | null {
-  const declared = batchSourceCoverageSchema.safeParse(value)
-  return declared.success ? declared.data : null
+  const parsed = batchSourceCoverageSchema.nullable().safeParse(value)
+  if (!parsed.success) throw persistenceUnavailable(parsed.error)
+  return parsed.data
 }
 
 function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
@@ -83,14 +83,11 @@ function suggestionDto(suggestion: BatchSchemaSuggestionRecord) {
   })
 }
 
-/** The retained result an apply saves; null while there is none, or when a row written before applies cannot run. */
+/** The retained result an apply saves; absent only while no ready result exists. */
 function retainedResult(suggestion: BatchSchemaSuggestionRecord): SchemaDefinition | null {
-  if (suggestion.phase !== 'READY' || suggestion.draft === null) return null
-  try {
-    return parseBatchSuggestionDefinition(suggestion.draft)
-  } catch {
-    return null
-  }
+  if (suggestion.phase !== 'READY') return null
+  try { return parseBatchSuggestionDefinition(suggestion.draft) }
+  catch (cause) { throw persistenceUnavailable(cause) }
 }
 
 /**

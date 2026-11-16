@@ -1,163 +1,38 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, UNRECORDED_ARTICLE, type ArticleSettings } from 'extraction/extraction-method'
-import { methodLines } from '../methodSummary'
+import { METHOD_MESSAGES, REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import {
-  ARTICLE_CHOICES, changedSections, effectiveSummary, orderedArticle, orderedCatalog,
-  resetArticleSetting, settingsDelta, STARTING_POINTS, unavailableReason, withStartingPoint, type ArticleKey,
+  ARTICLE_CONTROL_SECTIONS, effectiveSummary, orderedArticle, orderedCatalog, settingsDelta,
+  STARTING_POINTS, unavailableReason, withStartingPoint,
 } from './advancedSettings'
 
-const inventory = JSON.parse(readFileSync(new URL(
-  '../../../parsing_service/tests/fixtures/contracts/article-options.json', import.meta.url), 'utf8')).inventory as {
-  context_tokens: number; identity_fields: string[]; factors: Record<string, unknown[]>; verdicts: string }
-
-/** The order a researcher would set choices in: parents before the children they enable. */
-const ORDER: readonly ArticleKey[] = ['context', 'context_tokens', 'identity_fields', 'identity', 'prompt', 'rendering', 'grounding',
-  'grounding_overflow', 'grounding_schedule', 'evidence_policy', 'grounding_routing', 'selection', 'grouping', 'overlap_passages']
-
-function* inputs(): Generator<Record<string, unknown>> {
-  const names = Object.keys(inventory.factors)
-  const walk = function* (index: number, chosen: Record<string, unknown>): Generator<Record<string, unknown>> {
-    if (index === names.length) {
-      yield { ...chosen, context_tokens: inventory.context_tokens,
-        identity_fields: chosen.identity === 'conservative' ? inventory.identity_fields : [] }
-      return
-    }
-    for (const value of inventory.factors[names[index]!]!) yield* walk(index + 1, { ...chosen, [names[index]!]: value })
-  }
-  yield* walk(0, {})
-}
-
-describe('availability rules for the complete admitted Article contract', () => {
-  it('each accepted one is reachable without a disabled choice; each refused one ends disabled or blocked', () => {
-    let index = 0
-    for (const target of inputs()) {
-      let draft: ArticleSettings = REFERENCE_ARTICLE
-      let disabled = false
-      for (const key of ORDER) {
-        const value = (target[key] ?? undefined) as never
-        if (unavailableReason(draft, key, value) !== null) disabled = true
-        draft = orderedArticle({ ...draft, [key]: value })
-      }
-      const accepted = inventory.verdicts[index] === '1'
-      if (accepted) expect({ index, disabled, issues: articleSettingsIssues(draft) }).toEqual({ index, disabled: false, issues: [] })
-      else expect(disabled || articleSettingsIssues(draft).length > 0, `#${index}`).toBe(true)
-      index += 1
-    }
-    expect(index).toBe(12288)
-  })
-})
-
-describe('resetting additional saved settings', () => {
-  const article: ArticleSettings = {
-    ...REFERENCE_ARTICLE, context: 'bounded', context_tokens: 16384, overlap_passages: 2, grouping: 'structural',
-    rendering: 'structured', grounding: 'spans', evidence_policy: 'schema', identity: 'conservative', identity_fields: ['Species'],
-    prompt: 'schema', selection: 'supported', grounding_schedule: 'unresolved', grounding_routing: 'origin_lexical',
-  }
-
-  it('keeps every retired setting readable in Method used', () => {
-    expect(methodLines({ article })).toEqual(expect.arrayContaining([
-      { label: 'Value evidence', value: 'Supported units' },
-      { label: 'Reconciliation', value: 'Declared identity fields' },
-      { label: 'Identity fields', value: 'Species' },
-      { label: 'Instructions', value: 'Schema-driven' },
-      { label: 'Continue verification', value: 'Until first support' },
-      { label: 'Unit order', value: 'Origin and lexical relevance' },
-    ]))
-  })
-
-  it('resets identity and its fields together, retaining every other setting', () => {
-    const reset = resetArticleSetting(article, 'identity')
-    expect(reset).toEqual({ ...article, identity: 'reference', identity_fields: [] })
-    expect(settingsDelta(article, reset)).toEqual([
-      { label: 'Reconciliation', from: 'Declared identity fields', to: 'Reference' },
-      { label: 'Identity fields', from: 'Species', to: 'None' },
+describe('current Article controls', () => {
+  it('offers the live controls and keeps their validation', () => {
+    expect(ARTICLE_CONTROL_SECTIONS.flatMap(section => section.keys)).toEqual([
+      'context', 'context_tokens', 'grouping', 'overlap_passages', 'rendering',
+      'grounding', 'grounding_overflow', 'evidence_policy',
     ])
-  })
-
-  it.each(['prompt', 'selection', 'grounding_schedule', 'grounding_routing'] as const)(
-    'resets only %s while preserving all other settings', (key) => {
-      expect(resetArticleSetting(article, key)).toEqual(orderedArticle({ ...article, [key]: REFERENCE_ARTICLE[key] }))
-      expect(article.prompt).toBe('schema')
-      expect(article.identity_fields).toEqual(['Species'])
-    })
-})
-
-describe('choices', () => {
-  it('a new incompatible choice is disabled with the design reason; the selected one never is', () => {
     expect(unavailableReason(REFERENCE_ARTICLE, 'overlap_passages', 1)).toBe(METHOD_MESSAGES.bounded)
-    expect(unavailableReason(REFERENCE_ARTICLE, 'selection', 'supported')).toBe(METHOD_MESSAGES.bounded)
     expect(unavailableReason(REFERENCE_ARTICLE, 'grouping', 'structural')).toBe(METHOD_MESSAGES.bounded)
-    expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'off', grounding_overflow: undefined }, 'grounding_overflow', 'windows')).toBe(METHOD_MESSAGES.overflow)
     expect(unavailableReason(REFERENCE_ARTICLE, 'evidence_policy', 'schema')).toBe(METHOD_MESSAGES.schemaPolicy)
-    expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'off' }, 'grounding_schedule', 'unresolved')).toBe(METHOD_MESSAGES.schedule)
-    expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'spans' }, 'grounding_routing', 'origin_lexical')).toBe(METHOD_MESSAGES.routing)
-    // A parent change that breaks a child stays available: the child is kept and shown invalid instead.
+    expect(unavailableReason({ ...REFERENCE_ARTICLE, grounding: 'off', grounding_overflow: undefined }, 'grounding_overflow', 'windows')).toBe(METHOD_MESSAGES.overflow)
     expect(unavailableReason({ ...REFERENCE_ARTICLE, context: 'bounded', overlap_passages: 1 }, 'context', 'full')).toBeNull()
-    expect(unavailableReason({ ...REFERENCE_ARTICLE, overlap_passages: 1 }, 'overlap_passages', 1)).toBeNull()
-    expect(ARTICLE_CHOICES.grounding.map((choice) => choice.label)).toEqual(['Source labels', 'Generated quotes', 'Source spans', 'Off'])
   })
 
-  it('an optional factor switched off leaves no key behind, in ArticleOptions order', () => {
+  it('omits unset factors and keeps a stable key order', () => {
     const on = orderedArticle({ ...REFERENCE_ARTICLE, context: 'bounded', grouping: 'structural' })
     expect(Object.keys(orderedArticle({ ...on, grouping: undefined }))).toEqual(Object.keys(REFERENCE_ARTICLE))
-    const reversed = Object.fromEntries(Object.entries(REFERENCE_ARTICLE).reverse())
-    expect(JSON.stringify(orderedArticle(reversed))).toBe(JSON.stringify(REFERENCE_ARTICLE))
+    expect(orderedArticle(Object.fromEntries(Object.entries(REFERENCE_ARTICLE).reverse()))).toEqual(REFERENCE_ARTICLE)
   })
-})
 
-describe('summaries', () => {
-  it('service defaults and the explicit reference read as the documented reference', () => {
+  it('describes the shared default and explicit changes', () => {
     expect(effectiveSummary(undefined)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
-    expect(effectiveSummary(REFERENCE_ARTICLE)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
-    expect(effectiveSummary(UNRECORDED_ARTICLE)).toBe('Full source · Plain text · Source-label verification')
-  })
-
-  it('inactive values never reach a summary', () => {
-    const full = { ...REFERENCE_ARTICLE, context_tokens: 16384 }
-    expect(effectiveSummary(full)).toBe('Full source · Plain text · Source-label verification · Large checks in windows')
-    const spans = withStartingPoint(undefined, STARTING_POINTS[1]!)
-    expect(effectiveSummary(spans)).toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification')
-  })
-
-  it('a section is Changed only when one of its values differs from the saved settings', () => {
-    expect(changedSections(REFERENCE_ARTICLE, undefined)).toEqual(new Set())
-    expect(changedSections({ ...REFERENCE_ARTICLE, grounding: 'spans' }, REFERENCE_ARTICLE)).toEqual(new Set(['evidence']))
-    expect(changedSections({ ...REFERENCE_ARTICLE, context_tokens: 16384 }, REFERENCE_ARTICLE)).toEqual(new Set())
+    const next = withStartingPoint(undefined, STARTING_POINTS[1]!)
+    expect(next).toMatchObject({ context: 'bounded', grounding: 'spans', evidence_policy: 'schema' })
+    expect(settingsDelta(REFERENCE_ARTICLE, next)).toContainEqual({ label: 'Verification', from: 'Source labels', to: 'Source spans' })
   })
 })
 
-describe('starting points', () => {
-  it('assign exactly the documented values, keep identity fields, and carry no preset identity', () => {
-    const declared = { ...REFERENCE_ARTICLE, identity_fields: ['species'] }
-    const explore = withStartingPoint(declared, STARTING_POINTS[1]!)
-    expect(explore).toEqual({
-      context: 'bounded', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: ['species'],
-      prompt: 'schema', grounding: 'spans', grounding_schedule: undefined, evidence_policy: 'schema',
-    })
-    expect(STARTING_POINTS[1]!.description).not.toContain('until first support')
-    expect(withStartingPoint(explore, STARTING_POINTS[0]!)).toEqual({ ...REFERENCE_ARTICLE, identity_fields: ['species'] })
-    expect(JSON.stringify(explore)).not.toMatch(/preset|"name"|"id"/)
-  })
-
-  it('the delta lists every changed setting, from service defaults too', () => {
-    expect(settingsDelta(undefined, withStartingPoint(undefined, STARTING_POINTS[1]!))).toEqual([
-      { label: 'Article settings', from: 'Service defaults', to: 'Customized' },
-      { label: 'Scope', from: 'Full source', to: 'Bounded source units' },
-      { label: 'Context ceiling', from: 'Used with bounded source units', to: '12,288 tokens' },
-      { label: 'Instructions', from: 'Reference', to: 'Schema-driven' },
-      { label: 'Verification', from: 'Source labels', to: 'Source spans' },
-      { label: 'Large checks', from: 'Check in windows', to: 'Leave unchecked' },
-      { label: 'Fields to verify', from: 'All populated record fields', to: 'Follow template policies' },
-    ])
-    expect(settingsDelta(REFERENCE_ARTICLE, REFERENCE_ARTICLE)).toEqual([])
-  })
-})
-
-
-it('keeps the heading candidate override in Catalog drafts without changing Article scoped resets', () => {
-  expect(orderedCatalog({ unified: { verification: false, headings: true, candidates: 8, overlap: 0 } }))
-    .toEqual({ unified: { overlap: 0, candidates: 8, headings: true, verification: false } })
-  expect(Object.keys(orderedCatalog({ unified: { headings: true, candidates: 8, overlap: 0 } }).unified!))
+it('keeps Catalog overrides in option order', () => {
+  expect(Object.keys(orderedCatalog({ unified: { headings: false, candidates: 8, overlap: 2 } }).unified!))
     .toEqual(['overlap', 'candidates', 'headings'])
 })

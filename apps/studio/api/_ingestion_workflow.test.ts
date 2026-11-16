@@ -10,7 +10,7 @@ import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { keiReadApi } from '../test/support/keiReadApi.js'
 import { stageSource, uploadSourcePath } from './_source_inbox.js'
 import {
-  ingestDeduplicationId, ingestSourceWorkflow, ingestWorkflowId, RETAIN_FAILED_SOURCE,
+  ingestDeduplicationId, ingestSourceWorkflow, ingestWorkflowId,
   type IngestionInput, type IngestionStore, type IngestionWorkflowPorts,
 } from './_ingestion_workflow.js'
 
@@ -170,48 +170,23 @@ describe('ingestSource', () => {
     expect(await staged()).toEqual([])
   })
 
-  it("a kei failure is 422 with kei's reason, a kei deadline is 504, and both remove the staged file", async () => {
+  it("a kei failure is 422 with kei's reason, a kei deadline is 504, and both keep the staged file for Retry", async () => {
     const failed = harness({
       polls: [{ state: 'SUCCESS', output: { ok: false, code: 'source_unreadable', reason: 'PDFium could not open it', retryable: false } }],
     })
     await expect(failed.run()).resolves.toEqual({
       ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document could not be parsed: PDFium could not open it',
     })
-    expect(failed.names.at(-1)).toBe('removeStagedSource')
+    expect(failed.names).not.toContain('removeStagedSource')
     expect(failed.store.ingestSourceDocument).not.toHaveBeenCalled()
-    expect(await staged()).toEqual([])
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
 
-    await stageSource(inbox, SOURCE, PDF)
     const late = harness({ polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
     await expect(late.run()).resolves.toEqual({
       ok: false, status: 504, code: 'source_ingestion_timeout', message: 'Source Document parsing did not finish within its time limit.',
     })
     expect(late.packageStore.save).not.toHaveBeenCalled()
-    expect(await staged()).toEqual([])
-  })
-
-  it('past the retention patch, a failed attempt keeps its staged file for Retry and a success still removes it', async () => {
-    const patched = vi.fn(async (name: string) => name === RETAIN_FAILED_SOURCE)
-    const failed = harness({ polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
-    await expect(ingestSourceWorkflow(input(), { ...failed.ports, patched })).resolves.toMatchObject({ ok: false, status: 504 })
-    expect(patched).toHaveBeenCalledWith(RETAIN_FAILED_SOURCE)
-    expect(failed.names).not.toContain('removeStagedSource')
     expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
-
-    patched.mockClear()
-    const published = harness()
-    await expect(ingestSourceWorkflow(input(), { ...published.ports, patched })).resolves.toMatchObject({ ok: true })
-    // A success never reaches the marker: its history is the one a run before the patch wrote.
-    expect(patched).not.toHaveBeenCalled()
-    expect(published.names.at(-1)).toBe('removeStagedSource')
-    expect(await staged()).toEqual([])
-  })
-
-  it('a failure replayed from before the patch still removes its staged file', async () => {
-    const failed = harness({ polls: [{ state: 'CANCELLED', deadlinePassed: true }] })
-    await ingestSourceWorkflow(input(), { ...failed.ports, patched: async () => false })
-    expect(failed.names.at(-1)).toBe('removeStagedSource')
-    expect(await staged()).toEqual([])
   })
 
   it('refuses a conversion kei reports for other bytes or another page layout, before reading its result', async () => {
@@ -226,21 +201,21 @@ describe('ingestSource', () => {
       expect(h.ports.fetcher).not.toHaveBeenCalled()
       expect(h.store.ingestSourceDocument).not.toHaveBeenCalled()
       expect(h.kei.cancel).not.toHaveBeenCalled()
-      expect(h.names.at(-1)).toBe('removeStagedSource')
-      expect(await staged()).toEqual([])
+      expect(h.names).not.toContain('removeStagedSource')
+      expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
     }
   })
 
-  it("a partial parse answers 422, as before, and removes the staged file", async () => {
+  it("a partial parse answers 422 and keeps the staged file for Retry", async () => {
     const h = harness({ fetcher: keiReadApi({ pdf: PDF, manifest: { status: 'incomplete', incomplete: 'page 1 stopped at its token cap' } }) })
 
     await expect(h.run()).resolves.toEqual({
       ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document was only partially parsed.',
     })
-    expect(h.names).toEqual(['replayCompletedContent', 'submitToKei', 'pollKei', 'acceptConversion', 'removeStagedSource'])
+    expect(h.names).toEqual(['replayCompletedContent', 'submitToKei', 'pollKei', 'acceptConversion'])
     expect(h.store.ingestSourceDocument).not.toHaveBeenCalled()
     expect(h.kei.cancel).not.toHaveBeenCalled()
-    expect(await staged()).toEqual([])
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
   })
 
   it('a manifest of another generation is a typed 502, while packaging I/O is retried', async () => {
@@ -249,9 +224,8 @@ describe('ingestSource', () => {
       ok: false, status: 502, code: 'source_ingestion_failed',
       message: 'The Parsing Service published another parse than the one it reported.',
     })
-    expect(await staged()).toEqual([])
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
 
-    await stageSource(inbox, SOURCE, PDF)
     const unsaved = harness()
     unsaved.packageStore.save.mockRejectedValueOnce(new Error('disk full'))
     await expect(unsaved.run()).rejects.toMatchObject({
@@ -321,7 +295,7 @@ describe('ingestSource', () => {
     const h = harness({ publication: async () => null })
     await expect(h.run()).resolves.toEqual({ ok: false, status: 404, code: 'not_found', message: 'Project Context was not found.' })
     expect(h.store.discardCanonicalPackage).toHaveBeenCalledExactlyOnceWith(NEW_PACKAGE)
-    expect(await staged()).toEqual([])
+    expect(await staged()).toEqual([`${ATTEMPT}.pdf`])
   })
 
   it('an unexpected failure after submission cancels the kei child before rethrowing', async () => {

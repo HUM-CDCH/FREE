@@ -16,27 +16,26 @@ from kei_exp.kie.passages import load
 from tests.helpers import catalogue
 from tests.helpers.postgres import checked_conninfo
 from tests.test_durable_workflow_recovery import CHILD,until
-from tests.test_extract_grounded import honest
 from tests.test_unified_catalog import Model,section
 
 FIXTURE=os.environ.get('DURABLE_LIFECYCLE_FIXTURE')
 pytestmark=[pytest.mark.postgres,pytest.mark.slow,pytest.mark.skipif(not FIXTURE,reason='run durable-lifecycle.postgres.check.ts')]
 
 
-@pytest.mark.parametrize('index',range(12))
-def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
+@pytest.mark.parametrize('index',range(6))
+def test_both_strategies_pause_and_continue_at_saved_boundaries(tmp_path,index):
     fixture=json.loads(Path(FIXTURE).read_text())
     fields=checked_conninfo(fixture['admin'])
     case=fixture['cases'][index]
     source=tmp_path/'runs'/case['source']['runId']
-    texts=['31. Eichdorf. Mbl. 1827. FA: G.','32. Birkenau. Mbl. 1828. FA: EF.','33. Coast. Mbl. 1829. FA: G.'] if case['method']=='recipe' else [
+    texts=[
         '1. Hill. Material: gold. Gilded. Find: bead (2)','2. Valley. Material: flint.','3. Coast. Material: copper.']
     catalogue.write({'transcriber':'native','pages':[{'page':1,'units':[{'index':0,'segments':texts}]}]},source,generation=case['source']['generation'])
     (source/'params.json').write_text('{}')
     unified=Model(load(source))
     calls=[];blocked=threading.Event();release=threading.Event()
     failed_at=None
-    threshold=2 if case['method'] in {'generic','unified'} else 1
+    threshold=2 if case['method']=='unified' else 1
     class Provider(BaseHTTPRequestHandler):
         def log_message(self,*_):pass
         def do_POST(self):
@@ -50,8 +49,7 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
                     assert release.wait(45),'fixture provider was never released'
                 system,user=messages[0]['content'],messages[-1]['content']
                 schema=body['response_format']['json_schema']['schema']
-                if case['method']=='recipe':parsed=honest(system,user,schema)
-                elif case['method']=='unified':parsed=unified(system,user,schema)
+                if case['method']=='unified':parsed=unified(system,user,schema)
                 elif 'record boundaries' in system:parsed={'starts':['B1','B2','B3'],'end':None}
                 elif '### Claims' in user:parsed={key:{'label':'NONE','attribution':False} for key in schema['properties']}
                 else:parsed={'name':'Valley' if 'Valley' in user else 'Hill'}
@@ -137,8 +135,6 @@ def test_four_methods_pause_and_continue_at_saved_boundaries(tmp_path,index):
             refused=requests.post(fixture['bridge'],json={'id':case['id'],'action':'resume'},
                 headers={'Authorization':f"Bearer {fixture['token']}"},timeout=15)
             assert not refused.ok and 'Stopped Extractions cannot resume' in refused.text
-        with psycopg.connect(**fields) as admin:
-            assert admin.execute('SELECT outcome FROM public.extraction WHERE id=%s',[case['id']]).fetchone()[0] is None
     finally:
         release.set()
         if process.poll() is None:process.terminate()
@@ -222,7 +218,6 @@ def test_truncated_discovery_is_saved_and_split_until_complete_or_exhausted(tmp_
             assert completed['state']['counts']['inFlight']==0
         with psycopg.connect(**fields) as admin:
             assert admin.execute('SELECT count(*) FROM extraction_runtime.checkpoint o JOIN extraction_runtime.capture c ON c.id=o.id WHERE c."extractionId"=%s AND EXISTS (SELECT FROM jsonb_array_elements(o.output->\'calls\') call WHERE call->>\'finish\'=\'length\')',[case['id']]).fetchone()[0]==0
-            assert admin.execute('SELECT outcome FROM public.extraction WHERE id=%s',[case['id']]).fetchone()[0] is None
     finally:
         if process.poll() is None:process.terminate()
         try:process.wait(timeout=10)

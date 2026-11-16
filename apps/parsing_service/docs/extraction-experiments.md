@@ -22,18 +22,16 @@ flowchart LR
 
 | Module | Responsibility |
 | --- | --- |
-| `kie/passages.py` | Verify canonical files and expose stable passages/tables; shared with the recipe stages, outside `kie/extract/`. |
+| `kie/passages.py` | Verify canonical files and expose stable passages/tables; outside `kie/extract/`. |
 | `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Place the result's value marks (`value_mark.py`) and return the assembled result. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
 | `routing.py` | Map assembled values to their actual reply occurrences and order whole verification units with exhaustive unresolved fallback. |
 | `method.py` | Validate explicit experimental choices; enforce the Article context ceiling. |
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; assemble or reconcile values without hiding scalar conflicts. |
-| `selection.py` | Select whole value contexts from inventory support, adjacent qualifiers and schema relevance; expose omitted units. |
-| `article.py` | The Article implementation: the document's one root read from each value context, assembled across contexts, resolved when split, and grounded. The service path sends no inventory request but keeps its exact `inventory_request` budget for bounded contexts. |
+| `article.py` | The Article implementation: the document's one root read from each value context, assembled across contexts, resolved when split, and grounded. Bounded contexts are sized against the document-value request. |
 | `resolution.py` | Resolve split-source Article readings and filter assembled list occurrences; retain disagreements and assembled items when resolution fails or is unsure. |
-| `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
-| `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
+| `assembly.py` | Article's document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
 | `stages.py` | The shared value prompts (guardrail, schema instruction, labelled passages), document and record value requests and their conformance, value helpers, and the record merge. |
 | `schema.py` | The extraction schema as Studio's editor writes it: the strict reply schema, the field notes a prompt lists, `conform`, and evidence-policy resolution. |
 | `calls.py` | Extraction call execution: `complete` routes a finished request to its role's model, admits it against the served context when counted, invokes the adapter, reads the reply and records every attempt as a `Call`. The only way an extraction stage reaches a model. |
@@ -41,19 +39,18 @@ flowchart LR
 | `gliformer.py` | Native GLiFormer fields over discovered entries, with no chat emulation or value repair. |
 | `models.py` | The deployment's extraction models, their permitted roles and defaults, a run's choice, and `ROLE`/`Router`: which role and chat serve each stage. |
 | `tokens.py` | Count requests on the serving endpoint's `/tokenize` and read its context size. |
-| `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
-| `grounded.py` | The recipe Catalog implementation: entry extraction under the token budget, the merge of an entry's windows and conflict arbitration. |
-| `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
+| `grounding.py` | Ground Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
+| `acceptance.py` | Type Catalog values and represent located outcomes. |
 | `value_mark.py` | Place a linked value's printing on the run's own `input.pdf` (ADR 0031): pdfium's characters under the anchor's box, matched only where the value and its surroundings print once, one box per printed line; on a block the OCR model read, only where the rendered page image confirms its text layer. The one read of the PDF in extraction. |
 | `locate.py` | Locate a quoted value in a block's own text as raw code-point spans, matching on a normalised view that maps back to raw offsets. |
-| `windows.py` | Cut an oversized recipe Catalog entry into consecutive windows whose request fits the budget, with optional one-line overlap. |
-| `catalog_result.py` | Shape recipe Catalog outcomes into records, evidence links (table cells, glossary normalization) and review items. |
-| `unified.py` | The unified Catalog, result version 3: per-stage budgets resolved from the served context, record discovery, then each entry's extraction, verification (none by default from defaults 6) and arbitration. |
+| `windows.py` | Partition Catalog source Units into counted windows with optional overlap. |
+| `catalog_result.py` | Place values and expose common canonical spans and cell Evidence. |
+| `unified.py` | The unified Catalog, result version 3: per-stage budgets resolved from the served context, record discovery, then each entry's extraction, an independent reading of each value inherited from a heading, and arbitration. |
 | `discovery.py` | The unified Catalog's source units, counted windows and record discovery with its source ledger. |
 | `durable.py` | Plan and capture calls for every method: planning runs the algorithms against committed call outputs, and an unexecuted request yields to the durable workflow instead of reaching a provider. |
 | `captured_provider.py` | Send a captured request's saved HTTP body without recomposition. |
 | `retained.py` | Validate typed values, bind stable record and field identities and publish retained snapshots, always from validated stage objects, never debug files. |
-| `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. `legacy_article.py` holds historical identity extraction and exact-union assembly for captured Article replays. Never imported by serving code. |
+| `experiments/extraction/` | Register inputs/comparisons, capture and resume calls, and analyze completed cells. |
 
 These are ordinary Python functions. There is no plugin graph or separate
 service per stage. Strategy differences reflect source structure: an Article is
@@ -67,8 +64,7 @@ filters these assembled items and moves their origins and overlap diagnostics to
 the retained positions. Nested list positions remain part of their enclosing item. Grounding checks those
 origins first and still searches all remaining contexts when unsupported. An
 origin identifies where a value was read; the verifier decides whether the
-source supports it. The legacy exact array union and its origin mapping remain
-available to replay captured studies.
+source supports it.
 
 ## Pipeline map
 
@@ -83,10 +79,10 @@ method; later calls never substitute a newer revision for those producing inputs
 | Step | Owner |
 | --- | --- |
 | Pinned selection and dispatch | Studio's [`initializeDurableExtraction`](../../../packages/extraction/src/durable-repository.ts) stores the immutable executable schema, method and source pins. Its reconciler dispatches `extractDurableV1` with only protocol, Extraction ID and attempt ID; the worker reads the selection through restricted [`coordination`](../src/kei_exp/workflows/coordination.py) routines. |
-| Effective inputs | [`effective` / `plan_next`](../src/kei_exp/workflows/durable_extract.py) validates `run.ExtractRequest`, resolves and saves effective model routes, options and protocol versions for that selection, then reuses those captured inputs on recovery. An unservable model choice or unknown recipe is refused before a new provider call. |
-| Canonical input | `plan_next` loads verified canonical `Evidence`/`Passage`s with [`passages.load`](../src/kei_exp/kie/passages.py) and refuses a generation different from the source pin. [`run.dispatch`](../src/kei_exp/kie/extract/run.py) chooses unified Catalog, recipe Catalog, Article or generic Catalog from the pinned options. |
+| Effective inputs | [`effective` / `plan_next`](../src/kei_exp/workflows/durable_extract.py) validates `run.ExtractRequest`, resolves and saves effective model routes, options and protocol versions for that selection, then reuses those captured inputs on recovery. An unservable model choice  is refused before a new provider call. |
+| Canonical input | `plan_next` loads verified canonical `Evidence`/`Passage`s with [`passages.load`](../src/kei_exp/kie/passages.py) and refuses a generation different from the source pin. [`run.dispatch`](../src/kei_exp/kie/extract/run.py) chooses Article or unified Catalog from the pinned strategy. |
 | Captured calls | [`CapturePlanner`](../src/kei_exp/kie/extract/durable.py) reserves exact model requests and correction context before execution. [`extractionCallV1` / `invoke_capture`](../src/kei_exp/workflows/durable_extract.py) durably saves each response before acknowledgement. Recovery and unchanged-input Retry reuse committed successful outputs; failed responses remain attempt-specific history. |
-| Result assembly | [`assembly.artifact`](../src/kei_exp/kie/extract/assembly.py), [`grounded.extract`](../src/kei_exp/kie/extract/grounded.py) and [`unified.extract`](../src/kei_exp/kie/extract/unified.py) assemble the version-1, version-2 and version-3 internal results, including values, Evidence and diagnostics. Unified execution/discovery records and entry work are assembled in memory; deleted stage files are not checkpoints. |
+| Result assembly | [`assembly.artifact`](../src/kei_exp/kie/extract/assembly.py) and [`unified.extract`](../src/kei_exp/kie/extract/unified.py) assemble the Article version-1 and Catalog version-3 internal results, including values, Evidence and diagnostics. Unified execution/discovery records and entry work are assembled in memory; deleted stage files are not checkpoints. |
 | Retained publication | [`retained.publish_values` / `publish_final`](../src/kei_exp/kie/extract/retained.py) validate typed values, bind stable record/field identities, retain producing selections and producer Evidence, and call `publish_snapshot`. [`publish_result`](../src/kei_exp/workflows/durable_extract.py) completes publication before the attempt's acknowledgement. Nothing publishes an extraction result beside a parse run. |
 | Studio read and review | The [`durable repository`](../../../packages/extraction/src/durable-repository.ts) reads fixed snapshots and numbered correction versions. [`kei-evidence`](../../../packages/extraction/src/kei-evidence.ts) projects producer Evidence against the pinned Source Representation; corrections and finalization use the durable routes. No legacy workflow or HTTP artifact reader participates. |
 
@@ -106,11 +102,11 @@ the source and builds the prompt and reply schema, and who interprets the answer
 | Generic Catalog | `discovery` → reasoning | [`catalog.discover`](../src/kei_exp/kie/extract/catalog.py), per page-aligned chunk of `discovery_chars` | `catalog.DISCOVERY` with its examples, `B`-labelled blocks (`_labelled`), reply schema enumerating the shown labels | `catalog.discover` keeps ordered starts and a final-chunk end, reports ignored labels and numbering anomalies, and cuts record slices |
 | Generic Catalog | `record` → fields | [`catalog.extract`](../src/kei_exp/kie/extract/catalog.py), per slice | [`stages.extract_record`/`stages.record_request`](../src/kei_exp/kie/extract/stages.py): `_instruction` and the slice clipped to `record_chars` | `schema.conform` |
 | Generic Catalog | `grounding` → reasoning | `assembly.ground_records` → `grounding.semantic` | `grounding.verify`: every claim, a value found once in its slice included, goes to `GROUNDING` calls with its field, its sibling fields and the record's fields, under the `record_chars` character budget | as Article |
-| Unified Catalog | `discovery` → reasoning | [`discovery.discover`](../src/kei_exp/kie/extract/discovery.py), per counted window of source lines (`discovery.plan`), which under defaults version 2 never crosses a printed page (`discovery.groups_of`); asked `KEI_CATALOG_CHUNKS` at a time; halved on a cut-off reply or one that is not the requested object (run directly, on any failed call); defaults 7 also retries copied boundaries that cannot be located uniquely in their source line within the existing split bound, retaining calls and issues while only final readings own source text | `discovery.DISCOVERY` (defaults 7: `HEADING_DISCOVERY`, clarifying record scope and leading printed labels): record description, `L`-labelled window lines, each label naming its line's layout kind (`heading`, `table row`) when ingestion gave one (`discovery.kinds_of`), between unlabelled context; reply names each record or record-free start by line and printed label, adding its exact text only when it begins mid-line, and whether the window begins and ends inside a record | code places each start at its line's start, or where its text occurs once in the line, a `record` and an `other` at one spot being a record start; windows join only on agreeing continuation flags, which then outrank an unlabelled start (`other`, or a record without a located label) or the open record's own printed label on the later window's first line, while another printed label there ends the open record cleanly; inside a window, a record start with the open record's own printed label (one with a letter or digit) directly after its text continues it; defaults 8 places a record start found nowhere in its named line where it occurs exactly once in a neighbouring line or across the named line's break (`boundary_relocated`); the rest stays `unresolved` in the ledger |
-| Unified Catalog | `discovery` children → reasoning (defaults 8) | [`discovery.children`](../src/kei_exp/kie/extract/discovery.py), once discovery is complete, per counted window of the discovered entries' own lines, without overlap; a failed reply is an issue and a failed processing window, never retried | `discovery.CHILDREN`: bare record description, `### RECORD n` sections of `L`-labelled lines; reply lists each separately identified entity inside a record as first line, last line and printed label | `discovery.children` itself: a child owns whole lines of one entry after its first line, apart from other children and without the entry's own printed label, and names that entry as `parent`; the parent keeps its remaining ranges as several ranges and is the child's `context`; ledger rows are cut to match; anything else is `child_dropped`. A child entry is read with `unified.CHILD` (and verified, when on, with `unified.VERIFY_CHILD`) beside its parent's text |
-| Unified Catalog | `entry` → fields | [`unified._Run.entry`](../src/kei_exp/kie/extract/unified.py), per counted window of the entry's own lines; defaults 7 fixes primary windows and overlap before considering preceding record-free units newest first, skipping those that do not fit, measuring at most `options.unified.candidates` (default 32) individually when full context overflows, and reporting every omission; split retries reconsider kept and omitted context | `unified.ENTRY` (defaults 7: `ENTRY_HEADING`) with field notes (from defaults 6 plus `unified.SINGLE_PASS`; the full reply schema is shown in every call); the entry text, earlier and later lines of the entry as overlap, record-free lines before it as context (defaults 7: separate source-labelled excerpts in source order, latest marked; labels are metadata); `{value, quote}` candidates, `_item_text` per list object | `unified._Checker`: typed value, quote located in the entry or, under defaults 7 for scalars outside lists, the shown heading context; inherited values must be non-Boolean printed literals, while explicitly derived fields can retain supporting context as proposals; candidates grounded only behind an omitted excerpt stay `context_incomplete` proposals; list ownership is unchanged. Literal or supporting span (a value in another cell of the quoted table row is literal in its own cell); a list item is where its `_item_text` is located, else the one table row its values name, and its values are looked for there first; `unified._merged` joins equal observations and keeps partial list items as proposals |
-| Unified Catalog | `verification` → reasoning | `unified._Run._verify`, per window's candidates | `unified.VERIFY` (defaults 7: `VERIFY_HEADING` with heading applicability and supersession): the window's text and labelled candidates; reply `supported`, `unsupported` or `unclear` per label; under defaults 5 scalar fields instead go to `unified.VERIFY_COMPLETE`, which reads each afresh and returns `{value, quote}`; batches halved on overflow; no call from defaults 6 unless `verification` is on | only `supported` (or a checked correction) is accepted; anything else stays a proposal or rejection. From defaults 6 without verification, what `_Checker` located is accepted and linked `lexical`, a missing or unlocated quote leaves a proposal |
-| Unified Catalog | `arbitration` → reasoning | `unified._Run._settle`, per scalar whose accepted values disagree | `unified.ARBITRATION` (from defaults 6 without verification, `ARBITRATION_LOCATED`) over every candidate with its snippet, or no call when they do not fit | the chosen candidate, or all left unresolved |
+| Unified Catalog | `discovery` → reasoning | `discovery.discover`, per counted source window, with bounded splitting on failed replies | `discovery.DISCOVERY`, also identifying shared table qualifications | Locate copied starts in source; unique neighbouring-line starts can be relocated; unresolved ranges remain explicit |
+| Unified Catalog | `discovery` children → reasoning | `discovery.children`, per settled window of records while discovery continues | `discovery.CHILDREN`, lines of each enclosing record | Children own whole lines, keep a parent reference, and read its remaining text as context; invalid children are dropped |
+| Unified Catalog | `entry` → fields | `unified._Run.entry`, per counted window of record text with overlap and bounded context | `unified.ENTRY`, field notes, reply schema and `{value, quote}` candidates, with single-pass and complete-text instructions | `_Checker` validates types, located quotes and list ownership; child scalars can use their enclosing record context; disagreements and partial observations stay explicit |
+| Unified Catalog | `verification` → reasoning | `unified._Run._verify`, per candidate batch | `VERIFY_RECORD` reads a scalar located outside its record (inherited) afresh, without its candidate; records sharing a heading are read together (`VERIFY_RECORDS`, `_Run._shared`) | Values located in the record are linked `lexical` without this call; an inherited value is accepted only when an equal, source-located reading agrees, never corrected; a check that cannot fit is a final `verification_over_budget` proposal |
+| Unified Catalog | `arbitration` → reasoning | `unified._Run._settle`, per disagreeing scalar | Candidates and source snippets (`ARBITRATION`) | Keep the chosen candidate or retain the disagreement |
 | Unified Catalog | `document` → fields | `unified._Run.document`, per counted window over every admitted line | `unified.DOCUMENT`: `{value, quote}` candidates for document fields | located in the window; windows assembled by `contexts.assemble_document`, list occurrences preserved and scalar conflicts kept; always `unverified` |
 
 Article counts every request on the serving endpoint of its role
@@ -120,7 +116,7 @@ character budgets: its record calls reply within 2,048 tokens, and its other
 calls send no `max_tokens`, so the adapter's 8,192 applies. The unified Catalog
 counts every request too; each stage's input ceiling is the served context minus
 its reply reserve (or the method's custom ceiling), and its reply reserve is
-sent as `max_tokens`; from defaults 4 an entry call sends the served context its
+sent as `max_tokens`; an entry call sends the served context its
 counted input leaves instead, the reserve its floor.
 
 Every row above sends its request through the same execution seam,
@@ -162,33 +158,13 @@ boundaries: the planner checks the attempt's intent before it plans, and a
 capture checks it again, and must be admitted by `begin_call`, before its
 request is sent. A request already in flight finishes first.
 
-### The recipe Catalog
-
-A request with `options.catalog.recipe` runs
-[`grounded.extract`](../src/kei_exp/kie/extract/grounded.py) instead of generic
-Catalog; it is an optional path for catalogues a recipe describes, not the
-generic Catalog's replacement. Structural segmentation replaces discovery.
-`grounded._Run.call` counts each `entry` and `document` (fields) and
-`arbitration` (reasoning) request against the recipe's input budget before handing it to the same
-`calls.complete`; code in `acceptance.py` accepts, proposes or rejects each
-candidate, and the result is version 2 with code-point span Evidence. The
-[grounded catalogue design](design/2026-09-23-grounded-catalogue-design.md) is
-its contract.
-
 ## Article choices
 
-Omitting `options.article` runs the reference method: the complete source as
-one value context, `semantic` grounding. API callers that omit it keep that
-method, and Extractions Studio recorded with `article: null` replay it. Current
-Studio pages send explicit settings: Studio's default is that reference method
-with `grounding_overflow=windows`. A Studio page loaded before that default
-still sends `article: null` for an account without saved Article settings, and
-admission records it so. Setting any option records every
-setting and `method_version: 1` in the fingerprint. Studio sets these options on
-its Model Configuration Advanced tab. Non-default saved values from the last
-two rows appear under Additional saved settings with scoped resets; identity
-and its fields reset together. `method.ArticleOptions.coherent` refuses the
-combinations the last column names.
+Omitting `options.article` runs the shared Article default: the complete source
+as one value context, semantic grounding, and overflow windows for oversized
+checks. The service records these options explicitly, as Studio does. Explicit
+null settings and retired Article keys are refused. Every Article artifact
+records its method version, options and completion dimensions.
 
 | Option | Effect | Requires |
 | --- | --- | --- |
@@ -199,8 +175,6 @@ combinations the last column names.
 | `grounding=semantic\|quoted\|spans\|off` | Source-label verification; exact source-substring checks with model-attested attribution; span IDs chosen from offered canonical ranges, with quotes rebuilt from the source; or no links. A valid substring and the model's attribution are not independent proof of semantic correctness. | |
 | `grounding_overflow=windows` | A claim whose check over a whole context exceeds the reasoning budget (`grounding_exceeds_budget`) is checked next in that context's two halves of passages, halved again when refused, at most three times (`routing.WINDOW_DEPTH`), stopping at support: each claim checks at most 14 windows of a refused context (2 + 4 + 8), and claims at the same window in the same round share its pass. A single passage or an eighth that still does not fit keeps the refusal. Without it the refusal stands, as before. Records `grounding_overflow_version`. | grounding |
 | `evidence_policy=schema` | Apply the schema's `evidencePolicy` metadata (below). | `quoted` or `spans` grounding |
-| `identity`, `identity_fields`, `prompt`, `selection` | No effect on Article's document-value prompt, record identity or units read, but they stay in the fingerprint. The first three still affect preliminary bounded source sizing: `source_contexts` counts `inventory_request` with these values, including on full-source fallback, without sending an inventory call. Research replays still read them. | `identity=conservative` needs `identity_fields`; `selection` needs `context=bounded` |
-| `grounding_schedule`, `grounding_routing` | No effect on how Article grounds: it always checks each claim first in the context its value was read from, with exhaustive fallback, stopping at support. `grounding_routing` still adds its diagnostics (`value_origins`, `grounding_routes`). | `grounding_schedule` needs grounding; `grounding_routing` needs `grounding_schedule=unresolved` and `quoted` or `spans` grounding |
 
 With `evidence_policy=schema`, each schema node's `evidencePolicy` decides
 whether its values are verified: `quoted`, `derived` or `unverified`. A node
@@ -226,8 +200,7 @@ origins; dropped readings and items stay in issues. A failed resolution retains
 assembly and does not force Pause. Earlier fixed-upstream artifacts replay
 without a resolution call.
 
-Article inventories no identities: the result's `inventory` holds the one
-document identity. A long list is restated item by item, so the root's reply
+Article emits one document root without an inventory field. A long list is restated item by item, so the root's reply
 keeps at least 4,096 tokens, and a bounded context's at least as many as its
 request counts. A durable call fits whole correction examples above that reply
 floor, then gives the spare capacity to the reply. The captured request records
@@ -235,7 +208,7 @@ its exact examples, the omitted ones and why, the tokenizer identity and the
 token budget (counted input, context ceiling, reply allowance); a guidance edit
 never recomposes a started call or a retry of an unchanged selection.
 
-With `options.article` set, `completion` separates processing, attempted source
+`completion` separates processing, attempted source
 coverage, grounding, document fields and record recall (always `unmeasured`),
 and `complete` is false: successful calls and linked fields cannot establish
 that every array item was found.
@@ -250,20 +223,6 @@ A request exercising the structural input:
 ```
 
 ## Catalog choices
-
-`options.catalog.factors` independently controls glossary use, inherited
-headings, overlap, and verification. Omission preserves existing behavior and
-serialization. Disabling verification retains typed model values as proposals,
-without accepting or grounding them; `raw_candidates` preserves the replies.
-Structural ownership and canonical spans are never disabled. Glossary-off also
-disables glossary normalization; heading-off disables inherited bindings and
-heading context; overlap-off disables neighboring context and window overlap.
-
-`headed-graves-da@1` is a narrow, declared recipe for standalone `Grav N`
-headings. It was developed on one supplied excavation-report excerpt. Its seven detected
-blocks and complete line disposition are observations, not annotated block F1.
-It does not apply the German catalogue's field bindings or strip `Grav` from a
-printed identifier. Transfer to other grave reports is unmeasured.
 
 The unified Catalog (`options.unified`) gives every nonblank source line one
 ledger disposition: `entry`, `other`, `unresolved` or `withheld`. Its windows
@@ -326,7 +285,6 @@ model links are not an independent semantic grounding score.
 
 Each study's protocol was declared before its results were inspected:
 
-- R2a, value-unit selection replay: [selection protocol](../experiments/extraction/selection-protocol.md) (`experiments.extraction.selection_replay`).
 - R3, structured Article input: [rendering protocol](../experiments/extraction/rendering-protocol.md) (`experiments.extraction.register_rendering`).
 - R4, structural grouping: [grouping protocol](../experiments/extraction/grouping-protocol.md).
 - R5, fixed-upstream grounding: [grounding protocol](../experiments/extraction/grounding-protocol.md) (`experiments.extraction.grounding_study`).

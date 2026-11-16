@@ -10,8 +10,6 @@ import { modelStep, StepFailure } from './_schema_generation_workflow.js'
 import type { ChatHistory, SchemaChatReply } from '../shared/schemaChat.contract.js'
 
 export const ANSWER_SCHEMA_CHAT = 'answerSchemaChat'
-/** DBOS patch: a run past it lets an edit chat message ask a question, answered across a long source's windows. */
-export const SCHEMA_CHAT_ANSWERS = 'schema-chat-answers'
 
 /** IDs, the message and the temperature only: never the document, never a key (spec, *What DBOS history holds*). */
 export type SchemaChatInput = Readonly<{

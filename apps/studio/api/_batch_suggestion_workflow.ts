@@ -4,15 +4,13 @@ import type { InternalProjectWorkerStore, SchemaSource } from 'db'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaDefinition } from 'extraction/schema'
 import { sourceSuggestionFailure } from './_batch_schema_suggestions.js'
-import { combineBatchSchemas, suggestBatchSource, suggestBatchCommon, type generateSchemaWithModel } from './_schema_suggestion.js'
+import { combineBatchSchemas, suggestBatchSource, type generateSchemaWithModel } from './_schema_suggestion.js'
 import { ApiError } from './_http.js'
 import { schemaSourceWindows } from './_schema.js'
 import { reduceSchemas } from './_schema_reduction.js'
 import type { BatchSourceCoverage, SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 
 export const SUGGEST_SCHEMA_BATCH = 'suggestSchemaBatch'
-/** DBOS patch: a run past it suggests from every window of each source and combines them (a run before it excerpts). */
-export const BATCH_WINDOWED_SUGGESTION = 'batch-schema-suggestion-windows'
 
 export type SuggestionMember = Readonly<{ sourceDocumentId: string; sourceRepresentationRevisionId: string }>
 /** Admission's snapshot: every current member pin, sorted by sourceDocumentId (spec, *suggestSchemaBatch*). */
@@ -23,10 +21,10 @@ export type SuggestionAttemptInput = Readonly<{
   members: readonly SuggestionMember[]
 }>
 /** Either phase declares, per Source Document, what its suggestion read of the source and whether the merge read the
- *  suggestion (null: a merge result checkpointed before the declaration existed). */
+ *  suggestion. */
 export type SuggestionProposal =
-  | { phase: 'READY'; proposal: SchemaDefinition; sourceCoverage: BatchSourceCoverage | null; draft: SchemaDefinition }
-  | { phase: 'HETEROGENEOUS'; sourceCoverage: BatchSourceCoverage | null }
+  | { phase: 'READY'; proposal: SchemaDefinition; sourceCoverage: BatchSourceCoverage; draft: SchemaDefinition }
+  | { phase: 'HETEROGENEOUS'; sourceCoverage: BatchSourceCoverage }
 export type SuggestionFailure = { code: string; message: string }
 export type SuggestionStore = Readonly<{
   /** 'current' while this attempt is the suggestion's attempt and has no outcome; 'stopped' after an interruption, a later attempt or deletion. */
@@ -41,8 +39,6 @@ export type SuggestionWorkflowPorts = Readonly<{
   steps: WorkflowSteps
   store: SuggestionStore
   generate: typeof generateSchemaWithModel
-  /** `DBOS.patch`: whether this run takes the patched step sequence; absent, it never does. */
-  patched?(name: string): Promise<boolean>
 }>
 
 /** The workflow's store over packages/db's worker store: every check and terminal write shares its one predicate (the
@@ -52,11 +48,10 @@ export function workerSuggestionStore(worker: InternalProjectWorkerStore): Sugge
     attemptState: (id, attempt) => worker.suggestionAttemptState(id, attempt),
     projectContextOwner: (projectContextId) => worker.projectContextOwner(projectContextId),
     readSource: (revisionId) => worker.readRevisionSchemaSource(revisionId),
-    // The suggestion's `coverage` column holds the source declaration; a merge result checkpointed before the
-    // declaration existed has none, so it publishes null.
+    // The suggestion's `coverage` column holds the source declaration.
     publish: (id, attempt, result) => worker.publishBatchSchemaSuggestion(id, attempt, result.phase === 'READY'
-      ? { phase: 'READY', proposal: result.proposal, coverage: result.sourceCoverage ?? null, draft: result.draft }
-      : { phase: 'HETEROGENEOUS', coverage: result.sourceCoverage ?? null }),
+      ? { phase: 'READY', proposal: result.proposal, coverage: result.sourceCoverage, draft: result.draft }
+      : { phase: 'HETEROGENEOUS', coverage: result.sourceCoverage }),
     fail: (id, attempt, failure) => worker.failBatchSchemaSuggestionAttempt(id, attempt, failure),
   }
 }
@@ -105,8 +100,7 @@ function durableFailure(error: unknown): SuggestionFailure {
 }
 
 type SourceResult =
-  // sourceCoverage is absent from a step checkpointed before the declaration existed.
-  | { kind: 'definition'; sourceDocumentId: string; definition: SchemaDefinition; sourceCoverage?: SourceCoverage }
+  | { kind: 'definition'; sourceDocumentId: string; definition: SchemaDefinition; sourceCoverage: SourceCoverage }
   | { kind: 'failure'; sourceDocumentId: string; failure: SuggestionFailure }
   | { kind: 'stopped' }
 type MergeResult =
@@ -123,7 +117,7 @@ class MemberHalt extends Error {
 }
 
 /**
- * One source past `BATCH_WINDOWED_SUGGESTION`: a step per window of its source, then its window suggestions combined
+ * One source: a step per window of its source, then its window suggestions combined
  * (their union) a step per request. Every step first asks whether its attempt is still current and re-reads the pinned
  * source it needs, so DBOS holds only window counts and suggestions, never the source.
  */
@@ -179,7 +173,7 @@ async function suggestMemberFromWindows(
 }
 
 /**
- * The merge past `BATCH_WINDOWED_SUGGESTION`: the sources' suggestions intersected level by level, a step per request,
+ * The merge: the sources' suggestions intersected level by level, a step per request,
  * so every suggestion is read; a group holding a suggestion without fields stays without fields, with no call.
  */
 async function mergeLevels(
@@ -209,7 +203,7 @@ async function mergeLevels(
         return result.value
       },
     )
-    const sourceCoverage = declaredSourceCoverage(definitions, [])
+    const sourceCoverage = declaredSourceCoverage(definitions)
     return {
       kind: 'proposal',
       result: definition.schemaNodes.length > 0
@@ -237,47 +231,24 @@ const SOURCES_FAILED: SuggestionFailure = {
   message: 'Fields could not be suggested for every selected Source Document.',
 }
 
-/** Every source's declaration, in member order: what its suggestion read of the source (null when a step
- *  checkpointed before the declaration existed, so it is never reported as read whole), and whether the merge read the
- *  suggestion itself. */
-function declaredSourceCoverage(
-  definitions: readonly Extract<SourceResult, { kind: 'definition' }>[],
-  uncombined: readonly string[],
-): BatchSourceCoverage {
-  return definitions.map(({ sourceDocumentId, sourceCoverage }) => ({
-    sourceDocumentId,
-    sourceCoverage: sourceCoverage ?? null,
-    combined: !uncombined.includes(sourceDocumentId),
-  }))
+/** Every source's declaration, in member order: what its suggestion read of the source; the merge reads every
+ *  suggestion. */
+function declaredSourceCoverage(definitions: readonly Extract<SourceResult, { kind: 'definition' }>[]): BatchSourceCoverage {
+  return definitions.map(({ sourceDocumentId, sourceCoverage }) => ({ sourceDocumentId, sourceCoverage, combined: true }))
 }
 
 /**
- * One attempt of a Batch Schema Suggestion: one named step per pinned source (past `BATCH_WINDOWED_SUGGESTION`, a step
- * per window and per combination request), one merge step and one conditional publication. Every step first asks whether its attempt is still current (not interrupted, superseded or deleted),
+ * One attempt of a Batch Schema Suggestion: a step per window and per combination request of each pinned source, a step
+ * per merge request and one conditional publication. Every step first asks whether its attempt is still current (not interrupted, superseded or deleted),
  * and every terminal write is conditional on the attempt, so a replay or a late finish writes nothing.
  */
 export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, ports: SuggestionWorkflowPorts): Promise<void> {
-  const { steps, store, generate } = ports
+  const { steps, store } = ports
   const { batchSchemaSuggestionId: id, attempt } = input
   const definitions: Array<Extract<SourceResult, { kind: 'definition' }>> = []
-  const windowed = await ports.patched?.(BATCH_WINDOWED_SUGGESTION)
   for (const member of input.members) {
-    // One named step per source: recovery of this attempt reuses finished sources; a new attempt reruns them all.
-    const result = windowed ? await suggestMemberFromWindows(input, ports, member) : await steps.step(`suggestSource:${member.sourceDocumentId}`, async (): Promise<SourceResult> => {
-      if ((await store.attemptState(id, attempt)) !== 'current') return { kind: 'stopped' }
-      const owner = await store.projectContextOwner(input.projectContextId)
-      const source = owner === null ? null : await store.readSource(member.sourceRepresentationRevisionId)
-      if (owner === null || source === null) return { kind: 'stopped' }
-      try {
-        // The Project Context owner's configuration and keys, resolved when the call runs; DBOS holds only the ID.
-        const { definition, sourceCoverage } = await suggestBatchSource(
-          { researcherAccountId: owner }, source, modelSignal(steps.cancelSignal()), generate,
-        )
-        return { kind: 'definition', sourceDocumentId: member.sourceDocumentId, definition, sourceCoverage }
-      } catch (error) {
-        return { kind: 'failure', sourceDocumentId: member.sourceDocumentId, failure: durableFailure(error) }
-      }
-    }, STORE_STEP_RETRY)
+    // Named steps per source: recovery of this attempt reuses finished sources; a new attempt reruns them all.
+    const result = await suggestMemberFromWindows(input, ports, member)
     if (result.kind === 'stopped') return
     if (result.kind === 'failure') {
       // The first failure ends the attempt (controller ruling): failures block the merge, and a retry reruns every
@@ -289,25 +260,7 @@ export async function suggestSchemaBatchWorkflow(input: SuggestionAttemptInput, 
     }
     definitions.push(result)
   }
-  const merged = windowed ? await mergeLevels(input, ports, definitions) : await steps.step('merge', async (): Promise<MergeResult> => {
-    if ((await store.attemptState(id, attempt)) !== 'current') return { kind: 'stopped' }
-    const owner = await store.projectContextOwner(input.projectContextId)
-    if (owner === null) return { kind: 'stopped' }
-    try {
-      const { definition, uncombined } = await suggestBatchCommon(
-        { researcherAccountId: owner }, definitions, modelSignal(steps.cancelSignal()), generate,
-      )
-      const sourceCoverage = declaredSourceCoverage(definitions, uncombined)
-      return {
-        kind: 'proposal',
-        result: definition
-          ? { phase: 'READY', proposal: definition, sourceCoverage, draft: definition }
-          : { phase: 'HETEROGENEOUS', sourceCoverage },
-      }
-    } catch (error) {
-      return { kind: 'failure', failure: durableFailure(error) }
-    }
-  }, STORE_STEP_RETRY)
+  const merged = await mergeLevels(input, ports, definitions)
   if (merged.kind === 'stopped') return
   await steps.step('publish', () =>
     merged.kind === 'proposal' ? store.publish(id, attempt, merged.result) : store.fail(id, attempt, merged.failure),

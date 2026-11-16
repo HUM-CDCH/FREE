@@ -101,7 +101,7 @@ describe('GET /api/project-spreadsheets', () => {
     expect(await response.json()).toEqual({ projectSpreadsheetVersion: null })
   })
 
-  it('returns the current version, dropping cell values a pre-existing version stored', async () => {
+  it('refuses columns carrying retired cell values', async () => {
     const getCurrentProjectSpreadsheet = vi.fn(
       async (): Promise<ProjectSpreadsheetVersionRecord> => ({
         projectSpreadsheetVersionId: '51000000-0000-4000-8010-000000000001',
@@ -118,11 +118,8 @@ describe('GET /api/project-spreadsheets', () => {
     const response = await handler.GET(
       new Request(`http://test/api/project-spreadsheets?projectContextId=${projectContextId}`),
     )
-    expect(response.status).toBe(200)
-    const body = await response.json()
-    expect(body.projectSpreadsheetVersion.revisionNumber).toBe(2)
-    expect(body.projectSpreadsheetVersion.originalFilename).toBe('gold-v2.xlsx')
-    expect(body.projectSpreadsheetVersion.columns).toEqual([{ columnName: 'species' }])
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ error: { code: 'persistence_unavailable' } })
   })
 
   it('rejects a missing projectContextId', async () => {

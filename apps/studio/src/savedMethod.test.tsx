@@ -8,27 +8,27 @@ import { putModelConfig } from './providerConfig/providerConfig.data'
 const config = {
   connections: [], routes: { schemaSuggestion: null, interaction: null },
   extractionModels: { reasoning: 'instruct' }, ingestionModels: {},
-  extractionSettings: { article: REFERENCE_ARTICLE, catalog: { generic: { record_chars: 30000 } } },
+  extractionSettings: { article: REFERENCE_ARTICLE, catalog: { unified: { input_tokens: 30000 } } },
 }
 afterEach(() => vi.unstubAllGlobals())
 
 it('derives each strategy\'s method from the saved document', () => {
-  expect(savedMethodFor({ config }, 'ARTICLE', null)).toEqual({ models: { reasoning: 'instruct' }, settings: { article: REFERENCE_ARTICLE } })
-  expect(savedMethodFor({ config }, 'CATALOG', null)).toEqual({ models: { reasoning: 'instruct' }, settings: { generic: { record_chars: 30000 } } })
-  expect(savedMethodFor({ config }, 'CATALOG', 'numbered-catalogue-de@1')).toEqual({ models: { reasoning: 'instruct' }, settings: { recipe: null } })
+  expect(savedMethodFor({ config }, 'ARTICLE')).toEqual({ models: { reasoning: 'instruct' }, settings: { article: REFERENCE_ARTICLE } })
+  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 11, input_tokens: 30000 } } })
+  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 11, input_tokens: 30000 } } })
 })
 
 it('derives the unified Catalog method, and no recipe, where the deployment enables it', () => {
-  const unified = { config: { ...config, extractionSettings: { catalog: { unified: { overlap: 0 } } } }, unifiedCatalog: true }
-  expect(savedMethodFor(unified, 'CATALOG', 'numbered-catalogue-de@1'))
-    .toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 10, overlap: 0 } } })
+  const unified = { config: { ...config, extractionSettings: { catalog: { unified: { overlap: 0 } } } }, }
+  expect(savedMethodFor(unified, 'CATALOG'))
+    .toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 11, overlap: 0 } } })
 })
 
 it('keeps the deployment\'s Catalog method with the saved document it read', async () => {
   vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ config, providers: [],
-    deployment: { connections: [], defaultRoute: null, unifiedCatalog: true } }), { headers: { 'content-type': 'application/json' } })))
+    deployment: { connections: [], defaultRoute: null, } }), { headers: { 'content-type': 'application/json' } })))
   const { result } = renderHook(() => useSavedMethod())
-  await waitFor(() => expect(result.current.state).toEqual({ status: 'ready', config, unifiedCatalog: true }))
+  await waitFor(() => expect(result.current.state).toEqual({ status: 'ready', config, }))
 })
 
 it('reads the account configuration on mount and again on refresh', async () => {

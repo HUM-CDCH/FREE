@@ -17,7 +17,7 @@ from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, dig
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import publish_final
 from tests.test_durable_extraction import Counter, MemoryLease
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_unified_catalog import SCHEMA, Model, evidence, request as unified_request, section, untimed
 
 
@@ -173,9 +173,8 @@ def saved(attempt, round_):
             for value in attempt.lease.publications[identity]["values"]}
 
 
-@pytest.mark.parametrize("defaults", [3, 4, 6])
-def test_an_unrelated_completion_does_not_read_or_save_a_finished_entry_again(monkeypatch, defaults):
-    attempt = Attempt(monkeypatch, unified_request(defaults=defaults), pages(12, 3), chunks=2)
+def test_an_unrelated_completion_does_not_read_or_save_a_finished_entry_again(monkeypatch):
+    attempt = Attempt(monkeypatch, unified_request(), pages(12, 3), chunks=2)
     expected(attempt.finish(), 12)
     finished = finished_entries(attempt)
     assert set(finished) == set(range(12))
@@ -188,30 +187,18 @@ def test_an_unrelated_completion_does_not_read_or_save_a_finished_entry_again(mo
         assert round_["scopes"][number] == attempt.result["discovery"]["entries"][number]["ranges"]
 
 
-def test_discovery_completing_verifies_the_entries_read_before_it(monkeypatch):
-    """Pipelined, an entry read while discovery still asks later windows holds candidates only; the round that sees
-    discovery complete reads it again, verified: a phase change is never reused."""
-    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(12, 1), chunks=1)
-    expected(attempt.finish(), 12)
-    early = {number for round_ in attempt.trace for number, verify in round_["entries"] if not verify}
-    assert early, "no entry was read before discovery completed"
-    for number in early:
-        assert any((number, True) in round_["entries"] for round_ in attempt.trace)
-        verified = [key for key in entry_keys(attempt, number)
-                    if attempt.lease.units[key]["descriptor"]["stage"] == "verification"]
-        assert verified and all(attempt.lease.units[key]["checkpoint"] for key in verified)
 
 
-SCHEDULES = [(defaults, chunks, order, per_page) for defaults in (1, 2, 3, 4, 6) for chunks in (1, 2)
+SCHEDULES = [(chunks, order, per_page) for chunks in (1, 2)
              for order in ("first", "last", "key", "reverse-key") for per_page in (1, 4)]
 
 
-@pytest.mark.parametrize("defaults,chunks,order,per_page", SCHEDULES)
-def test_reuse_leaves_every_round_as_it_was(monkeypatch, defaults, chunks, order, per_page):
+@pytest.mark.parametrize("chunks,order,per_page", SCHEDULES)
+def test_reuse_leaves_every_round_as_it_was(monkeypatch, chunks, order, per_page):
     """The same attempt under the same schedule, planned with and without reuse: every round plans the same calls,
     finalizes the same inputs and lists the same scopes; the publications, plans and artifact are the same. Only
     repeated lookups and publications of unchanged rows go."""
-    request, source = unified_request(defaults=defaults), pages(8, per_page)
+    request, source = unified_request(), pages(8, per_page)
     with monkeypatch.context() as patched:
         plain = Attempt(patched, request, source, chunks=chunks, order=order, reuse=False)
         plain.finish()
@@ -229,8 +216,8 @@ def test_reuse_leaves_every_round_as_it_was(monkeypatch, defaults, chunks, order
 def test_forgotten_counts_read_finished_entries_again(monkeypatch):
     """A call the server counted otherwise drops the attempt's counts (`drop_stale_counts`): the work planned from
     them goes too, so the next round reads every finished entry again from fresh counts."""
-    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(8, 4))
-    for _ in range(12):
+    attempt = Attempt(monkeypatch, unified_request(), pages(8, 4))
+    for _ in range(6):  # half of the attempt's eleven calls answered
         attempt.plan()
         attempt.step()
     finished = set(finished_entries(attempt))
@@ -247,8 +234,8 @@ def test_forgotten_counts_read_finished_entries_again(monkeypatch):
 def test_counts_forgotten_while_an_entry_is_read_keep_nothing_from_it(monkeypatch):
     """A call workflow may drop the attempt's counts while a round still reads from them: the entry read meanwhile is
     not kept, so the next round reads it again from fresh counts."""
-    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(8, 4))
-    for _ in range(12):
+    attempt = Attempt(monkeypatch, unified_request(), pages(8, 4))
+    for _ in range(6):  # half of the attempt's eleven calls answered
         attempt.plan()
         attempt.step()
     finished = finished_entries(attempt)
@@ -278,8 +265,8 @@ def test_counts_forgotten_while_an_entry_is_read_keep_nothing_from_it(monkeypatc
 def test_another_served_tokenizer_reads_finished_entries_again(monkeypatch):
     """Counts are kept per served tokenizer and template (the probe's fingerprint): one the server now renders
     otherwise is another key, so nothing planned from the old counts is reused."""
-    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(8, 4))
-    for _ in range(12):
+    attempt = Attempt(monkeypatch, unified_request(), pages(8, 4))
+    for _ in range(6):  # half of the attempt's eleven calls answered
         attempt.plan()
         attempt.step()
     finished = set(finished_entries(attempt))
@@ -294,9 +281,9 @@ def test_another_served_tokenizer_reads_finished_entries_again(monkeypatch):
 
 def test_codex_reserved_counts_reuse_finished_entries(monkeypatch):
     """Codex's reserved counts are a pure function of its policy and model, so finished entries are reused too."""
-    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(8, 4))
+    attempt = Attempt(monkeypatch, unified_request(), pages(8, 4))
     attempt.counter = CodexChat("test-model").counter()
-    for _ in range(12):
+    for _ in range(6):  # half of the attempt's eleven calls answered
         attempt.plan()
         attempt.step()
     finished = set(finished_entries(attempt))
@@ -317,7 +304,7 @@ def test_successive_tokenizer_fingerprints_keep_historical_entry_work(monkeypatc
     """Each fingerprint compiles another version of every finished entry, without removing the earlier versions;
     returning to any earlier fingerprint reuses its work, so two versions per entry is not a retention bound."""
     records = 4
-    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(records, 2))
+    attempt = Attempt(monkeypatch, unified_request(), pages(records, 2))
     expected(attempt.finish(), records)
     artifact = untimed(attempt.result)
     kept = tokens._compiled[attempt.lease.attempt]
@@ -363,7 +350,7 @@ def test_work_eviction_recomputes_finished_entries_from_the_same_saved_calls(mon
     """An evicted attempt compiles again from its saved replies: no new model call, input, plan or publication."""
     monkeypatch.setattr(tokens, "CACHED_ATTEMPTS", 2)
     records = 4
-    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(records, 2))
+    attempt = Attempt(monkeypatch, unified_request(), pages(records, 2))
     expected(attempt.finish(), records)
     before, earlier = observable(attempt), dict(tokens._compiled[attempt.lease.attempt])
     for other in ("other/1", "other/2"):
@@ -438,7 +425,7 @@ def test_count_and_work_lru_evictions_have_independent_lifetimes(monkeypatch, is
 def test_a_failed_publication_is_not_reused(monkeypatch):
     """Reuse begins only once the entry's record is saved: a round whose publication fails keeps nothing, so the next
     round reads the entry again and saves it."""
-    attempt = Attempt(monkeypatch, unified_request(defaults=3), pages(8, 4))
+    attempt = Attempt(monkeypatch, unified_request(), pages(8, 4))
     original, failed = attempt.lease.call, []
 
     def flaky(name, *args):
@@ -464,7 +451,7 @@ def test_a_failed_publication_is_not_reused(monkeypatch):
 def test_a_fresh_process_plans_the_rest_of_the_attempt_alike(monkeypatch):
     """Kept work is the process's own: a recovered attempt in a new process (nothing kept) reads every finished entry
     once more, publishes only what the uninterrupted attempt's same round did first, and plans what it planned."""
-    request, source = unified_request(defaults=3), pages(8, 2)
+    request, source = unified_request(), pages(8, 2)
     with monkeypatch.context() as patched:
         plain = Attempt(patched, request, source, reuse=False)
         plain.finish()
@@ -491,8 +478,8 @@ def test_pause_shows_and_stops_as_without_reuse(monkeypatch):
     """A Pause lets the running calls save; the next round lists every finished entry, shows the newly saved ones and
     stops at the first call it may not start, as it does without reuse."""
     def paused(patched, reuse):
-        attempt = Attempt(patched, unified_request(defaults=3), pages(12, 3), reuse=reuse)
-        for _ in range(14):
+        attempt = Attempt(patched, unified_request(), pages(12, 3), reuse=reuse)
+        for _ in range(8):  # about half of the attempt's fifteen calls answered
             attempt.plan()
             attempt.step()
         attempt.plan()
@@ -513,9 +500,11 @@ def test_pause_shows_and_stops_as_without_reuse(monkeypatch):
 
 def test_stop_after_resume_keeps_uninvoked_entries_without_repeating_saved_calls(monkeypatch):
     schema = {**SCHEMA, "schemaNodes": [node for node in SCHEMA["schemaNodes"] if node.get("valueSource") != "document"]}
-    attempt = Attempt(monkeypatch, unified_request(schema=schema, defaults=1), pages(3, 3), chunks=1)
+    attempt = Attempt(monkeypatch, unified_request(schema=schema), pages(3, 3), chunks=1)
     assert attempt.plan() is None
-    attempt.step()  # discovery finishes; the next round captures all three entries
+    attempt.step()  # discovery finishes; the next round asks for the children call alone
+    assert attempt.plan() is None
+    attempt.step()  # the children call answers; the next round captures all three entries
     assert attempt.plan() is None
     assert len(attempt.planner.pending) == 3
     entry = next(iter(attempt.planner.pending))
@@ -525,7 +514,7 @@ def test_stop_after_resume_keeps_uninvoked_entries_without_repeating_saved_calls
         attempt.plan()
     captured = {key: unit["id"] for key, unit in attempt.lease.units.items()}
     saved = {unit["id"] for unit in attempt.lease.units.values() if unit["checkpoint"] is not None}
-    assert len(saved) == len(attempt.chat.calls) == 2
+    assert len(saved) == len(attempt.chat.calls) == 3
 
     tokens.forget(attempt.lease.attempt)
     attempt.lease.attempt = "resumed"
@@ -533,22 +522,20 @@ def test_stop_after_resume_keeps_uninvoked_entries_without_repeating_saved_calls
     assert attempt.plan() is None
     assert not saved.intersection(attempt.planner.pending)
     assert {key: unit["id"] for key, unit in attempt.lease.units.items() if key in captured} == captured
-    verification = next(unit["id"] for unit in attempt.lease.units.values()
-                        if unit["descriptor"]["stage"] == "verification")
+    resumed = next(iter(attempt.planner.pending))
     attempt.lease.intent = "STOP"
-    answer(attempt.lease, attempt.chat, verification, attempt.counter)  # only this resumed call was admitted
+    answer(attempt.lease, attempt.chat, resumed, attempt.counter)  # only this resumed call was admitted
     with pytest.raises(Boundary):
         attempt.plan()
-    assert Tally(unit["descriptor"]["stage"] for unit in attempt.lease.units.values()) == {
-        "discovery": 1, "entry": 3, "verification": 1}
-    assert len(attempt.chat.calls) == 3
+    assert Tally(unit["descriptor"]["stage"] for unit in attempt.lease.units.values()) == {"discovery": 2, "entry": 3}
+    assert len(attempt.chat.calls) == 4
     assert len({unit["id"] for unit in attempt.lease.units.values() if unit["checkpoint"] is not None}) == len(attempt.chat.calls)
 
 
 def test_new_guidance_reaches_only_new_captures(monkeypatch):
     """A correction committed while the attempt runs is captured with the requests created after it, never with an
     input already finalized, and a finished entry is not recomposed for it, with or without reuse."""
-    request, source = unified_request(defaults=3), pages(8, 2)
+    request, source = unified_request(), pages(8, 2)
     node = next(node for node in request.schema_.model_dump(by_alias=True, exclude_none=True)["schemaNodes"]
                 if node["name"] == "material")
     from kei_exp.kie.extract.durable import field_meaning
@@ -600,24 +587,8 @@ def test_article_reassembles_every_answered_context_when_another_answers(monkeyp
     assert True in disagreeing and disagreeing.index(True) > 0
 
 
-def test_entries_waiting_on_their_verification_hold_back_no_entry(monkeypatch):
-    """The workflow runs `chunks` calls of each role at once: planning does not cap the entries waiting a second time."""
-    attempt = Attempt(monkeypatch, unified_request(defaults=5), pages(5, 5), chunks=4)
-    while True:
-        assert attempt.plan() is None
-        units = {unit["id"]: unit for unit in attempt.lease.units.values()}
-        pending = [(units[c]["descriptor"]["stage"], units[c]["input"]["request"]["body"]["record"])
-                   for c in attempt.planner.pending]
-        if [stage for stage, _ in pending].count("verification") == 4:
-            break
-        first = next(c for c, (stage, record) in zip(attempt.planner.pending, pending, strict=True)
-                     if stage != "verification" and record != 4)
-        answer(attempt.lease, attempt.chat, first, attempt.counter)
-    assert ("entry", 4) in pending
-
-
 def test_the_first_entries_launched_are_those_nearest_the_start_page(monkeypatch):
-    attempt = Attempt(monkeypatch, unified_request(start_page=3, defaults=5), pages(6, 2), chunks=2)
+    attempt = Attempt(monkeypatch, unified_request(start_page=3), pages(6, 2), chunks=2)
     attempt.finish()
     units = {unit["id"]: unit for unit in attempt.lease.units.values()}
     entries = [units[c]["input"]["request"]["body"]["record"] for c in attempt.launched
@@ -626,9 +597,9 @@ def test_the_first_entries_launched_are_those_nearest_the_start_page(monkeypatch
 
 
 @pytest.mark.parametrize("intent", ["RUN", "PAUSE"])
-def test_defaults_8_reads_entries_only_after_its_children_call_and_a_pause_there_stops_the_round(monkeypatch, intent):
+def test_entries_are_read_only_after_the_children_call_and_a_pause_there_stops_the_round(monkeypatch, intent):
     schema = {**SCHEMA, "schemaNodes": [node for node in SCHEMA["schemaNodes"] if node.get("valueSource") != "document"]}
-    attempt = Attempt(monkeypatch, unified_request(schema=schema, defaults=8), pages(3, 3), chunks=1)
+    attempt = Attempt(monkeypatch, unified_request(schema=schema), pages(3, 3), chunks=1)
     assert attempt.plan() is None
     attempt.step()  # discovery finishes; the next round asks for the children call alone
     attempt.lease.intent = intent
@@ -644,7 +615,7 @@ def test_defaults_8_reads_entries_only_after_its_children_call_and_a_pause_there
     assert [record["label"] for record in attempt.result["records"]] == ["1", "2", "3"]
 
 
-# --- defaults 10: the children pass is pipelined too ----------------------------------------------------------------
+# --- the children pass is pipelined too -------------------------------------------------------------------------------
 
 RECORDS = {**SCHEMA, "schemaNodes": [node for node in SCHEMA["schemaNodes"] if node.get("valueSource") != "document"]}
 
@@ -672,9 +643,9 @@ def numbered_finds(user):
                          if re.match(r"\d+\. ", text)]}
 
 
-def graves_attempt(monkeypatch, defaults, source, **settings):
+def graves_attempt(monkeypatch, source, **settings):
     """The attempt over `source`, its calls admitted in planning order as `extract_workflow` admits them."""
-    attempt = Attempt(monkeypatch, unified_request(schema=RECORDS, defaults=defaults, input_tokens=600), source,
+    attempt = Attempt(monkeypatch, unified_request(schema=RECORDS, input_tokens=600), source,
                       threaded=False, **settings)
     attempt.chat.script.discovery, attempt.chat.script.children = grave_starts, numbered_finds
     return attempt
@@ -713,53 +684,14 @@ def read_as(result):
             "discovery": {key: result["discovery"][key] for key in ("entries", "ledger", "windows")}}
 
 
-@pytest.mark.parametrize("chunks,order,reuse", [(1, "first", True), (2, "first", True), (2, "last", True),
-                                                (4, "key", True), (4, "reverse-key", False)])
-def test_defaults_10_saves_records_while_discovery_still_reads_and_reads_what_defaults_9_does(monkeypatch, chunks,
-                                                                                            order, reuse):
-    source = graves()
-    old = graves_attempt(monkeypatch, 9, source, chunks=chunks, order=order, label="old")
-    before = rounds(old)
-    new = graves_attempt(monkeypatch, 10, source, chunks=chunks, order=order, reuse=reuse, label="new")
-    seen = rounds(new)
-    # Defaults 9 lists and saves nothing before its last children call. Defaults 10 has saved records while discovery
-    # and children windows still wait, when the windows are answered in the order they start (answered latest first,
-    # the first window is the last one read, and no record is final before it).
-    assert not any(saved and ("D" in waiting or "C" in waiting) for waiting, _, saved in before)
-    if order == "first":
-        assert any(saved and "D" in waiting for waiting, _, saved in seen)
-        assert any(saved and "C" in waiting for waiting, _, saved in seen)
-    # A listed record never changes: its number and its ranges are the final ones from the round that first lists it.
-    final = seen[-1][1]
-    assert len(final) == 16 * 3 and all(final[number] == scope for _, scopes, _ in seen for number, scope in scopes.items())
-    assert [len(scopes) for _, scopes, _ in seen] == sorted(len(scopes) for _, scopes, _ in seen)
-    # The same discovery and entry requests, each made once, and the same records: when they are asked differs, and
-    # the children windows, cut where a discovery window settles its records.
-    assert asked(new) == asked(old) and len(set(asked(new))) == len(asked(new))
-    assert len(asked(new, children=True)) == new.result["discovery"]["children"]["windows"] > len(asked(old, True))
-    assert read_as(new.result) == read_as(old.result)
-    assert [record["label"] for record in new.result["records"][:3]] == [None, "1", "2"]
-    assert new.result["discovery"]["entries"][1]["parent"] == new.result["discovery"]["entries"][0]["id"]
 
 
-def test_a_source_read_in_one_discovery_window_is_asked_under_defaults_10_what_defaults_9_asks(monkeypatch):
-    """Measured on a real 6-page report: a last record alone in a children window was carved differently."""
-    def whole(defaults):
-        attempt = Attempt(monkeypatch, unified_request(schema=RECORDS, defaults=defaults), graves(), threaded=False,
-                          label=str(defaults))
-        attempt.chat.script.discovery, attempt.chat.script.children = grave_starts, numbered_finds
-        rounds(attempt)
-        return attempt
-    old, new = whole(9), whole(10)
-    assert len(asked(new, children=True)) == 1 and asked(new, True) == asked(old, True) and asked(new) == asked(old)
-    assert read_as(new.result) == read_as(old.result)
-    assert new.result["discovery"]["children"] == old.result["discovery"]["children"] == {"windows": 1, "failed": 0}
 
 
-def test_defaults_10_saves_the_first_windows_records_before_the_second_window_is_read(monkeypatch):
+def test_the_first_windows_records_are_saved_before_the_second_window_is_read(monkeypatch):
     """The first value does not wait for a slow second window: its children windows end where the first discovery
     window settles its records."""
-    attempt = graves_attempt(monkeypatch, 10, graves(), chunks=1, order="last")  # the second window answers last
+    attempt = graves_attempt(monkeypatch, graves(), chunks=1, order="last")  # the second window answers last
     for _ in range(3000):
         assert attempt.plan() is None
         if attempt.lease.publications:
@@ -770,17 +702,17 @@ def test_defaults_10_saves_the_first_windows_records_before_the_second_window_is
     assert len(read) == 1 and attempt.planner.scopes
 
 
-def test_defaults_10_admits_a_children_call_before_the_next_discovery_window(monkeypatch):
-    seen = rounds(graves_attempt(monkeypatch, 10, graves(), chunks=2))
+def test_a_children_call_is_admitted_before_the_next_discovery_window(monkeypatch):
+    seen = rounds(graves_attempt(monkeypatch, graves(), chunks=2))
     both = [waiting for waiting, _, _ in seen if "C" in waiting and "D" in waiting]
     assert both and all(waiting.rindex("C") < waiting.index("D") for waiting in both)
 
 
-def test_a_pause_and_a_resumed_attempt_of_defaults_10_read_nothing_twice(monkeypatch):
+def test_a_pause_and_a_resumed_pipelined_attempt_read_nothing_twice(monkeypatch):
     source = graves()
-    whole = graves_attempt(monkeypatch, 10, source, label="whole")
+    whole = graves_attempt(monkeypatch, source, label="whole")
     rounds(whole)
-    attempt = graves_attempt(monkeypatch, 10, source, label="paused")
+    attempt = graves_attempt(monkeypatch, source, label="paused")
     for _ in range(3000):  # until the first records are saved while discovery still reads
         assert attempt.plan() is None
         if attempt.lease.publications and "D" in waits(attempt):

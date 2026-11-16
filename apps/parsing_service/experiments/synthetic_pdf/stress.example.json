@@ -9,7 +9,7 @@
   ],
   "methods": [
     {"id": "article-bounded", "options": {"strategy": "article", "article": {"context": "bounded", "context_tokens": 8192, "overlap_passages": 1, "grounding": "semantic"}}},
-    {"id": "catalog", "options": {"strategy": "catalog", "discovery_chars": 4000}}
+    {"id": "catalog", "options": {"strategy": "catalog", "unified": {"defaults": 11, "input_tokens": 4000}}}
   ],
   "repeats": 1,
   "parsing": {"model": "granite_vision", "url_env": "FREE_BENCH_OCR_URL"}

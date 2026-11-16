@@ -79,7 +79,7 @@ register an operator-managed instance of this server with `KEI_GLIFORMER_URL`
 in both parsing processes (API and worker): the API lists it, the worker runs
 it.
 
-It requires `FREE_CATALOG_METHOD=unified` in Studio and does not set it. Select
+Catalog always uses unified. Select
 **Model configuration → Models → Extracting data → Field values →
 knowledgator/gliformer-large-v1**, and keep **Reasoning** on the instruction
 model.

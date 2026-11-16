@@ -21,15 +21,7 @@ export function cataloguePdf(): Buffer {
   return textPdf([['Site catalogue', '1. Hill: pottery dated 1801.', '2. Valley: flint dated 1802.']])
 }
 
-/**
- * A numbered catalogue for the recipe path: a Kreis heading the entries inherit, and entry 32
- * continuing onto page 2, where its FA: value is printed. Docling joins the lines of one paragraph
- * with spaces, so two entries inside one segment are exercised by the service's unit fixtures and
- * the scanned catalogue, not by this native PDF.
- */
-export function numberedCataloguePdf(): Buffer {
-  return textPdf([['Kreis Heide', '31. Hill. FA: G.', '32. Valley.'], ['FA: EF.']])
-}
+
 
 export function textPdf(pages: string[][], layout: {fontSize?:number;lineHeight?:number} = {}): Buffer {
   const font = 3
@@ -104,23 +96,24 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
       }
       const system: string = body.messages.find((message: { role: string }) => message.role === 'system')?.content ?? ''
       const properties = body.response_format.json_schema.schema.properties
-      const candidates = Object.values(properties).some((field) =>
-        typeof field === 'object' && field !== null && 'properties' in field &&
-        'quote' in ((field as { properties: object }).properties))
-      const records = [...prompt.matchAll(/(?:Hill|Valley):\s*(?:pottery|flint) dated \d{4}/g)].map(match => {
+      const source = system.startsWith('You extract structured data from one record')
+        ? prompt.split('### RECORD\n')[1]?.split('\n### END RECORD')[0] ?? '' : prompt
+      const records = [...source.matchAll(/(?:Hill|Valley):\s*(?:pottery|flint) dated \d{4}/g)].map(match => {
         const [site, finds, year] = match[0].split(/:\s*| dated /)
         return { site, finds, year: Number(year) }
       })
       let answer: unknown
       if (system.startsWith('You find where records begin')) {
         // Unified discovery uses line labels and printed record identifiers.
-        const lines = [...prompt.matchAll(/^\[(L\d+)\] (.*)$/gm)]
+        const lines = [...prompt.matchAll(/^\[(L\d+)(?: heading| table row)?\] (.*)$/gm)]
         const places = lines.flatMap(([, label, text]) => {
           const starts = [...text!.matchAll(/(?<!\S)(\d+\.)(?=\s)/g)]
           return starts.map(start => [label, 'record', start[1], ...(start.index ? [text!.slice(start.index, start.index + 12)] : [])])
         })
         if (places.length !== 2) throw new Error(`Unified discovery did not receive both parsed entries: ${prompt}`)
         answer = { places, begins_inside_record: false, ends_inside_record: false }
+      } else if (system.startsWith('You list the records printed inside')) {
+        answer = { children: [] }
       } else if (system.startsWith('You extract structured data from one record')) {
         if (records.length !== 1) throw new Error(`Unified fields received ${records.length} records: ${prompt}`)
         const record = records[0]!
@@ -128,16 +121,6 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
           name in record ? { value: record[name as keyof typeof record], quote: String(record[name as keyof typeof record]) } : null]))
       } else if (system.startsWith('You check values extracted')) {
         answer = Object.fromEntries(Object.keys(properties).map(name => [name, 'supported']))
-      } else if (candidates) {
-        // One recipe entry: answer from the text between the ENTRY markers only, quoting it verbatim.
-        const entry = prompt.split('### ENTRY\n')[1]?.split('\n### END ENTRY')[0]
-        if (!entry) throw new Error(`Recipe call without an entry: ${prompt}`)
-        const kind = /FA: (\w+)/.exec(entry)
-        const site = /^\d+\.\s+([^.]+)/.exec(entry)
-        answer = Object.fromEntries(Object.keys(properties).map((name) => [name,
-          name === 'fundart' && kind ? { value: kind[1], quote: kind[0], key: 'FA:', provenance: 'token' }
-            : name === 'site_name' && site ? { value: site[1], quote: site[1], key: null, provenance: 'positional' }
-              : null]))
       } else if (system.startsWith(DOCUMENT_INSTRUCTION)) {
         // Article: the whole source is one object, so every entry it states belongs in that object's array.
         if (options.articleReading) answer = options.articleReading(prompt)
@@ -146,19 +129,15 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
           if (records.length !== 2) throw new Error(`Article call did not receive both entries: ${prompt}`)
           answer = { sites: records }
         }
-      } else if ('starts' in properties) {
-        const starts = [...prompt.matchAll(/\[(B\d+)\]([^]*?)(?=\[B\d+\]|$)/g)]
-          .filter(match => /Hill:|Valley:/.test(match[2])).map(match => match[1])
-        if (starts.length !== 2) throw new Error(`Discovery did not receive both parsed entries: ${prompt}`)
-        answer = { starts, end: null }
-      } else if ('site' in properties) {
-        if (records.length !== 1) throw new Error(`Record extraction received ${records.length} records: ${prompt}`)
-        answer = records[0]
-      } else if (Object.keys(properties).every(key => /^C\d+$/.test(key))) {
+      } else if (Object.keys(properties).every(key => /^[CG]\d+$/.test(key))) {
         const claims = [...prompt.matchAll(/^(C\d+) \([^\n]*\): ([^\n]+)$/gm)]
         const evidence = [...prompt.matchAll(/^(E\d+): ([^\n]+)$/gm)]
-        answer = Object.fromEntries(claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) =>
-          [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE']))
+        const heading = evidence.find(([, , text]) => text.includes('Site catalogue'))?.[1]
+        // Article asks each list item's attribution context once (G keys); a claim (C keys) answers with its label.
+        answer = Object.fromEntries([
+          ...Object.keys(properties).filter(key => key.startsWith('G')).map(group => [group, heading ? [heading] : []]),
+          ...claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) =>
+            [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE'])])
       } else throw new Error(`Unexpected model template: ${JSON.stringify(properties)}`)
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })
