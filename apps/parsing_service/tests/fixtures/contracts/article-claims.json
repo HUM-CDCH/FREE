@@ -462,8 +462,6 @@
  "options": {
   "strategy": "article",
   "models": null,
-  "discovery_chars": 48000,
-  "record_chars": 24000,
   "article": {
    "context": "bounded",
    "context_tokens": 8192,

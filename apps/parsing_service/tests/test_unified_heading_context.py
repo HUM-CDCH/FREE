@@ -3,7 +3,7 @@ import pytest
 
 from kei_exp.kie.extract import discovery, unified
 from kei_exp.kie.extract.discovery import Window
-from tests.test_extract_grounded import WordCounter
+from tests.helpers.extraction import WordCounter
 from tests.test_unified_catalog import Model, candidate, evidence, extract as catalog_extract, section, text
 
 SCHEMA = {"recordDescription": "One numbered catalogue entry.", "schemaNodes": [
@@ -256,7 +256,7 @@ def test_a_derived_boolean_can_remain_a_heading_supported_proposal():
 def test_a_pipelined_derived_heading_candidate_is_never_published_as_accepted_evidence():
     from kei_exp.kie.extract import run
     from tests.test_durable_extraction import MemoryLease, drive
-    from tests.test_extract_grounded import CountingChat
+    from tests.helpers.extraction import CountingChat
     from tests.test_unified_catalog import request
 
     source = evidence(*(f"Kreis Moor, 1750-1799\n{number}. Site{number}." for number in range(1, 7)))

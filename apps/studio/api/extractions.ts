@@ -84,7 +84,6 @@ export function createResearcherApiHandlers(
       sourceRepresentationRevisionId: parsed.data.sourceRepresentationRevisionId,
       schemaRevisionId: parsed.data.schemaRevisionId,
       strategy: parsed.data.strategy,
-      ...(parsed.data.catalogRecipe ? { catalogRecipe: parsed.data.catalogRecipe } : {}),
       method: parsed.data.method,
       startPage: parsed.data.startPage ?? null,
     }

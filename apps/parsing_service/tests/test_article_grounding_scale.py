@@ -15,7 +15,7 @@ from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.method import LimitedCounter
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import Issue, leaves
-from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
+from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import evidence, passages
 
 SCHEMA = Schema.model_validate({"recordDescription": "One price list.", "schemaNodes": [

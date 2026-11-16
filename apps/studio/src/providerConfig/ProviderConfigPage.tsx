@@ -231,7 +231,6 @@ function ModelConfigurationEditor({ accountId, onClose, initialFocusRef }: PageP
             editor={editor}
             focusIssue={focusIssue}
             onIssueFocused={() => setFocusIssue(false)}
-            unifiedCatalog={deployment.unifiedCatalog === true}
           />
         ) : (
           <ConnectionsTab

@@ -39,7 +39,7 @@ describe('durable extraction admission client', () => {
     sourceDocumentId: '44444444-4444-4444-8444-444444444444',
     sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
     schemaRevisionId: '33333333-3333-4333-8333-333333333333',
-    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null,
+    strategy: 'ARTICLE', requestedModels: null, requestedSettings: null,
     executionStatus: 'QUEUED', finalizedReview: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z',
   }
 

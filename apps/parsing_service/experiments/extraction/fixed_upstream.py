@@ -100,7 +100,7 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     documents, calls, issues = [], [], []
     for context in contexts:
         document, attempts, problems = extract_document(replace(evidence, passages=context.passages), schema,
-            router, budget=expected["options"]["record_chars"], counter=counters["fields"])
+            router, budget=24_000, counter=counters["fields"])
         documents.append(document)
         calls += attempts
         issues += problems
@@ -111,7 +111,7 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     # Resolution first shipped in version 12; older artifacts contain no such calls.
     resolved = {"resolve_parts": expected.get("article_version", 1) >= 12} if upstream is document_root else {}
     extracted = upstream(evidence.passages, schema, router, counters=counters,
-        record_chars=expected["options"]["record_chars"], method=method, contexts=contexts, **resolved)
+        record_chars=24_000, method=method, contexts=contexts, **resolved)
     calls += extracted.calls
     issues += extracted.issues
     records = [merge(fields, document, evidence.source_name, schema) for _, fields in extracted.slices]

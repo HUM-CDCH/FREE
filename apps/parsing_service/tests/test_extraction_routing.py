@@ -10,7 +10,7 @@ from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import spans
 from kei_exp.kie.extract.routing import rank_units, value_origins, verify_routed
-from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
+from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_extraction_rendering import table_passage
 

@@ -73,14 +73,6 @@ class ArticleOptions(BaseModel):
 REFERENCE = ArticleOptions()
 
 
-class CatalogFactors(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    glossary: bool = True
-    headings: bool = True
-    overlap: bool = True
-    verification: bool = True
-
-
 class LimitedCounter:
     """Count the exact serving template while enforcing a fixed experimental context ceiling."""
     def __init__(self, counter, limit: int):

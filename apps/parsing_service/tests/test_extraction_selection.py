@@ -59,7 +59,7 @@ def test_under_document_scope_every_unit_is_the_documents_support_and_none_is_om
     passage, so the pipeline selects every unit and reads every one (the unit-level rules are tested above)."""
     from kei_exp.kie.extract import run
     from kei_exp.kie.extract.models import Router
-    from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
+    from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
     from tests.test_extract_stages import evidence
 
     source = passages(["Alpha " + "description " * 3000, "qualifier " * 3000,

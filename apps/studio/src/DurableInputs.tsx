@@ -29,7 +29,6 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
   const selection=baseline.read.pendingSelection??baseline.read.selection
   const used=selection.method
   const pinned=used.settings&&'unified' in used.settings?used.settings.unified.defaults:undefined
-  const unified=pinned!==undefined
   const [schemaId,setSchemaId]=useState<string>(selection.schemaRevisionId)
   const [listing,setListing]=useState<ExtractionModelListing|null>(null)
   const [error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
@@ -67,7 +66,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
     if(!editor.draft)return
     setBusy(true);setError(null)
     try {
-      const edited=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy,baseline.read.selection.resolved.catalogRecipe,unified)
+      const edited=activeMethod(editor.draft.extractionModels,editor.draft.extractionSettings,attempt.strategy)
       // The editor holds account-shaped settings, which carry no defaults version: keep the one this Extraction runs under
       // (so verification stays that version's, never Pro mode's).
       // Left as the whole source it ran, an Extraction recorded without Article settings keeps that record.
@@ -93,7 +92,7 @@ export function DurableInputs({attempt,state,acknowledged,currentSchema,onSaved,
             defaultKey={listing?.defaults[role]} choices={listing?.models.filter(model=>model.roles.includes(role)).map(model=>({key:model.key,name:model.repo,serving:model.serving}))??null}
             unserved="Not serving" onChange={(key:string)=>editor.setExtractionModel(role,key)}/>
         </label>)}
-        <AdvancedTab draft={editor.draft} saved={editor.saved} editor={editor} focusIssue={false} onIssueFocused={noProbe} unifiedCatalog={unified} unifiedDefaults={pinned}
+        <AdvancedTab draft={editor.draft} saved={editor.saved} editor={editor} focusIssue={false} onIssueFocused={noProbe} unifiedDefaults={pinned}
           extractionStrategy={attempt.strategy==='ARTICLE'?'article':'catalog'} unrecordedArticle={'article' in used.settings&&used.settings.article===null}/>
       </>}
       {editor.settingsIssues.map(issue=><p key={issue.path} role="alert" className="text-secondary text-danger [overflow-wrap:anywhere]">{issue.message}</p>)}

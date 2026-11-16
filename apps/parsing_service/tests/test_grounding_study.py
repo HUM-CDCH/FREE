@@ -13,7 +13,7 @@ from experiments.extraction.manifest import pin, read, write_new
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.models import Router
-from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
+from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 

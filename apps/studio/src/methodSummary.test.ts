@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { REFERENCE_ARTICLE, REFERENCE_CATALOG, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
+import { REFERENCE_ARTICLE, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
 import { methodLines, modelsLine, settingsHeadline, unifiedLines } from './methodSummary'
 
 describe('method summaries', () => {
@@ -7,13 +7,9 @@ describe('method summaries', () => {
     expect(settingsHeadline(null)).toBe('Not recorded')
     // Recorded without Article settings: the whole source it ran, the service defaults of its time.
     expect(settingsHeadline({ article: null })).toBe('Full source · Plain text · Source-label verification (service defaults when admitted)')
-    expect(settingsHeadline({ generic: null })).toBe('Service defaults')
+    expect(settingsHeadline({ unified: { defaults: 10 } })).toBe('Unified Catalog, defaults version 10')
     expect(settingsHeadline({ article: { ...REFERENCE_ARTICLE, context: 'bounded', grounding: 'spans' } }))
       .toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification · Large checks in windows')
-    expect(settingsHeadline({ recipe: REFERENCE_CATALOG.recipe! })).toBe('Input budget 4,096 tokens · Output reserve 1,024 tokens · All factors on')
-    expect(settingsHeadline({ recipe: { factors: { glossary: true, headings: true, overlap: true, verification: false } } }))
-      .toBe('Input budget service default · Output reserve service default · Off: verification')
-    expect(settingsHeadline({ generic: { record_chars: 30000 } })).toBe('Discovery text limit service default · Record text limit 30,000 characters')
   })
 
   it('list every Article control, leaving the unused ceiling out', () => {

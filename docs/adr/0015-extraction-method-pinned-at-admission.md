@@ -21,9 +21,7 @@ admitted with.
 
 - **Extraction Method Settings live in the account's configuration.** They are
   part of the one Model Configuration document, as a required
-  `extractionSettings` member with one member per strategy (Article; generic and
-  recipe Catalog, and the unified Catalog preference where
-  `FREE_CATALOG_METHOD=unified`). `{}` means the Parsing Service's defaults
+  `extractionSettings` member with one member per strategy (Article and the unified Catalog preference). `{}` means the Parsing Service's defaults
   (for Article, see the 2026-11-02 amendment).
   They are edited on the page's Advanced tab through the same draft, Apply and
   Discard. They never hold a key and never edit an Extraction Schema.
@@ -95,3 +93,15 @@ replays: the whole source without windows. A Studio page loaded before this
 default still submits `article: null`. For an account without saved Article
 settings, admission accepts that as recorded, without windows. Catalog's `{}`
 is unchanged.
+
+## Amendment (2026-11-16)
+
+Unified is the only Catalog method, for single and batch admission and the Python CLI. Generic and recipe
+executors, their settings, the recipe selector and the rollout gate are removed. The forward migration removes
+retired account Catalog preferences without converting character limits into token budgets, preserving live
+unified overrides and Article settings. It drops `extraction.catalogRecipe`. Existing generic/recipe pins are
+no longer executable; drain their work before deployment and start fresh Extractions where needed.
+
+Article's semantic, quoted, span and off verification remain live. A Schema Revision without `recordScope` remains
+an editable Studio draft and still waits for the researcher's strategy choice before admission. This decision
+changes the supported product method; it makes no new claim about held-out accuracy.

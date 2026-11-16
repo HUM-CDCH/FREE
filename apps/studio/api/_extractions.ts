@@ -47,7 +47,6 @@ export function extractionAttemptDto(extraction: ExtractionAttemptSnapshot) {
     sourceRepresentationRevisionId: extraction.sourceRepresentationRevisionId,
     schemaRevisionId: extraction.schemaRevisionId,
     strategy: extraction.strategy,
-    catalogRecipe: extraction.catalogRecipe,
     requestedModels: extraction.requestedModels ?? null,
     requestedSettings: extraction.requestedSettings ?? null,
     executionStatus: extraction.executionStatus,

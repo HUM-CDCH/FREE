@@ -1291,7 +1291,7 @@ describe('BatchExtractionsPanel', () => {
       if (chosen) return chosen
       throw new Error(`Unexpected request: ${url}`)
     }))
-    saved.state = { status: 'ready', config: saved.config(), unifiedCatalog: true }
+    saved.state = { status: 'ready', config: saved.config(), }
     renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Custom Batch Extraction' }))
     await screen.findByLabelText('Extraction Template fields')
@@ -1472,7 +1472,7 @@ describe('BatchExtractionsPanel', () => {
       status: 'ready',
       config: saved.config({
         extractionModels: { fields: 'instruct' },
-        extractionSettings: { catalog: { generic: { record_chars: 30_000 } } },
+        extractionSettings: { catalog: { unified: { input_tokens: 30_000 } } },
       }),
     }
     renderPanel()
@@ -1510,7 +1510,7 @@ describe('BatchExtractionsPanel', () => {
       expect.objectContaining({
         strategy: 'CATALOG',
         schemaRevisionId: appendedRevisionId,
-        method: { models: { fields: 'instruct' }, settings: { generic: { record_chars: 30_000 } } },
+        method: { models: { fields: 'instruct' }, settings: { unified: { defaults: 10, input_tokens: 30_000 } } },
       }),
     )
   })

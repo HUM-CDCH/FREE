@@ -1,4 +1,4 @@
-"""The version 1 artifact, assembled the same way for Article and the version 1 Catalog.
+"""The Article version 1 artifact.
 
 Each strategy finds its records and reads their values its own way; what they share after that lives here: the
 document-level values read in each context and reconciled across them, each record's values grounded through the
@@ -146,7 +146,7 @@ class GroundingResult:
 
 def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Schema, chat, *,
                    budget: int, counter=None,
-                   method: ArticleOptions | None = None, identities: Sequence[dict] | None = None,
+                   method: ArticleOptions, identities: Sequence[dict],
                    contexts: Sequence[Context] = (), value_contexts: Sequence[Sequence[Context]] = (),
                    origins: Sequence[Sequence[dict]] = (), resume: frozenset = frozenset(),
                    on_batch: Callable[[Sequence[Link]], None] | None = None) -> GroundingResult:
@@ -155,15 +155,14 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
     Article supplies identities and complete source contexts; each claim is routed to the context its value was read
     from first (`routing.verify_routed`: exhaustive fallback, stopping at support) and shown with its enclosing items'
     fields rather than the whole root (`grounding.verify`'s `projected`), each link with its value's one printing when
-    there is one (`located`). Generic Catalog uses the owned passages in each slice, its links unlocated. Neither path
-    extracts or reconciles values here. `resume` names paths an earlier grounding of the same values already
+    there is one (`located`). This stage never extracts or reconciles values. `resume` names paths an earlier grounding of the same values already
     supported: they are not checked again. `on_batch` runs after each grounding batch with the links it made.
     """
     result = GroundingResult()
-    verifier = grounding.technique(method.grounding if method is not None else None)
-    for number, (group, fields) in enumerate(slices):
+    verifier = grounding.technique(method.grounding)
+    for number, (_, fields) in enumerate(slices):
         skipped_paths = set()
-        if method is not None and method.evidence_policy == "schema":
+        if method.evidence_policy == "schema":
             for path, _ in leaves(fields):
                 policy = evidence_policy(schema.record_nodes, path)
                 if policy != "quoted":
@@ -172,30 +171,18 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
                     result.skipped.append({"path": list(full_path), "policy": policy})
                     result.issues.append(Issue("evidence_policy_skipped", f"{policy}: source verification not requested",
                                                number, full_path))
-        groups = [c.passages for c in contexts] if identities is not None else [group]
         verification = dict(record=number, budget=budget, counter=counter,
             record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
-                ensure_ascii=False)) if identities is not None else None,
+                ensure_ascii=False)),
             proofs=result.proofs, on_batch=on_batch)
-        if identities is not None:
-            links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
-                origins=origins[number], value_contexts=value_contexts[number],
-                skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, located=True,
-                windows=method is not None and method.grounding_overflow == "windows", **verification)
-            result.links += links
-            result.calls += calls
-            result.issues += issues
-            result.routes += routes
-            groups = []
-        for group in groups:
-            links, calls, issues = verifier(group, fields, schema, chat,
-                skip_paths=frozenset(skipped_paths | ({link.path for link in result.links}
-                    if method is not None and method.grounding_schedule == "unresolved" else set())), **verification)
-            # Retain the first support in execution order; all calls/proofs remain auditable.
-            known = {link.path for link in result.links}
-            result.links += [link for link in links if link.path not in known]
-            result.calls += calls
-            result.issues += issues
+        links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
+            origins=origins[number], value_contexts=value_contexts[number],
+            skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, located=True,
+            windows=method.grounding_overflow == "windows", **verification)
+        result.links += links
+        result.calls += calls
+        result.issues += issues
+        result.routes += routes
     return result
 
 

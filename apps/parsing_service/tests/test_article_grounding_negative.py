@@ -21,7 +21,7 @@ from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import leaves
 from kei_exp.pagefile import PageTable, TableCell
 from tests.test_article_grounding_scale import SCHEMA, labelling
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import passages
 
 GROUPED = Schema.model_validate({"recordDescription": "One price list.", "schemaNodes": [

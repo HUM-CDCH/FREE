@@ -629,9 +629,9 @@ for (const [provider, overlay, login] of [
 
 test('no deployment admits new Catalog work on the unified method unless its operator sets the gate', () => {
   const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
-  assert.equal(services.studio.environment.FREE_CATALOG_METHOD, '')
+  assert.equal(services.studio.environment.FREE_CATALOG_METHOD, undefined)
   const base = readFileSync(resolve(ROOT, 'compose.yaml'), 'utf8')
-  assert.ok(base.includes('FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"'), 'the unified Catalog stays behind its rollout gate')
+  assert.ok(!base.includes('FREE_CATALOG_METHOD'), 'Catalog has no rollout gate')
 })
 
 test('app shell: the production policy is strict about script, workers and framing', async () => {

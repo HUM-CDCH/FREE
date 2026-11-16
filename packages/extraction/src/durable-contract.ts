@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { schemaNodeSchema, schemaPathNames, isRecord } from './schema.js'
-import { evidenceAnchorIdOf, evidenceSchema, groundedEvidenceSchema, unifiedEvidenceSchema } from './kei-evidence.js'
+import { evidenceAnchorIdOf, evidenceSchema, unifiedEvidenceSchema } from './kei-evidence.js'
 import { segmentPage } from './parsed-document.js'
 
 export const DURABLE_EXTRACTION_PROTOCOL = 1 as const
@@ -25,7 +25,7 @@ export const durableValueSchema = z.object({
   selectionId: z.uuid(), schemaRevisionId: z.uuid(), node: schemaNodeSchema,
   modelValue: z.unknown(), evidence: z.array(z.object({
     anchorId: z.string().min(1), occurrenceIds: z.array(z.string()),
-    producer: z.union([unifiedEvidenceSchema, groundedEvidenceSchema, evidenceSchema]),
+    producer: z.union([unifiedEvidenceSchema, evidenceSchema]),
   }).strict()),
   grounding: z.enum(['grounded', 'ungrounded', 'provisional']),
   processing: z.enum(['saved', 'absent', 'unprocessed', 'failed']),

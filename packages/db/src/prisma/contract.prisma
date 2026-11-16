@@ -564,7 +564,6 @@ model Extraction {
   sourceRepresentationRevisionId Uuid
   strategy                       String
   // The numbered-catalogue recipe (`id@version`) a Catalog Extraction segments by; null for generic Catalog and Article.
-  catalogRecipe                  String?
   // The Extraction Model Choice requested at admission; null keeps kei-exp's defaults. The models each role ran on are
   // in `diagnostics.models`; `modelAttribution` names the fields model.
   requestedModels                Json?

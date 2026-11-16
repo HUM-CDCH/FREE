@@ -11,7 +11,7 @@ from pydantic import ValidationError
 from kei_exp.kie.extract import gliformer, models, run, unified
 from kei_exp.kie.extract.gliformer import GLiFormerFields, native_schema
 from kei_exp.kie.extract.models import Router
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_unified_catalog import Model, evidence
 
 SCHEMA = {"recordDescription": "Only numbered grave catalogue entries, excluding narrative summaries.",
@@ -85,8 +85,6 @@ def test_studio_admission_contract_matches_service(case, monkeypatch):
         options["models"] = method["models"]
     if settings is not None:
         options[slot] = settings
-    if slot == "recipe":
-        options["catalog"] = {"recipe": "numbered-catalogue-de@1"}
     body = {"schema": case["schema"], "options": options}
     if case["accepted"]:
         run.ExtractRequest.model_validate(body)
@@ -110,7 +108,7 @@ def test_unsupported_semantics_are_rejected_before_any_call(field):
 
 
 def test_unsupported_methods_and_explicit_controls_are_not_ignored():
-    for options in ({"strategy": "article"}, {}, {"unified": {"defaults": 1, "headings": True}},
+    for options in ({"strategy": "article"}, {"unified": {"defaults": 1, "headings": True}},
                     {"unified": {"defaults": 1, "verification": True}}):
         with pytest.raises(ValidationError):
             run.ExtractRequest.model_validate({"schema": {**SCHEMA, "recordScope": None},

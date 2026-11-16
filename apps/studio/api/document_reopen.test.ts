@@ -27,7 +27,6 @@ const extraction: ExtractionAttemptSnapshot = {
   extractionSchemaId,
   schemaRevisionNumber: 2,
   strategy: 'ARTICLE',
-  catalogRecipe: null,
   requestedModels: null,
   requestedSettings: { article: null },
   executionStatus: 'COMPLETED',

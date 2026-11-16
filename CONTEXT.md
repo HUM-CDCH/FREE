@@ -61,7 +61,7 @@ An Extraction Strategy whose result is exactly one document-level object (Record
 _Avoid_: article mode, narrative mode, direct extraction
 
 **Catalog Extraction Strategy**:
-An Extraction Strategy whose result is a collection of record objects (Record Scope `records`), each of which may contain arrays. It discovers the repeated records in canonical Source Context, extracts each separately, and combines them under the result's records collection; an empty collection is a valid result. Generic, recipe and unified Catalog are methods of this strategy, not scopes.
+An Extraction Strategy whose result is a collection of record objects (Record Scope `records`), each of which may contain arrays. It discovers the repeated records in canonical Source Context, extracts each separately, and combines them under the result's records collection; an empty collection is a valid result. Unified is the only Catalog method.
 _Avoid_: catalog mode, hierarchical extraction, schema-guided extraction
 
 **Record Scope**:
@@ -185,11 +185,11 @@ A Researcher Account's saved choices, per Extraction Strategy, of how future Ext
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, recipe (a single recipe Catalog Extraction only; a Batch Extraction has none), Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version; an Article Extraction recorded without settings ran the whole source. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version; an Article Extraction recorded without settings ran the whole source. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:
-The versioned Catalog method a deployment can enable for new single and batch Catalog Extractions instead of the generic and recipe Catalog methods: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and through defaults version 5 accepts a candidate only after a separate verification. From version 6 it reads each value once: code accepts a value whose quote it locates in the record (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence; an account's Pro mode admits version 5 instead, which reads every value a second time. Studio admits version 10 for new ordinary runs, pipelining children discovery for settled records: the schema defines peer records, enclosing records retain separately discovered children, and explicitly identified shared table qualifications inform field interpretation without becoming record text. It needs no recipe, language, numbering convention, field name or particular model.
+The sole, versioned method for single and batch Catalog Extractions: it discovers records over the complete admitted source, gives every nonblank source range a disposition, and through defaults version 5 accepts a candidate only after a separate verification. From version 6 it reads each value once: code accepts a value whose quote it locates in the record (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence; an account's Pro mode admits version 5 instead, which reads every value a second time. Studio admits version 10 for new ordinary runs, pipelining children discovery for settled records: the schema defines peer records, enclosing records retain separately discovered children, and explicitly identified shared table qualifications inform field interpretation without becoming record text. It needs no recipe, language, numbering convention, field name or particular model.
 _Avoid_: generic Catalog, recipe Catalog, model discovery
 
 **Ingestion Model Choice**:

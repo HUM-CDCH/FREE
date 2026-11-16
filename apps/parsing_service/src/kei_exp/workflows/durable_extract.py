@@ -20,7 +20,6 @@ from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat, composed_order
 from kei_exp.kie.extract.gliformer import GLiFormerFields
 from kei_exp.kie.extract.captured_provider import CapturedChat, FormatRefused
 from kei_exp.kie.extract.method import ArticleOptions
-from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.unified import UnifiedOptions
 from kei_exp.kie.extract.models import Router, resolve, routes
 from kei_exp.kie.extract.run import ExtractRequest, dispatch, Options
@@ -122,7 +121,7 @@ def effective(lease):
         # deployment model availability validator is relevant only at admission.
         from kei_exp.kie.extract.schema import Schema
         options = Options.model_construct(**pinned["options"])
-        for name, kind in (("article", ArticleOptions), ("catalog", CatalogOptions), ("unified", UnifiedOptions)):
+        for name, kind in (("article", ArticleOptions), ("unified", UnifiedOptions)):
             if getattr(options,name) is not None:
                 setattr(options,name,kind.model_validate(getattr(options,name)))
         request = ExtractRequest.model_construct(schema_=Schema.model_validate(selected["schemaTree"]),options=options)
@@ -146,8 +145,6 @@ def effective(lease):
     # Nested method serializers own optional fields; exclude_none would remove
     # their keys before Article's serializer can apply its canonical contract.
     frozen_options = {name: value for name, value in request.options.model_dump().items() if value is not None}
-    if request.options.unified is not None:
-        frozen_options.pop("discovery_chars",None); frozen_options.pop("record_chars",None)
     pinned = lease.call("resolve_selection", {"models": models, "options": frozen_options, "planner": 1,
                                              "protocols": {"calls": 1, "source": request.record_scope}})
     lease.state["effective"] = pinned["configuration"]
@@ -280,7 +277,7 @@ def plan_next(extraction: str, attempt: str) -> dict:
         evidence = load(directory)
         if evidence.generation != source["generation"]:
             raise ValueError("pinned source generation is unavailable")
-        evidence = planner.filter_evidence(evidence) if request.options.catalog is None else evidence
+        evidence = planner.filter_evidence(evidence)
         if not evidence.passages:
             return {"historicalOnly":True}
         try:

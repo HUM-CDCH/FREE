@@ -13,7 +13,7 @@ from kei_exp.kie.extract import run, unified
 from kei_exp.kie.extract.llm import OpenAIChat
 from tests import test_unified_catalog as catalog
 from tests.test_durable_extraction import MemoryLease, finish, linked_while_running
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_unified_catalog import NOTES, START, Model, candidate, evidence, extract, fields, noted
 
 

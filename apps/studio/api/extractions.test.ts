@@ -34,7 +34,6 @@ const attemptSnapshot: ExtractionAttemptSnapshot = {
   extractionSchemaId: '51000000-0000-4000-8003-000000000001',
   schemaRevisionNumber: 4,
   strategy: 'ARTICLE',
-  catalogRecipe: null,
   requestedModels: null,
   requestedSettings: { article: null },
   executionStatus: 'QUEUED',
@@ -145,7 +144,6 @@ describe('/api/extractions transport', () => {
 
   it.each([
     ['method_changed', 409],
-    ['catalog_migration_required', 409],
     ['record_scope_required', 409],
     ['record_scope_mismatch', 409],
     ['invalid_identity_fields', 422],
@@ -187,18 +185,18 @@ describe('/api/extractions transport', () => {
     const missing: Partial<typeof fresh> = { ...fresh }
     delete missing.method
     expect((await handlerFor(module)(request(missing))).status).toBe(422)
-    expect((await handlerFor(module)(request({ ...fresh, method: { models: null, settings: { generic: null } } }))).status).toBe(422)
+    expect((await handlerFor(module)(request({ ...fresh, method: { models: null, settings: { unified: { defaults: 10 } } } }))).status).toBe(422)
     expect(module.runSingle).not.toHaveBeenCalled()
   })
 
   it('passes the Catalog recipe chosen for an Extraction to runSingle', async () => {
     const module = extractionModule()
     await handlerFor(module)(request({
-      ...fresh, strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1', method: { models: null, settings: { recipe: null } },
+      ...fresh, strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 10 } } },
     }))
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'fresh', strategy: 'CATALOG', catalogRecipe: 'numbered-catalogue-de@1',
-      method: { models: null, settings: { recipe: null } },
+      kind: 'fresh', strategy: 'CATALOG',
+      method: { models: null, settings: { unified: { defaults: 10 } } },
     }))
   })
 

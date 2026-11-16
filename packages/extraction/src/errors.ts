@@ -28,7 +28,6 @@ export type ExtractionErrorCode =
   | 'incompatible_extraction_model'
   | 'invalid_model_config'
   | 'invalid_extraction_method'
-  | 'catalog_migration_required'
   /** The pinned Schema Revision declares no record scope: a legacy definition needs Article or Catalog chosen. */
   | 'record_scope_required'
   /** The requested Extraction Strategy is not the one the pinned Schema Revision's record scope names. */

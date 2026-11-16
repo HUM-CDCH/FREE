@@ -52,7 +52,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
     statuses: async () => new Map(),
   }
   const persistence = createResearcherExtractionPersistence(owner, execution, { database: db })
-  const method = accountMethod(null, 'ARTICLE', null)  // what an account that never applied settings is shown
+  const method = accountMethod(null, 'ARTICLE')  // what an account that never applied settings is shown
   const single: RunSingleInput = { kind: 'fresh', extractionId: randomUUID(), sourceRepresentationRevisionId: documents[0].revisionId, schemaRevisionId: revisionId, strategy: 'ARTICLE', method }
   const batch: ScheduleBatchInput = { projectContextId: projectId, schemaRevisionId: revisionId, strategy: 'ARTICLE', method, sourceDocumentIds: documents.map(document => document.id), repetition: 'create-new' }
   const counts = async () => (await admin.query(`SELECT
@@ -170,7 +170,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   // single and equal-selection batch replays retain their admitted methods after that Apply.
   const savedConfiguration={connections:[],routes:{schemaSuggestion:null,interaction:null},extractionModels:{},
     ingestionModels:{},extractionSettings:{article:changedArticle}}
-  assert.deepEqual(accountMethod(savedConfiguration,'ARTICLE',null),changedMethod)
+  assert.deepEqual(accountMethod(savedConfiguration,'ARTICLE'),changedMethod)
   await assert.rejects(withHeldSourceDocumentLock(target.url,documents[1].id,
     ()=>persistence.scheduleExtraction({...single,extractionId:randomUUID(),sourceRepresentationRevisionId:documents[1].revisionId}),
     async run=>{await run('INSERT INTO public."modelConfiguration" ("researcherAccountId",document) VALUES ($1,$2)',

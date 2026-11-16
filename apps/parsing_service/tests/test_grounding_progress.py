@@ -29,7 +29,7 @@ from kei_exp.kie.extract.schema import Schema
 from kei_exp.pagefile import PageTable, TableCell
 from kei_exp.workflows import durable_extract as worker
 from tests.test_durable_extraction import Counter, MemoryLease
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 

@@ -11,7 +11,7 @@ import subprocess
 from datetime import UTC, datetime
 from pathlib import Path
 
-from kei_exp.kie.extract.method import ArticleOptions, CatalogFactors
+from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.passages import load
 from .manifest import code_pin, pin, read, validate, write_new
 
@@ -49,14 +49,7 @@ def register(root: Path, service: Path) -> dict:
                        ("bounded", "schema", "context"), ("quoted", "bounded", "grounding"),
                        ("full_quoted", "schema", "grounding"), ("overlap", "bounded", "overlap_passages"),
                        ("unverified", "bounded", "grounding")]]
-    methods["catalog"] = {"strategy": "catalog", "models": models, "catalog": {
-        "recipe": "headed-graves-da@1", "input_tokens": 4096, "output_tokens": 2048,
-        "factors": CatalogFactors().model_dump()}}
-    for name, factor in [("catalog_no_overlap", "overlap"), ("catalog_unverified", "verification")]:
-        methods[name] = copy.deepcopy(methods["catalog"])
-        methods[name]["catalog"]["factors"][factor] = False
-        comparisons.append({"control": "catalog", "treatment": name, "factor": f"catalog.factors.{factor}"})
-    methods["generic_catalog"] = {"strategy": "catalog", "models": models}
+    methods["catalog"] = {"strategy": "catalog", "models": models, "unified": {"defaults": 10}}
     sources = []
     gold = read(root / "snapshot/validation/adjudicated-v1/gold.corrected.json")
     identity = ["scientific_name", "tissue", "sample_scope", "sample_fraction"]
@@ -73,10 +66,10 @@ def register(root: Path, service: Path) -> dict:
                   "research-paper.json": ["study_title"], "archaeology-report.json": ["site_name", "report_id"],
                   "collagen-groups.json": [*identity, "sample_group"], "grave-entry.json": ["grave_id"]}[Path(item["schema"]).name]
         selected = ["reference", "schema", "bounded"] if item["strategy"] == "article" else [
-            "generic_catalog", "catalog", "catalog_no_overlap", "catalog_unverified"]
+            "catalog"]
         sources.append(source(name, root / f"fix/examples/conversions/{variant}", Path(item["schema"]), selected, fields,
                               pdf=pdfs[item["source_sha256"]]))
-    return {"version": 1, "id": "extraction-ablation-20260927-r1", "registered_at": datetime.now(UTC).isoformat(),
+    return {"version": 1, "id": "extraction-ablation-unified-catalog-20261116", "registered_at": datetime.now(UTC).isoformat(),
             "base_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=service, text=True).strip(),
             "code_files": code_pin(service), "methods": methods, "sources": sources, "comparisons": comparisons,
             "interactions": [{"label": "context_by_grounding", "baseline": "schema", "a": "bounded",
@@ -89,8 +82,8 @@ def register(root: Path, service: Path) -> dict:
                            "scorer": pin(root / "snapshot/validation/evaluation-v1/score.py")},
             "primary_metric": "Per-document populated sample-field lower-bound accuracy on six development papers",
             "uncertainty": "Paired document bootstrap, seed 20260927, 10000 draws; descriptive only",
-            "scope": "79 fresh cells on 16 existing canonical sources. No held-out claim. No new OCR in this study.",
-            "catalog_scope": "One Danish grave excerpt: overlap and verification. No glossary/headings in this excerpt; those factors have scripted contract tests only.",
+            "scope": f"{sum(len(item['methods']) for item in sources)} cells on {len(sources)} existing canonical sources. No held-out claim. No new OCR.",
+            "catalog_scope": "Catalog uses unified defaults 10 without recipe factors; this registration makes no Catalog ablation claim.",
             "adaptation": "Paper-inspired components, not complete replications of trained LMDX, Tan or Multi-VIE models."}
 
 

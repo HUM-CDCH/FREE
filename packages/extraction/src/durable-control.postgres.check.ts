@@ -29,7 +29,7 @@ test('boolean review requires decisions and finalizes without legacy grounding c
   ]
   const tree = {recordDescription: 'One source record', schemaNodes: nodes}
   for (const [index, strategy] of (['ARTICLE', 'CATALOG'] as const).entries()) await t.test(strategy, async () => {
-    const id = randomUUID(), schemaRevisionId = randomUUID(), settings = strategy === 'ARTICLE' ? {article: null} : {generic: null}
+    const id = randomUUID(), schemaRevisionId = randomUUID(), settings = strategy === 'ARTICLE' ? {article: null} : { unified: { defaults: 10 } }
     await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
       [schemaRevisionId, 2 + index, tree, strategy === 'ARTICLE' ? 'document' : 'records', fixture.revisions.article])
@@ -39,7 +39,7 @@ test('boolean review requires decisions and finalizes without legacy grounding c
     try {
       await initializeDurableExtraction(admin as never, id, {projectContextId: fixture.projectContextId,
         sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId, schemaTree: tree,
-        strategy, catalogRecipe: null, preprocessId: representation.preprocessId, requestedModels: null, requestedSettings: settings})
+        strategy, preprocessId: representation.preprocessId, requestedModels: null, requestedSettings: settings})
       await admin.query('COMMIT')
     } catch (error) { await admin.query('ROLLBACK'); throw error }
     const head = (await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1', [id])).rows[0]
@@ -112,7 +112,7 @@ test('native pilot finalization drives batch progress and unlocks only its produ
       [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null},batchId])
     await admin.query('BEGIN')
     try{await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,
-      schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,
+      schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',preprocessId:representation.preprocessId,
       requestedModels:null,requestedSettings:{article:null}});await admin.query('COMMIT')}catch(error){await admin.query('ROLLBACK');throw error}
     const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
     const node=ARTICLE_TREE.schemaNodes[0]
@@ -161,7 +161,7 @@ test('durable controls, concurrent corrections, fixed pages and deletion retain 
   const id=randomUUID()
   await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
   const client=await source.connect()
-  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
   await assert.rejects(createDurableRepository(randomUUID(),source).read(id),DurableNotFound)
   await assert.rejects(repository.read(fixture.extractions.article.failed),DurableNotFound)
@@ -329,7 +329,7 @@ test('deleted durable graphs retain their pins until fenced worker history remov
   try {
     await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
       sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,
-      schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,
+      schemaTree:ARTICLE_TREE,strategy:'ARTICLE',preprocessId:representation.preprocessId,
       requestedModels:null,requestedSettings:{article:null}})
     await admin.query('COMMIT')
   } catch(error) {await admin.query('ROLLBACK');throw error}
@@ -406,7 +406,7 @@ test('a Value Disagreement decision binds to its readings: choices apply until t
   const id=randomUUID()
   await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
   const client=await source.connect()
-  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
   const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
   const readings=(values:unknown[],segment='p3_s0')=>values.map(reading=>({value:reading,segments:[segment]}))
@@ -470,7 +470,7 @@ test('the review page reads the run diagnostics of the completion snapshot shown
   const id=randomUUID()
   await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,document.sourceDocumentId,document.sourceRepresentationRevisionId,fixture.revisions.article,{article:null}])
   const client=await source.connect()
-  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',catalogRecipe:null,preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
+  try {await client.query('BEGIN');await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId:fixture.revisions.article,schemaTree:ARTICLE_TREE,strategy:'ARTICLE',preprocessId:representation.preprocessId,requestedModels:null,requestedSettings:{article:null}});await client.query('COMMIT')}finally{client.release()}
   const repository=createDurableRepository(fixture.accountId,source)
   const node=ARTICLE_TREE.schemaNodes[0]
   const publish=(head:{attemptId:string;selectionId:string},epoch:number,identity:string,values:unknown[],coverage:Record<string,unknown>)=>

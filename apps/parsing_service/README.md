@@ -73,8 +73,7 @@ between JSON tokens. It keeps the original source, guidance and token budget;
 both attempts stay in History. A failed bounded reply still halts the attempt;
 Retry/Resume continues the bounded recovery and never repeats the original.
 
-`KEI_RUNS` holds the runs' sources, canonical parse results and recipe
-segmentations; durable Extraction results live in the coordination schema. It is
+`KEI_RUNS` holds the runs' sources, canonical parse results; durable Extraction results live in the coordination schema. It is
 durable service data: later Extractions need the original parse generation.
 `KEI_SOURCE_INBOX` is where Studio stages source PDFs; kei only reads it. Model
 weights under `/models` are a separate cache. Debug files are never
@@ -118,7 +117,7 @@ run would lose its result.
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: how many recipe or unified Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
+| `KEI_CATALOG_CHUNKS` | Worker only: how many Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
 
@@ -236,13 +235,8 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   record fails (`record_scope_violation: ...`) and is never retained; so does an
   Article whose root no value context answered (`article_root_unanswered: ...`)
   rather than retain an all-null root.
-- Article extracts the document as one object, which may contain arrays;
-  `options.article` holds its research settings. A Catalog without
-  `options.catalog` or `options.unified` runs generic discovery (result
-  version 1). `options.catalog = {recipe, input_tokens?, output_tokens?,
-  factors?}` selects a recipe such as `numbered-catalogue-de@1`: result version
-  2, with structural segmentation and code-verified span Evidence (see the
-  [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md)).
+- Article extracts the document as one object, which may contain arrays; `options.article` holds its settings.
+  Every Catalog uses unified (result version 3). An omitted Catalog settings object uses defaults version 10.
   `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
   candidates?, headings?, verification?}` runs the unified Catalog: result version 3, no
   recipe and no character limits (a request naming either is refused). From
@@ -327,8 +321,7 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   together. The first records wait for the first discovery window alone; a later
   record still waits for every window before it.
   Defaults 8 and 9 keep reading no entry before the whole discovery.
-  Studio admits defaults 10 by default, only where its
-  `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
+  Studio admits defaults 10 for every new Catalog; an account's Pro mode (verification on in Studio's
   Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
   each method's calls.
 
@@ -338,9 +331,7 @@ Limitations:
   vLLM's `/tokenize` and its reported context size, or, for GLiFormer fields,
   the service's own `/tokenize` and the input ceiling its `/info` reports;
   otherwise the request is refused before any call. Oversized input is
-  reported, never clipped. Only generic Catalog uses character budgets instead
-  (`record_chars`, `discovery_chars`), naming any source text a budget cut in a
-  `text_truncated` issue.
+  reported, never clipped.
 - `complete` applies to record values and is not a recall score: array-item
   recall and semantic correctness still need evaluation. Document-level fields
   are listed as `unverified`.
@@ -379,22 +370,11 @@ specifications. `kie/runner.py` orchestrates ingest and OCR;
 `reuse.py` finds another run's result and ingest of the same recipe.
 `result.py` publishes canonical pages and manifests; `pagefile.py` validates
 their identities and hashes. `kie/passages.py` reads those artifacts as the
-`Evidence`/`Passage` view shared by the recipe stages and extraction; it imports
+`Evidence`/`Passage` view used by extraction; it imports
 neither. `kie/extract/` performs record discovery, structured extraction,
 grounding and result publication; its
 [ownership table](docs/extraction-experiments.md#ownership) names each
 module's responsibility.
-The recipe path is split across these files:
-- `kie/recipe.py` and `kie/recipes/` hold the recipes;
-- `kie/stages/{layout,route,segment}.py` produce lines, roles and blocks;
-- `kie/segmentation.py` holds the artifact;
-- `kie/segmentation_run.py` reuses a validated artifact or computes and publishes it;
-- `kie/extract/{grounded,tokens,locate}.py` do bounded extraction, token
-  counting and span location;
-- `kie/boundaries.py` handles boundary labels and block-F1
-  (`python -m kei_exp.kie.boundaries report|prefill|score RUN_DIR`, read-only
-  on the run).
-
 The designs under `docs/design/` are the contracts that code cites as
 `spec N.N` or `design §N`.
 

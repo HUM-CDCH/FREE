@@ -10,7 +10,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.spans import MAX_PROSE_CHARS, source_spans
 from kei_exp.kie.extract.grounding import verify
 from kei_exp.pagefile import PageTable, TableCell
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_extraction_rendering import table_passage
 

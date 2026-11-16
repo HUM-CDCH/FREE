@@ -30,7 +30,7 @@ from kei_exp.kie.extract.durable import CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import publish_final
 from tests.test_durable_extraction import Counter as WordCounter, MemoryLease
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_unified_catalog import Model, evidence, request as unified_request
 from tests.test_unified_catalog import untimed
 

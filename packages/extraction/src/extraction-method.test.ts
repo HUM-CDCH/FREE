@@ -4,8 +4,8 @@ import test from 'node:test'
 import {
   activeMethod, activeSettings, accountMethod, ARTICLE_REFERENCE_CONTEXT_TOKENS, canonicalArticle,
   canonicalExtractionSettings, canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
-  identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG, UNRECORDED_ARTICLE,
-  storedSettings, UNIFIED_CATALOG_DEFAULTS, UNIFIED_CATALOG_PRO_VERSION, unifiedCatalogEnabled, unifiedCatalogSettingsSchema, validateArticleOptions,
+  identityFieldIssues, identityFieldsMessage, keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE, UNRECORDED_ARTICLE,
+  storedSettings, UNIFIED_CATALOG_DEFAULTS, UNIFIED_CATALOG_PRO_VERSION, unifiedCatalogSettingsSchema, validateArticleOptions,
   type ActiveSettings, type ArticleSettings, type ExtractionSettings,
 } from './extraction-method.js'
 import { ExtractionError } from './errors.js'
@@ -93,9 +93,9 @@ test('numeric and key boundaries: minima, integers, overlap ceiling, duplicate a
   refused({ identity_fields: ['x'.repeat(129)] }, 'identity_fields.0', METHOD_MESSAGES.identityLimit)
   assert.equal(validateArticleOptions({ span_grounding_version: 1 }).ok, false)
   const catalog = (value: unknown) => extractionSettingsSchema.safeParse({ catalog: value })
-  assert.equal(catalog({ generic: { discovery_chars: 1000, record_chars: 1000 } }).success, true)
+  assert.equal(catalog({ generic: { discovery_chars: 1000, record_chars: 1000 } }).success, false)
   assert.equal(catalog({ generic: { discovery_chars: 999 } }).success, false)
-  assert.equal(catalog({ recipe: { input_tokens: 64, output_tokens: 64 } }).success, true)
+  assert.equal(catalog({ recipe: { input_tokens: 64, output_tokens: 64 } }).success, false)
   assert.equal(catalog({ recipe: { output_tokens: 63 } }).success, false)
   assert.equal(catalog({ recipe: { factors: { glossary: false, vocabulary: false } } }).success, false)
 })
@@ -103,40 +103,18 @@ test('numeric and key boundaries: minima, integers, overlap ceiling, duplicate a
 test('canonical settings: full Article, no nulls, the unused ceiling restored, empty Catalog members dropped', () => {
   const parsed = extractionSettingsSchema.parse({
     article: { context: 'full', context_tokens: 16384, grounding_schedule: null, selection: null },
-    catalog: { generic: {}, recipe: { factors: { verification: false } } },
+    catalog: { unified: { verification: false } },
   })
   assert.deepEqual(extractionSettingsIssues(parsed), [])
   const canonical = canonicalExtractionSettings(parsed)
   assert.deepEqual(canonical, {
     article: { ...UNRECORDED_ARTICLE, context_tokens: ARTICLE_REFERENCE_CONTEXT_TOKENS },
-    catalog: { recipe: { factors: { glossary: true, headings: true, overlap: true, verification: false } } },
+    catalog: { unified: { verification: false } },
   })
   assert.deepEqual(Object.keys(canonical.article!), ['context', 'context_tokens', 'overlap_passages', 'identity', 'identity_fields', 'prompt', 'grounding'])
   assert.deepEqual(canonicalExtractionSettings(extractionSettingsSchema.parse({ catalog: {} })), {})
   // An explicit Article is never an omission: it changes the service's artifact.
   assert.deepEqual(canonicalExtractionSettings(extractionSettingsSchema.parse({ article: {} })), { article: UNRECORDED_ARTICLE })
-})
-
-test('canonical Catalog settings keep schema key order, whatever order equal settings arrive in', () => {
-  const serialized = (catalog: Record<string, unknown>) => JSON.stringify(canonicalExtractionSettings(catalog as ExtractionSettings))
-  const inOrder = {
-    generic: { discovery_chars: 30000, record_chars: 20000 },
-    recipe: { input_tokens: 2048, output_tokens: 512, factors: { glossary: true, headings: false, overlap: true, verification: false } },
-  }
-  const reordered = {
-    recipe: { factors: { verification: false, overlap: true, headings: false, glossary: true }, output_tokens: 512, input_tokens: 2048 },
-    generic: { record_chars: 20000, discovery_chars: 30000 },
-  }
-  assert.equal(serialized({ catalog: reordered }), serialized({ catalog: inOrder }))
-  assert.equal(JSON.stringify(canonicalExtractionSettings(extractionSettingsSchema.parse({ catalog: reordered }))), serialized({ catalog: inOrder }))
-  const intent = (settings: Record<string, unknown>, recipe: string | null) =>
-    JSON.stringify(canonicalIntent({ models: null, settings }, 'CATALOG', recipe))
-  assert.equal(intent({ generic: reordered.generic }, null), intent({ generic: inOrder.generic }, null))
-  assert.equal(intent({ recipe: reordered.recipe }, 'numbered-catalogue-de@1'), intent({ recipe: inOrder.recipe }, 'numbered-catalogue-de@1'))
-  const wire = (settings: ActiveSettings, recipe: string | null) =>
-    JSON.stringify(keiMethodOptions(extractionMethod('CATALOG', recipe, null, settings)))
-  assert.equal(wire({ generic: reordered.generic }, null), wire({ generic: inOrder.generic }, null))
-  assert.equal(wire({ recipe: reordered.recipe }, 'numbered-catalogue-de@1'), wire({ recipe: inOrder.recipe }, 'numbered-catalogue-de@1'))
 })
 
 const EXPLORE: ArticleSettings = {
@@ -145,7 +123,7 @@ const EXPLORE: ArticleSettings = {
 }
 
 test('the exact wire example: strategy, models and every active option, nothing invented', () => {
-  const method = extractionMethod('ARTICLE', null, { fields: 'instruct', reasoning: 'instruct' }, { article: EXPLORE })
+  const method = extractionMethod('ARTICLE', { fields: 'instruct', reasoning: 'instruct' }, { article: EXPLORE })
   assert.deepEqual(keiMethodOptions(method), {
     strategy: 'article',
     models: { fields: 'instruct', reasoning: 'instruct' },
@@ -156,36 +134,18 @@ test('the exact wire example: strategy, models and every active option, nothing 
   })
 })
 
-test('service defaults omit the strategy member; generic Catalog emits no catalog object; inactive settings never leak', () => {
-  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, { article: null })), { strategy: 'article' })
-  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, null)), { strategy: 'article' })
-  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, null, { generic: { record_chars: 30000 } })),
-    { strategy: 'catalog', record_chars: 30000 })
-  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', 'numbered-catalogue-de@1', null, { recipe: REFERENCE_CATALOG.recipe! })),
-    { strategy: 'catalog', catalog: { recipe: 'numbered-catalogue-de@1', ...REFERENCE_CATALOG.recipe } })
-  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', 'numbered-catalogue-de@1', null, { recipe: null })),
-    { strategy: 'catalog', catalog: { recipe: 'numbered-catalogue-de@1' } })
-  const saved = extractionSettingsSchema.parse({ article: EXPLORE, catalog: REFERENCE_CATALOG })
-  assert.deepEqual(activeSettings(saved, 'CATALOG', null), { generic: REFERENCE_CATALOG.generic })
-  assert.deepEqual(activeSettings(saved, 'ARTICLE', null), { article: EXPLORE })
-  for (const strategy of ['ARTICLE', 'CATALOG'] as const) {
-    const wire = JSON.stringify(keiMethodOptions(extractionMethod(strategy, null, null, activeSettings(saved, strategy, null))))
-    for (const invented of ['"plain"', '"all"', '"token"', '"source_order"', 'null']) assert.ok(!wire.includes(invented), wire)
-  }
-})
-
 test('service defaults are recorded and sent explicitly; a recorded null still sends no Article', () => {
-  const defaults = activeMethod(null, {}, 'ARTICLE', null)
-  assert.deepEqual(defaults, activeMethod(null, { article: REFERENCE_ARTICLE }, 'ARTICLE', null))
+  const defaults = activeMethod(null, {}, 'ARTICLE')
+  assert.deepEqual(defaults, activeMethod(null, { article: REFERENCE_ARTICLE }, 'ARTICLE'))
   assert.deepEqual(defaults, { models: null, settings: { article: REFERENCE_ARTICLE } })
-  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, defaults.settings)).article, {
+  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, defaults.settings)).article, {
     context: 'full', context_tokens: 12288, overlap_passages: 0, identity: 'reference', identity_fields: [],
     prompt: 'reference', grounding: 'semantic', grounding_overflow: 'windows',
   })
   // An Extraction admitted before recorded `article: null`: Resume and Retry send no Article (the whole source).
-  const recorded = canonicalIntent({ models: null, settings: { article: null } }, 'ARTICLE', null)
+  const recorded = canonicalIntent({ models: null, settings: { article: null } }, 'ARTICLE')
   assert.deepEqual(recorded, { models: null, settings: { article: null } })
-  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, null, recorded!.settings)), { strategy: 'article' })
+  assert.deepEqual(keiMethodOptions(extractionMethod('ARTICLE', null, recorded!.settings)), { strategy: 'article' })
   const { grounding_overflow: _windows, ...unwindowed } = REFERENCE_ARTICLE
   assert.deepEqual(UNRECORDED_ARTICLE, unwindowed)
 })
@@ -194,28 +154,28 @@ test('an account document yields the active descriptor; only the chosen strategy
   const document = {
     connections: [], routes: {}, ingestionModels: {},
     extractionModels: { fields: 'nuextract' },
-    extractionSettings: { article: EXPLORE, catalog: { generic: { record_chars: 30000 } } },
+    extractionSettings: { article: EXPLORE, catalog: { unified: { input_tokens: 30000 } } },
   }
-  assert.deepEqual(accountMethod(document, 'ARTICLE', null), { models: { fields: 'nuextract' }, settings: { article: EXPLORE } })
-  assert.deepEqual(accountMethod(document, 'CATALOG', 'numbered-catalogue-de@1'), { models: { fields: 'nuextract' }, settings: { recipe: null } })
-  assert.deepEqual(accountMethod(null, 'CATALOG', null), { models: null, settings: { generic: null } })
-  assert.throws(() => accountMethod({ extractionModels: {}, extractionSettings: { article: { overlap_passages: 1 } } }, 'ARTICLE', null),
+  assert.deepEqual(accountMethod(document, 'ARTICLE'), { models: { fields: 'nuextract' }, settings: { article: EXPLORE } })
+  assert.deepEqual(accountMethod(document, 'CATALOG'), { models: { fields: 'nuextract' }, settings: { unified: { defaults: 10, input_tokens: 30000 } } })
+  assert.deepEqual(accountMethod(null, 'CATALOG'), { models: null, settings: { unified: { defaults: 10 } } })
+  assert.throws(() => accountMethod({ extractionModels: {}, extractionSettings: { article: { overlap_passages: 1 } } }, 'ARTICLE'),
     (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_model_config')
 })
 
 test('a submitted intent is canonicalized, and one for another strategy is refused', () => {
-  assert.deepEqual(canonicalIntent({ models: {}, settings: { article: { ...EXPLORE, grouping: null } } }, 'ARTICLE', null),
+  assert.deepEqual(canonicalIntent({ models: {}, settings: { article: { ...EXPLORE, grouping: null } } }, 'ARTICLE'),
     { models: null, settings: { article: EXPLORE } })
-  assert.deepEqual(canonicalIntent({ models: null, settings: { generic: {} } }, 'CATALOG', null), { models: null, settings: { generic: null } })
-  assert.equal(canonicalIntent({ models: null, settings: { article: null } }, 'CATALOG', null), null)
-  assert.equal(canonicalIntent({ models: null, settings: { article: { overlap_passages: 1 } } }, 'ARTICLE', null), null)
-  assert.equal(canonicalIntent({ models: null, settings: { generic: null }, preset: 'best' }, 'CATALOG', null), null)
+  assert.equal(canonicalIntent({ models: null, settings: { generic: {} } }, 'CATALOG'), null)
+  assert.equal(canonicalIntent({ models: null, settings: { article: null } }, 'CATALOG'), null)
+  assert.equal(canonicalIntent({ models: null, settings: { article: { overlap_passages: 1 } } }, 'ARTICLE'), null)
+  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 10 } }, preset: 'best' }, 'CATALOG'), null)
 })
 
 test('a stored snapshot is read back, and one for another strategy is an invalid method', () => {
-  assert.equal(storedSettings(null, 'ARTICLE', null), null)
-  assert.deepEqual(storedSettings({ article: EXPLORE }, 'ARTICLE', null), { article: EXPLORE })
-  assert.throws(() => storedSettings({ generic: null }, 'ARTICLE', null),
+  assert.equal(storedSettings(null, 'ARTICLE'), null)
+  assert.deepEqual(storedSettings({ article: EXPLORE }, 'ARTICLE'), { article: EXPLORE })
+  assert.throws(() => storedSettings({ unified: { defaults: 10 } }, 'ARTICLE'),
     (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_extraction_method')
 })
 
@@ -240,66 +200,33 @@ test('the unified Catalog defaults and option bounds are the service\'s', () => 
     assert.equal(unifiedCatalogSettingsSchema.safeParse(options).success, false, JSON.stringify(options))
 })
 
-test('where the deployment enables it, a new Catalog Extraction uses the unified method, never a recipe', () => {
-  assert.equal(unifiedCatalogEnabled({}), false)
-  assert.equal(unifiedCatalogEnabled({ FREE_CATALOG_METHOD: 'unified' }), true)
-  const saved: ExtractionSettings = { catalog: { unified: { overlap: 0, verification: false } } }
-  // The latest defaults version is always pinned, so a method left wholly to the defaults stays identifiable.
-  assert.deepEqual(activeMethod(null, {}, 'CATALOG', null, true), { models: null, settings: { unified: { defaults: 10 } } })
-  const method = activeMethod({ fields: 'nuextract' }, saved, 'CATALOG', 'numbered-catalogue-de@1', true)
-  assert.deepEqual(method.settings, { unified: { defaults: 10, overlap: 0, verification: false } })
-  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, method.models, method.settings)), {
-    strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 10, overlap: 0, verification: false },
-  })
-  // Article and the legacy slots are untouched by the unified preference.
-  assert.deepEqual(activeSettings(saved, 'CATALOG', null), { generic: null })
-  assert.deepEqual(activeSettings(saved, 'ARTICLE', null, true), { article: REFERENCE_ARTICLE })
-  // A submitted unified intent is canonical; a unified method never carries a recipe.
-  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { verification: false, defaults: 1 } } }, 'CATALOG', null),
-    { models: null, settings: { unified: { defaults: 1, verification: false } } })
-  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { defaults: 2 } } }, 'CATALOG', null),
-    { models: null, settings: { unified: { defaults: 2 } } })
-  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 1 } } }, 'CATALOG', 'numbered-catalogue-de@1'), null)
-  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 1 } } }, 'ARTICLE', null), null)
-  // An Extraction keeps the defaults version it was admitted under.
-  assert.deepEqual(storedSettings({ unified: { defaults: 1 } }, 'CATALOG', null), { unified: { defaults: 1 } })
-  assert.throws(() => storedSettings({ unified: { defaults: 1 } }, 'CATALOG', 'numbered-catalogue-de@1'), ExtractionError)
-})
-
-test('legacy Catalog preferences refuse new unified Catalog admission until migrated, and keep Article usable', () => {
-  const account = (catalog: unknown) => ({ extractionModels: {}, extractionSettings: { catalog } })
-  for (const legacy of [{ generic: { record_chars: 30_000 } }, { recipe: { factors: { glossary: false } } }])
-    assert.throws(() => accountMethod(account(legacy), 'CATALOG', null, true),
-      (error: unknown) => error instanceof ExtractionError && error.code === 'catalog_migration_required')
-  const legacy = account({ generic: { record_chars: 30_000 } })
-  assert.deepEqual(accountMethod(legacy, 'ARTICLE', null, true), { models: null, settings: { article: REFERENCE_ARTICLE } })
-  // Without the deployment's switch the legacy method is unchanged, character limits and all.
-  assert.deepEqual(accountMethod(legacy, 'CATALOG', null), { models: null, settings: { generic: { record_chars: 30_000 } } })
-  // Applying the unified group replaces the Catalog branch: nothing legacy is left to migrate.
-  const applied = canonicalExtractionSettings({ catalog: { unified: { overlap: 2 } } })
-  assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG', null, true).settings, { unified: { defaults: 10, overlap: 2 } })
-  // Pro mode: the account's verification on admits the version whose verification call reads every value again.
-  const pro = accountMethod(account({ unified: { verification: true, overlap: 0 } }), 'CATALOG', null, true).settings
-  assert.deepEqual(pro, { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0, verification: true } })
-  // A native fields model cannot verify, so its admission still refuses Pro mode.
-  assert.ok(gliformerIssues({ models: { fields: 'gliformer' }, settings: pro }, []).includes('verification must be Auto or off'))
-  assert.deepEqual(accountMethod(account({ unified: { verification: false } }), 'CATALOG', null, true).settings,
-    { unified: { defaults: 10, verification: false } })
-  // A method that names its version keeps its own verification.
-  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { defaults: 6, verification: true } } }, 'CATALOG', null),
-    { models: null, settings: { unified: { defaults: 6, verification: true } } })
-  assert.deepEqual(canonicalExtractionSettings({ catalog: { unified: {} } }), {})
-  assert.equal(extractionSettingsSchema.safeParse({ catalog: { unified: { input_tokens: 100 } } }).success, false)
-})
-
 
 test('heading candidate overrides survive saved settings and pinned defaults 7 methods', () => {
   const settings: ExtractionSettings = { catalog: { unified: { candidates: 8, headings: true } } }
   assert.deepEqual(canonicalExtractionSettings(settings), settings)
   const pinned = { unified: { defaults: 7 as const, candidates: 8, headings: true } }
-  assert.deepEqual(storedSettings(pinned, 'CATALOG', null), pinned)
-  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, null, pinned)), {
+  assert.deepEqual(storedSettings(pinned, 'CATALOG'), pinned)
+  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, pinned)), {
     strategy: 'catalog', ...pinned,
   })
-  assert.deepEqual(canonicalIntent({ models: null, settings: pinned }, 'CATALOG', null), { models: null, settings: pinned })
+  assert.deepEqual(canonicalIntent({ models: null, settings: pinned }, 'CATALOG'), { models: null, settings: pinned })
+})
+
+
+test('Catalog always pins unified defaults and refuses retired methods and preferences', () => {
+  assert.deepEqual(activeMethod(null, {}, 'CATALOG'), { models: null, settings: { unified: { defaults: 10 } } })
+  assert.deepEqual(accountMethod(null, 'CATALOG'), activeMethod(null, {}, 'CATALOG'))
+  for (const settings of [{ generic: null }, { recipe: null }]) {
+    assert.equal(canonicalIntent({ models: null, settings }, 'CATALOG'), null)
+    assert.throws(() => storedSettings(settings, 'CATALOG'), ExtractionError)
+    assert.throws(() => accountMethod({ extractionModels: {}, extractionSettings: { catalog: settings } }, 'CATALOG'), ExtractionError)
+  }
+  assert.throws(() => keiMethodOptions(extractionMethod('CATALOG', null, null)), ExtractionError)
+  const method = activeMethod(null, { article: EXPLORE, catalog: { unified: { verification: true, overlap: 0 } } }, 'CATALOG')
+  assert.deepEqual(method.settings, { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0, verification: true } })
+  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, method.settings)), { strategy: 'catalog', ...method.settings })
+  assert.ok(gliformerIssues({ models: { fields: 'gliformer' }, settings: method.settings }, []).includes('verification must be Auto or off'))
+  assert.equal(canonicalIntent(method, 'ARTICLE'), null)
+  const reordered = { catalog: { unified: { verification: true, overlap: 0 } } }
+  assert.equal(JSON.stringify(canonicalExtractionSettings(reordered)), JSON.stringify(canonicalExtractionSettings({ catalog: { unified: { overlap: 0, verification: true } } })))
 })

@@ -1399,9 +1399,8 @@ describe('template header (redesign §5)', () => {
     expect(screen.getByLabelText('Record scope')).toHaveValue('')
     expect(screen.getByRole('option', { name: 'Choose Article or Catalog' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
-    rerender({}, { recordScope: { value: 'records', onChange: vi.fn() },
-      boundaries: { value: '', options: [{ id: 'numbered-catalogue-de@1', label: 'Numbered catalogue (German)' }], onChange: vi.fn() } })
-    expect(screen.getByLabelText('Boundaries')).toHaveValue('')
+    rerender({}, { recordScope: { value: 'records', onChange: vi.fn() } })
+    expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
   })
 
   it('the record description grows with its wrapped text from two rows to six, not only with line breaks', () => {

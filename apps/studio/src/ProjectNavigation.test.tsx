@@ -209,7 +209,6 @@ function hydratedSnapshot() {
       schemaRevisionId: '51000000-0000-4000-8005-000000000002',
       createdAt: '2026-07-31T12:03:00.000Z',
       strategy: 'ARTICLE',
-      catalogRecipe: null,
       requestedModels: null,
       requestedSettings: null,
       executionStatus: 'COMPLETED',

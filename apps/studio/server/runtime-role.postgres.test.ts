@@ -203,7 +203,7 @@ describe('Studio on its restricted runtime role', () => {
     const extractionId = randomUUID()
     await createResearcherExtractions(seeded.researcherAccountId).runSingle({
       kind: 'fresh', extractionId, sourceRepresentationRevisionId: seeded.sourceRepresentationRevisionId,
-      schemaRevisionId: seeded.schemaRevisionId, strategy: 'ARTICLE', method: accountMethod(null, 'ARTICLE', null),
+      schemaRevisionId: seeded.schemaRevisionId, strategy: 'ARTICLE', method: accountMethod(null, 'ARTICLE'),
     })
     const attempt = await eventually(async () => (await studioDbos().kei.listWorkflows({
       workflowName: 'extractDurableV1', loadInput: false, loadOutput: false })).find(() => true), 'kei has the attempt')
@@ -218,7 +218,7 @@ describe('Studio on its restricted runtime role', () => {
     await admin.query('BEGIN')
     await initializeDurableExtraction(admin as never, reviewed, { projectContextId: seeded.projectContextId,
       sourceRepresentationRevisionId: seeded.sourceRepresentationRevisionId, schemaRevisionId: seeded.schemaRevisionId,
-      schemaTree: tree, strategy: 'ARTICLE', catalogRecipe: null, preprocessId, requestedModels: null, requestedSettings: { article: null } })
+      schemaTree: tree, strategy: 'ARTICLE', preprocessId, requestedModels: null, requestedSettings: { article: null } })
     await admin.query('COMMIT')
     const head = (await admin.query('SELECT "selectionId" FROM extraction_runtime.head WHERE id=$1', [reviewed])).rows[0]
     const value = { id: 'title', recordId: 'record', fieldId: 'title', path: ['records', 0, 'title'], selectionId: head.selectionId,

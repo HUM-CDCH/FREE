@@ -97,7 +97,7 @@ test('results identify an older template and a new Article admission survives re
       const fresh=await savedExtraction(fixture,article,['New article metadata'],'COMPLETED',{schemaRevisionId:revision,extractionId:body.id})
       admitted=fresh.id
       await route.fulfill({status:201,json:{extractionId:fresh.id,sourceDocumentId:fixture.sourceDocumentId,
-        sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,strategy:'ARTICLE',catalogRecipe:null,
+        sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,strategy:'ARTICLE',
         requestedModels:null,requestedSettings:null,executionStatus:'COMPLETED',finalizedReview:null,batchExtractionId:null,createdAt:new Date().toISOString()}})
     })
     await page.getByRole('button',{name:'↻ Re-run extraction',exact:true}).click()
@@ -187,7 +187,7 @@ test('saved live review survives reload, rejects another owner and exports its f
     const revision=(await fixture.schemaRevisions())[0].schemaRevisionId,id=randomUUID()
     await withPoolClientTransaction(async(_tx,client)=> {
       await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,'ARTICLE',$5)`,[id,fixture.sourceDocumentId,fixture.sourceRepresentationRevisionId,revision,{article:null}])
-      await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,schemaTree:{recordDescription:'One interactive record.',schemaNodes:INTERACTIVE_SCHEMA_NODES},strategy:'ARTICLE',catalogRecipe:null,preprocessId:`kei-exp:e2e-${fixture.sourceRepresentationRevisionId}:g1`,requestedModels:null,requestedSettings:{article:null}})
+      await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,schemaRevisionId:revision,schemaTree:{recordDescription:'One interactive record.',schemaNodes:INTERACTIVE_SCHEMA_NODES},strategy:'ARTICLE',preprocessId:`kei-exp:e2e-${fixture.sourceRepresentationRevisionId}:g1`,requestedModels:null,requestedSettings:{article:null}})
       const head=(await client.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
       const values=INTERACTIVE_SCHEMA_NODES.map(node=>({id:node.id,recordId:'document',fieldId:node.id,path:['records',0,node.name],selectionId:head.selectionId,schemaRevisionId:revision,node,modelValue:node.id==='title'?'Original title':2026,evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}))
       await client.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,1,$3,$4,$5,'{"incomplete":true}')`,[randomUUID(),id,head.selectionId,'a'.repeat(64),JSON.stringify(values)])
@@ -510,7 +510,7 @@ test('an off-page ungrounded value keeps its source, optional Evidence and targe
       SELECT $1,$2,max("revisionNumber")+1,'RESEARCHER_EDIT',$3,'records' FROM public."schemaRevision" WHERE "extractionSchemaId"=$2`,
       [revision,fixture.extractionSchemaId,{recordDescription:'One record.',schemaNodes:[{id:'title',name:'title',type:'number'}]}])
     const head=await (await page.request.get(`/api/extractions/${id}/durable`)).json()
-    const pending=await page.request.post(`/api/extractions/${id}/durable/selection`,{headers:{Origin:new URL(page.url()).origin},data:{expectedVersion:head.controlVersion,schemaRevisionId:revision,method:{models:null,settings:{generic:null}}}})
+    const pending=await page.request.post(`/api/extractions/${id}/durable/selection`,{headers:{Origin:new URL(page.url()).origin},data:{expectedVersion:head.controlVersion,schemaRevisionId:revision,method:{models:null,settings:{ unified: { defaults: 10 } }}}})
     expect(pending.status()).toBe(200)
     // A settled view reads inputs changed elsewhere when the researcher comes back to it.
     await page.evaluate(()=>window.dispatchEvent(new Event('focus')))

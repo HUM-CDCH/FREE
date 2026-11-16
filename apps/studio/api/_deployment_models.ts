@@ -1,4 +1,3 @@
-import { unifiedCatalogEnabled } from 'extraction/extraction-method'
 import {
   DEPLOYMENT_CONNECTION_IDS,
   isValidApiBase,
@@ -44,7 +43,6 @@ export function deploymentModels(env: Environment = process.env): DeploymentMode
   return {
     connections,
     defaultRoute: instruct && modelId ? { connectionId: instruct.id, modelId } : null,
-    ...(unifiedCatalogEnabled(env) ? { unifiedCatalog: true } : {}),
   }
 }
 

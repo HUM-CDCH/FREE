@@ -12,7 +12,7 @@ from kei_exp.kie.extract.llm import ModelOutputError, parse_json
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import verify
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 

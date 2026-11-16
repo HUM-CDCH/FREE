@@ -17,7 +17,7 @@ from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, dig
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import publish_final
 from tests.test_durable_extraction import Counter, MemoryLease
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_unified_catalog import SCHEMA, Model, evidence, request as unified_request, section, untimed
 
 

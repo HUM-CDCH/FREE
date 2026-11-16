@@ -13,8 +13,6 @@ export function methodRefusal(error: unknown): ApiError | null {
     case 'method_changed':
       return new ApiError(409, 'method_changed', error.message, { cause: error })
     // Legacy Catalog preferences wait for the researcher's explicit migration: refreshable once it is applied.
-    case 'catalog_migration_required':
-      return new ApiError(409, 'catalog_migration_required', error.message, { cause: error })
     // The schema's saved Article/Catalog scope decides what runs: an undeclared legacy schema waits for the researcher's
     // choice, and a start under the other selection is a refreshable conflict with the saved definition.
     case 'record_scope_required':

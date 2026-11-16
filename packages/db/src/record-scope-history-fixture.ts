@@ -190,7 +190,7 @@ export async function seedPreMigrationHistory(client: Client, options: HistoryOp
   const extraction = async (row: Record<string, unknown>) => {
     const id = (row.id as string | undefined) ?? randomUUID()
     await insert('extraction', {
-      catalogRecipe: null, requestedModels: null, outcome: null, complete: null, modelAttribution: null, diagnostics: null,
+      requestedModels: null, outcome: null, complete: null, modelAttribution: null, diagnostics: null,
       failure: null, resultPayload: null, evidenceLinks: null, reviewable: false, reviewedAt: null, reviewDraft: null,
       reviewDraftVersion: 0, batchExtractionId: null, ...row, id,
     })
@@ -230,10 +230,9 @@ export async function seedPreMigrationHistory(client: Client, options: HistoryOp
   }
   await review(article.reviewed, 1, ARTICLE_FIRST_DECISIONS, at(3))
   await review(article.reviewed, 2, ARTICLE_DECISIONS, at(5))
-  const CATALOG_RECIPE = 'numbered-catalogue-de@1'
   const catalog = await extraction({
     ...pins(d2, revisions.catalog), ...succeeded(CATALOG_RESULT, CATALOG_EVIDENCE), complete: false, strategy: 'CATALOG',
-    catalogRecipe: CATALOG_RECIPE, requestedSettings: json({ recipe: null }), createdAt: at(7), reviewDraftVersion: 3,
+    requestedSettings: json({ unified: { defaults: 10 } }), createdAt: at(7), reviewDraftVersion: 3,
     reviewDraft: json([{ ...CATALOG_DECISIONS[0] }]),
   })
   const GENERIC = { models: null, settings: { generic: null } }
@@ -268,7 +267,7 @@ export async function seedPreMigrationHistory(client: Client, options: HistoryOp
     requestedSettings: json(ARTICLE_SETTINGS),
   })
   return {
-    accountId, projectContextId, documents: { d1, d2, d3, d4 }, revisions, catalogRecipe: CATALOG_RECIPE,
+    accountId, projectContextId, documents: { d1, d2, d3, d4 }, revisions,
     extractions: { article, catalog, catalogMembers, bothArticle, bothMembers, disagree },
     batches: { catalog: catalogBatch, both: bothBatch },
     methods: { article: { models: null, settings: ARTICLE_SETTINGS }, articleWithModels: { models: { fields: 'nuextract' }, settings: ARTICLE_SETTINGS }, generic: GENERIC },

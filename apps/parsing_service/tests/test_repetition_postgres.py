@@ -10,7 +10,7 @@ from kei_exp.workflows import durable_extract as worker
 from kei_exp.workflows.coordination import CoordinationPool, Lease
 from tests.test_captured_repetition import Stream, item
 from tests.test_durable_entry_reuse_postgres import IDS, seed
-from tests.test_extract_grounded import WordCounter
+from tests.helpers.extraction import WordCounter
 
 pytestmark = pytest.mark.postgres
 

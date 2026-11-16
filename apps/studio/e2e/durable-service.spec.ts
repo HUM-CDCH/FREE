@@ -7,23 +7,22 @@ import {initializeDurableExtraction} from 'extraction/durable'
 import type {DurableValue} from 'extraction/durable-contract'
 import type {SchemaNode} from 'extraction/schema'
 import {E2E_ORIGIN,loginResearcher} from './auth.js'
-import {cataloguePdf,numberedCataloguePdf,startRealService,textPdf} from './realService.js'
+import {cataloguePdf,startRealService,textPdf} from './realService.js'
 import {admit,settle} from './sourceIngestion.js'
 import { openRailView } from './rail.js'
 
 const siteNodes:SchemaNode[]=[{id:'site',name:'site',type:'verbatim-string'},{id:'finds',name:'finds',type:'verbatim-string'},{id:'year',name:'year',type:'integer'}]
-const methods=['article','generic','recipe','unified'] as const
+const methods=['article','unified'] as const
 type Method=typeof methods[number]
 /** A readable CSV header names a field's column after it, or flattens the field into path columns under it (`sites.0.site`). */
 const hasColumn=(header:string,name:string)=>header.split(',').some(column=>column===name||column.startsWith(`${name}.`))
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:2|3}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:2|3|10}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
-    :method==='recipe'?[{id:'entry_no',name:'entry_no',type:'integer' as const},{id:'kreis',name:'kreis',type:'verbatim-string' as const},
-      {id:'fundart',name:'fundart',type:'verbatim-string' as const},{id:'site_name',name:'site_name',type:'verbatim-string' as const}]:siteNodes)
+:siteNodes)
   const tree={recordDescription:method==='article'?'All numbered sites in this document.':'One numbered catalogue entry.',schemaNodes:nodes}
   let schemaRevisionId=options.schemaRevisionId
   if(!schemaRevisionId) {
@@ -32,17 +31,17 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
     schemaRevisionId=(await revision.json()).revision.schemaRevisionId as string
   }
   const id=randomUUID()
-  const strategy=method==='article'?'ARTICLE':'CATALOG',recipe=method==='recipe'?'numbered-catalogue-de@1':null
-  const settings={[method]:method==='unified'?{defaults:options.defaults??2}:method==='article'&&options.articleContext
+  const strategy=method==='article'?'ARTICLE':'CATALOG'
+  const settings={[method]:method==='unified'?{defaults:options.defaults??10}:method==='article'&&options.articleContext
     ?{context:options.articleContext,context_tokens:8192}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
   // its owned guarded stack. Use the normal initializer to seed saved producer data.
   await withPoolClientTransaction(async(_tx,client)=>{
     const representation=(await client.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',[sourceRevisionId])).rows[0]
-    await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"catalogRecipe","requestedModels","requestedSettings") VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [id,sourceId,sourceRevisionId,schemaRevisionId,strategy,recipe,models,settings])
+    await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedModels","requestedSettings") VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [id,sourceId,sourceRevisionId,schemaRevisionId,strategy,models,settings])
     await initializeDurableExtraction(client,id,{projectContextId:project,sourceRepresentationRevisionId:sourceRevisionId,schemaRevisionId,schemaTree:tree,
-      strategy,catalogRecipe:recipe,preprocessId:representation.preprocessId,requestedModels:models,requestedSettings:settings})
+      strategy,preprocessId:representation.preprocessId,requestedModels:models,requestedSettings:settings})
   })
   return id
 }
@@ -59,7 +58,7 @@ for(const method of methods) {
       const created=await page.request.post('/api/project-contexts',{headers,data:{name:`Native durable ${method}`}})
       expect(created.status()).toBe(201)
       const project=(await created.json()).projectContext.projectContextId as string
-      const ingestion=await settle(page,project,await admit(page,project,method==='recipe'?numberedCataloguePdf():cataloguePdf(),'native.pdf'),180_000)
+      const ingestion=await settle(page,project,await admit(page,project,cataloguePdf(),'native.pdf'),180_000)
       expect(ingestion.status,JSON.stringify(ingestion)).toBe('succeeded')
       if(ingestion.status!=='succeeded')throw new Error('The disposable native source was not published.')
       const sourceId=ingestion.sourceDocumentId
