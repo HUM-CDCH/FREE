@@ -14,7 +14,7 @@ from kei_exp.kie.extract.assembly import document_values
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.schema import Schema
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import evidence, passages
 from tests.test_unified_catalog import SCHEMA as CATALOG
 from tests.test_unified_catalog import Model, candidate, extract

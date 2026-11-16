@@ -8,14 +8,13 @@ from types import SimpleNamespace
 import pytest
 import requests
 
-from kei_exp.kie.extract import catalog, llm
+from kei_exp.kie.extract import article, llm
 from kei_exp.kie.extract.calls import WHITESPACE_LOOP
 from kei_exp.kie.extract.llm import OpenAIChat, Reply
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.assembly import PROMPT_VERSION, fingerprint
 from kei_exp.kie.extract.run import ExtractRequest, extract
 from kei_exp.kie.extract.schema import Schema
-from kei_exp.kie.extract.catalog import discover
 from kei_exp.kie.extract.grounding import verify
 from kei_exp.kie.extract.stages import contains, extract_record, merge
 from kei_exp.kie.passages import Evidence, Passage
@@ -79,98 +78,10 @@ def one_identity(reply_schema, identity="31. Hjortlund"):
     return {"records": [{"label": identity, "identity": {}, "passages": [labels[0]]}]}
 
 
-def test_discovery_labels_every_passage_and_cuts_records_at_the_starts_it_is_told():
-    seen = {}
-
-    def script(system, user, schema):
-        seen["user"], seen["schema"] = user, schema
-        return {"starts": ["B2", "B4"], "end": "B5"}
-    chat = FakeChat(script)
-    slices, calls, issues = discover(evidence(), SCHEMA, chat, budget=48_000)
-    assert "[B1] Fund fra Hjortlund" in seen["user"] and "[B5] Litteratur" in seen["user"]
-    assert seen["schema"]["properties"]["starts"]["items"]["enum"] == ["B1", "B2", "B3", "B4", "B5"]
-    assert [[p.id for p in group] for group in slices] == [["p1_s1", "p1_s2"], ["p1_s3"]]
-    assert calls[0].stage == "discovery" and calls[0].ok and not issues
-
-
-def test_discovery_reports_a_numbered_entry_that_its_end_cuts_off():
-    # qwen3:8b without reasoning named the second entry as `end` after a heading: a dropped record, not a finish.
-    items = passages(["Site catalogue", "1. Hill: pottery dated 1801.", "2. Valley: flint dated 1802."])
-    chat = FakeChat(lambda s, u, schema: {"starts": ["B2"], "end": "B3"})
-    slices, _, issues = discover(evidence(items), SCHEMA, chat, budget=48_000)
-    assert [[p.id for p in group] for group in slices] == [["p1_s1"]]
-    assert [(issue.code, issue.detail) for issue in issues] == [
-        ("discovery_numbered_after_end", "'B3' is numbered like every record start, but the end 'B3' drops it")]
-
-
-def test_discovery_reports_an_unnumbered_start_among_numbered_ones():
-    items = passages(["Kreis Nord", "1. Hill: pottery dated 1801.", "Kreis Sued", "2. Valley: flint dated 1802."])
-    chat = FakeChat(lambda s, u, schema: {"starts": ["B1", "B2", "B3", "B4"], "end": None})
-    slices, _, issues = discover(evidence(items), SCHEMA, chat, budget=48_000)
-    assert len(slices) == 4
-    assert [(issue.code, issue.detail) for issue in issues] == [
-        ("discovery_unnumbered_start", f"start {label!r} is not numbered like the other record starts")
-        for label in ("B1", "B3")]
-
-
-def test_discovery_does_not_judge_numbering_where_the_records_have_none():
-    items = passages(["Hill: pottery dated 1801.", "Valley: flint dated 1802.", "Index of sites", "3. Hill, 2. Valley"])
-    chat = FakeChat(lambda s, u, schema: {"starts": ["B1", "B2"], "end": "B3"})
-    assert discover(evidence(items), SCHEMA, chat, budget=48_000)[2] == []
-
-
-def test_discovery_ignores_out_of_order_and_unknown_starts_with_an_issue():
-    chat = FakeChat(lambda s, u, schema: {"starts": ["B4", "B2", "B9", "B4"], "end": None})
-    slices, _, issues = discover(evidence(), SCHEMA, chat, budget=48_000)
-    assert [[p.id for p in group] for group in slices] == [["p1_s3", "p1_s4"]]
-    assert {issue.code for issue in issues} == {"discovery_ignored_label"}
-
-
-def test_discovery_over_a_long_source_is_chunked_by_page_and_labels_run_on():
-    long = [Passage(id=f"p{page}_s0", page=page, index=0, text=f"{page}. Entry " + "x" * 3000, label="Text",
-                    bbox_pt=(0, 0, 1, 1), extent="block") for page in range(1, 7)]
-    users = []
-    chat = FakeChat(lambda s, u, schema: users.append(u) or {"starts": [label for label in
-                    schema["properties"]["starts"]["items"]["enum"]], "end": None})
-    slices, calls, _ = discover(evidence(long), SCHEMA, chat, budget=7_000)
-    assert len(calls) == 3 and len(slices) == 6
-    assert "[B3]" in users[1] and "[B1]" not in users[1]
-
-
 def six_pages() -> list[Passage]:
     """One passage of about 3,000 characters per page: three chunks of two pages at a 7,000 budget."""
     return [Passage(id=f"p{page}_s0", page=page, index=0, text=f"{page}. Entry " + "x" * 3000, label="Text",
                     bbox_pt=(0, 0, 1, 1), extent="block") for page in range(1, 7)]
-
-
-def test_discovery_honours_an_end_only_from_the_final_chunk():
-    """An earlier chunk cannot know what follows it: its end is ignored with an issue and every later record
-    survives."""
-    def script(system, user, schema):
-        shown = schema["properties"]["starts"]["items"]["enum"]
-        return {"starts": [shown[0]], "end": shown[1] if shown[0] == "B1" else None}
-    slices, calls, issues = discover(evidence(six_pages()), SCHEMA, FakeChat(script), budget=7_000)
-    assert len(calls) == 3
-    assert [[p.id for p in group] for group in slices] == [["p1_s0", "p2_s0"], ["p3_s0", "p4_s0"], ["p5_s0", "p6_s0"]]
-    assert [issue.code for issue in issues] == ["discovery_ignored_label"] and "final chunk" in issues[0].detail
-
-
-def test_discovery_still_closes_the_records_at_an_end_from_the_final_chunk():
-    def script(system, user, schema):
-        shown = schema["properties"]["starts"]["items"]["enum"]
-        return {"starts": [shown[0]], "end": shown[1] if shown[0] == "B5" else None}
-    # What follows the records is not an entry: a numbered block there would be reported as dropped.
-    items = [*six_pages()[:5], dataclasses.replace(six_pages()[5], text="Literature " + "x" * 3000)]
-    slices, _, issues = discover(evidence(items), SCHEMA, FakeChat(script), budget=7_000)
-    assert [[p.id for p in group] for group in slices] == [["p1_s0", "p2_s0"], ["p3_s0", "p4_s0"], ["p5_s0"]]
-    assert not issues
-
-
-def test_discovery_ignores_an_end_that_lies_before_a_record_start_with_an_issue():
-    chat = FakeChat(lambda s, u, schema: {"starts": ["B2", "B4"], "end": "B3"})
-    slices, _, issues = discover(evidence(), SCHEMA, chat, budget=48_000)
-    assert [[p.id for p in group] for group in slices] == [["p1_s1", "p1_s2"], ["p1_s3", "p1_s4"]]
-    assert [issue.code for issue in issues] == ["discovery_inconsistent_end"]
 
 
 def test_a_record_is_extracted_under_the_guardrail_with_the_schema_and_conformed():
@@ -247,57 +158,6 @@ def pages_with_a_late_marker() -> list[Passage]:
     return [Passage(id=f"p{page}_s0", page=page, index=0,
                     text=("1. Entry " if page == 1 else "") + "x" * 690 + (" Site: Marker Hill." if page == 3 else ""),
                     label="Text", bbox_pt=(0, 0, 1, 1), extent="block") for page in (1, 2, 3)]
-
-
-def generic_catalog(record_chars: int) -> tuple[dict, list[str]]:
-    request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
-                                             "options": {"strategy": "catalog", "record_chars": record_chars}})
-    shown: list[str] = []
-
-    def script(system, user, schema):
-        properties = schema["properties"]
-        if "starts" in properties:
-            return {"starts": ["B1"], "end": None}
-        if "title" in properties:
-            return {"title": None}
-        if "entry_no" in properties:
-            shown.append(user)
-            return {"entry_no": "1", "site": "Marker Hill" if "Marker Hill" in user else None, "year": None,
-                    "finds": None}
-        return {claim: item["enum"][0] for claim, item in properties.items()}
-    return extract_over(evidence(pages_with_a_late_marker()), request, FakeChat(script)), shown
-
-
-def test_a_generic_catalog_whose_record_exceeds_its_text_budget_declares_the_pages_it_did_not_read():
-    """The audit's middle-section probe: the only site name lies beyond `record_chars`. The model never sees it,
-    and the artifact says which source it did not read for the record and for the document fields."""
-    result, shown = generic_catalog(1_000)
-    assert "Marker Hill" not in shown[0] and result["records"][0]["site"] is None
-    truncated = [(issue["record"], issue["detail"]) for issue in result["issues"] if issue["code"] == "text_truncated"]
-    unshown = "not shown: p2_s0 from code point 299 through p3_s0 (pages 2–3)"
-    assert truncated == [(None, f"2102 characters of text, 1000 shown to the model; {unshown}"),
-                         (0, f"2102 characters of text, 1000 shown to the model; {unshown}")]
-    assert result["complete"] is False
-
-
-def test_a_generic_catalog_within_its_text_budget_reads_the_whole_record_and_declares_no_cut():
-    result, shown = generic_catalog(24_000)
-    assert "Marker Hill" in shown[0] and result["records"][0]["site"] == "Marker Hill"
-    assert result["issues"] == [] and result["complete"] is True
-
-
-def test_a_failed_discovery_window_names_the_pages_it_left_unsearched():
-    """A discovery window whose call fails finds no record start on its pages; the issue says which pages and
-    labels those were, rather than only that a call failed."""
-    def script(system, user, schema):
-        shown = schema["properties"]["starts"]["items"]["enum"]
-        if shown[0] == "B3":
-            return Reply('{"starts": ["B', 5, 8192, "length", 0.1)
-        return {"starts": [shown[0]], "end": None}
-    slices, _, issues = discover(evidence(six_pages()), SCHEMA, FakeChat(script), budget=7_000)
-    unsearched = "the reply was cut off (finish_reason length); no record start was searched for on pages 3–4 (B3–B4)"
-    assert [(issue.code, issue.detail) for issue in issues] == [("call_failed", unsearched)]
-    assert [[p.id for p in group] for group in slices] == [["p1_s0", "p2_s0", "p3_s0", "p4_s0"], ["p5_s0", "p6_s0"]]
 
 
 def test_verification_asks_the_model_for_every_claim_including_a_uniquely_found_value():
@@ -424,25 +284,6 @@ def test_the_fingerprint_follows_generation_schema_options_model_and_prompt_vers
     assert fingerprint(base, request, "m") != fingerprint(base, request, "n")
 
 
-def test_completeness_needs_every_call_ok_and_every_value_grounded():
-    request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
-                                             "options": {"strategy": "article"}})
-    calls = []
-
-    def script(system, user, schema):
-        calls.append(schema)
-        if "records" in schema["properties"]:
-            return one_identity(schema)
-        if "entry_no" in schema["properties"]:
-            return {"entry_no": "31", "site": "Nowhere", "year": None, "finds": None}
-        if "title" in schema["properties"]:
-            return {"title": None}
-        return {label: "E2" if label == "C1" else "NONE" for label in schema["properties"]}
-    result = extract_over(evidence(), request, FakeChat(script))
-    assert result["complete"] is False and ["records", 0, "site"] in result["ungrounded"]
-    assert [link["segment"] for link in result["evidence"]] == ["p1_s1"]
-
-
 def extract_over(found: Evidence, request: ExtractRequest, chat: FakeChat) -> dict:
     """`extract` over passages built by hand: the run-directory projection is monkeypatched away."""
     from kei_exp.kie.extract import run as run_module
@@ -470,138 +311,6 @@ def test_a_refused_attempt_is_recorded_as_its_own_failed_call():
     reply = Reply(text='{"starts": ["B2"], "end": null}', input_tokens=10, output_tokens=5, finish="stop", seconds=0.1,
                   attempts=("HTTP 400: response_format is not supported",))
     chat = FakeChat(lambda s, u, schema: reply)
-    _, calls, _ = discover(evidence(), SCHEMA, chat, budget=48_000)
+    _, calls, _ = extract_record(passages(), SCHEMA, chat, record=0, budget=24_000)
     assert [(call.ok, call.error) for call in calls] == [
         (False, "HTTP 400: response_format is not supported"), (True, None)]
-
-
-def answer(content: str, finish: str = "stop", completion: int = 5):
-    body = {"choices": [{"message": {"content": content}, "finish_reason": finish}],
-            "usage": {"prompt_tokens": 20, "completion_tokens": completion}}
-    return SimpleNamespace(status_code=200, text="", json=lambda: body, raise_for_status=lambda: None)
-
-
-def refusal(status: int, text: str):
-    reply = SimpleNamespace(status_code=status, text=text)
-
-    def raise_for_status():
-        raise requests.HTTPError(f"{status}", response=reply)
-    reply.raise_for_status = raise_for_status
-    return reply
-
-
-LOOPING = answer('{"entry_no": "31", "finds": [' + "\r   " * 500, "length", 2048)
-READ = answer(json.dumps({"entry_no": "31", "site": "Hjortlund sogn", "year": 1827, "finds": ["spyd"]}))
-
-
-def recovering(monkeypatch, recovery, second=None) -> tuple[dict, list[dict]]:
-    """A generic Catalog of one record over a vLLM server whose record call through `response_format` loops on
-    whitespace and whose bounded-grammar request answers `recovery`; the record requests sent are returned too.
-    With `second`, a second record (32. Vester Vedsted) is discovered and its requests answer `second`."""
-    records = []
-
-    def post(url, json, **kwargs):
-        if "title" in json.get("response_format", {}).get("json_schema", {}).get("schema", {}).get("properties", {}):
-            return answer('{"title": null}')
-        records.append(json)
-        if second is not None and "32. Vester Vedsted" in json["messages"][1]["content"]:
-            return second
-        return recovery if "structured_outputs" in json else LOOPING
-
-    def reasoning(system, user, schema):
-        if "starts" in schema["properties"]:
-            return {"starts": ["B2", "B4"] if second is not None else ["B2"], "end": None}
-        return {claim: item["enum"][0] for claim, item in schema["properties"].items()}
-    monkeypatch.setattr(llm.requests, "post", post)
-    monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: f"GRAMMAR {limit}")
-    request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
-                                             "options": {"strategy": "catalog"}})
-    chat = Router(fields=OpenAIChat(url="http://server", model="m"), reasoning=FakeChat(reasoning))
-    return catalog.extract(None, evidence(), request, chat), records
-
-
-def record_calls(result: dict) -> list[dict]:
-    return [call for call in result["calls"] if call["stage"] == "record"]
-
-
-def test_a_record_call_that_loops_on_whitespace_is_read_once_more_under_a_bounded_grammar(monkeypatch):
-    result, records = recovering(monkeypatch, READ)
-    assert ["response_format" in body for body in records] == [True, False]
-    assert records[1]["structured_outputs"] == {"grammar": "GRAMMAR 16"} and records[1]["max_tokens"] == 2048
-    first, second = record_calls(result)
-    assert (first["ok"], first["recovered"], first["output_tokens"]) == (False, True, 2048)
-    assert first["error"].startswith(WHITESPACE_LOOP)
-    assert (second["ok"], second["recovered"]) == (True, False)
-    assert result["records"][0] | {"title": None} == {"entry_no": "31", "site": "Hjortlund sogn", "year": 1827,
-                                                      "finds": ["spyd"], "title": None, "filename": "bauer.pdf"}
-    assert result["ungrounded"] == [] and len(result["evidence"]) == 4
-    assert result["issues"] == [] and result["complete"] is True
-    assert result["tokens"]["output"] == sum(call["output_tokens"] for call in result["calls"])
-    assert result["tokens"]["output"] >= 2048 + 5
-
-
-def test_a_recovery_that_loops_again_leaves_the_record_null_with_both_failures(monkeypatch):
-    result, records = recovering(monkeypatch, LOOPING)
-    assert len(records) == 2
-    assert [(call["ok"], call["recovered"]) for call in record_calls(result)] == [(False, False)] * 2
-    assert [issue["code"] for issue in result["issues"]] == ["call_failed", "call_failed"]
-    assert set(result["records"][0].values()) == {None, "bauer.pdf"} and result["complete"] is False
-
-
-def test_a_refused_recovery_is_recorded_as_a_failed_call_and_the_extraction_finishes(monkeypatch):
-    result, records = recovering(monkeypatch, refusal(400, '{"error": "invalid grammar"}'))
-    assert len(records) == 2
-    first, second = record_calls(result)
-    assert second["error"].startswith("whitespace-loop recovery refused: HTTP 400: ")
-    assert "invalid grammar" in second["error"] and second["input_tokens"] is None
-    assert (first["recovered"], second["ok"], second["recovered"]) == (False, False, False)
-    assert [issue["code"] for issue in result["issues"]] == ["call_failed"] and result["complete"] is False
-
-
-def test_a_transient_refusal_of_the_recovery_reaches_the_step_retry(monkeypatch):
-    with pytest.raises(requests.HTTPError):
-        recovering(monkeypatch, refusal(503, "loading"))
-
-
-def test_a_looping_record_call_on_another_chat_is_not_recovered():
-    looping = Reply('{"entry_no": "3", "finds": [' + "\r   " * 500, 5, 2048, "length", 0.1)
-
-    def script(system, user, schema):
-        properties = schema["properties"]
-        if "starts" in properties:
-            return {"starts": ["B2"], "end": None}
-        if "title" in properties:
-            return {"title": None}
-        return looping
-    request = ExtractRequest.model_validate({"schema": SCHEMA.model_dump(by_alias=True, exclude_none=True),
-                                             "options": {"strategy": "catalog"}})
-    result = catalog.extract(None, evidence(), request, Router(fields=FakeChat(script), reasoning=FakeChat(script)))
-    (call,) = record_calls(result)
-    assert call["error"].startswith(WHITESPACE_LOOP) and call["recovered"] is False
-    assert [issue["code"] for issue in result["issues"]] == ["call_failed"] and result["complete"] is False
-
-
-def test_only_the_looping_record_is_recovered_and_the_next_record_is_asked_as_usual(monkeypatch):
-    second = answer(json.dumps({"entry_no": "32", "site": "Vester Vedsted", "year": None, "finds": None}))
-    result, records = recovering(monkeypatch, READ, second=second)
-    assert ["structured_outputs" in body for body in records] == [False, True, False]
-    assert "response_format" in records[2] and "32. Vester Vedsted" in records[2]["messages"][1]["content"]
-    assert [(call["ok"], call["recovered"]) for call in record_calls(result)] == [
-        (False, True), (True, False), (True, False)]
-    assert [(record["entry_no"], record["site"]) for record in result["records"]] == [
-        ("31", "Hjortlund sogn"), ("32", "Vester Vedsted")]
-
-
-@pytest.mark.parametrize("node", [
-    {"id": "file", "name": "filename", "type": "string", "valueSource": "source-filename"},
-    {"id": "title", "name": "title", "type": "string", "valueSource": "document"}])
-def test_a_record_without_record_fields_makes_no_record_call(node):
-    def script(system, user, schema):
-        return {"starts": ["B2"], "end": None} if "starts" in schema["properties"] else {"title": None}
-    request = ExtractRequest.model_validate({"schema": {"recordDescription": "One numbered catalogue entry.",
-                                                        "schemaNodes": [node]}, "options": {"strategy": "catalog"}})
-    result = catalog.extract(None, evidence(), request, Router(fields=FakeChat(script), reasoning=FakeChat(script)))
-    assert result["records"] == [{node["name"]: "bauer.pdf" if node["name"] == "filename" else None}]
-    assert record_calls(result) == []
-    if node["name"] == "filename":
-        assert result["complete"] is True and result["issues"] == []

@@ -26,7 +26,7 @@ from kei_exp.kie.passages import Evidence, Passage, load
 from kei_exp.pagefile import PageTable, TableCell
 from tests.helpers import catalogue
 from tests.helpers.contracts import FIXTURES
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 
 SCHEMA = {"recordDescription": "One entry of a catalogue of finds.", "schemaNodes": [
     {"id": "l", "name": "label", "type": "string", "description": "the printed number or mark"},
@@ -1758,7 +1758,7 @@ def test_an_already_bounded_or_prompt_only_entry_is_not_recovered(monkeypatch, m
     assert all(not call.recovered for call in calls)
 
 def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
-    with pytest.raises(ValueError, match="character limits"):
+    with pytest.raises(ValueError, match="record_chars"):
         run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
             "strategy": "catalog", "record_chars": 24_000, "unified": {"defaults": 5}}})
     with pytest.raises(ValueError, match="recipe"):

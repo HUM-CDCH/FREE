@@ -9,7 +9,7 @@ from kei_exp.kie.extract.contexts import Context, assemble_document
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.routing import value_origins
 from tests.test_durable_extraction import MemoryLease, finish, linked_while_running
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import evidence, passages
 
 

@@ -151,5 +151,24 @@ test('heading candidate overrides survive saved settings and pinned defaults 7 m
   assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, null, pinned)), {
     strategy: 'catalog', ...pinned,
   })
-  assert.deepEqual(canonicalIntent({ models: null, settings: pinned }, 'CATALOG', null), { models: null, settings: pinned })
+  assert.deepEqual(canonicalIntent({ models: null, settings: pinned }, 'CATALOG'), { models: null, settings: pinned })
+})
+
+
+test('Catalog always pins unified defaults and refuses retired methods and preferences', () => {
+  assert.deepEqual(activeMethod(null, {}, 'CATALOG'), { models: null, settings: { unified: { defaults: 10 } } })
+  assert.deepEqual(accountMethod(null, 'CATALOG'), activeMethod(null, {}, 'CATALOG'))
+  for (const settings of [{ generic: null }, { recipe: null }]) {
+    assert.equal(canonicalIntent({ models: null, settings }, 'CATALOG'), null)
+    assert.throws(() => storedSettings(settings, 'CATALOG'), ExtractionError)
+    assert.throws(() => accountMethod({ extractionModels: {}, extractionSettings: { catalog: settings } }, 'CATALOG'), ExtractionError)
+  }
+  assert.throws(() => keiMethodOptions(extractionMethod('CATALOG', null, null)), ExtractionError)
+  const method = activeMethod(null, { article: EXPLORE, catalog: { unified: { verification: true, overlap: 0 } } }, 'CATALOG')
+  assert.deepEqual(method.settings, { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0, verification: true } })
+  assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, method.settings)), { strategy: 'catalog', ...method.settings })
+  assert.ok(gliformerIssues({ models: { fields: 'gliformer' }, settings: method.settings }, []).includes('verification must be Auto or off'))
+  assert.equal(canonicalIntent(method, 'ARTICLE'), null)
+  const reordered = { catalog: { unified: { verification: true, overlap: 0 } } }
+  assert.equal(JSON.stringify(canonicalExtractionSettings(reordered)), JSON.stringify(canonicalExtractionSettings({ catalog: { unified: { overlap: 0, verification: true } } })))
 })

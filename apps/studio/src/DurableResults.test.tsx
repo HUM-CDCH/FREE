@@ -564,7 +564,7 @@ it('names an older snapshot in the status line and marks only the shown cut in H
     finalizations:[{id:'final',snapshotVersion:1,feedbackVersion:1,createdAt:'2026-10-05T00:00:00.000Z'}]} as never)
   vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page(2,3))
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?page(1,Number(query.feedbackVersion??3),query.feedbackVersion===1?{id:'final'}:null):page(2,3))
-  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
   openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
@@ -589,12 +589,12 @@ it('says when the shown Extraction is not the document\'s latest, and opens the 
   vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page)
   vi.mocked(readValues).mockResolvedValue(page)
   const onOpenLatest=vi.fn()
-  const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null,createdAt:'2026-10-28T10:00:00.000Z'} as ExtractionAttempt}
+  const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',createdAt:'2026-10-28T10:00:00.000Z'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}} readOnly onOpenLatest={onOpenLatest}/>)
   expect((await screen.findAllByText(/· Extraction .+ · not the latest$/))[0]).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:'Open latest'}))
   expect(onOpenLatest).toHaveBeenCalledOnce()
-  view.rerender(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null,createdAt:'2026-10-28T10:00:00.000Z'} as ExtractionAttempt}
+  view.rerender(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',createdAt:'2026-10-28T10:00:00.000Z'} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}}/>)
   expect(screen.queryByText(/not the latest/)).not.toBeInTheDocument()
   expect(screen.queryByRole('button',{name:'Open latest'})).not.toBeInTheDocument()
@@ -610,7 +610,7 @@ it('opens an open value\'s history from its review, read-only too, and offers no
   vi.mocked(durableRequest).mockImplementation(async(url)=>url.includes('feedback')?[]:page)
   vi.mocked(readValues).mockResolvedValue(page)
   const onValueHistory=vi.fn()
-  const attempt={extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt
+  const attempt={extractionId:'extraction',strategy:'ARTICLE',} as ExtractionAttempt
   const view=render(<Results attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}} readOnly onValueHistory={onValueHistory}/>)
   fireEvent.click(await screen.findByRole('button',{name:/To check title/}))
   fireEvent.click(screen.getByRole('button',{name:'More result actions'}))
@@ -651,7 +651,7 @@ it('keeps an open draft during snapshot changes and starts a new editor for an e
   vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,valueCount:1},{id:'two',version:2,valueCount:1}]} as never)
   vi.mocked(durableRequest).mockImplementation(async(url,body)=>body?{revision:1}:url.includes('feedback')?[]:newPage)
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?oldPage:newPage)
-  const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',catalogRecipe:null} as ExtractionAttempt}
+  const view=render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE',} as ExtractionAttempt}
     document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
   openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))

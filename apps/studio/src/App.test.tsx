@@ -240,7 +240,6 @@ const reopened: DocumentWorkspaceProps = {
     schemaRevisionId: '51000000-0000-4000-8005-000000000002',
     createdAt: '2026-07-31T12:03:00.000Z',
     strategy: 'ARTICLE',
-    catalogRecipe: null,
     requestedModels: null,
     requestedSettings: { article: REFERENCE_ARTICLE },
     executionStatus: 'COMPLETED',
@@ -2503,7 +2502,7 @@ describe('reopened Source Document workspace', () => {
 
   it('with the unified Catalog enabled, a Catalog start offers no recipe and submits the unified method', async () => {
     const before = saved.state
-    saved.state = { ...(before as Extract<typeof before, { status: 'ready' }>), unifiedCatalog: true }
+    saved.state = { ...(before as Extract<typeof before, { status: 'ready' }>), }
     try {
       const extractionRequests: Array<Record<string, unknown>> = []
       vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) => {
@@ -2561,18 +2560,17 @@ describe('reopened Source Document workspace', () => {
 
     /** The exact body a run from this workspace posts for a toolbar selection. Choosing Catalog on the reopened Article
      *  schema saved revision 2, and every Catalog run here runs it. */
-    const posted = (strategy: 'ARTICLE' | 'CATALOG', catalogRecipe?: string) => ({
+    const posted = (strategy: 'ARTICLE' | 'CATALOG') => ({
       id: expect.any(String),
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       startPage: 1,
       schemaRevisionId: strategy === 'CATALOG' ? appendedRevisionId(2) : reopened.extractionSchema!.schemaRevisionId,
       strategy,
-      ...(catalogRecipe ? { catalogRecipe } : {}),
       // The saved method of the run's own settings slot: the account keeps every service default, which an Article
       // run records explicitly.
       method: {
         models: null,
-        settings: strategy === 'ARTICLE' ? { article: REFERENCE_ARTICLE } : catalogRecipe ? { recipe: null } : { generic: null },
+        settings: strategy === 'ARTICLE' ? { article: REFERENCE_ARTICLE } : { unified: { defaults: 10 } },
       },
     })
 
@@ -2614,18 +2612,14 @@ describe('reopened Source Document workspace', () => {
 
     /** Saves Catalog and starts a run from the toolbar; acknowledging it resets the one-shot boundaries, unless it
      *  failed. The schema stays a Catalog. */
-    async function runCatalogFromToolbar(bodies: unknown[], recipe?: string, nextRecipe = '') {
+    async function runCatalogFromToolbar(bodies: unknown[]) {
       fireEvent.change(screen.getByLabelText('Record scope'), { target: { value: 'records' } })
-      if (recipe)
-        fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
       expect(screen.getByRole('button', { name: RUN_EXTRACTION }))
         .toHaveAttribute('title', expect.stringMatching(/^Find the catalogue entries and extract one record per entry/))
       fireEvent.click(screen.getByRole('button', { name: RUN_EXTRACTION }))
       await waitFor(() => expect(bodies).toHaveLength(1))
-      expect(bodies[0]).toEqual(posted('CATALOG', recipe))
-      await waitFor(() =>
-        expect(screen.getByLabelText('Boundaries')).toHaveValue(nextRecipe),
-      )
+      expect(bodies[0]).toEqual(posted('CATALOG'))
+      expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
       expect(screen.getByLabelText('Record scope')).toHaveValue('records')
     }
 
@@ -2649,7 +2643,7 @@ describe('reopened Source Document workspace', () => {
       expect(await screen.findByText('Extraction complete — saved values are ready to review.')).toBeVisible()
       expect(screen.queryByRole('dialog', { name: 'Extraction finished' })).not.toBeInTheDocument()
 
-      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
+      expect(screen.queryByLabelText('Boundaries')).not.toBeInTheDocument()
       fireEvent.click(tabStripRun('CATALOG'))
       await waitFor(() => expect(bodies).toHaveLength(2))
       expect(bodies[1]).toEqual(posted('CATALOG'))
@@ -2746,27 +2740,6 @@ describe('reopened Source Document workspace', () => {
       openRailView('Results')
       expect(await screen.findByRole('button', { name: 'Open latest' })).toBeVisible()
     })
-
-    it.each([
-      ['selects the recipe again', 'numbered-catalogue-de@1', 'Numbered catalogue (German)'],
-      ['keeps Model discovery', undefined, 'Model discovery'],
-    ] as const)('after a recipe run, titles and posts Catalog as the researcher %s', async (_label, recipe, boundaries) => {
-      const bodies = stubRuns('SUCCEEDED')
-      await renderWorkspace(null)
-      await runCatalogFromToolbar(bodies, 'numbered-catalogue-de@1')
-      // The recipe is one-shot: the schema stays a Catalog, and its next run starts at Model discovery.
-      expect(screen.getByLabelText('Boundaries')).toHaveValue('')
-      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue('Model discovery')
-      if (recipe)
-        fireEvent.change(screen.getByLabelText('Boundaries'), { target: { value: recipe } })
-
-      // The schema header names the boundaries the run posts; the Results tab no longer repeats them.
-      expect(screen.getByLabelText('Boundaries')).toHaveDisplayValue(boundaries)
-      expect(screen.queryByText(/^Boundaries: /)).not.toBeInTheDocument()
-      fireEvent.click(tabStripRun('CATALOG'))
-      await waitFor(() => expect(bodies).toHaveLength(2))
-      expect(bodies[1]).toEqual(posted('CATALOG', recipe))
-    })
   })
 
   describe('the strategy is the template\'s saved record scope', () => {
@@ -2776,7 +2749,7 @@ describe('reopened Source Document workspace', () => {
       sourceDocumentId: '51000000-0000-4000-8001-000000000001',
       sourceRepresentationRevisionId: reopened.sourceRepresentationId,
       schemaRevisionId: body.schemaRevisionId,
-      strategy: body.strategy, catalogRecipe: null,
+      strategy: body.strategy,
       executionStatus: 'COMPLETED',
       finalizedReview: null,
       requestedSettings: { article: REFERENCE_ARTICLE },
@@ -3546,7 +3519,6 @@ describe('reopened Source Document workspace', () => {
       sourceRepresentationRevisionId: nextSourceRepresentationId,
       schemaRevisionId: reopened.persistedExtraction!.schemaRevisionId,
       strategy: 'CATALOG' as const,
-      catalogRecipe: null,
       executionStatus: 'RUNNING' as const,
       finalizedReview: null,
       requestedSettings: { generic: null },
@@ -3658,7 +3630,6 @@ describe('reopened Source Document workspace', () => {
             sourceRepresentationRevisionId: reopened.sourceRepresentationId,
             schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
             strategy: 'ARTICLE',
-            catalogRecipe: null,
             executionStatus,
             finalizedReview: null,
             requestedSettings: { article: REFERENCE_ARTICLE },

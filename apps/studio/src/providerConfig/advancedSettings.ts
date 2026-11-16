@@ -1,5 +1,5 @@
 import {
-  ARTICLE_KEYS, articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, REFERENCE_CATALOG, type ArticleSettings,
+  ARTICLE_KEYS, articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings,
   type CatalogSettings,
 } from 'extraction/extraction-method'
 
@@ -9,11 +9,8 @@ import {
 export type AdvancedStrategy = 'article' | 'catalog'
 export type ArticleKey = keyof ArticleSettings
 export type ArticleSection = 'context' | 'input' | 'evidence'
-export type CatalogFactor = 'glossary' | 'headings' | 'overlap' | 'verification'
 export type NumberPath =
   | 'article.context_tokens'
-  | 'catalog.generic.discovery_chars' | 'catalog.generic.record_chars'
-  | 'catalog.recipe.input_tokens' | 'catalog.recipe.output_tokens'
   | 'catalog.unified.input_tokens' | 'catalog.unified.output_tokens' | 'catalog.unified.overlap' | 'catalog.unified.candidates'
 
 export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string; keys: readonly ArticleKey[] }[] = [
@@ -58,18 +55,8 @@ export const ARTICLE_CHOICES = {
   evidence_policy: [{ value: undefined, label: 'All populated record fields' }, { value: 'schema', label: 'Follow template policies' }],
 } as const satisfies { [K in Exclude<ArticleKey, 'context_tokens'>]: readonly Choice<ArticleSettings[K] | undefined>[] }
 
-export const CATALOG_LABELS = {
-  discovery_chars: 'Discovery text limit', record_chars: 'Record text limit',
-  input_tokens: 'Input budget', output_tokens: 'Output reserve',
-  glossary: 'Glossary', headings: 'Inherited headings', overlap: 'Neighboring context', verification: 'Verification',
-} as const
-
 export const NUMBER_MESSAGES: Readonly<Record<NumberPath, string>> = {
   'article.context_tokens': METHOD_MESSAGES.contextTokens,
-  'catalog.generic.discovery_chars': METHOD_MESSAGES.characters,
-  'catalog.generic.record_chars': METHOD_MESSAGES.characters,
-  'catalog.recipe.input_tokens': METHOD_MESSAGES.budgetTokens,
-  'catalog.recipe.output_tokens': METHOD_MESSAGES.budgetTokens,
   'catalog.unified.input_tokens': METHOD_MESSAGES.inputTokens,
   'catalog.unified.output_tokens': METHOD_MESSAGES.replyTokens,
   'catalog.unified.overlap': METHOD_MESSAGES.catalogOverlap,
@@ -155,33 +142,10 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
   ]
 }
 
-const GENERIC_KEYS = ['discovery_chars', 'record_chars'] as const
-const RECIPE_KEYS = ['input_tokens', 'output_tokens', 'factors'] as const
 const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
 
-/** A Catalog draft in the contract's key order, without unset values; like `orderedArticle`, it never validates. */
-export function orderedCatalog(catalog: Readonly<{ generic?: Record<string, unknown>; recipe?: Record<string, unknown>; unified?: Record<string, unknown> }>): CatalogSettings {
-  const pick = (member: Record<string, unknown> | undefined, keys: readonly string[]) =>
-    member && Object.fromEntries(keys.flatMap((key) => (member[key] === undefined ? [] : [[key, member[key]]])))
-  const generic = pick(catalog.generic, GENERIC_KEYS)
-  const recipe = pick(catalog.recipe, RECIPE_KEYS)
-  const unified = pick(catalog.unified, UNIFIED_KEYS)
-  return { ...(generic ? { generic } : {}), ...(recipe ? { recipe } : {}), ...(unified ? { unified } : {}) } as CatalogSettings
-}
-
-/** A Catalog edit that returns a value the saved override omits to the value shown for it (the service default)
- *  omits it again, and a member left empty that way goes too: toggling or typing back is not an unsaved change. Values
- *  the saved override sets stay explicit; without a saved override (Customize), nothing is omitted. */
-export function keepSavedOmissions(catalog: CatalogSettings, saved: CatalogSettings | undefined): CatalogSettings {
-  if (!saved) return catalog
-  const member = (name: 'generic' | 'recipe') => {
-    const edited = catalog[name] as Record<string, unknown> | undefined
-    const before = saved[name] as Record<string, unknown> | undefined
-    const shown = REFERENCE_CATALOG[name] as Record<string, unknown>
-    if (!edited) return undefined
-    const kept = Object.fromEntries(Object.entries(edited).filter(([key, value]) =>
-      before?.[key] !== undefined || JSON.stringify(value) !== JSON.stringify(shown[key])))
-    return Object.keys(kept).length === 0 && before === undefined ? undefined : kept
-  }
-  return orderedCatalog({ generic: member('generic'), recipe: member('recipe'), unified: catalog.unified })
+/** A Catalog draft in contract order, without unset values; validation is the contract's. */
+export function orderedCatalog(catalog: Readonly<{ unified?: Record<string, unknown> }>): CatalogSettings {
+  const member = catalog.unified
+  return member ? { unified: Object.fromEntries(UNIFIED_KEYS.flatMap(key => member[key] === undefined ? [] : [[key, member[key]]])) } : {}
 }

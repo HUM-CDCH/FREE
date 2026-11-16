@@ -33,16 +33,13 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
   await ensureKeiRole(admin,{role,password,schema:'kei_dbos'})
   const worker=new URL(target.url);worker.username=role;worker.password=password
   const cases:{method:string;terminal:string;id:string;attempt:string;workflow:string;source:unknown}[]=[]
-  const scenarios=[...['article','generic','recipe','unified'].flatMap(method=>['complete','stop','failure'].map(terminal=>({method,terminal}))),
+  const scenarios=[...['article','unified'].flatMap(method=>['complete','stop','failure'].map(terminal=>({method,terminal}))),
     {method:'article',terminal:'queued-pause'},{method:'article',terminal:'after-queued-pause'},
     {method:'unified',terminal:'truncation'},{method:'unified',terminal:'truncation-exhausted'},
     {method:'unified',terminal:'repetition-recovery'}]
   for(const [index,{method,terminal}] of scenarios.entries()) {
     const schemaRevisionId=randomUUID(),id=randomUUID()
-    const nodes=method==='recipe'?[
-      {id:'n',name:'entry_no',type:'integer'},{id:'s',name:'site_name',type:'string'},
-      {id:'m',name:'mbl_old',type:'integer'},{id:'f',name:'fundart',type:'string'},
-    ]:method==='unified'?[
+    const nodes=method==='unified'?[
       {id:'l',name:'label',type:'string'},{id:'s',name:'site',type:'string'},
       {id:'m',name:'material',type:'string'},{id:'g',name:'gilded',type:'boolean'},
       {id:'f',name:'finds',type:'array',children:[{id:'fn',name:'name',type:'string'},{id:'fc',name:'count',type:'integer'}]},
@@ -56,7 +53,7 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
       [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,strategy,recipe,settings])
     await admin.query('BEGIN')
     try{await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
-      sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId,schemaTree:tree,strategy,catalogRecipe:recipe,
+      sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId,schemaTree:tree,strategy,
       preprocessId:`kei-exp:durable-${method}-${terminal}-${suffix}:g1`,requestedModels:terminal==='repetition-recovery'?{fields:'nuextract',reasoning:'instruct'}:null,requestedSettings:settings});await admin.query('COMMIT')}
     catch(error){await admin.query('ROLLBACK');throw error}
     const head=(await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
@@ -96,5 +93,5 @@ test('all four real durable methods drain Pause, cancel pending Resume and retai
       console.info(error.stdout);throw new Error('Guarded four-method lifecycle verification failed.')
     })
   assert.match(stdout,/16 passed/)
-  console.info('Article, generic, recipe and unified native Pause/Resume/Stop/Retry and queued lane-release checks passed.')
+  console.info('Article and unified Catalog native Pause/Resume/Stop/Retry and queued lane-release checks passed.')
 })

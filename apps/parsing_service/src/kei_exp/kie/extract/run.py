@@ -6,10 +6,9 @@ schema is another one, with no OCR rerun either way), the records, their evidenc
 result, what stayed ungrounded, the issues, and every model call's cost.
 
 Every implementation has one call shape: the run directory, the evidence read from it, the validated request and a
-router, keyword-only `counter` and `chunks`, returning the finished artifact. The unified Catalog's
-is `unified.extract` (version 3, `options.unified`); the recipe Catalog's is `grounded.extract`, Article's `article.extract` and the generic version 1
-Catalog's `catalog.extract`; the last two assemble their version 1 artifact in `assembly.py`. `extract` chooses one
-from the request's task scope (`ExtractRequest.record_scope`: Article for "document", a Catalog for "records") and
+router, keyword-only `counter` and `chunks`, returning the finished artifact. Article uses `article.extract`
+and Catalog uses `unified.extract`; Article assembles its version 1 artifact in `assembly.py`. `extract` chooses
+from the request's task scope (`ExtractRequest.record_scope`: Article for "document", Catalog for "records") and
 options, does not know what it does, and holds its result to the scope's cardinality (`dispatch`); no implementation
 imports this module. Durable execution (`workflows/durable_extract.py`) calls `dispatch` over its pinned evidence;
 nothing here publishes a file.
@@ -25,21 +24,19 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from kei_exp.kie.extract import article, catalog, grounded, unified
+from kei_exp.kie.extract import article, unified
 from kei_exp.kie.extract import models as extraction_models
-from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import REFERENCE, ArticleOptions
 from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.schema import RecordScope, Schema
 from kei_exp.kie.extract.unified import ITEM, UnifiedOptions
 from kei_exp.kie.passages import Evidence, load
-from kei_exp.kie.recipe import load_recipe
 
 logger = logging.getLogger(__name__)
 
 # The task scope each service strategy serves (`tests/fixtures/contracts/record-scope.json`, `service_strategies`):
-# Article is one document-level object, a Catalog (generic, recipe or unified) a collection of records.
+# Article is one document-level object, Catalog a collection of records.
 SERVICE_STRATEGIES: dict[str, RecordScope] = {"article": "document", "catalog": "records"}
 
 
@@ -47,9 +44,6 @@ class Options(BaseModel):
     model_config = ConfigDict(extra="forbid")
     strategy: Literal["catalog", "article"] = "catalog"
     models: dict[str, str] | None = None  # role (fields, reasoning) -> extraction model key; deployment defaults
-    discovery_chars: int = Field(default=48_000, ge=1_000)  # text per discovery call
-    record_chars: int = Field(default=24_000, ge=1_000)     # generic Catalog text/grounding cap; Article uses tokens
-    catalog: CatalogOptions | None = None  # a recipe: structural segmentation and grounded result version 2
     article: ArticleOptions | None = None
     unified: UnifiedOptions | None = None  # the unified Catalog method: result version 3
     # The page the researcher was reading when the run started, one-based: the order the unified Catalog reads its
@@ -64,43 +58,20 @@ class Options(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _unified_stands_alone(self) -> Options:
-        """The unified method never reads the generic Catalog's character limits or a recipe: sent with it, they are refused
-        rather than silently ignored."""
-        if self.unified is not None and (self.strategy != "catalog" or self.catalog is not None
-                                         or {"discovery_chars", "record_chars"} & self.model_fields_set):
-            raise ValueError("options.unified applies to the catalog strategy only and takes no recipe "
-                             "(options.catalog) and no character limits (discovery_chars, record_chars)")
-        return self
-
-    @model_validator(mode="after")
-    def _article_defaults(self) -> Options:
-        if self.strategy == "article" and self.article is None:
-            if "article" in self.model_fields_set:
-                raise ValueError("options.article cannot be null")
-            self.article = REFERENCE
-        return self
-
-    @model_validator(mode="after")
-    def _recipe_is_known(self) -> Options:
+    def _strategy_settings(self) -> Options:
+        if self.unified is not None and self.strategy != "catalog":
+            raise ValueError("options.unified applies to the catalog strategy only")
         if self.article is not None and self.strategy != "article":
             raise ValueError("options.article applies to the article strategy only")
-        if self.catalog is not None:
-            if self.strategy != "catalog":
-                raise ValueError("options.catalog applies to the catalog strategy only")
-            load_recipe(self.catalog.recipe)  # an unknown reference is refused before any model call
+        if self.strategy == "catalog" and self.unified is None:
+            self.unified = UnifiedOptions(defaults=10)
         return self
 
     def dumped(self) -> dict:
-        """The options as the artifact and the fingerprint record them: no `catalog` key on the version 1 path, and
-        the unified method without the character limits it never reads. The start page is never recorded: it orders the
-        work, not the result."""
-        result = self.model_dump(exclude={name for name in ("catalog", "article", "unified")
+        """Pinned settings, without unset strategy members or the display-only start page."""
+        result = self.model_dump(exclude={name for name in ("article", "unified")
                                           if getattr(self, name) is None} | {"start_page"})
-        if self.catalog is not None and self.catalog.factors is None:
-            result["catalog"].pop("factors")
-        if self.unified is not None:  # it has no character limits to record
-            del result["discovery_chars"], result["record_chars"]
+        if self.unified is not None:
             result["unified"] = self.unified.dumped()
         return result
 
@@ -184,19 +155,15 @@ def dispatch(run_dir: Path | None, evidence: Evidence, request: ExtractRequest, 
     """The implementation the request's scope and options choose, over `evidence` already read, and its result held
     to the scope's cardinality: a document-scope result that is not exactly one record is a `RecordScopeViolation`,
     never an artifact; a records-scope result may hold any number, none included. Durable execution and the research
-    harness call this with evidence already read (the harness's `run_dir` None: a recipe, which needs its run's
-    segmentation, is refused by `grounded.extract`). Every link of the result gets its value mark here from the run's
+    harness call this with evidence already read. Every link of the result gets its value mark here from the run's
     `input.pdf` where one is placed (`value_mark.place_links`; none without `run_dir`), after the implementation's
     fingerprint, which the marks never change."""
     chat = as_router(chat)
     scope = request.record_scope
     if scope == "document":
         result = article.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks)
-    elif request.options.unified is not None:
-        result = unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks)
     else:
-        implementation = grounded.extract if request.options.catalog is not None else catalog.extract
-        result = implementation(run_dir, evidence, request, chat, counter=counter, chunks=chunks)
+        result = unified.extract(run_dir, evidence, request, chat, counter=counter, chunks=chunks)
     if scope == "document" and len(result["records"]) != 1:
         raise RecordScopeViolation(f"record_scope_violation: a document-scope extraction is exactly one record, "
                                    f"and the {request.options.strategy!r} strategy returned {len(result['records'])}")

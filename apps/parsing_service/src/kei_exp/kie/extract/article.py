@@ -127,7 +127,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     from kei_exp.kie.extract.retained import plan_records
     plan_records(chat, "article-contexts", [context.dumped() for context in contexts])
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
-        budget=options.record_chars, counter=counter["fields"],
+        budget=24_000, counter=counter["fields"],
         structured=method.rendering == "structured")
     if fallback is not None:
         issues.append(fallback)
@@ -138,7 +138,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             saved_record(chat, root, "document", primary=[{"segment": p.id, "start": 0, "end": len(p.text)}
                                                          for p in group.primary], disagreements=disagreements)
     extracted = document_root(evidence.passages, schema, chat, counters=counter,
-                              record_chars=options.record_chars, method=method, contexts=contexts,
+                              record_chars=24_000, method=method, contexts=contexts,
                               start_page=options.start_page,
                               on_context=retained_context)
     if extracted.calls and not any(call.ok for call in extracted.calls):
@@ -163,7 +163,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             place_links(links, evidence.passages, None if run_dir is None else run_dir / "input.pdf")  # as `dispatch`
             saved_record(chat, extracted.slices[0][1], "document", links=links, disagreements=extracted.disagreements)
     try:
-        support = ground_records(extracted.slices, schema, chat, budget=options.record_chars,
+        support = ground_records(extracted.slices, schema, chat, budget=24_000,
             counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
             value_contexts=extracted.value_contexts, origins=extracted.origins, on_batch=grounded.extend)
     except NeedsCall:

@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from kei_exp.kie.extract import llm
-from kei_exp.kie.extract.acceptance import candidate_schema
+from kei_exp.kie.extract.unified import candidates_schema
 from kei_exp.kie.extract.llm import (
     ModelOutputError,
     NuExtractChat,
@@ -124,8 +124,7 @@ def test_undescribed_fields_and_nested_reply_shapes_are_visible_with_normal_and_
     nodes = [Node(id="site", name="site", type="verbatim-string"),
              Node(id="finds", name="finds", type="array", children=[
                  Node(id="kind", name="kind", type="string", allowed_values=["pottery", "metal"])])]
-    schema = {"type": "object", "properties": {node.name: candidate_schema(node) for node in nodes},
-              "required": [node.name for node in nodes], "additionalProperties": False}
+    schema = candidates_schema(nodes)
     chat = OpenAIChat(model="m")
     monkeypatch.setattr(llm, "bounded_grammar", lambda schema, limit: "GRAMMAR")
     normal = chat.request_body(system="Read the record.", user="Source", schema=schema)
@@ -276,11 +275,6 @@ def test_the_template_follows_the_shape_of_the_schema():
         "place": {"zone": "integer"}}
 
 
-def test_a_grounded_candidate_asks_for_its_quote_and_key_verbatim():
-    candidate = candidate_schema(Node(id="m", name="mbl_old", type="integer"))
-    assert nuextract_template({"type": "object", "properties": {"mbl_old": candidate}}) == {"mbl_old": {
-        "value": "integer", "quote": "verbatim-string", "key": "verbatim-string",
-        "provenance": ["token", "positional"]}}
 
 
 @pytest.mark.parametrize("schema", [{"type": ["string", "number"]}, {"type": "string", "enum": ["only"]},

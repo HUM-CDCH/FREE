@@ -22,7 +22,7 @@ flowchart LR
 
 | Module | Responsibility |
 | --- | --- |
-| `kie/passages.py` | Verify canonical files and expose stable passages/tables; shared with the recipe stages, outside `kie/extract/`. |
+| `kie/passages.py` | Verify canonical files and expose stable passages/tables; outside `kie/extract/`. |
 | `run.py` | Load the evidence, check its generation and hand it to the implementation the options choose; the strategies share one call shape. Place the result's value marks (`value_mark.py`) and return the assembled result. |
 | `rendering.py` | Expose block types and table cell spans to the model while retaining exact canonical text. |
 | `spans.py` | Offer exact generation-scoped source ranges and intact canonical cells for compact grounding decisions. |
@@ -31,8 +31,7 @@ flowchart LR
 | `contexts.py` | Partition whole passages or structural groups with disjoint primary ownership, inherited heading context and optional overlap; assemble or reconcile values without hiding scalar conflicts. |
 | `article.py` | The Article implementation: the document's one root read from each value context, assembled across contexts, resolved when split, and grounded. Bounded contexts are sized against the document-value request. |
 | `resolution.py` | Resolve split-source Article readings and filter assembled list occurrences; retain disagreements and assembled items when resolution fails or is unsure. |
-| `catalog.py` | The version 1 Catalog implementation: generic record discovery and one call per record slice. |
-| `assembly.py` | What Article and the version 1 Catalog share: document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
+| `assembly.py` | Article's document values over contexts, policy, scheduling and routing of fixed record values through `grounding.technique` (shared with grounding-only experiments), and the version 1 artifact with its fingerprint and prompt version. |
 | `stages.py` | The shared value prompts (guardrail, schema instruction, labelled passages), document and record value requests and their conformance, value helpers, and the record merge. |
 | `schema.py` | The extraction schema as Studio's editor writes it: the strict reply schema, the field notes a prompt lists, `conform`, and evidence-policy resolution. |
 | `calls.py` | Extraction call execution: `complete` routes a finished request to its role's model, admits it against the served context when counted, invokes the adapter, reads the reply and records every attempt as a `Call`. The only way an extraction stage reaches a model. |
@@ -40,13 +39,12 @@ flowchart LR
 | `gliformer.py` | Native GLiFormer fields over discovered entries, with no chat emulation or value repair. |
 | `models.py` | The deployment's extraction models, their permitted roles and defaults, a run's choice, and `ROLE`/`Router`: which role and chat serve each stage. |
 | `tokens.py` | Count requests on the serving endpoint's `/tokenize` and read its context size. |
-| `grounding.py` | Ground version 1 Catalog and Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
-| `grounded.py` | The recipe Catalog implementation: entry extraction under the token budget, the merge of an entry's windows and conflict arbitration. |
-| `acceptance.py` | Decide, without a model, whether a recipe Catalog candidate is accepted, proposed or rejected: its value typed, its quote in the entry, a recipe key introducing it; the candidate reply schemas. |
+| `grounding.py` | Ground Article values in their passages. The `semantic`, `quoted`, `spans` and `off` techniques share one call shape; `technique` maps `article.grounding` (omitted: `semantic`) to one, and `assembly.py` calls it without knowing which. |
+| `acceptance.py` | Type Catalog values and represent located outcomes. |
 | `value_mark.py` | Place a linked value's printing on the run's own `input.pdf` (ADR 0031): pdfium's characters under the anchor's box, matched only where the value and its surroundings print once, one box per printed line; on a block the OCR model read, only where the rendered page image confirms its text layer. The one read of the PDF in extraction. |
 | `locate.py` | Locate a quoted value in a block's own text as raw code-point spans, matching on a normalised view that maps back to raw offsets. |
-| `windows.py` | Cut an oversized recipe Catalog entry into consecutive windows whose request fits the budget, with optional one-line overlap. |
-| `catalog_result.py` | Shape recipe Catalog outcomes into records, evidence links (table cells, glossary normalization) and review items. |
+| `windows.py` | Partition Catalog source Units into counted windows with optional overlap. |
+| `catalog_result.py` | Place values and expose common canonical spans and cell Evidence. |
 | `unified.py` | The unified Catalog, result version 3: per-stage budgets resolved from the served context, record discovery, then each entry's extraction, verification (mandatory in Pro, optional in defaults 10) and arbitration. |
 | `discovery.py` | The unified Catalog's source units, counted windows and record discovery with its source ledger. |
 | `durable.py` | Plan and capture calls for every method: planning runs the algorithms against committed call outputs, and an unexecuted request yields to the durable workflow instead of reaching a provider. |
@@ -81,10 +79,10 @@ method; later calls never substitute a newer revision for those producing inputs
 | Step | Owner |
 | --- | --- |
 | Pinned selection and dispatch | Studio's [`initializeDurableExtraction`](../../../packages/extraction/src/durable-repository.ts) stores the immutable executable schema, method and source pins. Its reconciler dispatches `extractDurableV1` with only protocol, Extraction ID and attempt ID; the worker reads the selection through restricted [`coordination`](../src/kei_exp/workflows/coordination.py) routines. |
-| Effective inputs | [`effective` / `plan_next`](../src/kei_exp/workflows/durable_extract.py) validates `run.ExtractRequest`, resolves and saves effective model routes, options and protocol versions for that selection, then reuses those captured inputs on recovery. An unservable model choice or unknown recipe is refused before a new provider call. |
-| Canonical input | `plan_next` loads verified canonical `Evidence`/`Passage`s with [`passages.load`](../src/kei_exp/kie/passages.py) and refuses a generation different from the source pin. [`run.dispatch`](../src/kei_exp/kie/extract/run.py) chooses unified Catalog, recipe Catalog, Article or generic Catalog from the pinned options. |
+| Effective inputs | [`effective` / `plan_next`](../src/kei_exp/workflows/durable_extract.py) validates `run.ExtractRequest`, resolves and saves effective model routes, options and protocol versions for that selection, then reuses those captured inputs on recovery. An unservable model choice  is refused before a new provider call. |
+| Canonical input | `plan_next` loads verified canonical `Evidence`/`Passage`s with [`passages.load`](../src/kei_exp/kie/passages.py) and refuses a generation different from the source pin. [`run.dispatch`](../src/kei_exp/kie/extract/run.py) chooses Article or unified Catalog from the pinned strategy. |
 | Captured calls | [`CapturePlanner`](../src/kei_exp/kie/extract/durable.py) reserves exact model requests and correction context before execution. [`extractionCallV1` / `invoke_capture`](../src/kei_exp/workflows/durable_extract.py) durably saves each response before acknowledgement. Recovery and unchanged-input Retry reuse committed successful outputs; failed responses remain attempt-specific history. |
-| Result assembly | [`assembly.artifact`](../src/kei_exp/kie/extract/assembly.py), [`grounded.extract`](../src/kei_exp/kie/extract/grounded.py) and [`unified.extract`](../src/kei_exp/kie/extract/unified.py) assemble the version-1, version-2 and version-3 internal results, including values, Evidence and diagnostics. Unified execution/discovery records and entry work are assembled in memory; deleted stage files are not checkpoints. |
+| Result assembly | [`assembly.artifact`](../src/kei_exp/kie/extract/assembly.py) and [`unified.extract`](../src/kei_exp/kie/extract/unified.py) assemble the Article version-1 and Catalog version-3 internal results, including values, Evidence and diagnostics. Unified execution/discovery records and entry work are assembled in memory; deleted stage files are not checkpoints. |
 | Retained publication | [`retained.publish_values` / `publish_final`](../src/kei_exp/kie/extract/retained.py) validate typed values, bind stable record/field identities, retain producing selections and producer Evidence, and call `publish_snapshot`. [`publish_result`](../src/kei_exp/workflows/durable_extract.py) completes publication before the attempt's acknowledgement. Nothing publishes an extraction result beside a parse run. |
 | Studio read and review | The [`durable repository`](../../../packages/extraction/src/durable-repository.ts) reads fixed snapshots and numbered correction versions. [`kei-evidence`](../../../packages/extraction/src/kei-evidence.ts) projects producer Evidence against the pinned Source Representation; corrections and finalization use the durable routes. No legacy workflow or HTTP artifact reader participates. |
 
@@ -160,19 +158,6 @@ boundaries: the planner checks the attempt's intent before it plans, and a
 capture checks it again, and must be admitted by `begin_call`, before its
 request is sent. A request already in flight finishes first.
 
-### The recipe Catalog
-
-A request with `options.catalog.recipe` runs
-[`grounded.extract`](../src/kei_exp/kie/extract/grounded.py) instead of generic
-Catalog; it is an optional path for catalogues a recipe describes, not the
-generic Catalog's replacement. Structural segmentation replaces discovery.
-`grounded._Run.call` counts each `entry` and `document` (fields) and
-`arbitration` (reasoning) request against the recipe's input budget before handing it to the same
-`calls.complete`; code in `acceptance.py` accepts, proposes or rejects each
-candidate, and the result is version 2 with code-point span Evidence. The
-[grounded catalogue design](design/2026-09-23-grounded-catalogue-design.md) is
-its contract.
-
 ## Article choices
 
 Omitting `options.article` runs the shared Article default: the complete source
@@ -238,20 +223,6 @@ A request exercising the structural input:
 ```
 
 ## Catalog choices
-
-`options.catalog.factors` independently controls glossary use, inherited
-headings, overlap, and verification. Omission preserves existing behavior and
-serialization. Disabling verification retains typed model values as proposals,
-without accepting or grounding them; `raw_candidates` preserves the replies.
-Structural ownership and canonical spans are never disabled. Glossary-off also
-disables glossary normalization; heading-off disables inherited bindings and
-heading context; overlap-off disables neighboring context and window overlap.
-
-`headed-graves-da@1` is a narrow, declared recipe for standalone `Grav N`
-headings. It was developed on one supplied excavation-report excerpt. Its seven detected
-blocks and complete line disposition are observations, not annotated block F1.
-It does not apply the German catalogue's field bindings or strip `Grav` from a
-printed identifier. Transfer to other grave reports is unmeasured.
 
 The unified Catalog (`options.unified`) gives every nonblank source line one
 ledger disposition: `entry`, `other`, `unresolved` or `withheld`. Its windows

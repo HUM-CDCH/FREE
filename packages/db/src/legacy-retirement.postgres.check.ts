@@ -96,7 +96,7 @@ test('retirement refuses historical pins before changes, preserves current pins,
     [suggestionId, pins.projectContextId, randomBytes(32).toString('hex'), JSON.stringify(coverage)])
   const ids = await Promise.all([seed({ unified: { defaults: 5 } }), seed({ unified: { defaults: 10 } })])
   const before = (await client.query('SELECT id,"requestedSettings" FROM public.extraction ORDER BY id')).rows
-  assert.deepEqual((await migrate(target.url)).applied, ['20261116T0040_retire_legacy_contracts'])
+  assert.deepEqual((await migrate(target.url)).applied, ['20261116T0040_retire_legacy_contracts', '20261116T0847_unified_catalog'])
   assert.deepEqual((await client.query('SELECT id,"requestedSettings" FROM public.extraction ORDER BY id')).rows, before)
   assert.deepEqual((await client.query('SELECT coverage FROM public."batchSchemaSuggestion" WHERE id=$1', [suggestionId])).rows[0].coverage, coverage)
   assert.equal(ids.length, 2)

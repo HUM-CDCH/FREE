@@ -24,8 +24,8 @@ export type GuideTopic = Readonly<{
   technical: string
 }>
 
-export const SECTION_TOPIC: Readonly<Record<ArticleSection | 'generic' | 'recipe' | 'unified', GuideTopicId>> = {
-  context: 'scope', input: 'format', evidence: 'grounding', generic: 'catalog', recipe: 'catalog',
+export const SECTION_TOPIC: Readonly<Record<ArticleSection | 'unified', GuideTopicId>> = {
+  context: 'scope', input: 'format', evidence: 'grounding',
   unified: 'catalog',
 }
 
@@ -208,27 +208,29 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
 
   {
     id: 'catalog', title: 'Catalog',
-    purpose: 'Generic Catalog limits apply to Model discovery; recipe budgets and factors apply to numbered-catalogue recipes. Where the deployment enables the unified Catalog, one group of five controls replaces both for every new single and batch Catalog Extraction.',
+    purpose: 'One group of controls applies to every single and batch Catalog Extraction.',
     stage: 'Catalog discovery and per-entry extraction.',
     example: {
-      caption: 'Heading “Grav 7”, an abbreviated material and a neighboring line.',
+      caption: 'Entry 7: a bronze pin under the heading River sites.',
       options: [
-        { label: 'All factors on', blocks: [unit('Entry', 'Grav 7 · Kn. · next line')],
-          outcome: 'The glossary expansion sits beside the raw value, the heading is inherited, the neighboring line is context, and values are verified.' },
-        { label: 'Glossary off', blocks: [unit('Entry', 'Kn.', 'raw value only')], outcome: 'The abbreviation stays raw; glossary normalization is off too.' },
-        { label: 'Inherited headings off', blocks: [unit('Entry', 'Kn.', 'no heading binding')], outcome: '“Grav 7” is not bound to the entry.' },
-        { label: 'Neighboring context off', blocks: [unit('Entry', 'Grav 7 · Kn.', 'no neighboring line')], outcome: 'The neighboring line is not shown.' },
-        { label: 'Verification off', blocks: [unit('Entry', 'Kn.', 'proposal')], outcome: 'Typed values are kept as proposals, not accepted evidence.' },
+        { label: 'Default single pass', blocks: [unit('Entry', '7. Bronze pin', 'quote located')],
+          outcome: 'Code locates the quote and links the value by rule. A value without a locatable quote stays for review.' },
+        { label: 'Pro mode', blocks: [unit('Entry', '7. Bronze pin', 'second reading')],
+          outcome: 'A second call checks every value against the source and may correct it.' },
+        { label: 'Heading context off', blocks: [unit('Entry', '7. Bronze pin', 'entry text only')],
+          outcome: 'Heading excerpts are not offered as context; the record still keeps its owned source text.' },
+        { label: 'Smaller input ceiling', blocks: [unit('Window 1', '7. Bronze pin'), unit('Window 2', 'continued source')],
+          outcome: 'More requests read the same admitted source. Text is split rather than clipped.' },
       ],
     },
-    combinations: 'Factor switches never turn off structural ownership or canonical spans. A recipe is chosen per Extraction. In the unified Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; from defaults version 6 verification is off and each value is read once: a value code locates in its entry is linked by rule, unverified, and one without a locatable quote stays for review; Pro mode (verification on) runs version 5 instead, where a second call reads every value again and may correct it; retired limits and recipe factors are never converted.',
-    takeaway: "For a recipe, Verification Off yields proposals; a recipe's applicability is source-specific.",
-    evidence: [{ source: 'r1catalog', finding: 'Recipe, recipe without neighboring context and recipe without verification each made seven calls and returned seven records; without neighboring context it used 440 fewer input tokens; generic Catalog made 14 calls.' }],
+    combinations: 'In Catalog, input and reply budgets change how the source is split into requests, never how much of it is read; with overlap 0 a record continues across a split only when both sides say so; from defaults version 6 verification is off and each value is read once: a value code locates in its entry is linked by rule, unverified, and one without a locatable quote stays for review; Pro mode (verification on) runs version 5 instead, where a second call reads every value again and may correct it.',
+    takeaway: "Pro mode reads every value a second time. Default Catalog keeps values without locatable quotes for review.",
+    evidence: [{ source: 'r1catalog', finding: 'An earlier study compared the retired recipe and generic Catalog methods. Those counts do not measure the current unified Catalog.' }],
     gaps: [
-      { kind: 'Not measured', text: 'Catalog accuracy, exhaustive recall and any benefit of switching verification off; glossary and inherited headings were not varied.' },
+      { kind: 'Not measured', text: 'Current Catalog accuracy, exhaustive recall and the effect of Pro mode on independent documents.' },
       { kind: 'Not measured', text: 'The unified Catalog on independent document families; its default reserves and overlap are engineering choices, not measured settings.' },
     ],
-    technical: 'discovery_chars, record_chars (generic); catalog.input_tokens, catalog.output_tokens, catalog.factors.{glossary,headings,overlap,verification} (recipe); unified.{defaults,input_tokens,output_tokens,overlap,headings,verification}, result version 3 with its execution and discovery records (unified).',
+    technical: 'unified.{defaults,input_tokens,output_tokens,overlap,candidates,headings,verification}, result version 3 with its execution and discovery records (unified).',
   },
 ]
 

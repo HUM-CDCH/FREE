@@ -28,7 +28,7 @@ it.each([
   {strategy:'CATALOG',settings:{unified:{defaults: 10,candidates:8,verification:true}},recipe:null},
 ])('can save unchanged $strategy inputs with pinned settings $settings',async({strategy,settings,recipe})=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
-  const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings},resolved:{catalogRecipe:recipe}},pendingSelection:null} as unknown as DurableRead
+  const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings},resolved:{}},pendingSelection:null} as unknown as DurableRead
   vi.mocked(durableRequest).mockResolvedValue(state)
   const onSaved=vi.fn()
   render(<DurableInputs attempt={{extractionId:'extraction',strategy} as ExtractionAttempt} state={state} acknowledged={3} currentSchema='schema' onSaved={onSaved} onEdited={async()=>{}} onCancel={vi.fn()}/>)
@@ -62,7 +62,7 @@ it('an Article input editor always previews the explicit settings Save sends',as
 })
 
 const article={...REFERENCE_ARTICLE,context:'bounded',context_tokens:8192}
-const inputs=(id:string,context_tokens:number)=>({id,schemaRevisionId:'schema',method:{models:null,settings:{article:{...article,context_tokens}}},resolved:{catalogRecipe:null}})
+const inputs=(id:string,context_tokens:number)=>({id,schemaRevisionId:'schema',method:{models:null,settings:{article:{...article,context_tokens}}},resolved:{}})
 const active=inputs('active',8192)
 const read=(controlVersion:number,pendingSelection:unknown,selection:unknown=active)=>({controlVersion,selection,pendingSelection}) as unknown as DurableRead
 /** The editor as "Change inputs" opens it: under the editing acknowledgement `state` was read at. It returns a poll. */

@@ -12,10 +12,10 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from kei_exp.kie.extract import article, catalog, contexts, run, stages, unified
+from kei_exp.kie.extract import article, contexts, run, stages, unified
 from kei_exp.kie.extract.schema import Schema
 from tests.helpers.chat import FakeChat
-from tests.test_extract_grounded import CountingChat, WordCounter, resolving
+from tests.helpers.extraction import CountingChat, WordCounter, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 CONTRACT = json.loads((Path(__file__).parent / "fixtures" / "contracts" / "record-scope.json").read_text())
@@ -62,7 +62,7 @@ def fake_implementation(count: int, calls: list):
 def test_every_contract_artifact_is_published_or_refused_at_dispatch(row, monkeypatch):
     calls = []
     strategy = {"document": "article", "records": "catalog"}[row["recordScope"]]
-    monkeypatch.setattr({"article": article, "catalog": catalog}[strategy], "extract",
+    monkeypatch.setattr({"article": article, "catalog": unified}[strategy], "extract",
                         fake_implementation(row["records"], calls))
     request = run.ExtractRequest.model_validate({"schema": definition(row["recordScope"]),
                                                  "options": {"strategy": strategy}})
@@ -221,31 +221,6 @@ ENTRIES = Schema.model_validate({"recordDescription": "One numbered catalogue en
         {"id": "k", "name": "kind", "type": "string"},
         {"id": "m", "name": "materials", "type": "array", "itemType": "string"}]},
 ]})
-
-
-def test_a_records_scope_request_is_the_generic_catalogs_and_keeps_equal_items_of_different_records():
-    source = passages(["12. Adorf. Finds: axe of iron, pin of bronze. Tags: grave, grave.",
-                       "13. Bdorf. Finds: axe of iron. Tags: grave."])
-
-    def script(system, user, schema):
-        if "starts" in schema["properties"]:
-            return {"starts": re.findall(r"\[(B\d+)\] \d+\.", user), "end": None}
-        if "entry" not in schema["properties"]:
-            return grounded_by_first_label(system, user, schema)
-        if "12. Adorf" in user:
-            return {"entry": "12", "tags": ["grave", "grave"], "finds": [
-                {"kind": "axe", "materials": ["iron"]}, {"kind": "pin", "materials": ["bronze"]}]}
-        return {"entry": "13", "tags": ["grave"], "finds": [{"kind": "axe", "materials": ["iron"]}]}
-    request = run.ExtractRequest.model_validate({"schema": {**ENTRIES.model_dump(by_alias=True, exclude_none=True),
-                                                            "recordScope": "records"},
-                                                 "options": {"strategy": "catalog"}})
-    result = run.dispatch(None, evidence(source), request, FakeChat(script))
-    assert result["strategy"] == "catalog" and "inventory" not in result
-    assert result["records"] == [
-        {"entry": "12", "tags": ["grave", "grave"], "finds": [{"kind": "axe", "materials": ["iron"]},
-                                                              {"kind": "pin", "materials": ["bronze"]}]},
-        {"entry": "13", "tags": ["grave"], "finds": [{"kind": "axe", "materials": ["iron"]}]}]
-    assert ["records", 1, "finds", 0, "materials", 0] in [link["path"] for link in result["evidence"]]
 
 
 def test_a_records_scope_request_with_options_unified_is_the_unified_catalogs():

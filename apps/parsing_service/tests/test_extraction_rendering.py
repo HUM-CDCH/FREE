@@ -12,7 +12,7 @@ from kei_exp.kie.extract.rendering import structured_source
 from kei_exp.kie.extract.stages import extract_document, extract_record
 from kei_exp.kie.extract.tokens import BudgetUnavailable
 from kei_exp.pagefile import PageTable, TableCell
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 

@@ -648,35 +648,8 @@ queue.
     document injected while a book was being cut finished in 33.8 s, against
     32.8 s alone.
   - Each conversion has its own run directory.
-- **Parallel Catalog chunks.** A recipe Catalog extraction sending one request
-  at a time would leave 3 of the fields server's 4 slots idle, so it runs its
-  entries in `KEI_CATALOG_CHUNKS` contiguous chunks at once.
-  - **Setting.** Compose derives `KEI_CATALOG_CHUNKS` from the same
-    `NUEXTRACT_MAX_NUM_SEQS` (default 4) as `nuextract_model`'s
-    `--max-num-seqs`, as for OCR.
-  - **Once for the whole document:** the segmentation, the budget checks, the
-    bindings and the document-level fields. `_document` makes its one call
-    when the schema has document fields, and every chunk's records merge the
-    same result.
-  - **Per chunk:** a thread with its own `_Run`, because `_Run.call` mutates
-    run state. Every chunk keeps the full headings and glossary. Entries keep
-    their document-wide index, so issues and calls name the right record.
-  - **Merge** in entry order: records, evidence, proposals, rejections,
-    competitors, calls and issues. The run is refused if any chunk refused.
-    Coverage comes from the segmentation once. The result records the chunk
-    count.
-  - **Calls.** Chunking runs inside the durable planner, so each chunk's
-    provider requests are captured and run as `extractionCallV1` children
-    like any other call; Pause and Stop act at lease boundaries. Article and
-    generic Catalog extraction are not chunked.
-  - **Evidence** (200-entry Catalog): 106 s against 434 s. The same chunks run
-    one after another gave records identical to the unsplit run. Run in
-    parallel, they changed 19–21 borderline `fundart` values, against 0–1
-    between two unsplit runs. The cause is vLLM batching (*Risks*).
-  - **With two extraction slots,** two chunked Catalogs send up to 8 requests
-    to a 4-slot server. vLLM queues the rest in arrival order, so a small
-    extraction's request waits behind those already queued, about one round.
-  - **Unified Catalog** (`FREE_CATALOG_METHOD=unified`) uses
+- **Catalog concurrency.**
+  - **Unified Catalog** uses
     `KEI_CATALOG_CHUNKS` without contiguous chunks: it bounds how many of its
     calls execute at once per model role. Entries are read nearest the start page first and
     assembled in source order.

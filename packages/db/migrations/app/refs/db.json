@@ -1,5 +1,5 @@
 {
-  "hash": "sha256:fbeb9698789eafab32f78fe52a5d41a9c6cbcd945b9a34cecf4814f691bcccf7",
+  "hash": "sha256:fc21067bccaa9c0a1d7dc4dd05201b0fbf04b197346abc19f290ae15c8d1eb5f",
   "invariants": [
     "extraction-runtime.article-resolution-recovery",
     "extraction-runtime.catalog-whitespace-recovery",

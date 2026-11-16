@@ -540,8 +540,8 @@ describe('advanced extraction settings', () => {
   })
 
   it.each([
-    [{ catalog: { generic: {} } }],
-    [{ catalog: { generic: {}, recipe: {} } }],
+    [{ catalog: { unified: {} } }],
+    [{ catalog: {} }],
   ])('an empty Catalog member %j is stored as service defaults, and a reload reads exactly what was returned', async (extractionSettings) => {
     const configurations = inMemoryModelConfigurations()
     const response = await handlers({ configurations }).PUT(putRequest({ config: configured({ extractionSettings }) }))

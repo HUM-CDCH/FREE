@@ -39,7 +39,7 @@ test('boolean review requires decisions and finalizes without legacy grounding c
     try {
       await initializeDurableExtraction(admin as never, id, {projectContextId: fixture.projectContextId,
         sourceRepresentationRevisionId: document.sourceRepresentationRevisionId, schemaRevisionId, schemaTree: tree,
-        strategy, catalogRecipe: null, preprocessId: representation.preprocessId, requestedModels: null, requestedSettings: settings})
+        strategy, preprocessId: representation.preprocessId, requestedModels: null, requestedSettings: settings})
       await admin.query('COMMIT')
     } catch (error) { await admin.query('ROLLBACK'); throw error }
     const head = (await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1', [id])).rows[0]

@@ -204,7 +204,7 @@ describe('Studio on its restricted runtime role', () => {
     const extractionId = randomUUID()
     await createResearcherExtractions(seeded.researcherAccountId).runSingle({
       kind: 'fresh', extractionId, sourceRepresentationRevisionId: seeded.sourceRepresentationRevisionId,
-      schemaRevisionId: seeded.schemaRevisionId, strategy: 'ARTICLE', method: accountMethod(null, 'ARTICLE', null),
+      schemaRevisionId: seeded.schemaRevisionId, strategy: 'ARTICLE', method: accountMethod(null, 'ARTICLE'),
     })
     const attempt = await eventually(async () => (await studioDbos().kei.listWorkflows({
       workflowName: 'extractDurableV1', loadInput: false, loadOutput: false })).find(() => true), 'kei has the attempt')

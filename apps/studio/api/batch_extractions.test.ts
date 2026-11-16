@@ -108,7 +108,7 @@ describe('/api/batch-extractions transport', () => {
       repetition: 'create-new',
     })
 
-    const generic = { models: null, settings: { generic: null } }
+    const generic = { models: null, settings: { unified: { defaults: 10 } } }
     const catalog = await handle(open({ ...selection, strategy: 'CATALOG', method: generic }))
     expect(catalog.status).toBe(202)
     expect(module.scheduleBatch).toHaveBeenLastCalledWith({

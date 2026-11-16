@@ -33,20 +33,6 @@ export const evidenceSchema = linkSchema.extend({
   location: z.object({ spans: z.array(span.strict()).length(1), raw: z.string().min(1) }).strict().optional(),
 }).refine(link => link.location?.spans.every(each => each.segment === link.segment && each.start < each.end) ?? true,
   { path: ['location'], message: 'location spans must be non-empty ranges in the link\'s segment' })
-/** Version 2 evidence (`kie/extract/grounded.py` `_link`): the version 1 link plus the raw code-point spans of the value,
- *  its key, its provenance and alternatives, and the precision its box can claim. */
-export const groundedEvidenceSchema = linkSchema.extend({
-  linked_by: z.enum(['key', 'structure']),
-  spans: z.array(span).min(1),
-  alternatives: z.array(z.array(span)),
-  provenance: z.enum(['token', 'positional', 'inherited']),
-  key_spans: z.array(span),
-  heading: z.string().nullable(),
-  precision: z.enum(['cell', 'segment', 'input']),
-  raw: z.string(),
-  // The document's own glossary expansion of the raw value, which the record keeps unchanged.
-  normalized: z.object({ value: z.string(), rule: z.literal('glossary'), key_span: span, expansion_span: span }).nullable(),
-})
 /** Version 3 evidence (`kie/extract/unified.py` `_link`): a located value, its literal span or the passage that
  *  supports a yes/no, a label or a derived value, and the occurrence of the list item it belongs to. `verification`:
  *  a separate verification accepted it; `lexical`: a single-pass method (defaults 6) where only code located it. */
@@ -88,22 +74,6 @@ export function plainEvidenceLink(link: z.infer<typeof evidenceSchema>, evidence
     ...(link.linked_by === 'lexical' ? { linkedBy: 'lexical' as const } : {}),
     // A display location only: never `grounding`, which names a version 2 or 3 rule and its review wording.
     ...(link.location ? { location: { textSpans: link.location.spans, raw: link.location.raw } } : {}),
-    ...valueBoxes(link),
-  }
-}
-/** The recipe's rule attribution is independent of a verifier's support. */
-export function groundedEvidenceLink(link: z.infer<typeof groundedEvidenceSchema>, evidenceAnchorId: string) {
-  return {
-    resultPath: link.path, evidenceAnchorId, precision: link.precision,
-    verbatim: link.verbatim,
-    grounding: {
-      linkedBy: link.linked_by, provenance: link.provenance, textSpans: link.spans, keySpans: link.key_spans,
-      alternatives: link.alternatives, heading: link.heading, precision: link.precision, raw: link.raw,
-      normalized: link.normalized && {
-        value: link.normalized.value, rule: link.normalized.rule,
-        keySpan: link.normalized.key_span, expansionSpan: link.normalized.expansion_span,
-      },
-    },
     ...valueBoxes(link),
   }
 }

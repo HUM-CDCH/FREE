@@ -80,7 +80,7 @@ describe('Batch start methods', () => {
     }
     for (const request of [
       { strategy: 'ARTICLE' },
-      { strategy: 'ARTICLE', method: { models: null, settings: { generic: null } } },
+      { strategy: 'ARTICLE', method: { models: null, settings: { unified: { defaults: 10 } } } },
       { strategy: 'ARTICLE', method: { models: null, settings: { recipe: null } } },
       { strategy: 'CATALOG', method: { models: null, settings: { recipe: null } } },
     ]) {

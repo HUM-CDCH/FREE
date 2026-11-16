@@ -5,12 +5,7 @@ import type { ModelConfig } from '../shared/modelConfig.contract.js'
 import { E2E_ORIGIN, loginResearcher } from './auth.js'
 import { activateWithKeyboard, expectOperableInViewport, REQUIRED_VIEWPORTS } from './accessibility.js'
 
-/**
- * The unified Catalog's configuration in a real browser against Studio and PostgreSQL. It runs only where the
- * deployment's rollout gate is on (`FREE_CATALOG_METHOD=unified` in Studio's environment); the default suite runs with
- * it off, where the legacy Generic and Recipe controls stay as they were.
- */
-test.skip(process.env.FREE_CATALOG_METHOD !== 'unified', 'the unified Catalog rollout gate is off')
+/** Catalog configuration in a real browser against Studio and PostgreSQL. */
 test.describe.configure({ mode: 'serial' })
 
 async function signIn(page: Page): Promise<void> {
@@ -72,25 +67,16 @@ test('one Catalog group replaces Generic and Recipe; an invalid ceiling is found
   expect((await stored(page)).extractionSettings).toEqual({ catalog: { unified: { overlap: 0, verification: true } } })
 })
 
-test('retired Catalog preferences are explained, kept until Apply, and replaced only by it', async ({ page }) => {
+test('retired Catalog preferences are refused without changing saved settings', async ({ page }) => {
   await signIn(page)
   const current = await stored(page)
-  const legacy = { ...current, extractionSettings: { catalog: { generic: { record_chars: 30_000 } } } }
-  const put = await page.request.put('/api/model_config', { data: { config: legacy }, headers: { origin: E2E_ORIGIN } })
-  expect(put.ok()).toBe(true)
-  const dialog = await openCatalogSettings(page)
-  const note = dialog.getByRole('note')
-  await expect(note).toContainText('Record text limit: 30,000 characters')
-  await expect(note).toContainText('They are not converted')
-  await dialog.getByRole('button', { name: 'Customize' }).click()
-  await expect(note).toHaveCount(0)
-  await dialog.getByRole('button', { name: 'Discard', exact: true }).click()
-  await expect(dialog.getByRole('note')).toContainText('Record text limit: 30,000 characters')
-  expect((await stored(page)).extractionSettings).toEqual(legacy.extractionSettings)
-  await dialog.getByRole('button', { name: 'Use service defaults' }).click()
-  await dialog.getByRole('button', { name: 'Apply', exact: true }).click()
-  await expect(dialog.getByText('Everything saved')).toBeVisible()
-  expect((await stored(page)).extractionSettings).toEqual({})
+  for (const catalog of [{ generic: { record_chars: 30_000 } }, { recipe: { input_tokens: 4096 } }]) {
+    const put = await page.request.put('/api/model_config', {
+      data: { config: { ...current, extractionSettings: { catalog } } }, headers: { origin: E2E_ORIGIN },
+    })
+    expect(put.status()).toBe(400)
+    expect(await stored(page)).toEqual(current)
+  }
 })
 
 test('the Catalog group reflows without horizontal scrolling at 360 px and the required viewports', async ({ page }) => {

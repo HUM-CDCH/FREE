@@ -15,7 +15,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract import retained
 from kei_exp.workflows import durable_extract as worker
 from kei_exp.kie.extract.retained import publish_final, publish_values
-from tests.test_extract_grounded import CountingChat, WordCounter, honest, request as recipe_request
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_unified_catalog import Model, evidence as unified_evidence, request as unified_request
 from tests.helpers import catalogue
@@ -155,18 +155,13 @@ def test_article_retry_keeps_its_plan_and_reuses_completed_calls():
     assert lease.units == units and lease.plans == plans
 
 
-@pytest.mark.parametrize("method",["article","generic","recipe","unified"])
+@pytest.mark.parametrize("method",["article","unified"])
 def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path,method):
     if method == "unified":
         source=unified_evidence("1. Hill. Material: gold. Gilded. Find: bead (2)","2. Valley. Material: flint.")
         request=unified_request()
         chat=CountingChat(Model(source))
         extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
-    elif method == "recipe":
-        directory=catalogue.write("two-in-one-segment",tmp_path)
-        request=recipe_request()
-        chat=CountingChat(honest)
-        extract=lambda router,counter: run.extract(directory,request,router,counter=counter,chunks=2)
     else:
         source=evidence(passages(["1. Hill 1827.","2. Valley 1828."]))
         request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article" if method=="article" else "catalog"})
@@ -191,22 +186,14 @@ def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path
     assert len(chat.calls)==count
 
 
-@pytest.mark.parametrize("method", ["article", "generic", "recipe", "unified"])
+@pytest.mark.parametrize("method", ["article", "unified"])
 @pytest.mark.parametrize("boolean", [False, True])
 def test_boolean_results_keep_their_typed_review_value_and_evidence_state(tmp_path, method, boolean):
     """#161: legacy grounding claims omit booleans; durable review still receives every saved boolean."""
     tree = {"recordDescription": "One source record", "schemaNodes": [
         {"id": "selected", "name": "selected", "type": "boolean"}]}
     claim = "Selected" if boolean else "Not selected"
-    if method == "recipe":
-        directory = catalogue.write("two-in-one-segment", tmp_path)
-        request = run.ExtractRequest.model_validate({"schema": tree, "options": {
-            "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}}})
-        chat = CountingChat(lambda _system, user, _schema: {"selected": {
-            "value": boolean, "quote": "Urne" if "Urne" in user else "Axt", "key": None,
-            "provenance": "positional"}})
-        extract = lambda router, counter: run.extract(directory, request, router, counter=counter)
-    elif method == "unified":
+    if method == "unified":
         source = unified_evidence(f"1. Hill. {claim}.", f"2. Valley. {claim}.")
         request = unified_request(tree)
         chat = CountingChat(Model(source, entry=lambda *_: {"selected": {"value": boolean, "quote": claim}}))
@@ -232,16 +219,11 @@ def test_boolean_results_keep_their_typed_review_value_and_evidence_state(tmp_pa
                     if publication["coverage"].get("processingComplete") is True
                     for value in publication["values"]]
     assert final_values
-    if method == "recipe":
-        # Recipe yes/no candidates remain proposals, as its span rules require. Do not invent a saved value.
-        assert all(value["modelValue"] is None and value["processing"] == "absent" for value in final_values)
-        assert result["proposed"] and all(proposal["value"] is boolean for proposal in result["proposed"])
-    else:
-        assert all(value["modelValue"] is boolean and value["processing"] == "saved" for value in final_values)
-        assert all(value["grounding"] == ("grounded" if method == "unified" else "ungrounded")
-                   and bool(value["evidence"]) is (method == "unified") for value in final_values)
-        if method != "unified":
-            assert result["evidence"] == [] and result["ungrounded"] == []
+    assert all(value["modelValue"] is boolean and value["processing"] == "saved" for value in final_values)
+    assert all(value["grounding"] == ("grounded" if method == "unified" else "ungrounded")
+               and bool(value["evidence"]) is (method == "unified") for value in final_values)
+    if method != "unified":
+        assert result["evidence"] == [] and result["ungrounded"] == []
 
 
 def linked_while_running(lease):

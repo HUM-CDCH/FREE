@@ -52,7 +52,6 @@ import { defaultSchemaName } from './schemaNames'
 import { strategyOf } from 'extraction/schema'
 import type { NavigableRoute } from './projectNavigation'
 import { browserStudioPath } from './studioUrl.js'
-import { CATALOG_RECIPES } from '../shared/catalogRecipes.js'
 import { extractionSchemaInitialName } from '../shared/schemaRevision.contract'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
@@ -317,8 +316,6 @@ export function DocumentWorkspace({
   // save declares); null until one is chosen. The selector never changes the strategy of an active or persisted attempt.
   const nextExtractionStrategy: ExtractionStrategy | null =
     schemaSnap.recordScope === null ? null : strategyOf(schemaSnap.recordScope)
-  // Generic Catalog only, a one-shot per-run method choice: '' keeps generic model discovery of record boundaries.
-  const [nextCatalogRecipe, setNextCatalogRecipe] = useState('')
   const [railOpen, setRailOpen] = useState(true)
   const [railWidth, setRailWidth] = useState(344)
   const railElement = useRef<HTMLElement>(null)
@@ -354,7 +351,6 @@ export function DocumentWorkspace({
     setRenderedSourceRepresentationId(sourceRepresentationId)
     setLoadState({ status: 'loading' })
     setZoomPercent(100)
-    setNextCatalogRecipe('')
     setSelectedInspectionId(persistedExtraction?.extractionId ?? null)
     if (toast?.outlivesSwitch) consumeSwitch()
     else dismissToast()
@@ -675,12 +671,6 @@ export function DocumentWorkspace({
   const saved = useSavedMethod()
   // The last refusal useExtraction reported for the run in flight; runExtraction reads it after a null acknowledgement.
   const refusalRef = useRef<RunRefusal | null>(null)
-  // Whether the account's last ready saved method is the unified Catalog. A run's re-read puts `saved.state` through
-  // `loading`, so the Boundaries choice follows this, not the live state, and does not flicker on every click. State
-  // adjusted during render, not a ref: a ref may not be read while rendering.
-  const [lastReadyUnifiedCatalog, setLastReadyUnifiedCatalog] = useState(false)
-  if (saved.state.status === 'ready' && (saved.state.unifiedCatalog === true) !== lastReadyUnifiedCatalog)
-    setLastReadyUnifiedCatalog(saved.state.unifiedCatalog === true)
   const reviewTarget = sourceRepresentationId
     ? { sourceRepresentationId, schemaRevisionId: schemaSnap.extractableSchemaRevisionId }
     : null
@@ -719,7 +709,6 @@ export function DocumentWorkspace({
       // stopped any other.
       const reported = admittingRef.current || pendingReportRef.current === attempt.extractionId
       if (reported) pendingReportRef.current = null
-      resetNextRun()
       if (attempt.executionStatus === 'STOPPED')
         showToast('Extraction stopped — its saved values and decisions remain in Results')
       else if (attempt.executionStatus === 'FAILED')
@@ -742,10 +731,6 @@ export function DocumentWorkspace({
     onAdmitted: (attempt)=>{setSelectedInspectionId(null);onExtractionAdmitted?.(attempt.extractionId,admissionOrigin.current)},
   })
 
-  /** The boundaries choice is one-shot: once a run is acknowledged or ends, the next one returns to model discovery. A
-   *  failed Extraction continues through Retry in Results, never through a new run. Article or Catalog itself is the
-   *  schema's saved record scope and never resets. */
-  const resetNextRun = () => setNextCatalogRecipe('')
 
 
   // The Current Schema Revision is the acknowledged durable revision; unsaved
@@ -883,16 +868,14 @@ export function DocumentWorkspace({
         }
         if (!savedState) throw new Error('Saved advanced settings could not be read. Nothing was started.')
         // The unified Catalog has no recipe: one Catalog method for every new Catalog Extraction.
-        const catalogRecipe = savedState.unifiedCatalog ? null : nextCatalogRecipe || null
         refusalRef.current = null
         admittingRef.current = true
         let acknowledged: Awaited<ReturnType<typeof extraction.runExtraction>>
         try {
           acknowledged = await extraction.runExtraction(
-            savedMethodFor(savedState, strategy, catalogRecipe),
+            savedMethodFor(savedState, strategy),
             target,
             strategy,
-            catalogRecipe,
             loadState.status === 'ready' ? currentPage : null,
           )
         } finally {
@@ -900,7 +883,6 @@ export function DocumentWorkspace({
         }
         if (!stillHere()) return
         if (acknowledged) {
-          resetNextRun()
           // Finished when acknowledged, it has had its one completion toast (with "Review now") from onTerminal.
           if (acknowledged.executionStatus !== 'COMPLETED' && acknowledged.executionStatus !== 'FAILED')
             pendingReportRef.current = acknowledged.extractionId
@@ -1017,7 +999,7 @@ export function DocumentWorkspace({
         if (!savedState) throw new Error('Saved advanced settings could not be read. Nothing was started.')
         try {
           opened = await openBatchExtraction({ projectContextId, schemaRevisionId: revision.schemaRevisionId, strategy,
-            sourceDocumentIds, method: savedMethodFor(savedState, strategy, null) })
+            sourceDocumentIds, method: savedMethodFor(savedState, strategy) })
         } catch (error) {
           if (round === 0 && error instanceof BatchRequestError && error.code === METHOD_CHANGED) continue
           throw error
@@ -1169,11 +1151,6 @@ export function DocumentWorkspace({
           id: projectContextId,
           addDocuments: project.addDocuments,
         } : null}
-        boundaries={
-          !isActive(latestAttempt) && nextExtractionStrategy === 'CATALOG' && !lastReadyUnifiedCatalog
-            ? { value: nextCatalogRecipe, options: CATALOG_RECIPES, onChange: setNextCatalogRecipe, disabled: savingForRun }
-            : null
-        }
         resultsMenuItems={reviewedOnAnotherSource && latestReviewedExtraction
           ? [{ label: 'Open latest reviewed', onSelect: () => onOpenExtraction(latestReviewedExtraction.extractionId, latestReviewedExtraction.finalizedReview
                 ? { snapshotVersion: latestReviewedExtraction.finalizedReview.snapshotVersion, feedbackVersion: latestReviewedExtraction.finalizedReview.feedbackVersion }

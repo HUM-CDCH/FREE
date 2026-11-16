@@ -143,10 +143,10 @@ describe('durable Extraction admission', () => {
   it('blocks a changed request while admission of the original identity is uncertain', async () => {
     const { posts } = server({ post: () => new Response('Bad gateway', { status: 502 }), read: () => new Response('Bad gateway', { status: 502 }) })
     const { result } = render({ initialAttempt: attempt('51000000-0000-4000-8006-000000000005', 'COMPLETED') })
-    await act(async () => { await result.current.runExtraction(method, target, 'ARTICLE', null, 1) })
+    await act(async () => { await result.current.runExtraction(method, target, 'ARTICLE', 1) })
     await waitFor(() => expect(result.current.monitorError).toBe(MONITOR_DISCONNECTED))
     expect(result.current.canRun).toBe(false)
-    await act(async () => { await result.current.runExtraction(method, target, 'ARTICLE', null, 2) })
+    await act(async () => { await result.current.runExtraction(method, target, 'ARTICLE', 2) })
     expect(posts).toHaveLength(1)
   })
 

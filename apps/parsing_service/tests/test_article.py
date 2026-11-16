@@ -14,7 +14,7 @@ from kei_exp.kie.extract.stages import DOCUMENT, extract_record, record_request
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.tokens import BudgetUnavailable
 from kei_exp.kie.passages import text_of
-from tests.test_extract_grounded import CountingChat, WordCounter, keeps_every_reading, resolving
+from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
 from tests.test_extract_stages import SCHEMA, evidence, passages
 
 

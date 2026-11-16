@@ -48,7 +48,7 @@ export function batchMethodFitsStrategy(request: {
   strategy: z.output<typeof extractionStrategySchema>
   method: z.output<typeof extractionMethodIntentSchema>
 }): boolean {
-  return settingsFit(request.strategy, null, request.method.settings)
+  return settingsFit(request.strategy, request.method.settings)
 }
 
 export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema>

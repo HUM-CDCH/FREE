@@ -14,7 +14,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.passages import Evidence, Passage
 from kei_exp.workflows import durable_extract as worker
 from tests.test_durable_extraction import Counter, MemoryLease
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_unified_catalog import Model, evidence, request
 
 

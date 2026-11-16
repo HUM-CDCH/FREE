@@ -28,7 +28,6 @@ import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import {
   accountMethod,
   canonicalIntent,
-  unifiedCatalogEnabled,
   modelChoice,
   type ActiveSettings,
   type ExtractionMethodIntent,
@@ -59,11 +58,10 @@ export async function savedMethodStillCurrent(
   client: Parameters<typeof lockModelConfiguration>[0],
   owner: string,
   strategy: ExtractionStrategy,
-  catalogRecipe: string | null,
   method: ExtractionMethodIntent,
 ): Promise<boolean> {
   const document = await lockModelConfiguration(client, owner)
-  const saved = accountMethod(document, strategy, catalogRecipe, unifiedCatalogEnabled())
+  const saved = accountMethod(document, strategy)
   return isDeepStrictEqual(saved, method)
 }
 
@@ -71,8 +69,8 @@ function canonicalIds(ids: readonly string[]): string[] {
   return [...new Set(ids)].sort((left, right) => left.localeCompare(right))
 }
 function batchMethod(input: Pick<ScheduleBatchInput, 'strategy' | 'method'>): ExtractionMethodIntent {
-  // A batch has no recipe (admitBatchMember pins none), so Catalog batches use the generic Catalog settings.
-  const method = canonicalIntent(input.method, input.strategy, null)
+  // Single and batch Catalog starts use the same unified settings.
+  const method = canonicalIntent(input.method, input.strategy)
   if (method === null) throw new ExtractionError('invalid_request', 'The saved method does not fit this Extraction Strategy.')
   return method
 }
@@ -106,11 +104,10 @@ type AdmissionPins = Readonly<{
   schemaRevisionId: string
   extractionSchemaId: string
   strategy: ExtractionStrategy
-  catalogRecipe: string | null
   requestedModels: ExtractionModelChoice | null
   requestedSettings: ActiveSettings
   schemaTree: unknown
-  /** The pinned revision's declared record scope; null for a legacy revision that declares none. */
+  /** The pinned revision's declared record scope; null while the researcher has not chosen a strategy. */
   recordScope: RecordScope | null
   preprocessId: string
   startPage: number | null
@@ -141,8 +138,7 @@ async function resolveAdmission(
       schemaOwner.projectContextId !== document.projectContextId ||
       !project || project.researcherAccountId !== researcherAccountId)
     return null
-  const catalogRecipe = input.strategy === 'CATALOG' ? input.catalogRecipe ?? null : null
-  const method = canonicalIntent(input.method, input.strategy, catalogRecipe)
+  const method = canonicalIntent(input.method, input.strategy)
   if (method === null) throw new ExtractionError('invalid_request', 'The saved method does not fit this Extraction Strategy.')
   return {
     owner: researcherAccountId,
@@ -152,7 +148,6 @@ async function resolveAdmission(
     schemaRevisionId: input.schemaRevisionId,
     extractionSchemaId: schema.extractionSchemaId,
     strategy: input.strategy,
-    catalogRecipe,
     requestedModels: method.models,
     requestedSettings: method.settings,
     schemaTree: schema.schemaTree,
@@ -167,7 +162,6 @@ type AdmittedIdentity = Readonly<{
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
   strategy: string
-  catalogRecipe: string | null
   requestedModels: unknown
   requestedSettings: unknown
   batchExtractionId: string | null
@@ -182,7 +176,6 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
     row.sourceRepresentationRevisionId === pins.sourceRepresentationRevisionId &&
     row.schemaRevisionId === pins.schemaRevisionId &&
     row.strategy === pins.strategy &&
-    row.catalogRecipe === pins.catalogRecipe &&
     isDeepStrictEqual(modelChoice(row.requestedModels), pins.requestedModels) &&
     isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings)
 }
@@ -207,7 +200,7 @@ export async function admitInteractiveExtraction(
       const pins = await resolveAdmission(transaction, researcherAccountId, input)
       if (pins === null) return 'missing'
       const identity = () => transaction.orm.public.Extraction.select(
-        'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
+        'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy',
         'requestedModels', 'requestedSettings', 'batchExtractionId',
       ).first({ id: input.extractionId })
       // Another researcher's Extraction under this ID is concealed behind the same missing answer.
@@ -237,7 +230,7 @@ export async function admitInteractiveExtraction(
       // strategy its revision's record scope names, and a revision that declares none waits for that choice.
       refuseRecordScope(pins.recordScope, pins.strategy)
       // After the replay checks: an identical repeat replays even when the account's settings changed since.
-      if (!(await savedMethodStillCurrent(client, pins.owner, pins.strategy, pins.catalogRecipe,
+      if (!(await savedMethodStillCurrent(client, pins.owner, pins.strategy,
         { models: pins.requestedModels, settings: pins.requestedSettings })))
         return 'method-changed'
 
@@ -256,7 +249,6 @@ export async function admitInteractiveExtraction(
         sourceRepresentationRevisionId: pins.sourceRepresentationRevisionId,
         schemaRevisionId: pins.schemaRevisionId,
         strategy: pins.strategy,
-        catalogRecipe: pins.catalogRecipe,
         requestedModels: pins.requestedModels,
         requestedSettings: pins.requestedSettings,
         batchExtractionId: null,
@@ -416,7 +408,7 @@ export async function admitBatchExtraction(
       if (await orm.public.BatchExtraction.select('id').first({ id: batchExtractionId }))
         return 'existing' as const
       // Every Source Document row is locked (sorted) before the configuration row, as in single admission.
-      if (!(await savedMethodStillCurrent(client, researcherAccountId, input.strategy, null, method)))
+      if (!(await savedMethodStillCurrent(client, researcherAccountId, input.strategy, method)))
         return 'method-changed' as const
 
       refuseIncompatibleGliformer(method, schema.schemaTree)
@@ -500,14 +492,13 @@ async function admitBatchMember(
     sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
     schemaRevisionId: member.schemaRevisionId,
     strategy: member.strategy,
-    catalogRecipe: null,
     requestedModels: member.requestedModels,
     requestedSettings: member.requestedSettings,
     batchExtractionId: member.batchExtractionId,
   })
   const schema = await orm.public.SchemaRevision.select('schemaTree').first({id:member.schemaRevisionId})
   if (!schema) throw new ExtractionError('invalid_extraction_pins','The selected Schema Revision is unavailable.')
-  await initializeDurableExtraction(client,id,{...member,catalogRecipe:null,
+  await initializeDurableExtraction(client,id,{...member,
     schemaTree:schema.schemaTree})
   await execution.enqueue(client,{workflowName:DURABLE_RECONCILE,workflowID:`durable-dispatch:${id}`,
     queueName:EXTRACTION_QUEUE,authenticatedUser:member.owner,attributes:extractionAttributes(member)},id)

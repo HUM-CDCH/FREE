@@ -8,7 +8,7 @@ import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, dura
   durableSelectionSchema, durableStatus, durableValueSchema, plannedRecords, type DurableHead, type DurableValue } from './durable-contract.js'
 import { correctionValueFits, fieldMeaning, adaptedCorrection, modelDigest, resolvedValue } from './durable-feedback.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
-import { groundedEvidenceLink, plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
+import { plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
 
 export class DurableConflict extends Error {
   constructor(message = 'The Extraction changed. Reload to review the saved state.') { super(message) }
@@ -107,7 +107,7 @@ async function readHead(client: PoolClient, id: string) {
  * originate in public rows Studio already validated and locked. */
 export async function initializeDurableExtraction(client: PoolClient, id: string, pins: {
   projectContextId: string; sourceRepresentationRevisionId: string; schemaRevisionId: string; schemaTree: unknown;
-  strategy: 'ARTICLE' | 'CATALOG'; catalogRecipe: string | null; preprocessId: string;
+  strategy: 'ARTICLE' | 'CATALOG'; preprocessId: string;
   requestedModels: unknown; requestedSettings: unknown; startPage?: number | null
 }): Promise<void> {
   const source = keiRunOf(pins.preprocessId)
@@ -122,9 +122,9 @@ export async function initializeDurableExtraction(client: PoolClient, id: string
     [id,pins.projectContextId,pins.sourceRepresentationRevisionId,{...source,...representation,sourceRevisionId:pins.sourceRepresentationRevisionId},pins.strategy,selection])
   await client.query(`INSERT INTO extraction_runtime."artifactReference" (id,"extractionId",reference,digest,generation,kind)
     VALUES ($1,$2,$3,$4,$5,'source')`,[randomUUID(),id,representation.artifactReference,representation.artifactSha256,source.generation])
-  const method = canonicalIntent({models:pins.requestedModels,settings:pins.requestedSettings}, pins.strategy,pins.catalogRecipe)
+  const method = canonicalIntent({models:pins.requestedModels,settings:pins.requestedSettings}, pins.strategy)
   if (!method) throw new DurableInvalid('The Extraction method is invalid.')
-  const resolved = { protocol: 1, plannerVersion: 1, promptVersion: 1, catalogRecipe: pins.catalogRecipe, options: {...keiMethodOptions(extractionMethod(pins.strategy,pins.catalogRecipe,pins.requestedModels,pins.requestedSettings)), ...(pins.startPage ? {start_page:pins.startPage} : {})}, startPage: pins.startPage ?? null }
+  const resolved = { protocol: 1, plannerVersion: 1, promptVersion: 1, options: {...keiMethodOptions(extractionMethod(pins.strategy,pins.requestedModels,pins.requestedSettings)), ...(pins.startPage ? {start_page:pins.startPage} : {})}, startPage: pins.startPage ?? null }
   await client.query(`INSERT INTO extraction_runtime.selection
     (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
     VALUES ($1,$2,1,$3,$4,$5,$6,$7,$8)`, [selection,id,pins.schemaRevisionId,hash(tree),tree,method,resolved,hash([tree,method,resolved,source])])
@@ -216,12 +216,12 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         if (!row || row.recordScope !== (head.strategy === 'ARTICLE' ? 'document' : 'records')) throw new DurableInvalid('Choose a Schema Revision with the same strategy in this Project.')
         const tree = {...parseExtractionSchema(row.schemaTree),recordScope:row.recordScope}
         const prior = (await client.query('SELECT method,resolved FROM extraction_runtime.selection WHERE id=$1', [head.selectionId])).rows[0]
-        const method = canonicalIntent(input.method,head.strategy,prior.resolved.catalogRecipe)
+        const method = canonicalIntent(input.method,head.strategy)
         if (!method) throw new DurableInvalid('The Extraction settings are invalid.')
         refuseIncompatibleGliformer(method,executionDefinition(tree))
         const ordinal = (await client.query('SELECT coalesce(max(ordinal),0)+1 AS n FROM extraction_runtime.selection WHERE "extractionId"=$1', [id])).rows[0].n
         const selectionId = randomUUID()
-        const resolved = {...prior.resolved,options:{...keiMethodOptions(extractionMethod(head.strategy,prior.resolved.catalogRecipe,method.models,method.settings)),
+        const resolved = {...prior.resolved,options:{...keiMethodOptions(extractionMethod(head.strategy,method.models,method.settings)),
           ...(prior.resolved.startPage ? {start_page:prior.resolved.startPage} : {})}}
         await client.query(`INSERT INTO extraction_runtime.selection
           (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
@@ -273,7 +273,6 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           WHERE "extractionId"=$1 AND "snapshotVersion"=$2 AND "feedbackVersion"=$3`, [id,snapshotVersion,feedbackVersion])).rows[0] ?? null
         const projected = allValues.map(value => {
             const links=value.evidence.map(({anchorId,producer}) => {
-              if ('provenance' in producer) return groundedEvidenceLink(producer,anchorId)
               if ('support' in producer) return unifiedEvidenceLink(producer,anchorId)
               return plainEvidenceLink(producer,anchorId)
             })

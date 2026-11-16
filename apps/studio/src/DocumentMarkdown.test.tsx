@@ -248,11 +248,9 @@ describe('saved value spans in Markdown', () => {
     expect(screen.getByLabelText('Parsed Markdown').textContent).toBe(source.markdown)
   })
 
-  const recipe: EvidenceLink['grounding'] = { linkedBy: 'key', provenance: 'token', textSpans: spans(second, second + 5),
-    keySpans: [], alternatives: [], heading: null, precision: 'segment', raw: 'Paris', normalized: null }
   const literal: EvidenceLink['grounding'] = { linkedBy: 'verification', support: 'literal', textSpans: spans(second, second + 5),
     alternatives: [], precision: 'segment', raw: 'Paris', itemSpans: null }
-  it.each([['recipe', recipe], ['verified literal', literal]] as const)('uses %s grounding spans', (_, grounding) => {
+  it.each([['verified literal', literal]] as const)('uses %s grounding spans', (_, grounding) => {
     render(<TestMarkdown {...fixture()} marks={{ describe: descriptions, selected: null, onSelect: vi.fn(),
       savedLinks: [{ key: valueKey, link: { ...located, location: undefined, grounding } }] }} />)
     expect(screen.getByRole('button', { name: 'place: Paris' }).textContent).toBe('Paris')

@@ -3,14 +3,13 @@ import {
 } from 'extraction/extraction-method'
 import type { ExtractionModelChoice } from '../shared/extraction.contract'
 import {
-  ARTICLE_SECTIONS, CATALOG_LABELS, CONTROL_LABELS, describeArticleValue, effectiveSummary,
+  ARTICLE_SECTIONS, CONTROL_LABELS, describeArticleValue, effectiveSummary,
 } from './providerConfig/advancedSettings'
 
 /** How a start view and "Method used" describe a method: one headline, and a line per setting. Words only. */
 export type MethodLine = Readonly<{ label: string; value: string }>
 
 const amount = (value: number | undefined, unit: string) => (value === undefined ? 'service default' : `${value.toLocaleString('en-US')} ${unit}`)
-const FACTORS = ['glossary', 'headings', 'overlap', 'verification'] as const
 
 export function methodLines(settings: ActiveSettings): readonly MethodLine[] {
   if ('article' in settings) {
@@ -20,22 +19,7 @@ export function methodLines(settings: ActiveSettings): readonly MethodLine[] {
       .filter((key) => !(key === 'context_tokens' && article.context === 'full'))
       .map((key) => ({ label: CONTROL_LABELS[key], value: describeArticleValue(article, key) }))
   }
-  if ('generic' in settings) {
-    const generic = settings.generic
-    return generic ? [
-      { label: CATALOG_LABELS.discovery_chars, value: amount(generic.discovery_chars, 'characters') },
-      { label: CATALOG_LABELS.record_chars, value: amount(generic.record_chars, 'characters') },
-    ] : []
-  }
-  if ('unified' in settings) return unifiedLines(settings.unified)
-  const recipe = settings.recipe
-  if (!recipe) return []
-  const off = recipe.factors ? FACTORS.filter((factor) => !recipe.factors![factor]).map((factor) => CATALOG_LABELS[factor].toLowerCase()) : []
-  return [
-    { label: CATALOG_LABELS.input_tokens, value: amount(recipe.input_tokens, 'tokens') },
-    { label: CATALOG_LABELS.output_tokens, value: amount(recipe.output_tokens, 'tokens') },
-    { label: 'Factors', value: off.length === 0 ? 'All factors on' : `Off: ${off.join(', ')}` },
-  ]
+  return unifiedLines(settings.unified)
 }
 
 /** The unified Catalog's six controls, each as requested: a value left to the defaults says so. */
