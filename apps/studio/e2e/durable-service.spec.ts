@@ -19,7 +19,7 @@ type Method=typeof methods[number]
 const hasColumn=(header:string,name:string)=>header.split(',').some(column=>column===name||column.startsWith(`${name}.`))
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:5|10}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:11}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
@@ -33,7 +33,7 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
   }
   const id=randomUUID()
   const strategy=method==='article'?'ARTICLE':'CATALOG'
-  const settings={[method]:method==='unified'?{defaults:options.defaults??10}:method==='article'
+  const settings={[method]:method==='unified'?{defaults:options.defaults??11}:method==='article'
     ?{...REFERENCE_ARTICLE,...(options.articleContext?{context:options.articleContext,context_tokens:8192}:{})}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
   // its owned guarded stack. Use the normal initializer to seed saved producer data.
@@ -64,7 +64,7 @@ for(const method of methods) {
       if(ingestion.status!=='succeeded')throw new Error('The disposable native source was not published.')
       const sourceId=ingestion.sourceDocumentId
       service.holdNextExtraction()
-      const id=await seedNative(page,project,sourceId,method)
+      const id=await seedNative(page,project,sourceId,method,method==='unified'?{defaults:11}:{})
       await service.reconcileDurable()
       await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
       const state=async()=>await (await page.request.get(`/api/extractions/${id}/durable`)).json()
@@ -100,6 +100,7 @@ for(const method of methods) {
       const saved=await (await page.request.get(`/api/extractions/${id}/durable/values`)).json()
       const value=saved.values.find((each:{processing:string;node:{type:string}})=>each.processing==='saved'&&['string','verbatim-string'].includes(each.node.type))??saved.values.find((each:{processing:string})=>each.processing==='saved')
       expect(value).toBeDefined()
+      if(method==='article'||method==='unified')expect(value.evidence.flatMap((link:DurableValue['evidence'][number])=>link.producer.context??[]).length).toBeGreaterThan(0)
       await page.goto(`/projects/${project}/documents/${sourceId}?extractionId=${id}&value=${encodeURIComponent(value.id)}`)
       await openRailView(page,'Results')
       const review=page.getByRole('region',{name:`Review ${value.node.name}`,exact:true})
@@ -110,6 +111,7 @@ for(const method of methods) {
       const valueUrl=`/api/extractions/${id}/durable/values/${encodeURIComponent(value.id)}`
       await expect.poll(async()=>(await (await page.request.get(valueUrl)).json()).values[0].correction?.decision.value).toEqual(corrected)
       await page.reload();await openRailView(page,'Results')
+      if(method==='article'||method==='unified')expect((await (await page.request.get(valueUrl)).json()).values[0].evidence).toEqual(value.evidence)
       await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeVisible()
       await page.getByRole('button',{name:'More result actions'}).click()
       await page.getByRole('menuitem',{name:'Export…'}).click()
@@ -125,7 +127,7 @@ for(const method of methods) {
   })
 }
 
-test('native unified defaults 3: a Pause while discovery still reads keeps and shows every entry already read',async({page},info)=>{
+test('native unified: a Pause while discovery still reads keeps and shows every entry already read',async({page},info)=>{
   test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'The pause needs the counted provider hold.')
   const service=await startRealService(info.outputPath('durable-worker.log'))
   try {
@@ -137,7 +139,7 @@ test('native unified defaults 3: a Pause while discovery still reads keeps and s
     const sourceId=ingestion.sourceDocumentId
     // The last page's discovery call is held (its window labels entry 5): the entries before it are read meanwhile.
     service.holdExtractionMatching(/^\[L\d+[^\]]*\] 5\. /m)
-    const id=await seedNative(page,project,sourceId,'unified',{defaults: 5})
+    const id=await seedNative(page,project,sourceId,'unified',{defaults: 11})
     await service.reconcileDurable()
     const state=async()=>(await page.request.get(`/api/extractions/${id}/durable`)).json()
     const shown=async()=>new Set(((await (await page.request.get(`/api/extractions/${id}/durable/values?limit=500`)).json()).values as {path:unknown[];modelValue:unknown}[])
@@ -424,7 +426,7 @@ function liveCataloguePages(): string[][] {
 // ADR 0017's live results on a real worker and reasoning server; live-results-evidence.json keeps what the researcher
 // saw and what the model received.
 // Both current methods pipeline entries; Pro verifies them after discovery.
-for(const defaults of [5,10] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
+for(const defaults of [11] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
   test.setTimeout(30*60_000)
   test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
   const service=await startRealService(info.outputPath('live-results-worker.log'))

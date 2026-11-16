@@ -74,8 +74,13 @@ PROMPT_VERSION = 18
 # again shortened or differently cased after exactly one earlier item (a running header's initials) may be its repeat;
 # `of` is asked as the shortest excerpt naming the work.
 # 17: resolution constrains its reply without showing its schema (RESOLUTION states the shape).
-# 18: bounded contexts use the document-value request; retired settings and inventory output are removed.
-ARTICLE_VERSION = 18
+# 22 (18 to 21 were numbered on unmerged branches): bounded contexts use the document-value request, and the retired
+# selection, identity and routing settings and the inventory output are gone; grounding reserves its complete
+# structured reply and shares one request among the claims that fit the input and reply budgets, each answered by
+# its label alone; the context attributing a list item or object is asked once for its claims and kept beside the
+# primary evidence; the model's evidence stays primary: a word a hyphen splits across passages is cited with its
+# other half as context, whichever half was chosen, and a page end without a hyphen joins nothing.
+ARTICLE_VERSION = 22
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -259,6 +264,10 @@ def link_json(link: Link) -> dict:
     dumped = {**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)}
     if link.location is None:
         del dumped["location"]
+    if not link.context:
+        del dumped["context"]
+    else:
+        dumped["context"] = list(link.context)
     return dumped
 
 

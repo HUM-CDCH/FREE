@@ -6,7 +6,7 @@ import {
   canonicalIntent, extractionMethod, extractionSettingsIssues, extractionSettingsSchema,
   keiMethodOptions, METHOD_MESSAGES, REFERENCE_ARTICLE,
   type ExtractionSettings, storedSettings, unifiedCatalogSettingsSchema, UNIFIED_CATALOG_DEFAULTS,
-  UNIFIED_CATALOG_PRO_VERSION, validateArticleOptions,
+  validateArticleOptions,
 } from './extraction-method.js'
 import { gliformerIssues } from './gliformer-compatibility.js'
 import { ExtractionError } from './errors.js'
@@ -85,9 +85,9 @@ test('a Catalog Extraction pins the unified method, and Pro mode its verifying v
   const account = (catalog: unknown) => ({ extractionModels: {}, extractionSettings: { catalog } })
   const saved: ExtractionSettings = { catalog: { unified: { overlap: 0, verification: false } } }
   const method = activeMethod({ fields: 'nuextract' }, saved, 'CATALOG')
-  assert.deepEqual(method.settings, { unified: { defaults: 10, overlap: 0, verification: false } })
+  assert.deepEqual(method.settings, { unified: { defaults: 11, overlap: 0, verification: false } })
   assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', method.models, method.settings)), {
-    strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 10, overlap: 0, verification: false },
+    strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 11, overlap: 0, verification: false },
   })
   assert.deepEqual(activeSettings(saved, 'ARTICLE'), { article: REFERENCE_ARTICLE })
   assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { verification: false, defaults: 5 } } }, 'CATALOG'),
@@ -95,12 +95,12 @@ test('a Catalog Extraction pins the unified method, and Pro mode its verifying v
   assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 5 } } }, 'ARTICLE'), null)
   assert.deepEqual(storedSettings({ unified: { defaults: 5 } }, 'CATALOG'), { unified: { defaults: 5 } })
   const applied = canonicalExtractionSettings({ catalog: { unified: { overlap: 2 } } })
-  assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG').settings, { unified: { defaults: 10, overlap: 2 } })
+  assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG').settings, { unified: { defaults: 11, overlap: 2 } })
   const pro = accountMethod(account({ unified: { verification: true, overlap: 0 } }), 'CATALOG').settings
-  assert.deepEqual(pro, { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0, verification: true } })
+  assert.deepEqual(pro, { unified: { defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, overlap: 0, verification: true } })
   assert.ok(gliformerIssues({ models: { fields: 'gliformer' }, settings: pro }, []).includes('verification must be Auto or off'))
-  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { defaults: 10, verification: true } } }, 'CATALOG'),
-    { models: null, settings: { unified: { defaults: 10, verification: true } } })
+  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { defaults: 11, verification: true } } }, 'CATALOG'),
+    { models: null, settings: { unified: { defaults: 11, verification: true } } })
   assert.deepEqual(canonicalExtractionSettings({ catalog: { unified: {} } }), {})
   assert.equal(extractionSettingsSchema.safeParse({ catalog: { unified: { input_tokens: 100 } } }).success, false)
 })
@@ -127,7 +127,7 @@ test('Catalog always pins unified defaults and refuses retired methods and prefe
   }
   assert.throws(() => keiMethodOptions(extractionMethod('CATALOG', null, null)), ExtractionError)
   const method = activeMethod(null, { article: EXPLORE, catalog: { unified: { verification: true, overlap: 0 } } }, 'CATALOG')
-  assert.deepEqual(method.settings, { unified: { defaults: UNIFIED_CATALOG_PRO_VERSION, overlap: 0, verification: true } })
+  assert.deepEqual(method.settings, { unified: { defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, overlap: 0, verification: true } })
   assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, method.settings)), { strategy: 'catalog', ...method.settings })
   assert.ok(gliformerIssues({ models: { fields: 'gliformer' }, settings: method.settings }, []).includes('verification must be Auto or off'))
   assert.equal(canonicalIntent(method, 'ARTICLE'), null)

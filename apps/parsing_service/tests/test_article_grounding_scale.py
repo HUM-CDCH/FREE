@@ -48,9 +48,14 @@ def labelling(users: list[str], schemas: list[dict] | None = None):
             schemas.append(schema)
         claims = re.findall(r"^(C\d+) \([^\n]*\): ([^\n]+)$", user, re.MULTILINE)
         shown = re.findall(r"^(E\d+): ([^\n]+)$", user, re.MULTILINE)
-        return {claim: next((label for label, text in shown if value in text and label in schema["properties"][claim]
-                             ["enum"]), "NONE") for claim, value in claims}
+        return no_context(schema) | {claim: next((label for label, text in shown if value in text and label in schema[
+            "properties"][claim]["enum"]), "NONE") for claim, value in claims}
     return script
+
+
+def no_context(schema: dict) -> dict:
+    """The reply's groups (a list item's or object's attribution context), each answered with no context."""
+    return {group: [] for group, spec in schema["properties"].items() if "items" in spec}
 
 
 def ground(fields: dict, source, *, counter=None, users=None, skip=frozenset(), script=None, schemas=None):
@@ -84,9 +89,10 @@ def test_every_request_and_its_reply_fit_the_served_context():
     links, calls, issues, users = ground(root(240), source, counter=counter, schemas=schemas)
     assert len(calls) > 1 and not [issue for issue in issues if issue.code == "grounding_exceeds_budget"]
     for user, schema in zip(users, schemas, strict=True):
-        assert counter.request_tokens(grounding.GROUNDING, user, schema) + 2048 <= counter.context_tokens
-        longest = {claim: max(spec["enum"], key=len) for claim, spec in schema["properties"].items()}
-        assert len(json.dumps(longest)) <= 2048  # the reply, every label at its longest, within the reserve
+        longest = {key: [max(spec["items"]["enum"], key=len)] * 2 if "items" in spec else max(spec["enum"], key=len)
+                   for key, spec in schema["properties"].items()}  # the reply, every label at its longest
+        reserve = max(2048, len(json.dumps(longest).encode("utf-8")))
+        assert counter.request_tokens(grounding.RECORD_GROUNDING, user, schema) + reserve <= counter.context_tokens
     assert len({link.path for link in links}) == sum(1 for _ in leaves(root(240)))
 
 
@@ -133,7 +139,7 @@ def test_a_failed_batch_keeps_the_others_links_and_a_resume_grounds_only_the_unf
         if "elbow 2" in user.split("### Claims", 1)[1].split("### Evidence", 1)[0]:
             return Reply("{", 10, 2048, "length", 0.0)  # the batch holding item 2's claims is cut off
         return labelling([])(system, user, schema)
-    small = LimitedCounter(WordCounter(), 2048 + 200)  # a few claims per request
+    small = LimitedCounter(WordCounter(), 2048 + 360)  # a few claims per request
     links, _, issues, _ = ground(fields, source, counter=small, script=failing)
     supported = {link.path for link in links}
     failed = {issue.path for issue in issues if issue.code == "call_failed"}
@@ -183,7 +189,7 @@ def test_a_bounded_article_root_with_many_items_is_grounded_where_each_value_was
     item_users = [user for user in users if "77" in user]
     assert item_users and all(len(set(re.findall(r"Page (\d)", user.split("### Evidence")[1]))) == 1
                               for user in item_users)  # each item claim is checked in the context it was read from
-    assert result["article_version"] == article.ARTICLE_VERSION == 18
+    assert result["article_version"] == article.ARTICLE_VERSION == 22
 
 
 def test_contested_unsupported_and_uncompleted_claims_stay_distinct_through_the_article_path():
@@ -324,6 +330,24 @@ def test_a_claim_refused_over_the_whole_source_is_verified_in_windows_of_it():
     assert all(len(user.split()) + 2048 <= 6600 for user in checks)
 
 
+def test_record_aware_requests_remain_pinned_for_full_bounded_and_legacy_settings():
+    """The record-aware prompts change fitting requests; refused requests still make no model call."""
+    refused, fits = ("f63fa23d8a209e86b0b01391328d2b04eabc30e31ee485a58a6bb97cc95c8a51",
+                     "fa09b7360dfd844e108c5f7c05e93e0a634729582e029d67d0b2472bcda8a36f")
+    captured = {
+        (None, 6600): refused, ("full", 6600): refused,
+        ("bounded", 6600): "653c89afc9ea76a0a02b076b4b2f50b4a79f7ec5a6f47469e0109f7a9627b07a",
+        (None, 9000): fits, ("full", 9000): fits,
+        ("bounded", 9000): "47bce5fae6fac9994b312eb401698ac27891becd85c458d45cda82ef26b27daa",
+    }
+    for (context, reasoning), digest in captured.items():
+        settings = None if context is None else {"context": context, **({"context_tokens": 8192} if context ==
+                                                                       "bounded" else {})}
+        sent, result = article_requests(settings, reasoning)
+        assert hashlib.sha256("\n".join(sent).encode()).hexdigest() == digest, (context, reasoning)
+        assert "grounding_overflow_version" not in result
+    sent, result = article_requests(None, 6600)
+    assert [issue["code"] for issue in result["issues"]] == ["grounding_exceeds_budget"] * 2
 
 
 def test_a_claim_too_large_for_any_window_keeps_its_refusal_without_a_call():

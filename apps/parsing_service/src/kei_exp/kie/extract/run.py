@@ -30,7 +30,7 @@ from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.method import REFERENCE, ArticleOptions
 from kei_exp.kie.extract.models import Router, as_router, chats_for
 from kei_exp.kie.extract.schema import RecordScope, Schema
-from kei_exp.kie.extract.unified import ITEM, UnifiedOptions
+from kei_exp.kie.extract.unified import DEFAULTS_VERSION, ITEM, UnifiedOptions
 from kei_exp.kie.passages import Evidence, load
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,7 @@ class Options(BaseModel):
         if self.article is not None and self.strategy != "article":
             raise ValueError("options.article applies to the article strategy only")
         if self.strategy == "catalog" and self.unified is None:
-            self.unified = UnifiedOptions(defaults=10)
+            self.unified = UnifiedOptions(defaults=DEFAULTS_VERSION)  # an omitted Catalog runs the current defaults
         if self.strategy == "article" and self.article is None:
             if "article" in self.model_fields_set:
                 raise ValueError("options.article cannot be null")
@@ -120,9 +120,8 @@ class ExtractRequest(BaseModel):
             settings = self.options.unified
             if settings is None or self.record_scope != "records":
                 raise ValueError("GLiFormer fields require unified Catalog extraction")
-            if settings.headings is True or settings.verification is True:
-                raise ValueError("GLiFormer pure extraction does not use heading context or value verification; "
-                                 "leave these Auto or off")
+            if settings.headings is True:
+                raise ValueError("GLiFormer pure extraction does not use heading context; leave it Auto or off")
             native_schema(self.schema_)
         return self
 

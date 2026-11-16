@@ -111,7 +111,7 @@ def test_article_preflight_counts_the_fields_request_with_its_rendering(monkeypa
     from kei_exp.kie.extract.run import ExtractRequest
     from kei_exp.kie.extract.rendering import structured_source
     from kei_exp.kie.extract.stages import record_request
-    from tests.test_extract_grounded import WordCounter
+    from tests.helpers.extraction import WordCounter
     from tests.test_extract_stages import SCHEMA, evidence, passages
     canonical = evidence(passages(["Whole source"]))
     request = ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"rendering": "structured"}})

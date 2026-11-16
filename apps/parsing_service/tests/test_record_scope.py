@@ -128,8 +128,8 @@ NESTED = Schema.model_validate({"recordDescription": "One excavation report.", "
 
 
 def grounded_by_first_label(system, user, schema):
-    """Every claim attested by the first evidence offered: the semantic technique's reply."""
-    return {claim: spec["enum"][0] for claim, spec in schema["properties"].items()}
+    """Every claim attested by the first evidence offered, no item given context: the semantic technique's reply."""
+    return {key: spec["enum"][0] if "enum" in spec else [] for key, spec in schema["properties"].items()}
 
 
 def test_an_article_with_nested_arrays_is_one_root_with_evidence_for_every_leaf():

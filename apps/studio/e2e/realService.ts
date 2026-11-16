@@ -96,7 +96,9 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
       }
       const system: string = body.messages.find((message: { role: string }) => message.role === 'system')?.content ?? ''
       const properties = body.response_format.json_schema.schema.properties
-      const records = [...prompt.matchAll(/(?:Hill|Valley):\s*(?:pottery|flint) dated \d{4}/g)].map(match => {
+      const source = system.startsWith('You extract structured data from one record')
+        ? prompt.split('### RECORD\n')[1]?.split('\n### END RECORD')[0] ?? '' : prompt
+      const records = [...source.matchAll(/(?:Hill|Valley):\s*(?:pottery|flint) dated \d{4}/g)].map(match => {
         const [site, finds, year] = match[0].split(/:\s*| dated /)
         return { site, finds, year: Number(year) }
       })
@@ -127,11 +129,15 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
           if (records.length !== 2) throw new Error(`Article call did not receive both entries: ${prompt}`)
           answer = { sites: records }
         }
-      } else if (Object.keys(properties).every(key => /^C\d+$/.test(key))) {
+      } else if (Object.keys(properties).every(key => /^[CG]\d+$/.test(key))) {
         const claims = [...prompt.matchAll(/^(C\d+) \([^\n]*\): ([^\n]+)$/gm)]
         const evidence = [...prompt.matchAll(/^(E\d+): ([^\n]+)$/gm)]
-        answer = Object.fromEntries(claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) =>
-          [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE']))
+        const heading = evidence.find(([, , text]) => text.includes('Site catalogue'))?.[1]
+        // Article asks each list item's attribution context once (G keys); a claim (C keys) answers with its label.
+        answer = Object.fromEntries([
+          ...Object.keys(properties).filter(key => key.startsWith('G')).map(group => [group, heading ? [heading] : []]),
+          ...claims.filter(([, , value]) => value !== options.unansweredClaimValue).map(([, claim, value]) =>
+            [claim, evidence.find(([, , text]) => text.includes(value))?.[1] ?? 'NONE'])])
       } else throw new Error(`Unexpected model template: ${JSON.stringify(properties)}`)
       calls++
       response.writeHead(200, { 'content-type': 'application/json' })

@@ -235,28 +235,48 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   Article whose root no value context answered (`article_root_unanswered: ...`)
   rather than retain an all-null root.
 - Article extracts the document as one object, which may contain arrays; `options.article` holds its settings.
-  Every Catalog uses unified (result version 3). An omitted Catalog settings object uses defaults version 10.
-  `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
-  candidates?, headings?, verification?}` runs the unified Catalog: result version 3, no
-  recipe and no character limits (a request naming either is refused). Only
-  defaults versions 5 (Pro) and 10 are accepted. Both discover records across
-  physical pages within counted token budgets. An entry's reply may use the
-  served context its input leaves, with its reply reserve as the floor.
-  Pro reads scalar values afresh in verification, without draft values anchoring
-  the answer; code checks each returned value and quote before accepting it.
-  Version 10 reads each value once and links located values by rule (`lexical`).
-  A missing or unlocated quote stays a proposal without Evidence. Optional
-  verification checks fixed candidates. Disagreeing accepted values go to arbitration.
-  Version 10 discovers peer records according to the schema, identifies shared
-  table qualifications, and pipelines children discovery for settled records.
-  A child owns its lines and reads its enclosing record's remaining text as
-  context. Durable runs save entries once their ranges and context are settled,
-  while discovery continues over later windows. Later discoveries cannot change
-  already captured calls. Field instructions preserve complete source expressions
-  and identifying qualifications, without field-specific cleanup.
-  Studio admits defaults 10 for every new Catalog; an account's Pro mode (verification on in Studio's
-  Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
-  each method's calls.
+  Article version 22 grounds in one call the claims that fit its input and reply budgets. A claim answers with its
+  primary evidence; the context attributing a list item or nested object is asked once for that item's claims and
+  retained on each of them, and a claim of the record itself carries none. The model's evidence stays primary: a word
+  a hyphen splits at a page or column end is cited with its other half as context, whichever half was chosen, and a
+  page end without a hyphen joins nothing. Complete structured replies are budgeted before admission; oversized
+  batches split without truncating source evidence. Unanswered claims and malformed context replies remain
+  incomplete; NONE is a completed rejection.
+  Every Catalog uses unified (result version 3). An omitted Catalog settings object uses defaults version 11.
+  `options.unified = {defaults, input_tokens?, output_tokens?, overlap?, candidates?, headings?}` runs the unified
+  Catalog: result version 3, no recipe and no character limits (a request naming either is refused). Only defaults
+  version 11 is accepted; the number is recorded as the execution's provenance, never read as a switch.
+  Discovery reads records across physical pages within counted token budgets, discovers peer records according to
+  the schema, identifies shared table qualifications, and pipelines children discovery for settled records. A child
+  owns its lines and reads its enclosing record's remaining text as context. Durable runs save entries once their
+  ranges and context are settled, while discovery continues over later windows. Later discoveries cannot change
+  already captured calls. An entry's reply may use the served context its input leaves, with its reply reserve as
+  the floor. Field instructions preserve complete source expressions and identifying qualifications, without
+  field-specific cleanup.
+  Each value is read once, and a value located in its record's own text is linked by rule (`lexical`): locality uses
+  the record's owned ranges, not a list item's identifying anchor cell. A missing or unlocated quote stays a proposal
+  without Evidence. Links keep record attribution context alongside value spans. A scalar located outside the
+  record's owned ranges (inherited from a heading) requires an independent reading without the candidate value,
+  using intervening source to expose superseded headings; only an equal, source-located reading receives Evidence
+  (`verification`), and the check never substitutes a different value. Only the record's own text or its admitted
+  context can supply the supporting quote: intervening records are shown to judge supersession, not to supply
+  inherited values. Records that share their earliest admitted heading are read in one call per field, up to 16
+  records at a time: the source from that heading to the last of them is shown once, each record under its own
+  label, and each record's reading is still judged alone. With multiple inherited fields, sharing can require more
+  calls than the individual check, which batches those fields per record. A child, a record whose context does not
+  all precede it, and a shared reply that is not valid keep one call per record. Which records share a heading is
+  known once discovery is complete: a durable run that reads entries earlier keeps such a value as a
+  `verification_pending` proposal until then. A value whose own check cannot fit the verification budget (the source
+  from its heading to the record is too long) stays a `verification_over_budget` proposal: final, so the record is
+  saved and processing completes, with a `verification_over_budget` issue; only a failed or invalid reply stays
+  undecided. Disagreeing accepted values go to arbitration with their source.
+  Known limits: a heading value reaches this check only when the entry model quotes the heading, although the
+  entry prompt says CONTEXT is not part of the record; a model that obeys strictly leaves the field null. A list
+  item's value quoted from a sibling item's text is still located, and linked, by rule. The verification reserve
+  (2048 tokens) can cut off a long inherited value's reading, which then stays an unresolved proposal.
+  There is no verification switch: Studio's Pro mode (every value judged again) is retired, unmeasured on this
+  version, and a request naming `verification` is refused. Studio admits defaults 11 for every new Catalog. The
+  [pipeline map](docs/extraction-experiments.md#pipeline-map) traces each method's calls.
 
 Limitations:
 

@@ -1,7 +1,7 @@
 """The unified Catalog: one method for every new Catalog Extraction, result version 3.
 
-The request's `options.unified` pins the versioned defaults and any overrides of its six controls (input ceiling,
-reply reserve, overlap, heading context, context-candidate ceiling, verification). Before any model call the effective per-stage budgets are
+The request's `options.unified` pins the defaults version and any overrides of its five controls (input ceiling,
+reply reserve, overlap, heading context, context-candidate ceiling). Before any model call the effective per-stage budgets are
 resolved from the served context into the execution record; general record discovery (`discovery.py`) follows, and
 each entry's work is bound to that discovery's digest. All three live in the artifact. Durable execution resumes from
 its own committed call outputs (`retained.py`), never from files beside the run. A request the server refuses is a
@@ -12,15 +12,14 @@ and output budget. Both calls remain recorded; only a successful recovery marks 
 Every entry is read whole through counted windows of its own text (overlap within the entry), beside the record-free
 lines before it when heading context is on. The fields model returns `{value, quote}` candidates, and `_item_text`
 for each object in a list. Code, never the model, checks them: the value conforms to its field, the quote is text of
-that entry (or, under defaults 7, shown heading context for scalars outside lists), and a value is literal where its
+that entry (or, for an inherited scalar, admitted context), and a value is literal where its
 printed form lies inside the quote; a yes/no, an allowed label or a derived field may instead be supported by a
 quoted passage of the entry, never by a fabricated literal span. Heading context grounds only printed non-Boolean
-values; explicitly derived fields may retain supporting heading passages as proposals. A value read only behind an
-omitted excerpt stays a `context_incomplete` proposal. A separate reasoning
-request verifies candidates in counted batches; only a supported candidate is accepted. With verification off, or
-where the schema's evidence policy asks for none, candidates stay proposals. A single pass (from defaults 6) has
-verification off and accepts what code grounded, linked as code's (`lexical`); a value whose quote is missing or
-found nowhere stays in the record, a proposal without Evidence.
+values; explicitly derived fields may retain supporting heading passages as proposals. A value code locates in its
+record's own text is accepted with code's link (`lexical`); a value located outside the record (inherited from a
+heading) is accepted only when a separate, independent reading of its field agrees (`verification`). A value whose
+quote is missing or found nowhere, or of a field whose evidence policy asks for none, stays in the record, a
+proposal without Evidence.
 
 Merging keeps structure and doubt. Equal observations are one; accepted scalars that disagree go to one counted
 arbitration over the supplied candidates, or stay unresolved. A list item is one item across windows only when two
@@ -35,7 +34,7 @@ import json
 import threading
 import time
 import unicodedata
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
@@ -55,6 +54,7 @@ from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
 from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
 from kei_exp.kie.extract.discovery import Window, occurrences, plan, ranges_json, split, text_of
+from kei_exp.kie.extract.durable import NeedsCall
 from kei_exp.kie.extract.locate import BlockText, _spans, forms, locate, nearly, normalise, printed, raw_range
 from kei_exp.kie.extract.llm import bounded
 from kei_exp.kie.extract.models import ROLE, Router
@@ -141,29 +141,33 @@ NEAR = 40
 # ranges and context are final, and admits a children call before the next discovery window (`retained.ahead`).
 # Versions 8 and 9 still read no entry before the whole discovery. Measured on one scanned 45-page catalogue
 # (12 November 2026, Qwen3.8-27B-NVFP4): version 9's first saved value came 18 to 23 minutes after the start.
+# 11: keep record attribution ranges. Before accepting a scalar inherited from outside those ranges, independently
+# read its field in the intervening source and require agreement; local values keep version 10's single-pass path.
+# The records under one admitted heading share that reading, one call per field (`_Run._shared`). Measured on one
+# 13-record catalogue whose records all inherit one field (15 November 2026, Qwen3.8-27B-NVFP4, the frozen values of
+# two field models): 2 calls and 3,790 tokens against 26 calls and 19,842 with one call per record; the 6 wrong
+# values stayed rejected and the 4 correct ones the single calls rejected were linked, also with 4 or 7 records a call.
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
-DEFAULTS = {
-    5: {"reserves": {**_RESERVES, "verification": 4096}, "overlap": 3, "headings": True,
-        "verification": True, "splits": 6, "windows": "budget", "pipelined": True,
-        "entry_reply": "context", "corrections": True, "single_pass": False,
-        "nearby": False, "children": False, "complete_text": False},
-    10: {"reserves": _RESERVES, "overlap": 3, "headings": True, "verification": False, "splits": 6,
-         "windows": "budget", "pipelined": True, "entry_reply": "context", "corrections": False,
-         "single_pass": True, "nearby": True, "children": "pipelined", "complete_text": True},
-}
+# Only `DEFAULTS_VERSION` is admitted; the notes above record how its choices were reached. A change of behaviour
+# replaces it under a new number, never beside it: the number is the execution's provenance, not a switch. Behaviour
+# every admitted run has (budget windows, pipelined entries and children, nearby boundaries, one reading per value,
+# complete text values, record evidence) is code, not a default. The verification switch (Studio's Pro mode, which
+# also judged every value a record states) is retired, unmeasured on this version; version 5's corrections with it.
+DEFAULTS_VERSION = 11
+DEFAULTS = {DEFAULTS_VERSION: {"reserves": _RESERVES, "overlap": 3, "headings": True, "splits": 6,
+                               "entry_reply": "context"}}
 
 
 class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[5, 10]
+    defaults: Literal[11]  # DEFAULTS_VERSION
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
     candidates: int | None = Field(default=None, ge=1, le=1024)
     headings: bool | None = None
-    verification: bool | None = None
 
     def dumped(self) -> dict:
         return self.model_dump(exclude_none=True)
@@ -261,26 +265,16 @@ def _execution(evidence: Evidence, schema: Schema, options: UnifiedOptions, chat
             "source": {"run_id": evidence.run_id, "generation": evidence.generation, "digest": evidence.digest},
             "schema_sha256": digest(schema.model_dump(by_alias=True, exclude_none=True)),
             "method": options.dumped(), "defaults": DEFAULTS[options.defaults],
-            "effective": {name: options.setting(name) for name in ("overlap", "headings", "verification", "splits")}
-            | {name: value for name, value in DEFAULTS[options.defaults].items()
-               if name in ("windows", "pipelined", "entry_reply", "corrections", "single_pass",
-                           "nearby", "children", "complete_text")}
+            "effective": {name: options.setting(name) for name in ("overlap", "headings", "splits")}
+            | {"entry_reply": DEFAULTS[options.defaults]["entry_reply"]}
             | {"candidates": options.setting("candidates")}
-            | {"stages": stages} | ({"headings": False, "verification": False} if native else {})
-            | ({"entry_reply": "reserve"} if "entry_reply" in DEFAULTS[options.defaults]
-               and (native or options.output_tokens) else {}),
+            | {"stages": stages} | ({"headings": False} if native else {})
+            | ({"entry_reply": "reserve"} if native or options.output_tokens else {}),
             "models": chat.models,
-            "prompt_version": PROMPT_VERSION if options.defaults == 10 else 8,
-            "discovery_version": discovery.VERSION if options.defaults == 10 else 8,
-            **({"entry_version": ENTRY_VERSION} if options.defaults == 10 else {}),
+            "prompt_version": PROMPT_VERSION, "discovery_version": discovery.VERSION, "entry_version": ENTRY_VERSION,
             "tokenizers": {role: {**counter.identity(), "context_tokens": counter.context_tokens}
                            for role, counter in counters.items()}}
 
-
-def _linked_by(effective: dict) -> str:
-    """Who accepts a located value: the verification call, or, with it off, only code (a single pass; earlier
-    versions accept nothing then)."""
-    return "verification" if effective["verification"] else "lexical"
 
 
 def _call_json(call: Call) -> dict:
@@ -324,17 +318,16 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     schema, options = request.schema_, request.options.unified
     if isinstance(chat.fields, gliformer.GLiFormerFields):
         gliformer.native_schema(schema)
-        if options.headings is True or options.verification is True:
-            raise ValueError("GLiFormer pure extraction cannot use heading context or value verification")
+        if options.headings is True:
+            raise ValueError("GLiFormer pure extraction cannot use heading context")
     counters = counter if isinstance(counter, dict) else (counters_for(chat) if counter is None
                                                            else dict.fromkeys(("fields", "reasoning"), counter))
     execution = _execution(evidence, schema, options, chat, counters)
     execution_sha256 = digest(execution)
     effective = execution["effective"]
-    linked_by = _linked_by(effective)
     budget = _Budget(chat, counters, effective["stages"],
                      frozenset({"entry"}) if effective["entry_reply"] == "context" else frozenset())
-    from kei_exp.kie.extract.durable import Boundary, NeedsCall
+    from kei_exp.kie.extract.durable import Boundary
     from kei_exp.kie.extract.retained import ahead, discovering, plan_execution, plan_records, saved_record
     from kei_exp.kie.extract.value_mark import place_links
     pdf = None if run_dir is None else run_dir / "input.pdf"
@@ -356,20 +349,19 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             raise NeedsCall() from None
 
     def discover() -> tuple[dict, bool]:
-        description = schema.record_description + (DISCOVERY_SCOPE_V9 if options.defaults == 10 else DISCOVERY_SCOPE)
+        description = schema.record_description + DISCOVERY_SCOPE
         body = discovery.discover(evidence, description, partial(budget.fits, "discovery"),
                                   ask, overlap=effective["overlap"],
-                                  splits=effective["splits"], by=effective["windows"], workers=chunks,
+                                  splits=effective["splits"], workers=chunks,
                                   progress=partial(discovering, chat), frontier=True,
                                   unanswered=(NeedsCall,) if durable else (),
-                                  nearby=effective["nearby"], shared_context=options.defaults == 10)
+                                  nearby=True, shared_context=True)
         if body is None:
             raise BudgetRefused("not even one character of source fits a discovery request beside its instructions")
-        complete, early = body.get("complete", True), durable and effective["children"] == "pipelined"
-        if options.defaults == 10:
-            body = discovery.table_notes(body, evidence, complete)
-        if effective["children"] and (complete or early):
-            try:  # the bare description: DISCOVERY_SCOPE keeps numbered items in their record
+        complete, early = body.get("complete", True), durable
+        body = discovery.table_notes(body, evidence, complete)
+        if complete or early:
+            try:  # the bare description: DISCOVERY_SCOPE keeps enclosing records whole
                 with ahead(chat):  # carving the records found goes before looking for more
                     body = discovery.children(body, evidence, schema.record_description,
                                               partial(budget.fits, "discovery"), ask,
@@ -387,7 +379,8 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
                 "calls": [_call_json(call) for call in body["calls"]]}, body.get("complete", True)
     found, complete = discover()
     run = _Run(schema, budget, {passage.id: passage.text for passage in evidence.passages}, effective,
-               {passage.id: passage.table for passage in evidence.passages if passage.table is not None})
+               {passage.id: passage.table for passage in evidence.passages if passage.table is not None},
+               found["entries"])
     passages = {passage.id: passage for passage in evidence.passages}
     pages = {passage.id: passage.page for passage in (*evidence.passages, *evidence.withheld)}
 
@@ -413,7 +406,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             if not work.failed and not work.undecided:
                 # A finished entry's accepted values are verified: their links are the final artifact's, so the
                 # researcher sees them on the source while the other entries are still read.
-                links = [_link(each, number, passages, linked_by) for each in work.found if each.kind == "accepted"]
+                links = [_link(each, number, passages, "lexical") for each in work.found if each.kind == "accepted"]
                 place_links(links, evidence.passages, pdf)  # as `run.dispatch` places the artifact's
                 saved_record(chat, work.record, entry["ranges"], record=number, primary=entry["ranges"], links=links)
                 if place is not None:
@@ -486,6 +479,8 @@ class _Found:
     item: tuple | None = None         # (list path, window, local position) of the outermost list item it is in
     anchor: tuple | None = None       # that item's occurrence in the entry, when it was located exactly once
     repaired: bool = False            # its quote or value is the source's text a model copied nearly verbatim
+    context: list[Span] = field(default_factory=list)
+    verified: bool = False
 
 
 def _leaf(node: Node) -> dict:
@@ -498,6 +493,15 @@ def candidates_schema(nodes: list[Node]) -> dict:
     """The reply schema of an entry or document call: a `{value, quote}` candidate or null at every scalar."""
     return {"type": "object", "properties": {node.name: _candidate(node) for node in nodes},
             "required": [node.name for node in nodes], "additionalProperties": False}
+
+
+def _scalar_nodes(nodes: Sequence[Node], path: tuple = ()) -> Iterator[tuple[tuple, Node]]:
+    for node in nodes:
+        key = (*path, node.name)
+        if node.type == "object":
+            yield from _scalar_nodes(node.children or [], key)
+        elif node.type != "array":
+            yield key, node
 
 
 def _candidate(node: Node) -> dict:
@@ -728,11 +732,8 @@ class _Checker:
 
 # --- prompts (pinned versions stay byte-identical) -----------------------------------------------------------------
 
-DISCOVERY_SCOPE = (" Keep each record whole: its internal headings, tables, citations and numbered list items belong to it; "
-                   "they are neither new records nor record-free text. Only entries matching the record definition are peers. "
-                   "Use other only for text outside every record, not sections inside one.")
-# Defaults 9: the schema fixes granularity; indices are not duplicate records, and children stay nested.
-DISCOVERY_SCOPE_V9 = (
+# The schema fixes granularity; indices are not duplicate records, and children stay nested.
+DISCOVERY_SCOPE = (
     ' The record definition sets the unit to separate. A table title or section is not an enclosing record '
     'unless it itself matches that definition. When the requested records are presented as table entries '
     'without a requested enclosing record, each matching data row starts its own record; mark the shared '
@@ -759,28 +760,37 @@ ENTRY = ("You extract structured data from one record of a source document. A re
 # version 5's corrections asked them of a second reading. The shared LLM messages show the full reply schema.
 SINGLE_PASS = ("\nGive each value complete: a descriptive field's whole passage across paragraphs or pages, without "
                "text of other fields.")
-VERIFY = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
-          "For each candidate answer \"supported\" when the record text states that value for that field of this "
-          "record, \"unsupported\" when it does not (it says something else, or the value belongs to another record or "
-          "only to the context), or \"unclear\". Judge only from the text shown. Return only the JSON object.")
-
-
-VERIFY_CHILD = ("You check values extracted from one record of a source document. A record is: {description}\n{notes}"
-                "The RECORD is printed inside another record, whose own text is shown as CONTEXT. For each candidate "
-                "answer \"supported\" when the RECORD states that value for that field of this record, or, for a "
-                "scalar field outside lists, when CONTEXT states it for the enclosing record as a whole or for a group "
-                "of records containing this one and the RECORD does not contradict it. Answer \"unsupported\" for a "
-                "contradicted or unrelated value or one belonging to another record, and \"unclear\" when "
-                "applicability is uncertain. List items and their values require the RECORD text. Judge only from the "
-                "text shown. Return only the JSON object.")
-
-VERIFY_COMPLETE = (
-    "You check values extracted from one source record. A record is: {description}\n{notes}"
-    "For each scalar field, read the source afresh and return the final complete value and an exact quote "
-    "containing that entire value. Include the whole descriptive passage across paragraphs or pages, "
-    "and exclude other fields. Do not summarize or invent. Return null if the record supplies no value. "
-    "For list-item fields, return supported, unsupported, or unclear without changing the item identity. "
-    "Use only RECORD, EARLIER TEXT and LATER TEXT, never CONTEXT. Return only the JSON object.")
+VERIFY_RECORD = (
+    "Read the source independently of any shown candidate value, for one record. A record is: {description}\n{notes}\n"
+    "Candidates are of two kinds. One shown with only its field path is a field to read again: return {{\"value\", "
+    "\"quote\"}} with its value for THIS RECORD and an exact source quote, or null if the source does not give it. "
+    "One shown with a value and quote is to be judged: answer supported, unsupported or unclear; its value must "
+    "belong to this subject or list item in the RECORD. Read each field's meaning, not just a matching word. "
+    "CONTEXT contains surrounding source, including other records: only an applicable shared heading or an "
+    "explicitly shared table qualification may supply a value from it. When CONTEXT names the enclosing record, a "
+    "scalar may inherit what is stated for that whole record or a group containing this child, never what belongs "
+    "only to its parent or another record. Follow headings in source order: a later statement replaces an earlier "
+    "value only when it changes the same field for this record; preserve compatible higher-level context. A group "
+    "heading that follows this record does not apply to it. Attribute each value to the requested subject and "
+    "relationship; do not transfer properties from related entities unless the source supports that attribution. "
+    "Return only the requested JSON object. Do not infer missing values.")
+# One reading per record of a field the records under one admitted heading may inherit from it (`_Run._shared`).
+VERIFY_RECORDS = (
+    "Read the source independently for each marked record. A record is: {description}\n{notes}\n"
+    "FIELD names one field to read again. For each record label return {{\"value\", \"quote\"}} with that field's "
+    "value for THAT RECORD and an exact source quote, or null if the source does not give it. Read every record on "
+    "its own, and the field's meaning, not just a matching word. "
+    "CONTEXT contains surrounding source, including other records: only an applicable shared heading or an "
+    "explicitly shared table qualification may supply a value from outside a record's own text; another record's "
+    "text never supplies it. Follow headings in source order: a later statement replaces an earlier value only "
+    "when it changes the same field for the records that follow it; preserve compatible higher-level context. A "
+    "group heading that follows a record does not apply to it. Attribute each value to the requested subject and "
+    "relationship; do not transfer properties from related entities unless the source supports that attribution. "
+    "Return only the requested JSON object. Do not infer missing values.")
+# shortcut: a fixed number of records per shared reading, sized so that their replies stay well inside the
+# verification reserve (2048 tokens; a reading measured 21 to 44); count the replies if readings grow longer.
+SHARED = 16
+_ALONE = object()  # no shared reading: the record's own verification call reads it
 
 CHILD = ("You extract structured data from one record of a source document. A record is: {description}\n{notes}"
          "The RECORD is printed inside another record, whose own text (before and after it in the source) is shown as "
@@ -795,12 +805,9 @@ CHILD = ("You extract structured data from one record of a source document. A re
          "this record's, and the RECORD's own statement wins over a conflicting one. List items and all their values "
          "must come from the RECORD. Never invent a value. Return only the JSON object.")
 
-ARBITRATION = ("Several verified candidate values were found in one record of a source document for one field. "
-               "Choose the label of the candidate whose value is correct for the field, given its source text, or "
-               "NONE when none is. Return only the JSON object.")
-
-ARBITRATION_LOCATED = ARBITRATION.replace("Several verified candidate values were found",
-                                          "Several candidate values, each located in the record's text, were found")
+ARBITRATION = ("Several candidate values, each located in the record's text, were found in one record of a source "
+               "document for one field. Choose the label of the candidate whose value is correct for the field, given "
+               "its source text, or NONE when none is. Return only the JSON object.")
 
 DOCUMENT = ("You extract fields that describe a whole source document, not one record.\n{notes}"
             "Answer every field with null when the text shown does not give it, or with an object: \"value\" (typed "
@@ -836,7 +843,7 @@ def _source_text(units: Sequence[Unit], texts: dict[str, str], tables: dict[str,
 
 
 def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, PageTable], *,
-          parent: bool = False) -> str:
+          heading_context: bool = False, parent: bool = False) -> str:
     def source(units):
         return _source_text(units, texts, tables)
     if parent:
@@ -845,7 +852,13 @@ def _user(window: Window, texts: dict[str, str], marker: str, tables: dict[str, 
                             ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) +
                             [f"### {marker}\n{source(window.primary)}\n### END {marker}"] +
                             ([f"### LATER TEXT\n{source(window.after)}"] if window.after else []))
-    context = source(window.heading)
+    if heading_context:
+        heading = [f"#### CONTEXT {index}/{len(window.heading)} "
+                   f"({'latest' if index == len(window.heading) else 'earlier'} shown; source {unit.segment})\n"
+                   f"{source([unit])}" for index, unit in enumerate(window.heading, 1)]
+        context = "Excerpt labels are metadata, not source text.\n" + "\n".join(heading)
+    else:
+        context = source(window.heading)
     parts = ([f"### CONTEXT (not part of the record)\n{context}"] if window.heading else []) + \
         ([f"### EARLIER TEXT\n{source(window.before)}"] if window.before else []) + \
         [f"### {marker}\n{source(window.primary)}\n### END {marker}"] + \
@@ -887,15 +900,36 @@ class _Work:
     conflicts: list = field(default_factory=list)
     native: list[dict] | None = None
     unit: str | None = None  # the entry's capture identity apart from its number (`calls.complete`)
+    # The calls and issues of the readings this entry shares with others, by reading: counted once (`_artifact`).
+    shared: dict = field(default_factory=dict)
     page: int | None = None  # the entry's first page, for its calls' priority (`calls.complete`)
 
 
 class _Run:
     def __init__(self, schema: Schema, budget: _Budget, texts: dict[str, str], effective: dict,
-                 tables: dict[str, PageTable] | None = None):
+                 tables: dict[str, PageTable] | None = None, entries: Sequence[dict] = ()):
         self.schema, self.budget, self.texts, self.effective = schema, budget, texts, effective
         self.tables = tables or {}
         self.nodes = schema.record_nodes
+        self.entries = entries
+        # Entry number -> (the earliest heading admitted for it, the entries sharing that heading in source order).
+        # Complete discovery alone decides it, so every member composes the same shared reading (`_shared`). A child,
+        # or an entry with context that does not precede it (a table qualification), is in none and reads alone.
+        self.groups: dict[int, tuple[Unit, tuple[int, ...]]] = {}
+        self._readings: dict[tuple, Any] = {}
+        self._asking: dict[tuple, threading.Lock] = {}  # per reading: its members wait for it, other readings run
+        if effective["headings"]:
+            order = {segment: index for index, segment in enumerate(texts)}
+            at = lambda each: (order[each["segment"]], each["start"])
+            under: dict[tuple, list[int]] = {}
+            for number, entry in enumerate(entries):
+                if entry.get("parent") is None and entry["ranges"] and entry["context"] \
+                        and all(at(each) < at(entry["ranges"][0]) for each in entry["context"]):
+                    earliest = min(entry["context"], key=at)
+                    under.setdefault((earliest["segment"], earliest["start"], earliest["end"]), []).append(number)
+            for heading, members in under.items():
+                group = (Unit(*heading), tuple(members))
+                self.groups.update((number, group) for number in members)
 
     def _read(self, stage: str, number: int | None, units: list[Unit], system: str, schema: dict, marker: str,
               heading: tuple[Unit, ...], out: _Work, *, parent: bool = False) -> list[tuple[Window, dict | None]]:
@@ -939,8 +973,9 @@ class _Run:
 
     def entry(self, number: int, entry: dict, *, verify: bool = True, unit: str | None = None,
               page: int | None = None) -> _Work:
-        """The entry's windows read and checked, then (with `verify`) its candidates verified and settled; without, its
-        record holds the candidates. With verification off nothing waits on `verify`: code settles it at once. `unit` names it
+        """The entry's windows read and checked, its candidates settled. Code settles a value located in the record at
+        once; only a value inherited from a heading other records may share waits on `verify` (discovery complete), a
+        proposal meanwhile (`_shared`). `unit` names it
         for the capture identity of its calls, `page` for their priority."""
         out = _Work(unit=unit, page=page)
         if isinstance(self.budget.chat.fields, gliformer.GLiFormerFields):
@@ -968,11 +1003,7 @@ class _Run:
         heading_context = parent
         system = (CHILD if parent else ENTRY).format(
             description=self.schema.record_description, notes=_notes(self.nodes))
-        single = self.effective["single_pass"]
-        if single:
-            system += SINGLE_PASS
-        if self.effective["complete_text"]:
-            system += COMPLETE_TEXT_V9
+        system += SINGLE_PASS + COMPLETE_TEXT_V9
         replies = self._read("entry", number, units, system, candidates_schema(self.nodes), "RECORD", heading, out,
                              parent=parent)
         view = _view(units, self.texts)
@@ -982,28 +1013,19 @@ class _Run:
                 first, last = (*window.before, *window.primary)[0], (*window.primary, *window.after)[-1]
                 shown = (_position(units, first.segment, first.start), _position(units, last.segment, last.end))
                 context = _view(list(window.heading), self.texts) if heading_context and window.heading else None
-                found += _Checker(view, shown, index, self.nodes, self.tables, enclosing=single,
+                found += _Checker(view, shown, index, self.nodes, self.tables, enclosing=True,
                                   context=context, heading_context=heading_context).reply(answer)
         out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
                        for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
-        if heading_context:
-            self._incomplete(replies, out)
-        if not verify and self.effective["verification"]:
-            out.record = conform(_placed(out.found, lambda each: each.kind == "candidate"), self.nodes)
-            return out
-        self._verify(number, replies, out, parent=parent)
-        if heading_context:
-            order = {segment: index for index, segment in enumerate(self.texts)}
-            shown_heading = sorted({unit for window, _ in replies for unit in window.heading},
-                                   key=lambda unit: (order[unit.segment], unit.start, unit.end))
-            view = _view([*shown_heading, *units], self.texts)
+        replies = self._record_evidence(entry, replies, out, view)
+        self._verify(number, replies, out, owned=units, parent=parent, context=heading, settled=verify)
+        order = {segment: index for index, segment in enumerate(self.texts)}
+        in_source = lambda unit: (order[unit.segment], unit.start, unit.end)
+        view = _view(sorted({*(unit for window, _ in replies for unit in window.heading), *units}, key=in_source),
+                     self.texts)
         out.contest = self._settle(number, out, view)
-        if not single:
-            _renumbered(out.found)
-            out.record = conform(_placed(out.found), self.nodes)
-            return out
-        # Nothing reads a value again: one whose quote is missing or found nowhere stays the record's, without Evidence.
+        # Keep an extracted value whose quote remains missing or unlocated, without Evidence.
         for each in out.found:
             if each.kind == "rejected" and each.reason in UNCITED:
                 each.kind = "proposed"
@@ -1016,80 +1038,188 @@ class _Run:
                                          number)
         return out
 
-    def _incomplete(self, replies: list[tuple[Window, dict | None]], out: _Work) -> None:
-        """A candidate grounded only in context that an omitted excerpt follows stays a proposal: that excerpt could
-        supersede the heading it was read from, and neither the entry call nor the verifier is shown it."""
+    def _record_evidence(self, entry: dict, replies: list, out: _Work, view: BlockText) -> list:
+        """Keep candidates fixed; include intervening source so a misassigned heading cannot hide supersession."""
+        units = [Unit(each["segment"], each["start"], each["end"]) for each in entry["ranges"]]
+        first = units[0]
         order = {segment: index for index, segment in enumerate(self.texts)}
-        for index, (window, _) in enumerate(replies):
-            if not (dropped := window.dropped("heading")):
-                continue
-            latest = max((order[unit.segment], unit.end) for unit in dropped)
+        parent = entry.get("parent") is not None
+        admitted = tuple(Unit(each["segment"], each["start"], each["end"]) for each in entry["context"]) \
+            if self.effective["headings"] or parent else ()
+        heading = admitted
+        prior = [unit for unit in admitted if (order[unit.segment], unit.start) < (order[first.segment], first.start)]
+        if prior and not parent:
+            earliest = min(prior, key=lambda unit: (order[unit.segment], unit.start))
+            # Intervening records expose supersession; only admitted context may ground an inherited quote.
+            heading = tuple(Unit(segment, earliest.start if segment == earliest.segment else 0,
+                                 first.start if segment == first.segment else len(self.texts[segment]))
+                            for segment in self.texts if order[earliest.segment] <= order[segment] <= order[first.segment]
+                            and (segment != first.segment or first.start)) + tuple(unit for unit in admitted if unit not in prior)
+        context = _view(list(admitted), self.texts) if admitted else None
+        nodes = dict(_scalar_nodes(self.nodes))
+        for index, found in enumerate(out.found):
+            if found.reason in UNCITED and found.path in nodes and context is not None:
+                recovered = _Checker(view, (0, len(view.text)), found.window, self.nodes, self.tables,
+                                     repair=False, context=context, heading_context=True)._scalar(
+                                         found.path, nodes[found.path], {"value": found.value, "quote": found.quote},
+                                         found.item, found.anchor)
+                if recovered.kind == "candidate":
+                    out.found[index] = found = recovered
+            # Source ownership, not another extracted field, supplies the record's identity.
+            found.context = ([Span(segment_id=s, start=a, end=b) for s, a, b in found.anchor]
+                             if found.anchor else [Span(segment_id=u.segment, start=u.start, end=u.end) for u in units])
+        return [(replace(window, heading=heading), answer) for window, answer in replies]
 
-            def superseded(span: Span, window: Window = window, latest: tuple = latest) -> bool:
-                return any(unit.segment == span.segment_id and unit.start <= span.start and span.end <= unit.end
-                           and (order[unit.segment], unit.end) < latest for unit in window.heading)
+    def _shared(self, number: int, path: tuple, out: _Work) -> Any:
+        """This record's independent reading of `path` from the one call the records under its heading share, or
+        `_ALONE`. The request shows the source from that heading to the last of up to `SHARED` records once, each
+        record under its label and everything else as context, so a heading between them that supersedes it is
+        still seen, and it holds no candidate value. It is composed from discovery alone: whichever record asks
+        first asks for all, a durable round captures it once, and no record waits on another's entry call. A request
+        over the budget or without a valid reply is asked again in halves; a record left alone reads alone."""
+        if number not in self.groups:
+            return _ALONE
+        earliest, members = self.groups[number]
+        first = members.index(number) // SHARED * SHARED
+        chunk = members[first:first + SHARED]
+        system = VERIFY_RECORDS.format(description=self.schema.record_description, notes=_notes(self.nodes))
+        node = dict(_scalar_nodes(self.nodes))[path]
+        names = list(self.texts)
+        order = {segment: index for index, segment in enumerate(names)}
 
-            for found in out.found:
-                if found.window == index and found.kind == "candidate" and found.spans \
-                        and all(superseded(span) for span in found.spans):
-                    found.kind, found.reason = "proposed", "context_incomplete"
+        def between(start: tuple[int, int], end: tuple[int, int]) -> list[Unit]:
+            return [unit for index in range(start[0], end[0] + 1) for unit in discovery.trimmed(
+                names[index], self.texts[names[index]], start[1] if index == start[0] else 0,
+                end[1] if index == end[0] else len(self.texts[names[index]]))]
+        while len(chunk) > 1:
+            key = (chunk, path)
+            with self._asking.setdefault(key, threading.Lock()):  # setdefault is atomic: one lock per reading
+                if key not in self._readings:
+                    labels = [f"R{n}" for n in range(1, len(chunk) + 1)]
+                    owned = sorted(((Unit(each["segment"], each["start"], each["end"]), label)
+                                    for label, member in zip(labels, chunk, strict=True)
+                                    for each in self.entries[member]["ranges"]),
+                                   key=lambda each: (order[each[0].segment], each[0].start))
+                    blocks: list[tuple[str | None, list[Unit]]] = []
+                    at = (order[earliest.segment], earliest.start)
+                    for unit, label in owned:
+                        for owner, units in ((None, between(at, (order[unit.segment], unit.start))), (label, [unit])):
+                            if units and blocks and blocks[-1][0] == owner:
+                                blocks[-1][1].extend(units)
+                            elif units:
+                                blocks.append((owner, units))
+                        at = max(at, (order[unit.segment], unit.end))
+                    user = "\n\n".join(
+                        f"### CONTEXT (not part of the records)\n{_source_text(units, self.texts, self.tables)}"
+                        if owner is None else
+                        f"### RECORD {owner}\n{_source_text(units, self.texts, self.tables)}\n### END RECORD {owner}"
+                        for owner, units in blocks) + \
+                        f"\n\n### FIELD\n{'.'.join(str(step) for step in _field_path(path))}" \
+                        "\n\nReturn the JSON object now."
+                    schema = {"type": "object", "properties": dict.fromkeys(labels, _leaf(node)),
+                              "required": labels, "additionalProperties": False}
+                    calls: list = []
+                    issues: list = []
+                    try:
+                        answer = self.budget.ask(
+                            "verification", chunk[0], system, user, schema, calls, issues,
+                            out.unit and f"heading:{earliest.segment}:{earliest.start}", out.page) \
+                            if self.budget.fits("verification", system, user, schema) else None
+                        if answer is not None and not all(answer[label] is None or isinstance(answer[label], dict)
+                                                          and "value" in answer[label] for label in labels):
+                            answer = None
+                        self._readings[key] = (answer, calls, issues)
+                    except BaseException as waiting:  # noqa: BLE001 - asking again this round would be another call
+                        self._readings[key] = waiting
+                kept = self._readings[key]
+            if isinstance(kept, BaseException):
+                raise kept
+            answer, calls, issues = kept
+            if calls or issues:
+                out.shared[key] = (calls, issues)
+            if answer is not None:
+                return answer[f"R{chunk.index(number) + 1}"]
+            half = len(chunk) // 2
+            chunk = chunk[:half] if chunk.index(number) < half else chunk[half:]
+        return _ALONE
 
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
-                parent: bool = False) -> None:
-        """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""
+                owned: list[Unit], parent: bool = False, context: tuple[Unit, ...] = (),
+                settled: bool = True) -> None:
+        """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure.
+        `settled` says discovery is complete, so the records sharing a heading are known (`_shared`)."""
+        # A lexical match outside the record is never accepted by switching off the optional all-value verifier.
+        outside = lambda found: any(not any(own.segment == span.segment_id and own.start <= span.start
+                                            and span.end <= own.end for own in owned) for span in found.spans)
+        inherited = {found.path for found in out.found if outside(found)}
         for found in out.found:
             if found.kind != "candidate":
                 continue
             policy = evidence_policy(self.nodes, _field_path(found.path))
             if policy != "quoted":
                 found.kind, found.reason = "proposed", f"evidence_policy_{policy}"
-            elif not self.effective["verification"]:  # a single pass accepts what code grounded, as code's link
-                found.kind, found.reason = ("accepted", None) if self.effective["single_pass"] else \
-                    ("proposed", "verification_disabled")
-        # Corrections address scalar fields; changing a list item would require rediscovering its identity.
-        nodes = {}
-        def scalars(children, path=()):
-            for node in children:
-                key = (*path, node.name)
-                if node.type == "object":
-                    scalars(node.children or [], key)
-                elif node.type != "array" and evidence_policy(self.nodes, key) == "quoted":
-                    nodes[key] = node
-        if self.effective["corrections"] and self.effective["verification"]:
-            scalars(self.nodes)
-        prompt = VERIFY_COMPLETE if nodes else VERIFY_CHILD if parent else VERIFY
-        system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes))
+            elif found.path not in inherited:  # code located it in the record: linked `lexical`
+                found.kind, found.reason = "accepted", None
+        # Only an inherited scalar is read again, never shown its candidate; a list item located outside the record
+        # is judged. A list item is never read again: that would require rediscovering its identity.
+        nodes = {path: node for path, node in _scalar_nodes(self.nodes)
+                 if path in inherited and evidence_policy(self.nodes, path) == "quoted"}
+        system = VERIFY_RECORD.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
-                found.kind == "candidate" or found.kind == "rejected" and found.path in nodes and
-                found.reason in ("no_quote", "quote_not_in_source", "value_not_in_quote"))]
-            pending = [batch] if batch else []
+                found.kind == "candidate")]
+            # A value located outside the record is read with the records sharing its heading. Which those are is
+            # known once discovery is complete: until then it waits as a proposal, and the entry is read again.
+            shared, waiting = {}, None
+            for found in batch:
+                if found.kind == "candidate" and found.path in nodes and outside(found) and number in self.groups:
+                    if not settled:
+                        found.kind, found.reason = "proposed", "verification_pending"
+                        continue
+                    try:
+                        reading = self._shared(number, found.path, out)
+                    except NeedsCall as captured:  # the other fields' readings are captured in this round too
+                        waiting = captured
+                        continue
+                    if reading is not _ALONE:
+                        shared[id(found)] = reading
+            if waiting is not None:
+                raise waiting
+            alone = [found for found in batch if id(found) not in shared and found.reason != "verification_pending"]
+            pending = [[found] for found in batch if id(found) in shared] + ([alone] if alone else [])
             while pending:
                 group = pending.pop(0)
                 labels = [f"C{n}" for n in range(1, len(group) + 1)]
-                user = _user(window, self.texts, "RECORD", self.tables,
-                             parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
-                    f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
-                    ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
-                     f"(quoted: {json.dumps(found.quote, ensure_ascii=False)})")
-                    for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
-                verdict = {"type": "string", "enum": list(VERDICTS)}
-                schema = {"type": "object", "properties": {
-                    label: _leaf(nodes[found.path]) if found.path in nodes else verdict
-                    for label, found in zip(labels, group, strict=True)},
-                          "required": labels, "additionalProperties": False}
-                answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
-                                         out.unit, out.page) \
-                    if self.budget.fits("verification", system, user, schema) else None
+                fits = True
+                if id(group[0]) in shared:
+                    answer = {labels[0]: shared[id(group[0])]}
+                else:
+                    user = _user(window, self.texts, "RECORD", self.tables,
+                                 heading_context=True,
+                                 parent=parent) + "\n\n### CANDIDATES\n" + "\n".join(
+                        f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}" +
+                        ("" if found.path in nodes else f" = {json.dumps(found.value, ensure_ascii=False)} "
+                         f"(quoted: {json.dumps(found.quote, ensure_ascii=False)})")
+                        for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
+                    verdict = {"type": "string", "enum": list(VERDICTS)}
+                    schema = {"type": "object", "properties": {
+                        label: _leaf(nodes[found.path]) if found.path in nodes else verdict
+                        for label, found in zip(labels, group, strict=True)},
+                              "required": labels, "additionalProperties": False}
+                    fits = self.budget.fits("verification", system, user, schema)
+                    answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
+                                             out.unit, out.page) if fits else None
                 if answer is not None and all(label in answer and (
-                        (answer[label] is None or isinstance(answer[label], dict)) if found.path in nodes
-                        else isinstance(answer[label], str) and answer[label] in VERDICTS)
+                        (answer[label] is None or isinstance(answer[label], dict) and "value" in answer[label])
+                        if found.path in nodes else isinstance(answer[label], str) and answer[label] in VERDICTS)
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
-                        # The checker sees only this request's record text, never context or unseen windows.
-                        view = _view([*window.before, *window.primary, *window.after], self.texts)
-                        checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False)
+                        # Shared readings see the whole owned record; siblings and unadmitted context cannot ground it.
+                        view = _view(owned if id(found) in shared else
+                                     [*window.before, *window.primary, *window.after], self.texts)
+                        checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False,
+                            context=_view(list(context), self.texts) if context else None)
                         if isinstance(value, dict) and "value" in value and value["value"] is None:
                             # A null quoting the candidate's own printed value contradicts itself: left for review.
                             quote = value.get("quote")
@@ -1102,20 +1232,21 @@ class _Run:
                                 found.kind, found.reason = VERDICTS[value or "unsupported"]
                             continue
                         corrected = checker._scalar(found.path, nodes[found.path], value, None, None)
-                        if corrected.kind == "candidate" and found.kind == "candidate" and corrected.value == found.value:
-                            found.kind = "accepted"
-                            continue
-                        out.found.append(corrected)
-                        if corrected.kind == "candidate":
-                            corrected.kind = "accepted"
-                            found.kind, found.reason = "rejected", "verification_corrected"
-                            out.issues.append(Issue("verification_corrected",
-                                "verification replaced a candidate with a source-grounded correction",
-                                number, ("records", number, *found.path)))
-                        elif found.kind == "candidate":  # an answered check: a doubt for review, not failed processing
+                        if typed_value(value.get("value"), nodes[found.path]) != found.value:
+                            found.kind, found.reason = "rejected", "verification_rejected"
+                        elif corrected.kind == "candidate":
+                            found.spans, found.alternatives, found.support = corrected.spans, corrected.alternatives, corrected.support
+                            found.kind, found.reason = "accepted", None
+                            found.verified = True
+                        else:
                             found.kind, found.reason = "proposed", "verification_unresolved"
                 elif len(group) > 1:
                     pending[0:0] = [group[:len(group) // 2], group[len(group) // 2:]]
+                elif not fits:  # one value whose check never fits this budget: final, left for review
+                    if group[0].kind == "candidate":
+                        group[0].kind, group[0].reason = "proposed", "verification_over_budget"
+                    out.issues.append(Issue("verification_over_budget", "the value's own check does not fit the "
+                                            "verification budget", number, ("records", number, *group[0].path)))
                 else:
                     if group[0].kind == "candidate":
                         group[0].kind, group[0].reason = "proposed", "verification_unresolved"
@@ -1148,7 +1279,7 @@ class _Run:
                 for label, found in zip(labels, candidates, strict=True)) + "\n\nReturn the JSON object now."
             schema = {"type": "object", "properties": {"choice": {"type": "string", "enum": [*labels, "NONE"]}},
                       "required": ["choice"], "additionalProperties": False}
-            system = ARBITRATION if self.effective["verification"] else ARBITRATION_LOCATED
+            system = ARBITRATION
             answer = self.budget.ask("arbitration", number, system, user, schema, out.calls, out.issues,
                                      out.unit, out.page) \
                 if self.budget.fits("arbitration", system, user, schema) else None
@@ -1158,8 +1289,7 @@ class _Run:
                 if position != chosen:
                     found.kind, found.reason = "proposed", "competing_value"
             if chosen is None:
-                read = "verified" if self.effective["verification"] else "located"
-                out.issues.append(Issue("competitors_unresolved", f"{len(candidates)} {read} values disagree",
+                out.issues.append(Issue("competitors_unresolved", f"{len(candidates)} located values disagree",
                                         number, ("records", number, *path)))
             contest.append({"path": ["records", number, *path], "outcome": "unresolved" if chosen is None
                             else "arbitrated", "chosen": chosen,
@@ -1345,8 +1475,9 @@ def _link(found: _Found, number: int, passages: dict, linked_by: str = "verifica
                                    alternatives=found.alternatives), passages)
     keep = ("path", "segment", "page", "bbox_pt", "cell", "precision", "spans", "alternatives", "raw")
     return {**{key: shared[key] for key in keep}, "verbatim": found.support == "literal", "support": found.support,
-            "linked_by": linked_by,
-            "item": [{"segment": s, "start": a, "end": b} for s, a, b in found.anchor] if found.anchor else None}
+            "linked_by": "verification" if found.verified else linked_by,
+            "item": [{"segment": s, "start": a, "end": b} for s, a, b in found.anchor] if found.anchor else None,
+            **({"context": spans_json(found.context)} if found.context else {})}
 
 
 def _review(found: _Found, number: int | None, texts: dict[str, str]) -> dict:
@@ -1383,8 +1514,11 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
     else:
         records = [merge(entry.record, document.values if document else {}, evidence.source_name, schema)
                    for entry in entries]
+    # A shared reading is every sharing entry's, whichever round or thread asked it: its calls and issues count once.
+    shared = {key: each for work in entries for key, each in work.shared.items()}
     calls = [_call_of(call) for call in found["calls"]] + \
-        [call for work in (*entries, *([document] if document else [])) for call in work.calls]
+        [call for work in (*entries, *([document] if document else [])) for call in work.calls] + \
+        [call for each, _ in shared.values() for call in each]
     unresolved = [row for row in found["ledger"] if row["disposition"] == "unresolved"]
     unread = [row for row in found["ledger"] if row["disposition"] == "withheld"]
     processing = {
@@ -1393,8 +1527,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
                       **({"children_windows": found["children"]["windows"]} if "children" in found else {})},
         "entries": {"entries": len(entries), "windows": sum(each.windows for each in entries),
                     "failed": sum(each.failed for each in entries)},
-        "verification": {"enabled": execution["effective"]["verification"],
-                         "undecided": sum(each.undecided for each in entries)},
+        "verification": {"undecided": sum(each.undecided for each in entries)},
         "document": {"applicable": document is not None, "windows": document.windows if document else 0,
                      "failed": document.failed if document else 0},
         "source": {"unread": len(unread)}}
@@ -1418,7 +1551,7 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         "execution": execution, "execution_sha256": digest(execution),
         "discovery": found, "discovery_sha256": digest(found),
         "records": records,
-        "evidence": [_link(each, number, passages, _linked_by(execution["effective"])) for number, entry
+        "evidence": [_link(each, number, passages, "lexical") for number, entry
                      in enumerate(entries) for each in entry.found if each.kind == "accepted"],
         "proposed": [_review(each, number, texts) for number, entry in enumerate(entries) for each in entry.found
                      if each.kind == "proposed"],
@@ -1434,7 +1567,8 @@ def _artifact(evidence: Evidence, request, chat: Router, started: str, clock: fl
         "processing": processing, "completeness": completeness,
         "complete": completeness["boundaries"] and completeness["processing"] and completeness["evidence"],
         "issues": [*found["issues"], *(_issue_json(issue) for work in (*entries, *([document] if document else []))
-                                       for issue in work.issues)],
+                                       for issue in work.issues),
+                   *(_issue_json(issue) for _, each in shared.values() for issue in each)],
         "calls": [asdict(call) for call in calls],
         "tokens": {"input": _total(call.input_tokens for call in calls),
                    "output": _total(call.output_tokens for call in calls)},

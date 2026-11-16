@@ -1,7 +1,7 @@
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import {
   canonicalUnified, extractionMethod, keiMethodOptions, REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS,
-  UNIFIED_CATALOG_DEFAULTS_VERSION, UNIFIED_CATALOG_PRO_VERSION, type ArticleSettings, type UnifiedCatalogSettings,
+  UNIFIED_CATALOG_DEFAULTS_VERSION, type ArticleSettings, type UnifiedCatalogSettings,
 } from 'extraction/extraction-method'
 import { settingsHeadline, UNIFIED_LABELS, unifiedLines } from '../methodSummary'
 import type { ModelConfig } from '../../shared/modelConfig.contract'
@@ -336,11 +336,8 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue, unifiedDefaults,
           <fieldset disabled={!custom} className="flex min-w-0 flex-col gap-3">{page.control}</fieldset>
           {page.path === 'catalog.unified.candidates' && !(shown.headings ?? defaults.headings) &&
             <p className="text-[11px] text-ink-muted">Heading context is off, so no excerpt is measured or shown.</p>}
-          {page.path === 'catalog.unified.verification' && (!pinned && method.defaults === UNIFIED_CATALOG_PRO_VERSION
-            ? <p className="text-[11px] text-ink-muted">{`Pro mode runs defaults version ${UNIFIED_CATALOG_PRO_VERSION}: a second call reads every value again and may correct it, completing long passages; about twice the calls and time.`}</p>
-            : !(shown.verification ?? defaults.verification) && <p className="text-[11px] text-ink-muted">{'single_pass' in defaults
-              ? 'Off reads each value once: a value code locates in its own entry is linked by rule, unverified; one without a locatable quote stays for review without Evidence.'
-              : 'Off keeps typed values as proposals, not accepted evidence. Source ownership and exact spans are still checked.'}</p>)}
+          {page.path === 'catalog.unified.verification' && !(shown.verification ?? defaults.verification) &&
+            <p className="text-[11px] text-ink-muted">Values found inside a record keep their source links. Shared headings are checked separately; uncertain matches stay ungrounded.</p>}
         </section>)}
         <section aria-label="Effective settings" className="flex flex-col gap-2">
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>

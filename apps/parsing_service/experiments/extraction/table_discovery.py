@@ -13,7 +13,8 @@ REFERENCE supplies independently annotated entries (id, exact ranges, resolved e
 Use --replay PREVIOUS/report.json to re-score saved replies against a corrected reference without inference;
 the report records the amendment and original digest, and refuses changed model requests.
 Use --cases to select controls. Nested-record controls also run the existing children discovery pass.
-The candidate uses version 9's refined scope and explicit shared-qualification reply kind.
+The candidate uses the current scope (version 9's) and explicit shared-qualification reply kind; the baseline is
+the retired scope the captured request was sent with (`BASELINE_SCOPE`).
 Field extraction and durable execution are outside this experiment.
 """
 from __future__ import annotations
@@ -158,11 +159,17 @@ def assemble(case, answer, child_ask=None, child_fits=None, *, shared_context=Fa
     return {**body, "issues": [issue.code for issue in issues]}
 
 
+# The scope the captured baseline request carries: retired from the product, kept here to reproduce that request.
+BASELINE_SCOPE = (" Keep each record whole: its internal headings, tables, citations and numbered list items belong to "
+                  "it; they are neither new records nor record-free text. Only entries matching the record definition "
+                  "are peers. Use other only for text outside every record, not sections inside one.")
+
+
 def worker(payload):
     from kei_exp.kie.extract import discovery, llm, unified
 
     span = payload["span"]
-    prepared = cases(span, discovery.DISCOVERY, unified.DISCOVERY_SCOPE, payload["reference"])
+    prepared = cases(span, discovery.DISCOVERY, BASELINE_SCOPE, payload["reference"])
     prepared = [case for case in prepared if not payload.get("cases") or case["name"] in payload["cases"]]
     if not prepared or payload.get("cases") and {c["name"] for c in prepared} != set(payload["cases"]):
         raise ValueError("unknown or empty case selection")
@@ -172,8 +179,8 @@ def worker(payload):
     pins = {name: hashlib.sha256(Path(module.__file__).read_bytes()).hexdigest()
             for name, module in (("discovery", discovery), ("llm", llm), ("unified", unified))}
     print(json.dumps({"protocol": {"repeats": payload["repeats"], "temperature": 0, "max_tokens": 4096,
-          "model": chat.model, "implementation": pins, "baseline_scope": unified.DISCOVERY_SCOPE,
-          "candidate_scope": unified.DISCOVERY_SCOPE_V9, "candidate_shared_context": True, "cases": prepared,
+          "model": chat.model, "implementation": pins, "baseline_scope": BASELINE_SCOPE,
+          "candidate_scope": unified.DISCOVERY_SCOPE, "candidate_shared_context": True, "cases": prepared,
           "reference": payload["reference"], "replay_sha256": digest(payload["replay"]) if payload["replay"] else None,
           "recorded_baseline": span["attributes"]["llm.output_messages.0.message.content"],
           "trace_id": span["context"]["trace_id"], "span_id": span["context"]["span_id"]}}), flush=True)
@@ -188,7 +195,7 @@ def worker(payload):
             for arm in arms:
                 shared_context = arm == "candidate"
                 system = case["system"] if arm == "baseline" else case["system"].replace(
-                    unified.DISCOVERY_SCOPE, unified.DISCOVERY_SCOPE_V9, 1) + discovery.SHARED_CONTEXT
+                    BASELINE_SCOPE, unified.DISCOVERY_SCOPE, 1) + discovery.SHARED_CONTEXT
                 schema = discovery._reply([m[1] for m in LINE.finditer(case["user"])], shared_context=shared_context)
                 request = chat.request_body(system=system, user=case["user"], schema=schema, max_tokens=4096)
                 row = {"case": case["name"], "arm": arm, "repeat": repeat + 1,

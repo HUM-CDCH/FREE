@@ -57,39 +57,21 @@ export const ARTICLE_KEYS = [
 /** Article's shared default: the whole source, with oversized checks read in windows. */
 export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({ grounding_overflow: 'windows' }))
 
-/** The unified Catalog's versioned service defaults (`unified.py` `DEFAULTS`), pinned to it by the shared contract
- *  fixture: reply reserves per stage, overlap in source lines, heading context, verification, window halvings and
- *  what discovery windows never cross (2: a printed page), whether a durable run reads entries while discovery
- *  still reads later windows (3), and whether an entry's reply may use the context its counted input leaves, its reserve
- *  the floor (4). Version 5 uses budget-sized discovery windows and source-grounded scalar corrections in the
- *  existing verification call. Version 6 reads each value once (`single_pass`): the entry call is shown the value
- *  structure, verification is off, code accepts what it locates and keeps a value without a locatable quote
- *  ungrounded. Version 7 adds counted heading selection and literal scalar inheritance; derived or incomplete
- *  context stays proposed. The candidate ceiling defaults to 32 excerpts. Version 8 is version 6 plus two discovery
- *  readings: a record start copied from the wrong line is placed where it occurs once nearby, and records printed
- *  inside a discovered record (a numbered find in a grave's list) become records of their own, each read beside its
- *  enclosing record's text. Version 10 is version 9 with that second reading pipelined too (`children: 'pipelined'`):
- *  a durable run reads and saves each record as soon as its ranges are final, while discovery still reads later
- *  windows. Auto input is the served context minus the
- *  stage's reserve. New admissions use
- *  `UNIFIED_CATALOG_DEFAULTS_VERSION`; an Extraction keeps the one it was admitted under. */
+/** The unified Catalog's service defaults (`unified.py` `DEFAULTS`), pinned to it by the shared contract fixture:
+ *  reply reserves per stage, overlap in source lines, heading context, window halvings, and an entry reply that may
+ *  use the context its counted input leaves (its reserve the floor). Each value is read once; a value located in its
+ *  record's own text is linked by rule; one inherited from a heading is accepted only when an independent reading
+ *  agrees. Auto input is the served context minus the stage's reserve. Only `UNIFIED_CATALOG_DEFAULTS_VERSION` is
+ *  admitted: the number is provenance, never a switch. */
 const UNIFIED_BASE = {
   reserves: { discovery: 4_096, entry: 4_096, verification: 2_048, arbitration: 512, document: 2_048 },
-  headings: true, verification: true, splits: 6,
+  headings: true, splits: 6,
 } as const
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 11 as const
 export const UNIFIED_CATALOG_DEFAULTS = {
-  5: { ...UNIFIED_BASE, reserves: { ...UNIFIED_BASE.reserves, verification: 4_096 }, overlap: 3,
-    windows: 'budget', pipelined: true, entry_reply: 'context', corrections: true, single_pass: false,
-    nearby: false, children: false, complete_text: false },
-  10: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
-    corrections: false, single_pass: true, nearby: true, children: 'pipelined', complete_text: true },
+  // shortcut: `verification` stays until Studio retires its switch; the service no longer has one.
+  [UNIFIED_CATALOG_DEFAULTS_VERSION]: { ...UNIFIED_BASE, overlap: 3, verification: false, entry_reply: 'context' },
 } as const
-/** Version 10 reads as version 9 (native table-entry granularity, nested records, complete qualified text values) and
- *  saves each record while discovery still reads. */
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 10 as const
-/** Pro mode: an account preference with verification on is admitted under this version, whose verification call reads
- *  every value again and may correct it; the latest reads each value once. */
-export const UNIFIED_CATALOG_PRO_VERSION = 5 as const
 
 /** The unified Catalog's six controls as the account saves them: each an override, absent for the defaults. */
 export const unifiedCatalogPreferenceSchema = z.object({
@@ -104,7 +86,7 @@ export type UnifiedCatalogPreference = z.output<typeof unifiedCatalogPreferenceS
 /** The unified Catalog method one Extraction is admitted with (`options.unified`): the defaults version it runs under
  *  and the overrides, so it stays identifiable when every control is left to the defaults. */
 export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.extend({
-  defaults: z.union([z.literal(5), z.literal(10)]),
+  defaults: z.literal(UNIFIED_CATALOG_DEFAULTS_VERSION),
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
 const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
@@ -174,13 +156,9 @@ function present<T extends object>(value: T | null | undefined, keys: readonly (
   return kept.length === 0 ? undefined : (Object.fromEntries(kept) as T)
 }
 
-/** The unified method as admitted, compared and sent: the defaults version and the set overrides, in option order. A
- *  method that names its version keeps it; an account preference takes the latest, or with verification on (Pro mode)
- *  `UNIFIED_CATALOG_PRO_VERSION`, whose own default it is. */
+/** The unified method as admitted, compared and sent: the defaults version and the set overrides, in option order. */
 export function canonicalUnified(preference: UnifiedCatalogPreference | UnifiedCatalogSettings | null | undefined): UnifiedCatalogSettings {
-  // Verification stays explicit, so admission still refuses Pro mode where the fields model cannot verify.
-  const pro = preference?.verification === true && (preference as Partial<UnifiedCatalogSettings> | null | undefined)?.defaults === undefined
-  return present<UnifiedCatalogSettings>({ defaults: pro ? UNIFIED_CATALOG_PRO_VERSION : UNIFIED_CATALOG_DEFAULTS_VERSION, ...preference },
+  return present<UnifiedCatalogSettings>({ defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, ...preference },
     UNIFIED_KEYS)!
 }
 
