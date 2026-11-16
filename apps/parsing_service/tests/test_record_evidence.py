@@ -240,21 +240,76 @@ def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="r
 
 @pytest.mark.parametrize("context", [False, True], ids=["no-admitted-heading", "intervening-record"])
 def test_other_records_cannot_supply_inherited_evidence_even_if_the_verifier_agrees(monkeypatch, context):
-    text = "Group North\n1. Owner lives in West.\n2. Second."
+    text = "Group North\n1. Owner lives in North.\n2. Second."
     start = text.index("2.")
     entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
              "context": [{"segment": "p1_s0", "start": 0, "end": 11}] if context else []}
     window = Window((Unit("p1_s0", start, len(text)),))
-    wrong = candidate("West", "Owner lives in West")
     seen = []
     def answer(system, user, schema):
         seen.append(user)
-        return {"C1": wrong}
-    runner = record_runner(monkeypatch, evidence(text), [(window, {"region": wrong})], answer)
+        return {"C1": candidate("North", "Owner lives in North")}  # agrees, quoting the other record
+    runner = record_runner(monkeypatch, evidence(text), [(window, {"region": candidate("North", "Group North")})],
+                           answer)
     work = runner.entry(0, entry)
-    assert seen and not any(found.kind == "accepted" for found in work.found)
-    assert all(found.value == "West" for found in work.found)
-    assert ("Owner lives in West" in seen[0]) == context  # intervening text is for judging supersession only
+    assert not any(found.kind == "accepted" for found in work.found)
+    assert work.record == {"region": "North"}  # a proposal for review, without Evidence
+    # Without an admitted heading the quote is located nowhere it may be: nothing reads it again.
+    assert len(seen) == context
+    assert all("Owner lives in North" in user for user in seen)  # intervening text is for judging supersession only
+
+
+def tight_runner(text, reads, answer, input_tokens, **entries):
+    """A defaults 11 runner over `text` whose verification input budget is `input_tokens` (WordCounter words)."""
+    schema = Schema.model_validate({"recordDescription": "One numbered entry", "schemaNodes": [
+        {"id": "r", "name": "region", "type": "string"}]})
+    chat = as_router(CountingChat(answer))
+    counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
+    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(
+        defaults=11, input_tokens=input_tokens), chat, counters)["effective"]
+    runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective,
+                          **entries)
+    runner._read = lambda stage, number, *args, **kwargs: reads[number]
+    return runner
+
+
+@pytest.mark.parametrize("words,reply,reason,undecided", [
+    (1000, {"C1": None}, "verification_over_budget", 0),  # the source up to the record never fits: final
+    (5, {}, "verification_unresolved", 1),                # an invalid reply: another attempt may decide it
+    (5, {"C1": {}}, "verification_unresolved", 1)])       # so is a reading without its value, never a rejection
+def test_an_inherited_value_whose_own_check_cannot_fit_is_a_final_proposal(words, reply, reason, undecided):
+    text = "Group North\n1. " + "word " * words + "\n2. Last."
+    start = text.index("2.")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}]}
+    seen = []
+    def answer(system, user, schema):
+        seen.append(user)
+        return reply
+    runner = tight_runner(text, [[(Window((Unit("p1_s0", start, len(text)),)),
+                                   {"region": candidate("North", "Group North")})]], answer, 1024)
+    work = runner.entry(0, entry)
+    assert [(found.kind, found.reason) for found in work.found] == [("proposed", reason)]
+    assert work.undecided == undecided and len(seen) == undecided and not work.failed
+    assert work.record == {"region": "North"}
+    assert ("verification_over_budget" in [issue.code for issue in work.issues]) == (not undecided)
+
+
+@pytest.mark.parametrize("quote", ["Lives in West", "nowhere printed"], ids=["local-beside", "alone"])
+def test_a_value_cited_nowhere_stays_in_the_record_without_a_second_reading(monkeypatch, quote):
+    text = "Group North\n1. Lives in West.\nContinued."
+    start, middle = text.index("1."), text.index("Continued")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}]}
+    # One record read in two windows; the second quotes the same field where it is printed nowhere.
+    reads = [(Window((Unit("p1_s0", start, middle),)), {"region": candidate("West", quote)}),
+             (Window((Unit("p1_s0", middle, len(text)),)), {"region": candidate("West", "nowhere printed")})]
+    seen = []
+    runner = record_runner(monkeypatch, evidence(text), reads, lambda *args: seen.append(args) or {})
+    work = runner.entry(0, entry)
+    assert not seen and work.record == {"region": "West"}
+    assert {(found.kind, found.reason) for found in work.found} == {("proposed", "quote_not_in_source")} | (
+        {("accepted", None)} if quote == "Lives in West" else set())
 
 
 @pytest.mark.parametrize("reading,accepted", [(candidate("metres", "Units: metres"), True),
@@ -333,3 +388,22 @@ def test_local_table_values_keep_single_pass_outside_the_item_identity_cell(defa
     descriptions = [link for link in result["evidence"] if link["path"][-1] == "description"]
     assert [link["cell"] for link in descriptions] == ["r0_c1", "r1_c1"]
     assert [link["item"] for link in descriptions] == [link["spans"] for link in result["evidence"] if link["path"][-1] == "number"]
+
+
+
+def test_a_value_cited_nowhere_is_not_read_again_because_another_window_inherits_the_field(monkeypatch):
+    text = "Group North\n1. Lives somewhere.\nContinued."
+    start, middle = text.index("1."), text.index("Continued")
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}]}
+    # One record read in two windows: the first inherits North from the heading, the second cites West nowhere.
+    reads = [(Window((Unit("p1_s0", start, middle),)), {"region": candidate("North", "Group North")}),
+             (Window((Unit("p1_s0", middle, len(text)),)), {"region": candidate("West", "nowhere printed")})]
+    seen = []
+    def answer(system, user, schema):
+        seen.append(user)
+        return dict.fromkeys(schema["properties"], candidate("South", "somewhere south"))
+    work = record_runner(monkeypatch, evidence(text), reads, answer).entry(0, entry)
+    assert len(seen) == 1 and work.record == {"region": "West"}  # the reading contradicts the inherited value only
+    assert [(found.value, found.kind, found.reason) for found in work.found] == [
+        ("North", "rejected", "verification_rejected"), ("West", "proposed", "quote_not_in_source")]

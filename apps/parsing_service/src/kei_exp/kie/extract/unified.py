@@ -1151,7 +1151,7 @@ class _Run:
         """Verdicts on the candidates, batched per window in counted requests that are halved on overflow or failure."""
         independent = self.effective.get("record_evidence", False)
         # A lexical match outside the record is never accepted by switching off the optional all-value verifier.
-        inherited = {found.path for found in out.found if found.reason in UNCITED or any(
+        inherited = {found.path for found in out.found if any(
             not any(own.segment == span.segment_id and own.start <= span.start and span.end <= own.end
                     for own in owned) for span in found.spans)} if independent else set()
         for found in out.found:
@@ -1175,7 +1175,7 @@ class _Run:
         system = prompt.format(description=self.schema.record_description, notes=_notes(self.nodes))
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and (
-                found.kind == "candidate" or found.kind == "rejected" and found.path in nodes and
+                found.kind == "candidate" or not independent and found.kind == "rejected" and found.path in nodes and
                 found.reason in ("no_quote", "quote_not_in_source", "value_not_in_quote"))]
             pending = [batch] if batch else []
             while pending:
@@ -1193,12 +1193,12 @@ class _Run:
                     label: _leaf(nodes[found.path]) if found.path in nodes else verdict
                     for label, found in zip(labels, group, strict=True)},
                           "required": labels, "additionalProperties": False}
+                fits = self.budget.fits("verification", system, user, schema)
                 answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
-                                         out.unit, out.page) \
-                    if self.budget.fits("verification", system, user, schema) else None
+                                         out.unit, out.page) if fits else None
                 if answer is not None and all(label in answer and (
-                        (answer[label] is None or isinstance(answer[label], dict)) if found.path in nodes
-                        else isinstance(answer[label], str) and answer[label] in VERDICTS)
+                        (answer[label] is None or isinstance(answer[label], dict) and "value" in answer[label])
+                        if found.path in nodes else isinstance(answer[label], str) and answer[label] in VERDICTS)
                         for label, found in zip(labels, group, strict=True)):
                     for label, found in zip(labels, group, strict=True):
                         value = answer[label]
@@ -1242,6 +1242,11 @@ class _Run:
                             found.kind, found.reason = "proposed", "verification_unresolved"
                 elif len(group) > 1:
                     pending[0:0] = [group[:len(group) // 2], group[len(group) // 2:]]
+                elif not fits:  # one value whose check never fits this budget: final, left for review
+                    if group[0].kind == "candidate":
+                        group[0].kind, group[0].reason = "proposed", "verification_over_budget"
+                    out.issues.append(Issue("verification_over_budget", "the value's own check does not fit the "
+                                            "verification budget", number, ("records", number, *group[0].path)))
                 else:
                     if group[0].kind == "candidate":
                         group[0].kind, group[0].reason = "proposed", "verification_unresolved"

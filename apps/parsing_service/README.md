@@ -347,6 +347,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   supersession, not to supply inherited values. Following shared table qualifications
   remain available, and children retain their enclosing record's context even with
   ordinary headings disabled. Arbitration includes the inherited source spans.
+  A value whose own check cannot fit the verification budget (the source from its heading
+  to the record is too long) stays a `verification_over_budget` proposal: final, so the
+  record is saved and processing completes, with a `verification_over_budget` issue; only
+  a failed or invalid reply stays undecided.
   Earlier admissions keep their defaults.
   Studio admits defaults 11 by default, only where its
   `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
