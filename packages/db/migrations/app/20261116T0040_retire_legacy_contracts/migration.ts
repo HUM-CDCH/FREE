@@ -13,11 +13,11 @@ export default class M extends Migration<Start, End> {
   override get operations() {
     return [
       {
-        id: 'retired-contracts.require-current-data', invariantId: 'retired-contracts.require-current-data', label: 'Refuse incompatible historical data before schema changes', operationClass: 'additive' as const,
+        id: 'retired-contracts.require-current-data', invariantId: 'retired-contracts.require-current-data', label: 'Adapt Article pins and delete historical data no current method reads, before schema changes', operationClass: 'data' as const,
         target: { id: 'postgres' as const, details: { schema: 'public', objectType: 'table' as const, name: 'extraction' } },
-        precheck: [{ description: 'delete incompatible dev rows or use the guarded local pnpm db:reset before retrying', sql: readFileSync(new URL('./require-current-data.sql', import.meta.url), 'utf8') }],
-        execute: [{ description: 'leave compatible historical pins unchanged', sql: 'SELECT true' }],
-        postcheck: [{ description: 'compatible historical pins remain unchanged', sql: readFileSync(new URL('./require-current-data.sql', import.meta.url), 'utf8') }],
+        precheck: [{ description: 'no Extraction is queued or running; let them finish before migrating', sql: "SELECT NOT EXISTS (SELECT FROM extraction_runtime.head WHERE acknowledgement IN ('QUEUED','RUNNING')) AS ok" }],
+        execute: [{ description: 'drop retired Article keys; delete Extractions, batches and corrections pinned to retired methods', sql: readFileSync(new URL('./adapt-historical-data.sql', import.meta.url), 'utf8') }],
+        postcheck: [{ description: 'only current method pins remain', sql: readFileSync(new URL('./require-current-data.sql', import.meta.url), 'utf8') }],
       },
       this.dropTable({ schema: 'public', table: 'annotationSetRevision' }),
       this.dropColumn({ schema: 'public', table: 'batchSchemaSuggestion', column: 'draftVersion' }),
