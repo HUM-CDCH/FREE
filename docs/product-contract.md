@@ -103,14 +103,17 @@ FREE's normative product and safety contract is:
    migration requires operators to drain queued and running Extractions. It
    removes retired controls from account preferences and compatible Article
    pins. These Article Extractions retain their results, corrections, and
-   original resolved options and digests. Retry uses a new Producing Input
-   Selection with current settings.
-   The migration deletes Extractions and batches with unsupported method
-   pins, including generic and recipe Catalog, along with their saved results,
-   corrections, and runtime state. It also deletes old sampled and pre-durable
-   Extractions. If incompatible stored shapes remain, the migration fails and
-   rolls back the cleanup. Resolve incompatible development data or use the
-   guarded local `pnpm db:reset` before retrying. Production is never reset.
+   original resolved options and digests. Resume and Retry use the existing
+   Producing Input Selection. A researcher can adopt a new selection by
+   changing and applying inputs.
+   The migration deletes Batch Extractions with unsupported method pins
+   and every member of those batches. It deletes an Extraction if its
+   requested settings or any Producing Input Selection has an unsupported
+   method pin. It also deletes sampled and pre-durable Extractions. These
+   deletions remove the associated results, corrections, and runtime state.
+   If incompatible stored shapes remain, the migration fails and rolls back
+   the cleanup. Resolve incompatible development data or use the guarded
+   local `pnpm db:reset` before retrying. Production is never reset.
 9. **Proxy parity.** Production runs behind the host-managed nginx or the
    bundled nginx container; local uses containerized nginx. All render the
    same version-controlled proxy fragment for `/free` routing, forwarded

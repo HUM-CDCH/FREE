@@ -1,7 +1,7 @@
 -- Brings historical rows into the shape require-current-data.sql accepts, before the schema changes that follow.
--- Article pins only carry controls the UI no longer offers: those keys are dropped and the runs stay. Their
--- selection's `resolved` options and digest keep what was admitted: such a run is shown and retried (Retry resolves a
--- new selection from the settings), never resumed under the old options.
+-- The migration drops retired Article controls and keeps eligible runs with their original resolved options and digest.
+-- Resume and Retry reuse the existing selection. Change inputs saves a new selection, which takes effect when applied.
+-- The applied migration hash covers the original comments in the emitted ops.json.
 -- Every other retired pin (generic/recipe, unified defaults other than 11 or a verification key, missing or
 -- non-object settings, a sample's requestedPages, a pre-durable row without a runtime head) has no current
 -- equivalent: its Extraction, runtime rows, corrections and batch are deleted.
