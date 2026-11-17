@@ -28,6 +28,13 @@ columns/tables and sets `NOT NULL` where a null meant "old row", plus a dev-DB r
 longer parse)**. Docker was not running during this survey, so no dev DB was inspected; the "dev data" column names
 the tables and JSON fields that would hold old shapes, not counts.
 
+The Spark deployment turned out to hold researcher data in these shapes (2026-11-17: 689 durable Extractions, all of
+them pinned to a retired method, and 536 corrections), so tier 2's migration does that delete itself instead of
+refusing: Article pins lose the retired keys and stay, with their corrections; every Extraction, batch and correction
+pinned to generic/recipe, a unified defaults other than 11, missing settings or a sample's pages goes
+(`adapt-historical-data.sql`). Data with no method pin to adapt (old attribution, chat kinds, suggestion and
+spreadsheet shapes) is still refused, and the refusal rolls the whole migration back.
+
 DBOS: in-flight workflows started before a patch need that patch to replay. Drain the queue or reset the `kei_dbos`
 and Studio DBOS system schemas before removing patch calls (rows 1.6, 2.9).
 
