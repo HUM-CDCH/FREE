@@ -26,8 +26,7 @@ def inputs(inventory: dict) -> Iterator[dict]:
     for values in itertools.product(*(factors[name] for name in names)):
         chosen = dict(zip(names, values))
         yield {**{name: value for name, value in chosen.items() if value is not None},
-               "context_tokens": inventory["context_tokens"],
-               "identity_fields": inventory["identity_fields"] if chosen["identity"] == "conservative" else []}
+               "context_tokens": inventory["context_tokens"]}
 
 
 def accepted(value: dict) -> bool:
@@ -45,7 +44,8 @@ def verdicts(inventory: dict) -> str:
 def regenerated(fixture: dict) -> dict:
     cases = []
     for case in fixture["cases"]:
-        kept = {key: case[key] for key in ("id", "input", "accepted")}
+        kept = {key: case[key] for key in ("id", "input")}
+        kept["accepted"] = accepted(case["input"])
         if accepted(case["input"]):
             kept["canonical"] = ArticleOptions.model_validate(case["input"]).model_dump(mode="json")
         cases.append(kept)

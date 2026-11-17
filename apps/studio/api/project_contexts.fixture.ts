@@ -78,7 +78,7 @@ export function projectContextFixture(): ProjectStoreReads {
           revisionNumber: 2,
           createdAt: new Date('2026-07-31T12:02:00.000Z'),
         },
-        annotationSet: null,
+
         extractionSchema: null,
         latestAttempt: null,
         latestReviewed: null,

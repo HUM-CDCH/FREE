@@ -3,7 +3,6 @@ import {
   extractionSettingsIssues,
   extractionSettingsSchema,
   REFERENCE_ARTICLE,
-  REFERENCE_CATALOG,
   settingsShapeIssues,
   type ArticleSettings,
   type MethodIssue,
@@ -22,13 +21,11 @@ import {
 } from '../../shared/modelConfig.contract'
 import { modelKeyFor, removeModelKey, retainModelKeys, saveModelKey } from '../modelKeys/modelKeyStore'
 import {
-  keepSavedOmissions,
   NUMBER_MESSAGES,
   orderedArticle,
   orderedCatalog,
   type AdvancedStrategy,
   type ArticleKey,
-  type CatalogFactor,
   type NumberPath,
 } from './advancedSettings'
 import { probesDiffer } from './useProbeLifecycle'
@@ -198,7 +195,7 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
 
   /** Customize: that strategy's override starts from Studio's defaults (`REFERENCE_ARTICLE`, with windows). */
   function customize(strategy: AdvancedStrategy): void {
-    setSettings((settings) => ({ ...settings, [strategy]: strategy === 'article' ? REFERENCE_ARTICLE : REFERENCE_CATALOG }))
+    setSettings((settings) => ({ ...settings, [strategy]: strategy === 'article' ? REFERENCE_ARTICLE : { unified: {} } }))
   }
 
   /** Use service defaults: removes only that strategy's override; Models, Connections and the other strategy stay. */
@@ -226,14 +223,6 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     }))
   }
 
-  /** Catalog edits keep what the saved override omits omitted once an edit returns to the value shown for it. */
-  function setCatalog(change: (catalog: Record<string, Record<string, unknown> | undefined>) => Parameters<typeof orderedCatalog>[0]): void {
-    setSettings((settings) => ({
-      ...settings,
-      catalog: keepSavedOmissions(orderedCatalog(change({ ...settings.catalog })), saved?.extractionSettings.catalog),
-    }))
-  }
-
   /** The unified Catalog group replaces the whole Catalog branch: retired generic and recipe overrides are never
    *  carried over or converted. An empty group is the service defaults. */
   function setUnified(key: keyof UnifiedCatalogPreference, value: UnifiedCatalogPreference[typeof key] | undefined): void {
@@ -243,14 +232,6 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
   function customizeUnified(): void {
     setSettings((settings) => ({ ...settings, catalog: { unified: {} } }))
     setNumberEdits((edits) => Object.fromEntries(Object.entries(edits).filter(([path]) => !path.startsWith('catalog.'))))
-  }
-
-  function setCatalogFactor(key: CatalogFactor, on: boolean): void {
-    setCatalog((catalog) => {
-      const recipe = catalog.recipe ?? {}
-      const factors = { ...REFERENCE_CATALOG.recipe!.factors!, ...(recipe.factors as object | undefined), [key]: on }
-      return { ...catalog, recipe: { ...recipe, factors } }
-    })
   }
 
   /** Digits only: a whole number reaches the draft (its minimum is then the contract's to report); any other text
@@ -275,7 +256,6 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     if (scope === 'article') setArticle(member as ArticleKey, value as never)
     else if (member === 'unified') setUnified(key as keyof UnifiedCatalogPreference, value)
     // Never parsed here: a value below its minimum must stay in the draft, visible and reported.
-    else setCatalog((catalog) => ({ ...catalog, [member]: { ...catalog[member], [key]: value } }))
   }
 
   /** After Apply: the committed configuration is the new baseline and this browser's keys follow it. Returns the IDs
@@ -352,7 +332,6 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     useServiceDefaults,
     setArticle,
     replaceArticle,
-    setCatalogFactor,
     customizeUnified,
     setUnified,
     setNumber,

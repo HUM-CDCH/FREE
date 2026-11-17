@@ -14,7 +14,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.passages import Evidence, Passage
 from kei_exp.workflows import durable_extract as worker
 from tests.test_durable_extraction import Counter, MemoryLease
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_unified_catalog import Model, evidence, request
 
 
@@ -53,40 +53,9 @@ def test_pipelined_tail_window_is_in_the_last_progress_event():
     assert shown[-1] == [{"segment": "p2_s0", "label": "2"}], shown
 
 
-def test_invalid_parent_boundaries_wait_for_their_children_without_duplicate_progress():
-    class Pending(BaseException):
-        pass
-
-    def read(answered):
-        shown = []
-
-        def ask(_record, _system, user, *_):
-            if "[L2]" in user:
-                return {"places": [["L1", "record", "Site 1"], ["L2", "record", "2", "absent anchor"]],
-                        "begins_inside_record": False, "ends_inside_record": False}
-            number = 1 if "[L1] 1. Site" in user else 2
-            if number > answered:
-                raise Pending()
-            return reply(user)
-
-        result = discovery.discover(source(), "numbered site", lambda *_: True, ask, overlap=0, splits=1,
-            progress=lambda found, lines: shown.append(starts(found)), frontier=True, unanswered=(Pending,),
-            heading_context=True)
-        assert all(found["label"] != "Site 1" for snapshot in shown for found in snapshot)
-        return result, shown
-
-    for answered in (0, 1):
-        result, shown = read(answered)
-        assert not result["complete"] and not result["entries"]
-        assert shown[-1] == ([{"segment": "p1_s0", "label": "1"}] if answered else [])
-    result, shown = read(2)
-    assert result["complete"] and [entry["label"] for entry in result["entries"]] == ["1", "2"]
-    assert shown[-1] == [{"segment": "p1_s0", "label": "1"}, {"segment": "p2_s0", "label": "2"}]
-    assert [issue.code for issue in result["issues"]] == ["boundary_unplaced"]
 
 
-@pytest.mark.parametrize("defaults", [1, 2])
-def test_slice_publishes_a_finished_window_before_its_slow_peer(defaults):
+def test_slice_publishes_a_finished_window_before_its_slow_peer():
     first_returned, second_waiting, release, published = Event(), Event(), Event(), Event()
     shown = []
 
@@ -107,7 +76,7 @@ def test_slice_publishes_a_finished_window_before_its_slow_peer(defaults):
 
     with ThreadPoolExecutor(max_workers=1) as runner:
         future = runner.submit(discovery.discover, source(), "numbered site", fits, ask,
-            overlap=0, splits=0, by="budget" if defaults == 1 else "page", workers=2,
+            overlap=0, splits=0, by="page", workers=2,
             progress=progress)
         try:
             assert first_returned.wait(2) and second_waiting.wait(2)
@@ -119,16 +88,15 @@ def test_slice_publishes_a_finished_window_before_its_slow_peer(defaults):
     assert shown[-1] == [{"segment": "p1_s0", "label": "1"}, {"segment": "p2_s0", "label": "2"}]
 
 
-@pytest.mark.parametrize("defaults", [1, 2, 3, 4])
 @pytest.mark.parametrize("answered", [0, 1], ids=["first-window", "tail-window"])
-def test_durable_planning_publishes_each_checkpoint_while_its_peer_is_pending(monkeypatch, tmp_path, defaults, answered):
+def test_durable_planning_publishes_each_checkpoint_while_its_peer_is_pending(monkeypatch, tmp_path, answered):
     """Exercise the actual planning step, dispatch and CapturePlanner with one committed reply, without inference.
 
-    Version 1's budget admits each long line alone; the other versions use page windows. The first round captures
-    both. Only one is answered before the next round, as when the workflow replans after a child completes.
+    The budget admits each long line alone (the discovery prompt and one line fit about 600 words). The first round
+    captures both. Only one is answered before the next round, as when the workflow replans after a child completes.
     """
     document = evidence(*(f"{n}. Site{n}. Material: m{n}. " + "detail " * 150 for n in (1, 2)))
-    selected = request(defaults=defaults, input_tokens=512, overlap=0)
+    selected = request(input_tokens=640, overlap=0)
     lease = MemoryLease(selected.schema_.model_dump(by_alias=True, exclude_none=True))
     lease.state["intent"] = "RUN"
     lease.state["source"]["runId"] = document.run_id
@@ -175,7 +143,7 @@ def test_planned_catalog_calls_start_nearest_the_requested_page(monkeypatch, tmp
     from tests.test_durable_entry_reuse import answer
 
     document = evidence(*(f'{n}. Site{n}. Material: m{n}.' for n in range(1, 6)))
-    selected = request(defaults=5, start_page=start_page)
+    selected = request(start_page=start_page)
     lease = MemoryLease(selected.schema_.model_dump(by_alias=True, exclude_none=True))
     lease.state['intent'] = 'RUN'
     lease.state['source']['runId'] = document.run_id
@@ -191,9 +159,10 @@ def test_planned_catalog_calls_start_nearest_the_requested_page(monkeypatch, tmp
     plan = unwrap(worker.plan_next)
     pending = plan(f'priority-{start_page}', 'attempt')
     assert all(role == 'reasoning' for role in pending['roles'].values())
-    for capture in pending['pending']:
-        answer(lease, chat, capture, Counter())
-    pending = plan(f'priority-{start_page}', 'attempt')
+    while all(role == 'reasoning' for role in pending['roles'].values()):  # discovery, then its children call
+        for capture in pending['pending']:
+            answer(lease, chat, capture, Counter())
+        pending = plan(f'priority-{start_page}', 'attempt')
     units = {unit['id']: unit for unit in lease.units.values()}
     record = lambda capture: units[capture]['input']['request']['body']['record']
     expected = sorted(range(5), key=lambda number: (abs(number + 1 - start_page), number))
@@ -218,7 +187,7 @@ def test_planned_catalog_calls_carry_their_entrys_distance_from_the_start_page_a
     from tests.test_durable_entry_reuse import answer
 
     document = evidence(*(f'{n}. Site{n}. Material: m{n}.' for n in range(1, 21)))
-    selected = request(defaults=5, start_page=20)
+    selected = request(start_page=20)
     lease = MemoryLease(selected.schema_.model_dump(by_alias=True, exclude_none=True))
     lease.state['intent'], lease.state['source']['runId'] = 'RUN', document.run_id
     lease.state['effective']['options'] = {'start_page': 20}  # as `worker.effective` pins it

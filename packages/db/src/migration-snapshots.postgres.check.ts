@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { after, test } from 'node:test'
 import { Client } from 'pg'
 import { planTwoMigrations } from './migration-snapshots-fixture.js'
-import { migrate, provisionDatabase } from './record-scope-history-fixture.js'
+import { migrate, provisionDatabase } from './postgres-fixture.js'
 
 /** Migrations sharing their start contracts replay like copied ones: onto a database at the current history's head,
  *  and onto an empty one. Its own database beside PROJECT_STORE_POSTGRES_URL's, created and dropped here. */

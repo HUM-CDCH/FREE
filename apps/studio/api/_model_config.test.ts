@@ -1,5 +1,7 @@
+import { articleSettingsSchema } from 'extraction/extraction-method'
+const UNWINDOWED_ARTICLE = articleSettingsSchema.parse({})
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { METHOD_MESSAGES, REFERENCE_ARTICLE, UNRECORDED_ARTICLE } from 'extraction/extraction-method'
+import { METHOD_MESSAGES, REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { DEPLOYMENT_CONNECTION_IDS, type ModelConfig } from '../shared/modelConfig.contract.js'
 import { ApiError } from './_http.js'
 import { createModelKeyCache, type ModelKeyCache } from './_model_keys.js'
@@ -492,7 +494,7 @@ describe('advanced extraction settings', () => {
 
   it('refuses an incompatible combination field by field, with the design copy, and stores nothing', async () => {
     const configurations = inMemoryModelConfigurations()
-    const config = configured({ extractionSettings: { article: { ...UNRECORDED_ARTICLE, overlap_passages: 1, evidence_policy: 'schema' } } })
+    const config = configured({ extractionSettings: { article: { ...UNWINDOWED_ARTICLE, overlap_passages: 1, evidence_policy: 'schema' } } })
     const response = await handlers({ configurations }).PUT(putRequest({ config }))
     expect(response.status).toBe(409)
     const body = await response.json() as { error: { code: string; details: { issues: { path: string; message: string }[] } } }
@@ -507,10 +509,11 @@ describe('advanced extraction settings', () => {
   it.each([
     ['a non-integer ceiling', { article: { ...REFERENCE_ARTICLE, context: 'bounded', context_tokens: 12288.5 } }, 'config.extractionSettings.article.context_tokens'],
     ['a ceiling below the minimum', { article: { ...REFERENCE_ARTICLE, context: 'bounded', context_tokens: 8191 } }, 'config.extractionSettings.article.context_tokens'],
-    ['an empty identity field', { article: { ...REFERENCE_ARTICLE, identity_fields: [''] } }, 'config.extractionSettings.article.identity_fields.0'],
-    ['an unknown recipe factor', { catalog: { recipe: { factors: { vocabulary: false } } } }, 'config.extractionSettings.catalog.recipe.factors'],
-    ['a record limit below the minimum', { catalog: { generic: { record_chars: 999 } } }, 'config.extractionSettings.catalog.generic.record_chars'],
+    ['an empty identity field', { article: { ...REFERENCE_ARTICLE, identity_fields: [''] } }, 'config.extractionSettings.article'],
+    ['an unknown recipe factor', { catalog: { recipe: { factors: { vocabulary: false } } } }, 'config.extractionSettings.catalog'],
+    ['a record limit below the minimum', { catalog: { generic: { record_chars: 999 } } }, 'config.extractionSettings.catalog'],
     ['a made-up version switch', { article: { ...REFERENCE_ARTICLE, span_grounding_version: 1 } }, 'config.extractionSettings.article'],
+    ['the retired verification switch', { catalog: { unified: { verification: false } } }, 'config.extractionSettings.catalog.unified'],
   ])('refuses %s as a structural 400 and stores nothing', async (_label, extractionSettings, path) => {
     const configurations = inMemoryModelConfigurations()
     const response = await handlers({ configurations }).PUT(putRequest({ config: configured({ extractionSettings } as never) }))
@@ -524,22 +527,22 @@ describe('advanced extraction settings', () => {
   it('stores and returns the canonical document: no nulls, no empty members, the unused ceiling restored', async () => {
     const configurations = inMemoryModelConfigurations()
     const submitted = configured({ extractionSettings: {
-      article: { ...UNRECORDED_ARTICLE, context_tokens: 16384, grounding_schedule: null, grouping: null },
-      catalog: { generic: {}, recipe: { factors: { verification: false } } },
+      article: { ...UNWINDOWED_ARTICLE, context_tokens: 16384, grouping: null },
+      catalog: { unified: { headings: false } },
     } as never })
     const response = await handlers({ configurations }).PUT(putRequest({ config: submitted }))
     expect(response.status).toBe(200)
     const expected = configured({ extractionSettings: {
-      article: UNRECORDED_ARTICLE,
-      catalog: { recipe: { factors: { glossary: true, headings: true, overlap: true, verification: false } } },
+      article: UNWINDOWED_ARTICLE,
+      catalog: { unified: { headings: false } },
     } })
     await expect(response.json()).resolves.toEqual({ config: expected })
     await expect(readAccountModelConfig(ACCOUNT, configurations)).resolves.toEqual(expected)
   })
 
   it.each([
-    [{ catalog: { generic: {} } }],
-    [{ catalog: { generic: {}, recipe: {} } }],
+    [{ catalog: { unified: {} } }],
+    [{ catalog: {} }],
   ])('an empty Catalog member %j is stored as service defaults, and a reload reads exactly what was returned', async (extractionSettings) => {
     const configurations = inMemoryModelConfigurations()
     const response = await handlers({ configurations }).PUT(putRequest({ config: configured({ extractionSettings }) }))

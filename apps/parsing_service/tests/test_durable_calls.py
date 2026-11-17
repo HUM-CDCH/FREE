@@ -155,17 +155,13 @@ def test_article_resolution_transport_failures_are_saved_before_fallback(monkeyp
 
 
 @pytest.mark.parametrize("scheduled", [True, False])
-@pytest.mark.parametrize("schema_visible", [False, True])
 def test_a_call_asks_with_its_priority_only_a_server_that_schedules_by_it_and_saves_its_request_unchanged(
-        monkeypatch, scheduled, schema_visible):
+        monkeypatch, scheduled):
     from kei_exp.kie.extract import captured_provider
     from kei_exp.kie.extract.llm import OpenAIChat
     from tests.test_extract_llm import response
     schema = {"type": "object"}
     http_request = OpenAIChat(model="fixture/model").request_body(system="s", user="u", schema=schema, max_tokens=256)
-    if not schema_visible:
-        # Captures made before reply schemas were shown replay their exact historical messages.
-        http_request["messages"][0]["content"] = "s"
     saved = {"digest": "fixed", "request": {
         "composer": 1, "provider": {"model": "fixture/model", "url": "http://model", "timeout": 5},
         "budget": {"context": 4096, "counted": 120, "reserve": 256},
@@ -372,7 +368,7 @@ class Calls:
         if not self.left:
             return {"result": {"records": [], "completeness": {"processing": True}}, "scopes": {}}
         work = {"pending": list(self.left), "roles": {capture: self.roles[capture] for capture in self.left}}
-        return work if self.priorities is None else {**work, "priorities": self.priorities}  # None: a round from before
+        return {**work, "priorities": self.priorities or dict.fromkeys(self.roles, 0)}
 
     def start(self, workflow, extraction, attempt, capture, priority):
         assert self.started == f"kei-call:{attempt}:{capture}"
@@ -398,7 +394,6 @@ def run_loop(monkeypatch, calls, chunks=2):
         calls.started = workflow_id
         yield
     monkeypatch.setattr(worker.config, "CATALOG_CHUNKS", chunks)
-    monkeypatch.setattr(worker.DBOS, "deprecate_patch", lambda name: name == "extract-wait-first")
     monkeypatch.setattr(worker.DBOS, "start_workflow", calls.start)
     monkeypatch.setattr(worker.DBOS, "wait_first", calls.wait_first)
     monkeypatch.setattr(worker, "SetWorkflowID", named)
@@ -420,14 +415,11 @@ def test_a_call_is_started_as_soon_as_another_of_its_role_ends_and_never_more_th
     assert calls.events[-2:] == [("publish", 0), ("ack", 0, True, None)]
 
 
-def test_each_call_starts_with_its_planned_priority_and_a_round_recorded_before_priorities_starts_them_at_0(monkeypatch):
+def test_each_call_starts_with_its_planned_priority(monkeypatch):
     roles = {"d0": "reasoning", "e0": "fields", "e1": "fields"}
     calls = Calls(roles, priorities={"d0": 0, "e0": 3, "e1": 1})
     assert run_loop(monkeypatch, calls) == {"status": "ACK"}
     assert calls.sent == {"d0": 0, "e0": 3, "e1": 1}
-    old = Calls(roles)
-    assert run_loop(monkeypatch, old) == {"status": "ACK"}
-    assert old.sent == dict.fromkeys(roles, 0)
 
 
 @pytest.mark.parametrize("ending,failure", [("boundary", None), ("failure", {"code": "capture_failed"})])

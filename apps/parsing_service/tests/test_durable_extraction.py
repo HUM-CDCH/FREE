@@ -15,7 +15,7 @@ from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract import retained
 from kei_exp.workflows import durable_extract as worker
 from kei_exp.kie.extract.retained import publish_final, publish_values
-from tests.test_extract_grounded import CountingChat, WordCounter, honest, request as recipe_request
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_unified_catalog import Model, evidence as unified_evidence, request as unified_request
 from tests.helpers import catalogue
@@ -120,37 +120,27 @@ def finish(lease, chat, extract):
     raise AssertionError("method never completed")
 
 
-@pytest.mark.parametrize("oversized", [False, True])
-def test_article_retry_keeps_the_pre_fallback_plan_and_reuses_completed_calls(oversized):
-    from kei_exp.kie.extract.article import document_root
+def test_article_retry_keeps_its_plan_and_reuses_completed_calls():
     from kei_exp.kie.extract.contexts import Context
 
     request = run.ExtractRequest.model_validate({"schema": {
         "recordDescription": "The whole document",
         "schemaNodes": [{"id": "title", "name": "title", "type": "string"}]},
         "options": {"strategy": "article", "article": {"grounding": "off"}}})
-    source = evidence(passages(["Title: Target. " + "word " * (14000 if oversized else 10)] * 3))
+    source = evidence(passages(["Title: Target. " + "word " * 10] * 3))
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     chat = CountingChat(lambda *_: {"title": "Target"})
     planner = CapturePlanner(lease)
     planner.plan_records("article-contexts", [Context(source.passages).dumped()])
     old_plan = deepcopy(lease.plans["article-contexts"])
-    if oversized:
-        # Before fallback existed, the one-part plan was saved before the root failed admission.
-        counter = Counter()
-        with pytest.raises(ValueError, match="required source and reply budget exceed"):
-            document_root(source.passages, request.schema_, Router(chat, chat, planner),
-                          counters={"fields": counter, "reasoning": counter}, record_chars=48000,
-                          method=request.options.article)
-        assert not chat.calls
     old_units = deepcopy(lease.units)
     lease.attempt = str(uuid4())
     extract = lambda router, counter: run.dispatch(None, source, request, router,
         counter={"fields": counter, "reasoning": counter})
     result = finish(lease, chat, extract)
     assert result["records"] == [{"title": "Target"}]
-    assert (len(result["value_contexts"][0]) > 1) is oversized
-    assert any(issue["code"] == "context_fallback" for issue in result["issues"]) is oversized
+    assert len(result["value_contexts"][0]) == 1
+    assert not any(issue["code"] == "context_fallback" for issue in result["issues"])
     assert lease.plans["article-contexts"] == old_plan
     assert all(lease.units[key] == unit for key, unit in old_units.items())
     assert lease.state["generation"] == 1
@@ -165,18 +155,13 @@ def test_article_retry_keeps_the_pre_fallback_plan_and_reuses_completed_calls(ov
     assert lease.units == units and lease.plans == plans
 
 
-@pytest.mark.parametrize("method",["article","generic","recipe","unified"])
+@pytest.mark.parametrize("method",["article","unified"])
 def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path,method):
     if method == "unified":
         source=unified_evidence("1. Hill. Material: gold. Gilded. Find: bead (2)","2. Valley. Material: flint.")
         request=unified_request()
         chat=CountingChat(Model(source))
         extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
-    elif method == "recipe":
-        directory=catalogue.write("two-in-one-segment",tmp_path)
-        request=recipe_request()
-        chat=CountingChat(honest)
-        extract=lambda router,counter: run.extract(directory,request,router,counter=counter,chunks=2)
     else:
         source=evidence(passages(["1. Hill 1827.","2. Valley 1828."]))
         request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article" if method=="article" else "catalog"})
@@ -201,22 +186,14 @@ def test_each_method_uses_call_checkpoints_and_retains_validated_values(tmp_path
     assert len(chat.calls)==count
 
 
-@pytest.mark.parametrize("method", ["article", "generic", "recipe", "unified"])
+@pytest.mark.parametrize("method", ["article", "unified"])
 @pytest.mark.parametrize("boolean", [False, True])
 def test_boolean_results_keep_their_typed_review_value_and_evidence_state(tmp_path, method, boolean):
     """#161: legacy grounding claims omit booleans; durable review still receives every saved boolean."""
     tree = {"recordDescription": "One source record", "schemaNodes": [
         {"id": "selected", "name": "selected", "type": "boolean"}]}
     claim = "Selected" if boolean else "Not selected"
-    if method == "recipe":
-        directory = catalogue.write("two-in-one-segment", tmp_path)
-        request = run.ExtractRequest.model_validate({"schema": tree, "options": {
-            "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}}})
-        chat = CountingChat(lambda _system, user, _schema: {"selected": {
-            "value": boolean, "quote": "Urne" if "Urne" in user else "Axt", "key": None,
-            "provenance": "positional"}})
-        extract = lambda router, counter: run.extract(directory, request, router, counter=counter)
-    elif method == "unified":
+    if method == "unified":
         source = unified_evidence(f"1. Hill. {claim}.", f"2. Valley. {claim}.")
         request = unified_request(tree)
         chat = CountingChat(Model(source, entry=lambda *_: {"selected": {"value": boolean, "quote": claim}}))
@@ -242,16 +219,11 @@ def test_boolean_results_keep_their_typed_review_value_and_evidence_state(tmp_pa
                     if publication["coverage"].get("processingComplete") is True
                     for value in publication["values"]]
     assert final_values
-    if method == "recipe":
-        # Recipe yes/no candidates remain proposals, as its span rules require. Do not invent a saved value.
-        assert all(value["modelValue"] is None and value["processing"] == "absent" for value in final_values)
-        assert result["proposed"] and all(proposal["value"] is boolean for proposal in result["proposed"])
-    else:
-        assert all(value["modelValue"] is boolean and value["processing"] == "saved" for value in final_values)
-        assert all(value["grounding"] == ("grounded" if method == "unified" else "ungrounded")
-                   and bool(value["evidence"]) is (method == "unified") for value in final_values)
-        if method != "unified":
-            assert result["evidence"] == [] and result["ungrounded"] == []
+    assert all(value["modelValue"] is boolean and value["processing"] == "saved" for value in final_values)
+    assert all(value["grounding"] == ("grounded" if method == "unified" else "ungrounded")
+               and bool(value["evidence"]) is (method == "unified") for value in final_values)
+    if method != "unified":
+        assert result["evidence"] == [] and result["ungrounded"] == []
 
 
 def linked_while_running(lease):
@@ -305,50 +277,26 @@ def test_unified_planning_shows_discovery_progress_until_its_records_are_planned
     assert plan().discovery is None
 
 
-@pytest.mark.parametrize("chunks",[1,3])
-def test_a_planning_round_yields_at_most_chunks_page_windows_each_shown_with_its_own_lines(chunks):
-    """Discovery's fan-out is bounded: each round yields the next `chunks` page windows in source order, the event
-    names each with its own lines, and the starts found so far are every earlier window's, in source order."""
-    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,11)))
-    request=unified_request(defaults=2)
-    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    rounds=[]
-    def extract(router,counter):
-        try:
-            return run.dispatch(None,source,request,router,counter=counter,chunks=chunks)
-        except NeedsCall:
-            if router.runtime.discovery is not None:
-                rounds.append(worker.discovery_event(router.runtime.discovery))
-                assert {window["capture"] for window in rounds[-1]["windows"]}==set(router.runtime.pending)
-            raise
-    result=finish(lease,CountingChat(Model(source)),extract)
-    assert [record["material"] for record in result["records"]]==[f"m{n}" for n in range(1,11)]
-    starts=[f"p{n}_s0" for n in range(1,11)]
-    assert [{window["lines"][0]["segment"] for window in event["windows"]} for event in rounds]==\
-        [set(starts[at:at+chunks]) for at in range(0,10,chunks)]
-    assert all([found["segment"] for found in event["found"]]==starts[:len(event["found"])] for event in rounds)
-    assert [len(event["found"]) for event in rounds]==list(range(0,10,chunks))
 
 
-@pytest.mark.parametrize("defaults,windows,overlap",[(1,None,1),(2,"page",3),(6,"budget",3)])
-def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans(defaults,windows,overlap):
+def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans():
     """The discovery windows and overlap a run read with stay auditable in the database (`publish_plan`)."""
     source=unified_evidence("1. Hill. Material: gold.","2. Valley. Material: flint.")
-    request=unified_request(defaults=defaults)
+    request=unified_request()
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     result=finish(lease,CountingChat(Model(source)),lambda router,counter: run.dispatch(None,source,request,router,counter=counter))
     kept=[plan["manifest"] for stage,plan in lease.plans.items() if stage.startswith("unified-execution:")]
     assert kept==[lease.plans[f"unified-execution:{unified.digest(result['execution'])[:16]}"]["manifest"]]
     kept=kept[0]
     assert kept["units"]==[] and kept["execution"]==result["execution"]
-    assert (kept["execution"]["effective"].get("windows"),kept["execution"]["effective"]["overlap"])==(windows,overlap)
-    assert kept["execution"]["method"]=={"defaults":defaults}
+    assert kept["execution"]["effective"]["overlap"]==3
+    assert kept["execution"]["method"]=={"defaults":11}
 
 
 def test_a_paused_unified_run_plans_on_without_its_execution_record():
     """The record is no gate: while the attempt does not run, planning goes on and the next running round keeps it."""
     source=unified_evidence("1. Hill. Material: gold.")
-    request=unified_request(defaults=2)
+    request=unified_request()
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     lease.intent="PAUSE"
     counter=Counter();planner=CapturePlanner(lease,{"fields":counter,"reasoning":counter})
@@ -364,7 +312,7 @@ def test_a_changed_execution_record_adds_a_plan_instead_of_failing_the_attempt()
     """A round resumed after its record changed (here the served context, so every stage budget) plans on: both
     records stay, each under its own digest."""
     source=unified_evidence("1. Hill. Material: gold.")
-    request=unified_request(defaults=2)
+    request=unified_request()
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     class Smaller(Counter):
         context_tokens=32768
@@ -387,45 +335,6 @@ def test_article_grounding_batch_publishes_its_links_before_the_run_finishes():
     finish(lease,CountingChat(answer),lambda router,counter: run.dispatch(None,source,request,router,counter={"fields":counter,"reasoning":counter}))
     running,final=linked_while_running(lease)
     assert running and running.items() <= final.items()
-
-
-def test_an_article_attempt_an_older_worker_left_is_recovered_with_located_links(monkeypatch):
-    """No DBOS patch guards `location` (ADR 0029). A worker from before it publishes an Article's first links without
-    one and dies; this version recovers the attempt from its saved replies, with no new call and no changed input, and
-    publishes the located links as new snapshots beside the old ones, never as a conflicting one."""
-    from kei_exp.kie.extract import grounding
-    class Killed(BaseException):
-        pass
-    source=evidence(passages(["1. Hill 1827.","2. Valley 1828."]))
-    request=run.ExtractRequest(schema=SCHEMA,options={"strategy":"article"})
-    def answer(system,user,schema):
-        if "### Claims" in user:
-            return {claim:shape["enum"][0] for claim,shape in schema["properties"].items()}
-        return {"site":"Hill","year":1827}
-    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    chat=CountingChat(answer)
-    def extract(router,counter):
-        return run.dispatch(None,source,request,router,counter={"fields":counter,"reasoning":counter})
-    call=lease.call
-    def killed_once_linked(name,*args):
-        saved=call(name,*args)
-        if name=="publish_snapshot" and any(value["evidence"] for value in args[2]):
-            raise Killed
-        return saved
-    with monkeypatch.context() as older:
-        older.setattr(grounding,"_location",lambda *_: None)
-        older.setattr(lease,"call",killed_once_linked)
-        with pytest.raises(Killed):
-            finish(lease,chat,extract)
-    def producers(publications):
-        return [each["producer"] for publication in publications for value in publication["values"]
-                for each in value["evidence"]]
-    old,count=deepcopy(lease.publications),len(chat.calls)
-    assert producers(old.values()) and not any("location" in each for each in producers(old.values()))
-    finish(lease,chat,extract)
-    assert len(chat.calls)==count and old.items()<=lease.publications.items()
-    final=[publication for publication in lease.publications.values() if publication["coverage"].get("processingComplete")]
-    assert producers(final) and all("location" in each for each in producers(final))
 
 
 @pytest.mark.parametrize("complete", [True, False])
@@ -846,37 +755,12 @@ def drive(lease, chat, extract, chunks, until=lambda answered: False):
     return running,rounds,answered
 
 
-def test_version_3_paused_during_discovery_shows_every_entry_read_before_it_stops():
-    """A Pause lets the calls already running save; planning then shows every entry whose read was saved, and stops."""
-    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,13)))
-    request=unified_request(defaults=3)
-    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    chat=CountingChat(Model(source))
-    extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
-    running,_,_=drive(lease,chat,extract,2,until=lambda answered: "entry" in answered)
-    def shown():
-        return {value["path"][1] for each in lease.publications.values() for value in each["values"] if value["modelValue"]}
-    before=shown()
-    assert "entry" in [unit["descriptor"]["stage"] for unit in lease.units.values() if unit["id"] in running]
-    lease.intent="PAUSE"
-    for capture in running:
-        unit=next(u for u in lease.units.values() if u["id"]==capture)
-        body=dict(unit["input"]["request"]["body"])
-        body.pop("max_whitespace")
-        parsed,attempts=calls.complete(chat,**body,counter=Counter())
-        unit["checkpoint"]={"output":{"parsed":parsed,"calls":[asdict(call) for call in attempts]}}
-    counter=Counter()
-    with pytest.raises(Boundary):
-        extract(Router(chat,chat,CapturePlanner(lease,{"fields":counter,"reasoning":counter})),counter)
-    read={unit["input"]["request"]["body"]["record"] for unit in lease.units.values()
-          if unit["descriptor"]["stage"]=="entry" and unit["checkpoint"]}
-    assert before<shown()==read
 
 
-def test_version_4_entry_replies_may_use_the_context_their_counted_input_leaves():
+def test_entry_replies_may_use_the_context_their_counted_input_leaves():
     """The captured entry request asks for the served context its finalized input leaves, the reserve its floor."""
     source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,5)))
-    request=unified_request(defaults=4)
+    request=unified_request()
     lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
     extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=2)
     result,_,_=drive(lease,CountingChat(Model(source)),extract,2)
@@ -886,42 +770,8 @@ def test_version_4_entry_replies_may_use_the_context_their_counted_input_leaves(
     assert [record["material"] for record in result["records"]]==["m1","m2","m3","m4"]
 
 
-@pytest.mark.parametrize("chunks",[1,2])
-def test_version_3_reads_entries_while_discovery_still_asks_later_windows(chunks):
-    """Each entry of the windows read so far is read, and shown with its candidates, before discovery has read the
-    rest; verification waits for discovery's end, so the reasoning model reads discovery's windows first. However many
-    entries a round plans, the workflow runs `chunks` calls per role (`drive`), and the result is a plain run's."""
-    from tests.test_unified_catalog import untimed
-    source=unified_evidence(*(f"{n}. Site{n}. Material: m{n}." for n in range(1,13)))
-    request=unified_request(defaults=3)
-    lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-    extract=lambda router,counter: run.dispatch(None,source,request,router,counter=counter,chunks=chunks)
-    result,rounds,answered=drive(lease,CountingChat(Model(source)),extract,chunks)
-    last_window=len(answered)-1-answered[::-1].index("discovery")
-    assert answered.index("entry")<last_window<answered.index("verification")
-    assert any("discovery" in each["planned"].values() and 0 in each["saved"] for each in rounds)
-    # discovery keeps `chunks` windows asked until none is left to ask
-    assert all(list(each["planned"].values()).count("discovery")==min(chunks,12-each["answered"].count("discovery"))
-               for each in rounds if each["answered"].count("discovery")<12)
-    plain=run.dispatch(None,source,request,CountingChat(Model(source)),counter=Counter(),chunks=chunks)
-    assert untimed(result)==untimed(plain)
-    assert [record["material"] for record in result["records"]]==[f"m{n}" for n in range(1,13)]
-    assert any(stage.startswith("unified-prefix:") for stage in lease.plans) and "unified-records" in lease.plans
 
 
-def test_version_3_entry_calls_keep_their_captures_when_an_earlier_record_moves_their_number():
-    """An entry's calls are captured by the entry (where it starts and what it covers), not by its number: a record
-    found earlier on another page renumbers the later entries but reuses their saved calls."""
-    def entry_keys(defaults, first_page):
-        source=unified_evidence(first_page,"3. Site3. Material: m3.","4. Site4. Material: m4.")
-        request=unified_request(defaults=defaults)
-        lease=MemoryLease(request.schema_.model_dump(by_alias=True,exclude_none=True))
-        finish(lease,CountingChat(Model(source)),lambda router,counter: run.dispatch(None,source,request,router,
-                                                                                       counter=counter))
-        return {key for key,unit in lease.units.items() if unit["descriptor"]["stage"] in ("entry","verification")}
-    for defaults in (3,2):
-        one,two=entry_keys(defaults,"1. Site1. Material: m1."),entry_keys(defaults,"1. Site1. Material: m1.\n2. Site2. Material: m2.")
-        assert (one<=two)==(defaults==3), defaults  # version 2 numbers entries 3 and 4 anew: their calls are new
 
 
 def reading_disagreements(path, values):

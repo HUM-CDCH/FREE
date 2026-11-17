@@ -17,20 +17,22 @@ from pathlib import Path
 import requests
 
 from kei_exp.kie.extract.llm import OpenAIChat, Reply
-from kei_exp.kie.extract.article import inventory_request, source_contexts
+from kei_exp.kie.extract.article import source_contexts
 from kei_exp.kie.extract.contexts import Context
 from kei_exp.kie.extract.method import LimitedCounter
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.run import extract
 from kei_exp.kie.extract.tokens import counter_for
-from kei_exp.kie.passages import load
+from kei_exp.kie.passages import load, text_of
+from kei_exp.kie.extract.stages import record_request
+from kei_exp.kie.extract.rendering import structured_source
 
 from .manifest import digest, read, validate, write_new
 
 
 def preflight(study: dict, cells: list[dict], *, output: Path | None = None) -> list[dict]:
-    """Count the real inventory prompts, without generating answers or looking at gold."""
-    provider = study["providers"]["reasoning"]
+    """Count the document-value prompts, without generating answers or looking at gold."""
+    provider = study["providers"]["reasoning" if "grounding_study" in study else "fields"]
     counter = counter_for(OpenAIChat(url=provider["base_url"] + "/v1/chat/completions", model=provider["model"]))
     if "grounding_study" in study:
         from .grounding_study import preflight_fixed
@@ -49,12 +51,13 @@ def preflight(study: dict, cells: list[dict], *, output: Path | None = None) -> 
                     if method.context == "bounded" else [Context(evidence.passages)])
         counts = []
         for context in contexts:
-            system, user, schema, _ = inventory_request(context.passages, cell["request"].schema_, method)
+            rendered = structured_source(context.passages) if method.rendering == "structured" else text_of(context.passages)
+            system, user, schema = record_request(rendered, cell["request"].schema_, None, None, document=True)
             counts.append(limited.request_tokens(system, user, schema))
-        report.append({"cell": cell["id"], "inventory_units": len(contexts), "inventory_input_counts": counts,
+        report.append({"cell": cell["id"], "value_units": len(contexts), "value_input_counts": counts,
                        "context_tokens": limited.context_tokens,
-                       "units_refused_with_minimum_output": sum(n + 4096 > limited.context_tokens for n in counts),
-                       "note": "Inventory admission only; each document, record and grounding call is counted separately at execution."})
+                       "units_refused_with_minimum_output": sum(n + max(4096, n) > limited.context_tokens for n in counts),
+                       "note": "Document-value admission only; each document, record and grounding call is counted separately at execution."})
         print(f"preflight {cell['id']}: {len(contexts)} units, largest input {max(counts, default=0)}", flush=True)
     return report
 

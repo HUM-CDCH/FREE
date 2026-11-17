@@ -200,9 +200,9 @@ describe('nextStep in a project', () => {
   const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: `extraction-${sourceDocumentId}`, sourceDocumentId,
     sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true,
     currentReview: reviewed ? { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: 'revision-2' } : null })
-  const batch = (members: BatchExtraction['members'], schemaRevisionId = 'revision-2'): BatchExtraction => ({
+  const batch = (members: BatchExtraction['members'], schemaRevisionId = 'revision-2', trial = true): BatchExtraction => ({
     batchExtractionId: `batch-${schemaRevisionId}`, projectContextId: 'project', schemaRevisionId, extractionSchemaId: 'schema',
-    extractionSchemaName: 'Letters', schemaRevisionNumber: 2, strategy: 'CATALOG', executionStatus: 'COMPLETED', createdAt: '2026-11-01T00:00:00.000Z', members })
+    extractionSchemaName: 'Letters', schemaRevisionNumber: 2, strategy: 'CATALOG', executionStatus: 'COMPLETED', createdAt: '2026-11-01T00:00:00.000Z', trial, members })
   const project = (overrides: Partial<ProjectGuideInput> = {}): ProjectGuideInput => ({
     summary: summary(), documents, currentDocumentId: 'b', batches: [], latest: null, roundId: null, busy: false, error: null, ...overrides })
   const step = (overrides: Partial<ProjectGuideInput> = {}, input: Partial<GuideInput> = {}) => nextStep({ ...base, project: project(overrides), ...input })
@@ -431,7 +431,7 @@ describe('nextStep in a project', () => {
   })
 
   it('leads no review to a member its document no longer shows: a newer run of it, finished or not', () => {
-    const round = batch([member('a'), member('b', true), member('c')])
+    const round = batch([member('a'), member('b', true), member('c')], 'revision-2', false)
     expect(step({ summary: reviewing, batches: [round], latest: read([a2]), currentDocumentId: 'a' }))
       .toMatchObject({ key: 'review-next:extraction-c', title: 'Review results' })
     // a2 stopped before it completed: the summary's latest is still a's member, but a shows a2.

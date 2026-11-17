@@ -1,6 +1,6 @@
 """Entry reuse against the real coordination routines and real DBOS 3.1.0 processes.
 
-A unified Catalog attempt (defaults 3) is seeded straight into `extraction_runtime` and read from a stub OpenAI server
+A unified Catalog attempt is seeded straight into `extraction_runtime` and read from a stub OpenAI server
 (scripted replies, `/tokenize` with token ids, so counts are kept and reuse is active). In process, the undecorated
 worker steps drive it with and without reuse: the database ends the same, only repeated lookups and publications go.
 In worker processes, a SIGKILL around an entry's publication, or after a lookup in a round that reused entries, is
@@ -36,7 +36,7 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 BASELINE_SRC = os.environ.get("BASELINE_SRC")  # an earlier worker's `src`, e.g. a checkout of the release before reuse
 IDS = {name: f"00000000-0000-4000-8000-{n:012d}" for n, name in enumerate(
     ("extraction", "project", "selection", "attempt", "revision", "source"), 1)}
-OPTIONS = {"strategy": "catalog", "unified": {"defaults": 3}}
+OPTIONS = {"strategy": "catalog", "unified": {"defaults": 11}}
 
 
 def texts(pages, per_page):

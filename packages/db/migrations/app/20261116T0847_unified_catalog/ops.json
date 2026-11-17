@@ -1,0 +1,73 @@
+[
+  {
+    "id": "data_migration.retire-catalog-preferences",
+    "label": "Data transform: retire-catalog-preferences",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres"
+    },
+    "precheck": [
+      {
+        "description": "Check retire-catalog-preferences has work to do",
+        "sql": "SELECT EXISTS (SELECT \"researcherAccountId\" AS \"researcherAccountId\" FROM \"public\".\"modelConfiguration\" WHERE jsonb_typeof(\"document\" #> '{extractionSettings,catalog}') = 'object'\n            AND (\"document\" #> '{extractionSettings,catalog}') ?| array['generic','recipe'] LIMIT 1) AS ok",
+        "params": []
+      }
+    ],
+    "execute": [
+      {
+        "description": "Run retire-catalog-preferences",
+        "sql": "UPDATE \"public\".\"modelConfiguration\" SET \"document\" = jsonb_set(\"document\", '{extractionSettings,catalog}',\n            (\"document\" #> '{extractionSettings,catalog}') - 'generic' - 'recipe') WHERE jsonb_typeof(\"document\" #> '{extractionSettings,catalog}') = 'object'\n            AND (\"document\" #> '{extractionSettings,catalog}') ?| array['generic','recipe']",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "Verify retire-catalog-preferences resolved all violations",
+        "sql": "SELECT NOT EXISTS (SELECT \"researcherAccountId\" AS \"researcherAccountId\" FROM \"public\".\"modelConfiguration\" WHERE jsonb_typeof(\"document\" #> '{extractionSettings,catalog}') = 'object'\n            AND (\"document\" #> '{extractionSettings,catalog}') ?| array['generic','recipe'] LIMIT 1) AS ok",
+        "params": []
+      }
+    ]
+  },
+  {
+    "id": "dropColumn.extraction.catalogRecipe",
+    "label": "Drop column \"catalogRecipe\" from \"extraction\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "catalogRecipe",
+        "table": "extraction"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"catalogRecipe\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "catalogRecipe"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop column \"catalogRecipe\"",
+        "sql": "ALTER TABLE \"public\".\"extraction\" DROP COLUMN \"catalogRecipe\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"catalogRecipe\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "extraction",
+          "catalogRecipe"
+        ]
+      }
+    ]
+  }
+]

@@ -1,4 +1,5 @@
-"""Defaults 6, the single pass: the entry call is the only reading of a value. Code grounds it; nothing reads it again.
+"""The single pass: the entry call is the only reading of a value located in its record. Code grounds it; nothing
+reads it again.
 
 A located value is accepted as code's link (`lexical`), never called verified; a value whose quote is missing or found
 nowhere stays in the record without Evidence; a located quote that does not print its value still rejects it. The
@@ -13,7 +14,7 @@ from kei_exp.kie.extract import run, unified
 from kei_exp.kie.extract.llm import OpenAIChat
 from tests import test_unified_catalog as catalog
 from tests.test_durable_extraction import MemoryLease, finish, linked_while_running
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_unified_catalog import NOTES, START, Model, candidate, evidence, extract, fields, noted
 
 
@@ -21,37 +22,21 @@ def entry_system(chat) -> str:
     return next(call["system"] for call in chat.calls if call["system"].startswith("You extract structured data"))
 
 
-def test_a_single_pass_accepts_what_a_supporting_verifier_accepts_without_asking_one():
+def test_a_single_pass_links_values_located_in_their_record_without_asking_a_verifier():
     source = evidence("1. Hill. Material: gold. Gilded. Find: bead (2) Find: cup (1)", "2. Valley. Material: flint.")
-    single, chat = extract(source, defaults=6)
-    verified, _ = extract(source, defaults=6, verification=True)  # verdicts on the same fixed candidates
-    assert single["records"] == verified["records"]
+    single, chat = extract(source)
+    assert [record["material"] for record in single["records"]] == ["gold", "flint"]
     assert single["records"][0]["finds"] == [{"name": "bead", "count": 2}, {"name": "cup", "count": 1}]
-    assert [(link["path"], link["spans"], link["support"], link["item"]) for link in single["evidence"]] == \
-        [(link["path"], link["spans"], link["support"], link["item"]) for link in verified["evidence"]]
     assert {link["linked_by"] for link in single["evidence"]} == {"lexical"}
-    assert {link["linked_by"] for link in verified["evidence"]} == {"verification"}
     assert {call["stage"] for call in single["calls"]} == {"discovery", "entry", "document"}
-    assert "verification" in {call["stage"] for call in verified["calls"]}
-    assert single["processing"]["verification"] == {"enabled": False, "undecided": 0}
-    assert entry_system(chat).endswith(unified.SINGLE_PASS)
+    assert single["processing"]["verification"] == {"undecided": 0}
+    assert entry_system(chat).endswith(unified.SINGLE_PASS + unified.COMPLETE_TEXT_V9)
     entry = next(call for call in chat.calls if call["system"] == entry_system(chat))
     sent = OpenAIChat().request_body(**entry)
     instructions, rendered = sent["messages"][0]["content"].split("\nReply JSON schema:\n")
     assert "Requested value structure" not in instructions
     assert json.loads(rendered) == sent["response_format"]["json_schema"]["schema"]
-    assert single["execution"]["prompt_version"] == 8 and single["execution"]["effective"]["single_pass"] is True
-
-
-@pytest.mark.parametrize("defaults", [1, 2, 3, 4, 5])
-def test_earlier_defaults_keep_their_reading_policy_with_the_shared_reply_schema(defaults):
-    source = evidence("1. Hill. Material: gold.")
-    result, chat = extract(source, defaults=defaults)
-    assert result["execution"]["prompt_version"] == 8
-    assert "single_pass" not in result["execution"]["effective"]
-    assert "Requested value structure" not in entry_system(chat)
-    assert unified.SINGLE_PASS not in entry_system(chat)
-    assert {link["linked_by"] for link in result["evidence"]} == {"verification"}
+    assert single["execution"]["prompt_version"] == unified.PROMPT_VERSION
 
 
 def test_a_value_whose_quote_is_missing_or_found_nowhere_stays_in_the_record_without_evidence():
@@ -66,7 +51,7 @@ def test_a_value_whose_quote_is_missing_or_found_nowhere_stays_in_the_record_wit
         cup["count"] = candidate(1, "(one)")                        # one leaf of an item
         lid.update({"name": candidate("lid", "a lid"), "count": candidate(3, "three"), unified.ITEM: None})
         return answer
-    result, _ = extract(source, Model(source, entry=entry), defaults=6)
+    result, _ = extract(source, Model(source, entry=entry))
     record = result["records"][0]
     assert (record["site"], record["material"]) == ("Hill", "gold")
     assert record["finds"] == [{"name": "bead", "count": 2}, {"name": "cup", "count": 1}]
@@ -86,7 +71,7 @@ def test_a_value_whose_quote_is_missing_or_found_nowhere_stays_in_the_record_wit
 def test_a_misquoted_value_is_kept_for_review_never_repaired_or_linked(text, answer):
     """Code cannot tell a misread value from a misquoted one: it stays the record's, an ungrounded proposal."""
     source = evidence(text)
-    result, _ = extract(source, Model(source, entry=answer), schema=NOTES, defaults=6)
+    result, _ = extract(source, Model(source, entry=answer), schema=NOTES)
     (proposal,) = result["proposed"]
     assert result["records"][0][proposal["path"][2]] == proposal["value"] and proposal["reason"] == "quote_not_in_source"
     assert not result["evidence"] and not [i for i in result["issues"] if i["code"] == "quote_repaired"]
@@ -102,7 +87,7 @@ def test_items_read_by_two_windows_are_published_once_and_in_order_even_with_unl
             if item["name"]["value"] == "F3":
                 item["name"]["quote"] = "nowhere"        # F3: nothing of it located
         return answer
-    result, _ = extract(source, Model(source, entry=entry), input_tokens=520, output_tokens=64, overlap=1, defaults=6)
+    result, _ = extract(source, Model(source, entry=entry), input_tokens=520, output_tokens=64, overlap=1)
     assert result["processing"]["entries"]["windows"] >= 2
     assert result["records"][0]["finds"] == [{"name": f"F{n}", "count": n} for n in (1, 2, 4, 5, 6)]
     assert {each["value"] for each in result["proposed"] if each["path"][3] is None} == {"F3", 3}
@@ -112,7 +97,7 @@ def test_a_whole_passage_quoted_by_part_of_it_is_located_whole():
     """A single pass reads a value once: a complete passage printed in the entry, quoted by its start, is its own."""
     source = evidence(f"1. Adorf. {catalog.PARAGRAPH}")
     result, _ = extract(source, Model(source, entry=noted(candidate(catalog.PARAGRAPH, catalog.PARAGRAPH[:60]))),
-                        schema=NOTES, defaults=6)
+                        schema=NOTES)
     assert result["records"][0]["notes"] == catalog.PARAGRAPH
     (link,) = result["evidence"]
     assert (link["raw"], link["support"], link["linked_by"]) == (catalog.PARAGRAPH, "literal", "lexical")
@@ -121,7 +106,7 @@ def test_a_whole_passage_quoted_by_part_of_it_is_located_whole():
 def test_text_copied_nearly_verbatim_is_still_the_source_text_linked_by_code():
     near = catalog.PARAGRAPH.replace("pale ", "")
     source = evidence(f"1. Adorf. {catalog.PARAGRAPH}")
-    result, _ = extract(source, Model(source, entry=noted(candidate(near, near))), schema=NOTES, defaults=6)
+    result, _ = extract(source, Model(source, entry=noted(candidate(near, near))), schema=NOTES)
     assert result["records"][0]["notes"] == catalog.PARAGRAPH
     (link,) = result["evidence"]
     assert link["raw"] == catalog.PARAGRAPH and link["linked_by"] == "lexical"
@@ -133,7 +118,7 @@ def test_a_located_quote_that_does_not_print_its_value_still_rejects_it():
     source = evidence("1. Adorf. Material: Holz.\n2. Bdorf. Material: Stein.")
     result, _ = extract(source, Model(source, entry=lambda record, user, schema: {
         **fields(record, user, schema), "material": candidate("Stein", "Material: Holz") if "Adorf" in record
-        else fields(record, user, schema)["material"]}), defaults=6)
+        else fields(record, user, schema)["material"]}))
     assert [record["material"] for record in result["records"]] == [None, "Stein"]
     assert [(row["path"], row["reason"]) for row in result["rejected"]] == [
         (["records", 0, "material"], "value_not_in_quote")]
@@ -145,7 +130,7 @@ def test_a_field_whose_policy_asks_no_quote_keeps_its_list_values():
             {"id": "fn", "name": "name", "type": "string"},
             {"id": "fc", "name": "count", "type": "integer", "evidencePolicy": "unverified"}]}]}
     source = evidence("1. Hill. Find: bead (2) Find: cup (1)")
-    result, _ = extract(source, schema=schema, defaults=6)
+    result, _ = extract(source, schema=schema)
     assert result["records"][0]["finds"] == [{"name": "bead", "count": 2}, {"name": "cup", "count": 1}]
     assert {tuple(link["path"][2:]) for link in result["evidence"]} == {("finds", 0, "name"), ("finds", 1, "name")}
     assert {each["reason"] for each in result["proposed"]} == {"evidence_policy_unverified"}
@@ -160,7 +145,7 @@ def test_disagreeing_located_readings_still_go_to_one_arbitration_that_names_the
         if material := re.findall(r"Material: (\w+)", record):
             answer["material"] = candidate(material[-1], f"Material: {material[-1]}")
         return answer
-    settings = {"defaults": 6, "input_tokens": 520, "output_tokens": 64}
+    settings = {"input_tokens": 520, "output_tokens": 64}
     chosen, chat = extract(source, Model(source, entry=entry, choice="C2"), **settings)
     assert chosen["records"][0]["material"] == "Stein" and chosen["competitors"][0]["outcome"] == "arbitrated"
     (asked,) = [call["system"] for call in chat.calls if call["system"].startswith("Several ")]
@@ -172,8 +157,8 @@ def test_disagreeing_located_readings_still_go_to_one_arbitration_that_names_the
         ["2 located values disagree"]
 
 
-# Table rows, repeated values and list items are grounded by the same code: with a single pass, these scenarios of
-# the unified Catalog's tests (written for a verifier that supports every located candidate) hold unchanged.
+# Table rows, repeated values and list items are grounded by code: these scenarios of the unified Catalog's tests
+# (written for a verifier that supported every located candidate) hold with no verification call.
 SAME_AS_A_SUPPORTING_VERIFIER = [
     (catalog.test_a_dense_table_gives_one_entry_per_row_and_each_value_its_own_cell, {}),
     *[(catalog.test_list_items_locate_repeated_partial_quotes_in_their_own_table_rows, {"item_text": text})
@@ -194,14 +179,11 @@ SAME_AS_A_SUPPORTING_VERIFIER = [
 @pytest.mark.parametrize(("case", "arguments"), SAME_AS_A_SUPPORTING_VERIFIER,
                          ids=[f"{case.__name__}-{n}" for n, (case, _) in enumerate(SAME_AS_A_SUPPORTING_VERIFIER)])
 def test_a_single_pass_grounds_rows_and_items_as_before(case, arguments, monkeypatch):
-    original = catalog.request
-    monkeypatch.setattr(catalog, "request", lambda schema=catalog.SCHEMA, start_page=None, **settings:
-                        original(schema, start_page, **{"defaults": 6, **settings}))
     extracted = catalog.extract
 
     def single(*args, **kwargs):
         result, chat = extracted(*args, **kwargs)
-        assert result["execution"]["method"]["defaults"] == 6
+        assert result["execution"]["method"]["defaults"] == 11
         assert not [call for call in result["calls"] if call["stage"] == "verification"]
         return result, chat
     monkeypatch.setattr(catalog, "extract", single)
@@ -229,10 +211,10 @@ def nested(record, user, schema):
     return {"label": candidate(label.rstrip("."), label), "finds": finds, "tags": tags}
 
 
-def published(defaults, **settings):
+def published(**settings):
     """The durable run's values as its final publication saved them, by (record, field)."""
     source = evidence(*NESTED_SOURCE)
-    request = catalog.request(NESTED, defaults=defaults, **settings)
+    request = catalog.request(NESTED, **settings)
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     chat = CountingChat(Model(source, entry=nested, verdict=lambda *_: pytest.fail("nothing verifies")))
     finish(lease, chat, lambda router, counter: run.dispatch(None, source, request, router, counter=counter))
@@ -241,7 +223,7 @@ def published(defaults, **settings):
 
 
 def test_a_single_pass_publishes_nested_and_repeating_lists_whole():
-    final, lease = published(6)
+    final, lease = published()
     assert final[(0, "finds")]["modelValue"] == [{"name": "bowl", "parts": [{"part": "rim"}, {"part": "foot"}]},
                                                  {"name": "cup", "parts": [{"part": "handle"}]}]
     assert final[(0, "tags")]["modelValue"] == ["red", "fine"] and final[(1, "tags")]["modelValue"] == ["plain"]
@@ -255,17 +237,10 @@ def test_a_single_pass_publishes_nested_and_repeating_lists_whole():
     assert running and running.items() <= settled.items()
 
 
-def test_verification_off_under_earlier_defaults_still_publishes_only_restored_scalars():
-    """The fixed version 5 behaviour, which a single pass replaces: replays of older admissions do not change."""
-    final, _ = published(5, verification=False)
-    assert final[(0, "label")]["modelValue"] == "1" and final[(0, "label")]["grounding"] == "ungrounded"
-    assert final[(0, "finds")]["modelValue"] is None and final[(0, "tags")]["modelValue"] is None
-
-
 def test_a_single_pass_shows_final_values_while_discovery_still_reads_later_windows():
     """Pipelined: an entry the windows already read is published with its Evidence before every record is planned."""
     source = evidence(*[f"{n}. Site{n}. " + "Description " * 100 + f" Material: M{n}." for n in range(1, 11)])
-    request = catalog.request(catalog.SCHEMA, defaults=6, input_tokens=1000, output_tokens=256)
+    request = catalog.request(catalog.SCHEMA, input_tokens=1000, output_tokens=256)
     lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
     events, call = [], lease.call
 

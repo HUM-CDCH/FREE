@@ -7,7 +7,7 @@ test('an authenticated Researcher reaches the empty workspace shell', async ({
   await page.route('**/api/project-contexts**', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      json: { projectContexts: [] },
+      json: { projectContexts: [], recentActivity: [] },
     }),
   )
 

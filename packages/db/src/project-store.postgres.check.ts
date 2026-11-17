@@ -198,12 +198,6 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     null,
   )
   const survivingDocument = { id: survivingIngestion.sourceDocumentId }
-  await db.orm.public.AnnotationSetRevision.create({
-    sourceDocumentId: document.id,
-    sourceRepresentationRevisionId: representation.id,
-    revisionNumber: 1,
-    snapshot: {},
-  })
   const schema = await db.orm.public.ExtractionSchema.create({
     projectContextId: project.projectContextId,
     name: 'Schema',
@@ -301,28 +295,9 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     assert.deepEqual(await store.deleteExtractionSchema(project.projectContextId, created!.extractionSchemaId), { status: 'deleted' })
   })
   const extraction = await db.orm.public.Extraction.create({
-    sourceDocumentId: document.id,
-    schemaRevisionId: appliedRevision.id,
-    sourceRepresentationRevisionId: representation.id,
-    strategy: 'whole_document',
-    outcome: 'SUCCEEDED',
-    diagnostics: {},
-    modelAttribution: {},
-    resultPayload: {},
-    reviewable: true,
-  })
-  const review = await db.orm.public.ExtractionReview.create({
-    extractionId: extraction.id,
-    revisionNumber: 1,
-    decisionDigest: 'cascade-check',
-  })
-  await db.orm.public.ReviewDecision.create({
-    extractionReviewId: review.id,
-    resultPath: ['title'],
-    resultPathKey: '["title"]',
-    evidenceAnchorId: 'anchor-1',
-    reviewedOccurrenceIds: [],
-    action: 'approve',
+    sourceDocumentId: document.id, schemaRevisionId: appliedRevision.id,
+    sourceRepresentationRevisionId: representation.id, strategy: 'ARTICLE',
+    requestedSettings: { article: { context: 'full', context_tokens: 12288, overlap_passages: 0, grounding: 'semantic', grounding_overflow: 'windows' } },
   })
   const newerRepresentation =
     await db.orm.public.SourceRepresentationRevision.create({
@@ -386,12 +361,9 @@ test('PostgreSQL preserves Project Context ownership, concurrency, and cascades'
     true,
   )
   for (const table of [
-    db.orm.public.AnnotationSetRevision,
     db.orm.public.ExtractionSchema,
     db.orm.public.SchemaRevision,
     db.orm.public.Extraction,
-    db.orm.public.ExtractionReview,
-    db.orm.public.ReviewDecision,
     db.orm.public.BatchSchemaSuggestion,
     db.orm.public.BatchSchemaSuggestionSource,
   ])

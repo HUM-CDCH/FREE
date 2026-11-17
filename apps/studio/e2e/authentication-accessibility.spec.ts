@@ -47,7 +47,7 @@ test('reduced motion, focus, and mobile form text honor accessibility preference
   await page.route('**/api/project-contexts**', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      json: { projectContexts: [] },
+      json: { projectContexts: [], recentActivity: [] },
     }),
   )
   await loginResearcher(page)
@@ -79,7 +79,7 @@ test('deep-link Entra sign-in and keyboard logout clear local authority @determi
   await page.route('**/api/project-contexts**', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      json: { projectContexts: [] },
+      json: { projectContexts: [], recentActivity: [] },
     }),
   )
 
@@ -161,7 +161,7 @@ test('switching Entra accounts does not retain the previous project rail @determ
     }
     return route.fulfill({
       contentType: 'application/json',
-      json: { projectContexts: [project] },
+      json: { projectContexts: [project], recentActivity: [] },
     })
   })
 
@@ -198,7 +198,7 @@ test('the provider dialog remains keyboard-operable across required viewports @d
   await page.route('**/api/project-contexts**', (route) =>
     route.fulfill({
       contentType: 'application/json',
-      json: { projectContexts: [] },
+      json: { projectContexts: [], recentActivity: [] },
     }),
   )
   await page.route('**/api/model_config', (route) =>

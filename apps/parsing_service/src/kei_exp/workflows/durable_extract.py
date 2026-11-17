@@ -20,7 +20,6 @@ from kei_exp.kie.extract.llm import NuExtractChat, OpenAIChat, composed_order
 from kei_exp.kie.extract.gliformer import GLiFormerFields
 from kei_exp.kie.extract.captured_provider import CapturedChat, FormatRefused
 from kei_exp.kie.extract.method import ArticleOptions
-from kei_exp.kie.extract.grounded import CatalogOptions
 from kei_exp.kie.extract.unified import UnifiedOptions
 from kei_exp.kie.extract.models import Router, resolve, routes
 from kei_exp.kie.extract.run import ExtractRequest, dispatch, Options
@@ -122,7 +121,7 @@ def effective(lease):
         # deployment model availability validator is relevant only at admission.
         from kei_exp.kie.extract.schema import Schema
         options = Options.model_construct(**pinned["options"])
-        for name, kind in (("article", ArticleOptions), ("catalog", CatalogOptions), ("unified", UnifiedOptions)):
+        for name, kind in (("article", ArticleOptions), ("unified", UnifiedOptions)):
             if getattr(options,name) is not None:
                 setattr(options,name,kind.model_validate(getattr(options,name)))
         request = ExtractRequest.model_construct(schema_=Schema.model_validate(selected["schemaTree"]),options=options)
@@ -146,8 +145,6 @@ def effective(lease):
     # Nested method serializers own optional fields; exclude_none would remove
     # their keys before Article's serializer can apply its canonical contract.
     frozen_options = {name: value for name, value in request.options.model_dump().items() if value is not None}
-    if request.options.unified is not None:
-        frozen_options.pop("discovery_chars",None); frozen_options.pop("record_chars",None)
     pinned = lease.call("resolve_selection", {"models": models, "options": frozen_options, "planner": 1,
                                              "protocols": {"calls": 1, "source": request.record_scope}})
     lease.state["effective"] = pinned["configuration"]
@@ -255,9 +252,9 @@ def invoke_capture(extraction: str, attempt: str, capture: str, priority: int = 
 
 @DBOS.workflow(name="extractionCallV1", max_recovery_attempts=config.MAX_RECOVERY_ATTEMPTS,
                serialization_type=WorkflowSerializationFormat.PORTABLE)
-def call_workflow(extraction: str, attempt: str, capture: str, priority: int = 0) -> dict:
-    # `priority` (0 for a call started before calls had one) is its place in the model server's queue, never its
-    # identity: a recovered workflow's recorded child start is matched by name alone.
+def call_workflow(extraction: str, attempt: str, capture: str, priority: int) -> dict:
+    # `priority` is its place in the model server's queue, never its identity: a recovered workflow's recorded child
+    # start is matched by name alone.
     return invoke_capture(extraction, attempt, capture, priority)
 
 
@@ -280,7 +277,7 @@ def plan_next(extraction: str, attempt: str) -> dict:
         evidence = load(directory)
         if evidence.generation != source["generation"]:
             raise ValueError("pinned source generation is unavailable")
-        evidence = planner.filter_evidence(evidence) if request.options.catalog is None else evidence
+        evidence = planner.filter_evidence(evidence)
         if not evidence.passages:
             return {"historicalOnly":True}
         try:
@@ -321,8 +318,6 @@ def extract_workflow(request: dict) -> dict:
     if set(request) != {"protocol", "extraction_id", "attempt_id"} or request["protocol"] != 1:
         return {"ok": False, "reason": "invalid durable attempt"}
     extraction, attempt = request["extraction_id"], request["attempt_id"]
-    # Pre-patch attempts have ended. Consume an existing marker on replay without adding one to new attempts.
-    DBOS.deprecate_patch("extract-wait-first")
     # Each call runs as soon as it is planned, up to CATALOG_CHUNKS per role at once, and the attempt is planned again
     # as soon as one ends: a slow call holds up no other. Nothing is acknowledged while a call it started still runs,
     # so a Pause or a failure keeps every output already admitted.
@@ -374,8 +369,7 @@ def extract_workflow(request: dict) -> dict:
             if capture in ended:  # its call ended without saving an output: planning it again would never end
                 return stop(False, {"code": "capture_replanned"})
             if sum(each == role for each, _ in running.values()) < max(1, config.CATALOG_CHUNKS):
-                # A round recorded before calls had a priority has none.
-                priority = work.get("priorities", {}).get(capture, 0)
+                priority = work["priorities"][capture]
                 with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
                     running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture,
                                                                   priority))

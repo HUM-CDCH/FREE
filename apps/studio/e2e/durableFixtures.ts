@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { createHash,randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { canonicalPackageStore,pool,withPoolClientTransaction } from 'db'
@@ -10,7 +11,7 @@ import type { InteractiveDocument } from './interactiveStack.js'
 
 /** Saved producer data in the guarded browser database, independent of processing. */
 export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNode[],modelValues:unknown[],status:'QUEUED'|'RUNNING'|'PAUSED'|'FAILED'|'STOPPED'|'COMPLETED'='PAUSED',options:{provisional?:boolean;records?:unknown[][];schemaRevisionId?:string;extractionId?:string;intent?:'RUN'|'PAUSE'|'STOP';modelEvidence?:Readonly<Record<string,DurableValue['evidence']>>;empty?:boolean;disagreement?:Readonly<Record<string,NonNullable<DurableValue['disagreement']>>>;coverage?:Record<string,unknown>}={}) {
-  const strategy=options.records?'CATALOG':'ARTICLE',settings=options.records?{generic:null}:{article:null}
+  const strategy=options.records?'CATALOG':'ARTICLE',settings=options.records?{generic:null}:{article: REFERENCE_ARTICLE}
   const id=options.extractionId??randomUUID(),schemaRevisionId=options.schemaRevisionId??randomUUID(),tree={recordDescription:'One interactive record.',schemaNodes:nodes}
   await withPoolClientTransaction(async(_transaction,client)=> {
     if(!options.schemaRevisionId)await client.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
@@ -19,7 +20,7 @@ export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNo
     await client.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,$5,$6)`,
       [id,fixture.sourceDocumentId,fixture.sourceRepresentationRevisionId,schemaRevisionId,strategy,settings])
     await initializeDurableExtraction(client,id,{projectContextId:fixture.projectContextId,sourceRepresentationRevisionId:fixture.sourceRepresentationRevisionId,
-      schemaRevisionId,schemaTree:tree,strategy,catalogRecipe:null,preprocessId:`kei-exp:e2e-${fixture.sourceRepresentationRevisionId}:g1`,requestedModels:null,requestedSettings:settings})
+      schemaRevisionId,schemaTree:tree,strategy,preprocessId:`kei-exp:e2e-${fixture.sourceRepresentationRevisionId}:g1`,requestedModels:null,requestedSettings:settings})
     const head=(await client.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
     const values=(options.empty?[]:options.records??[modelValues]).flatMap((record,recordIndex)=>nodes.map((node,index)=>{
       const valueId=options.records?`record-${recordIndex}:${node.id}`:node.id,evidence=options.modelEvidence?.[valueId]??[]

@@ -16,7 +16,6 @@ import {
 import type { ExtractionModelListing } from '../../shared/extraction.contract'
 import { ResearcherSessionContext } from '../auth/sessionContext'
 import ProviderConfigPage from './ProviderConfigPage'
-import { STARTING_POINTS, withStartingPoint } from './advancedSettings'
 
 const OLLAMA_ID = '11111111-1111-4111-8111-111111111111'
 const OPENAI_ID = '22222222-2222-4222-8222-222222222222'
@@ -1078,167 +1077,14 @@ describe('Advanced', () => {
     expect(server.puts()[0]!.extractionSettings.article?.context_tokens).toBe(8192)
   })
 
-  it('additional saved settings replace retired controls and survive an unrelated Apply', async () => {
-    const stored = {
-      ...REFERENCE_ARTICLE, context: 'bounded' as const, identity: 'conservative' as const, identity_fields: ['Species'],
-      prompt: 'schema' as const, selection: 'supported' as const, grounding: 'spans' as const,
-      grounding_schedule: 'unresolved' as const, grounding_routing: 'origin_lexical' as const,
-    }
-    const server = studio(config({ extractionSettings: { article: stored } }))
-    await renderPage()
-    openAdvanced()
-    const additional = screen.getByRole('region', { name: 'Additional saved settings' })
-    expect(additional).toHaveTextContent('Record identity: Declared identity fields · Species')
-    expect(additional).toHaveTextContent('Instructions: Schema-driven')
-    expect(additional).toHaveTextContent('Saved identity and instructions still affect preliminary bounded source sizing.')
-    expect(within(additional).getAllByRole('button')).toHaveLength(5)
-    expect(within(settingsSelector()).getAllByRole('option').map((option) => option.textContent)).toEqual([
-      'Source context: Scope', 'Source context: Context ceiling', 'Source context: Grouping', 'Source context: Previous passages',
-      'Extraction input: Source representation', 'Evidence: Verification', 'Evidence: Large checks', 'Evidence: Fields to verify',
-      'Effective settings', 'Technical details',
-    ])
-    expect(screen.queryByRole('textbox', { name: 'Identity field name' })).not.toBeInTheDocument()
-    setting('Source representation')
-    fireEvent.click(radio('Source representation', 'Structured blocks and tables'))
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...stored, rendering: 'structured' })
-  })
-
-  it('a saved selection made invalid by full source is focused and reset without changing instructions', async () => {
-    const server = studio(config({ extractionSettings: { article: {
-      ...REFERENCE_ARTICLE, context: 'bounded', selection: 'supported', prompt: 'schema',
-    } } }))
-    await renderPage()
-    openAdvanced()
-    setting('Scope')
-    fireEvent.click(radio('Scope', 'Full source'))
-    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
-    fireEvent.click(screen.getByRole('button', { name: '1 issue blocks Apply' }))
-    const reset = screen.getByRole('button', { name: 'Reset Value evidence' })
-    await waitFor(() => expect(reset).toHaveFocus())
-    expect(reset).toHaveAccessibleDescription(METHOD_MESSAGES.bounded)
-    fireEvent.click(reset)
-    expect(screen.getByRole('button', { name: 'Apply' })).toBeEnabled()
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.article).toEqual({ ...REFERENCE_ARTICLE, prompt: 'schema' })
-  })
-
-  it('stale identity fields can be reset after a starting point without changing its instructions', async () => {
-    // Admission still refuses fields the pinned schema lacks, even in an otherwise valid settings draft.
-    const stored = { ...REFERENCE_ARTICLE, context: 'bounded' as const, identity: 'conservative' as const, identity_fields: ['Species'] }
-    const server = studio(config({ extractionSettings: { article: stored } }))
-    await renderPage()
-    openAdvanced()
-    fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
-    const point = startingPoint('Explore spans and template policies')
-    fireEvent.click(within(point).getByRole('button', { name: 'Show changes' }))
-    fireEvent.click(within(point).getByRole('button', { name: 'Use these settings' }))
-    const additional = screen.getByRole('region', { name: 'Additional saved settings' })
-    expect(additional).toHaveTextContent('Record identity: Reference · Species')
-    expect(screen.queryByRole('button', { name: /issue.*Apply/ })).not.toBeInTheDocument()
-    fireEvent.click(within(additional).getByRole('button', { name: 'Reset Record identity' }))
-    expect(additional).toHaveTextContent('Record identity: Reference · None')
-    expect(additional).toHaveTextContent('Changed from Declared identity fields · Species')
-    expect(additional).toHaveTextContent('Instructions: Schema-driven')
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.article).toEqual({
-      ...withStartingPoint(stored, STARTING_POINTS[1]!), identity: 'reference', identity_fields: [],
-    })
-  })
-
-  it.each([false, true])('an identity reset preserves all other settings, including Catalog verification=%s and invalid number text', async (verification) => {
-    const article = { ...REFERENCE_ARTICLE, context: 'bounded' as const, context_tokens: 16384, overlap_passages: 2,
-      grouping: 'structural' as const, rendering: 'structured' as const, grounding: 'spans' as const, evidence_policy: 'schema' as const,
-      identity: 'conservative' as const, identity_fields: ['Species'], prompt: 'schema' as const }
-    const stored = config({
-      connections: [ollama], routes: { interaction: { connectionId: OLLAMA_ID, modelId: 'llama3.3' }, schemaSuggestion: null },
-      extractionModels: { fields: 'instruct', reasoning: 'instruct' }, ingestionModels: { ocr: 'surya' },
-      extractionSettings: { article, catalog: { unified: { input_tokens: 8192, output_tokens: 1024, overlap: 2, headings: false, verification } } },
-    })
-    const server = studio(stored, { deployment: { ...NO_DEPLOYMENT, unifiedCatalog: true } })
-    await renderPage()
-    openAdvanced()
-    setting('Context ceiling')
-    const ceiling = screen.getByRole('textbox', { name: /Context ceiling/ })
-    fireEvent.change(ceiling, { target: { value: 'twelve' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Reset Record identity' }))
-    expect(ceiling).toHaveValue('twelve')
-    expect(screen.getByRole('button', { name: 'Apply' })).toBeDisabled()
-    fireEvent.change(ceiling, { target: { value: '16384' } })
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]).toEqual({ ...stored, extractionSettings: {
-      ...stored.extractionSettings, article: { ...article, identity: 'reference', identity_fields: [] },
-    } })
-    await waitFor(() => expect(screen.getByText('Everything saved')).toBeInTheDocument())
-    fireEvent.click(screen.getByRole('button', { name: 'Reset Instructions' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-    expect(screen.getByRole('region', { name: 'Additional saved settings' })).toHaveTextContent('Instructions: Schema-driven')
-    expect(server.puts()).toHaveLength(1)
-  })
-
-  it('routing resets before its schedule without changing other saved settings', async () => {
-    const server = studio(config({ extractionSettings: { article: {
-      ...REFERENCE_ARTICLE, context: 'bounded', prompt: 'schema', selection: 'supported', grounding: 'spans',
-      grounding_schedule: 'unresolved', grounding_routing: 'origin_lexical',
-    } } }))
-    await renderPage()
-    openAdvanced()
-    const schedule = screen.getByRole('button', { name: 'Reset Continue verification' })
-    expect(schedule).toBeDisabled()
-    expect(schedule).toHaveAccessibleDescription(METHOD_MESSAGES.routing)
-    fireEvent.click(screen.getByRole('button', { name: 'Reset Unit order' }))
-    expect(schedule).toBeEnabled()
-    expect(screen.getByRole('region', { name: 'Additional saved settings' })).toHaveTextContent('Continue verification: Until first support')
-    fireEvent.click(schedule)
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.article).toEqual({
-      ...REFERENCE_ARTICLE, context: 'bounded', prompt: 'schema', selection: 'supported', grounding: 'spans',
-    })
-  })
-
-  it('service defaults and the explicit reference show no additional saved settings', async () => {
-    studio(config())
-    await renderPage()
-    openAdvanced()
-    expect(screen.queryByRole('region', { name: 'Additional saved settings' })).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
-    expect(screen.queryByRole('region', { name: 'Additional saved settings' })).not.toBeInTheDocument()
-  })
-
-  it('Catalog keeps generic limits and recipe factors apart; Use service defaults removes only Catalog', async () => {
-    const server = studio(config({ extractionSettings: { article: REFERENCE_ARTICLE } }))
-    await renderPage()
-    openAdvanced()
-    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
-    openSection('Recipe Catalog')
-    expect(screen.getByRole('region', { name: 'Recipe Catalog' })).toHaveTextContent('Applies when a Catalog Extraction uses a numbered-catalogue recipe.')
-    setting('Verification')
-    fireEvent.click(screen.getByRole('switch', { name: 'Verification' }))
-    expect(screen.getByText('Off keeps typed values as proposals, not accepted evidence.')).toBeInTheDocument()
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.catalog?.recipe?.factors?.verification).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(2))
-    expect(server.puts()[1]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE })
-  })
-
   it('with the unified Catalog, one group replaces Generic and Recipe; a cleared ceiling is Auto again', async () => {
-    const server = studio(config(), { deployment: { ...NO_DEPLOYMENT, unifiedCatalog: true } })
+    const server = studio(config(), { deployment: { ...NO_DEPLOYMENT, } })
     await renderPage()
     openAdvanced()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     expect(screen.queryByText('Generic Catalog')).not.toBeInTheDocument()
     expect(screen.queryByText('Recipe Catalog')).not.toBeInTheDocument()
-    expect(screen.getByText('Service defaults, version 10')).toBeInTheDocument()
+    expect(screen.getByText('Service defaults, version 11')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
     setting('Input token ceiling')
     const ceiling = screen.getByRole('textbox', { name: 'Input token ceiling' })
@@ -1247,7 +1093,7 @@ describe('Advanced', () => {
     fireEvent.change(ceiling, { target: { value: '100' } })
     expect(screen.getByText(METHOD_MESSAGES.inputTokens, { selector: 'p' })).toBeVisible()
     // One control per view: from another view, the issue summary brings the ceiling back and focuses it.
-    setting('Pro mode')
+    setting('Heading context')
     expect(screen.queryByRole('textbox', { name: 'Input token ceiling' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '1 issue blocks Apply' }))
     await waitFor(() => expect(screen.getByRole('textbox', { name: 'Input token ceiling' })).toHaveFocus())
@@ -1262,53 +1108,12 @@ describe('Advanced', () => {
     fireEvent.click(screen.getByRole('switch', { name: 'Heading context' }))
     setting('Heading excerpts measured')
     expect(screen.getByText('Heading context is off, so no excerpt is measured or shown.')).toBeVisible()
-    setting('Pro mode')
-    // From defaults 6 a single pass is the default; Pro mode admits the version that reads every value again.
-    expect(screen.getByText(/Off reads each value once/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('switch', { name: 'Pro mode' }))
-    expect(screen.queryByText(/Off reads each value once/)).not.toBeInTheDocument()
-    expect(screen.getByText(/Pro mode runs defaults version 5/)).toBeInTheDocument()
     setting('Effective settings')
-    expect(screen.getByText('Unified Catalog, defaults version 5 with custom settings')).toBeInTheDocument()
+    expect(screen.getByText(/Shared headings are checked separately/)).toBeInTheDocument()
+    expect(screen.getByText('Unified Catalog, defaults version 11 with custom settings')).toBeInTheDocument()
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, candidates: 8, headings: false, verification: true } })
-  })
-
-  it('retired Catalog controls are shown, never converted, and replaced only by an applied unified group', async () => {
-    const legacy = { generic: { record_chars: 30_000 }, recipe: { factors: { glossary: false, headings: true, overlap: true, verification: true } } }
-    const server = studio(config({ extractionSettings: { article: REFERENCE_ARTICLE, catalog: legacy } }),
-      { deployment: { ...NO_DEPLOYMENT, unifiedCatalog: true } })
-    await renderPage()
-    openAdvanced()
-    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
-    const note = screen.getByRole('note')
-    expect(note).toHaveTextContent('Record text limit: 30,000 characters')
-    expect(note).toHaveTextContent('Recipe factors off: glossary')
-    expect(note).toHaveTextContent('They are not converted')
-    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
-    expect(screen.queryByRole('note')).not.toBeInTheDocument()
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE, catalog: { unified: {} } })
-  })
-
-  it('Use service defaults also migrates retired Catalog controls, and Discard keeps them unchanged', async () => {
-    const legacy = { generic: { discovery_chars: 60_000 } }
-    const server = studio(config({ extractionSettings: { article: REFERENCE_ARTICLE, catalog: legacy } }),
-      { deployment: { ...NO_DEPLOYMENT, unifiedCatalog: true } })
-    await renderPage()
-    openAdvanced()
-    fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
-    expect(screen.getByRole('note')).toHaveTextContent('Discovery text limit: 60,000 characters')
-    expect(server.puts()).toHaveLength(0)
-    fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
-    expect(screen.queryByRole('note')).not.toBeInTheDocument()
-    apply()
-    await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]!.extractionSettings).toEqual({ article: REFERENCE_ARTICLE })
+    expect(server.puts()[0]!.extractionSettings.catalog).toEqual({ unified: { overlap: 0, candidates: 8, headings: false } })
   })
 
   it('the issue summary opens Advanced from another tab on the issue\'s strategy and focuses its control', async () => {
@@ -1317,15 +1122,15 @@ describe('Advanced', () => {
     openAdvanced()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
-    openSection('Generic Catalog')
-    fireEvent.change(screen.getByRole('textbox', { name: 'Discovery text limit' }), { target: { value: '999' } })
+    selectView('Catalog setting', 'Catalog: Input token ceiling')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Input token ceiling' }), { target: { value: '511' } })
     fireEvent.click(screen.getByRole('tab', { name: 'Models' }))
     fireEvent.click(screen.getByRole('button', { name: '1 issue blocks Apply' }))
-    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Discovery text limit' })).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('textbox', { name: 'Input token ceiling' })).toHaveFocus())
     expect(screen.getByRole('radio', { name: 'Catalog' })).toBeChecked()
-    expect(screen.getByRole('textbox', { name: 'Discovery text limit' })).toHaveValue('999')
-    expect(screen.getByRole('textbox', { name: 'Discovery text limit' })).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByText(METHOD_MESSAGES.characters, { selector: 'p' })).toBeVisible()
+    expect(screen.getByRole('textbox', { name: 'Input token ceiling' })).toHaveValue('511')
+    expect(screen.getByRole('textbox', { name: 'Input token ceiling' })).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText(METHOD_MESSAGES.inputTokens, { selector: 'p' })).toBeVisible()
   })
 
   it('a Catalog shape issue does not hide an Article cross-field issue: both count, the Article section opens, no preview', async () => {
@@ -1339,8 +1144,8 @@ describe('Advanced', () => {
     fireEvent.click(radio('Scope', 'Full source'))
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
     fireEvent.click(screen.getByRole('button', { name: 'Customize' }))
-    openSection('Generic Catalog')
-    fireEvent.change(screen.getByRole('textbox', { name: 'Discovery text limit' }), { target: { value: '999' } })
+    selectView('Catalog setting', 'Catalog: Input token ceiling')
+    fireEvent.change(screen.getByRole('textbox', { name: 'Input token ceiling' }), { target: { value: '511' } })
     fireEvent.click(screen.getByRole('button', { name: '2 issues block Apply' }))
     await waitFor(() => expect(radio('Previous passages', '1')).toHaveFocus())
     expect(screen.getByText(METHOD_MESSAGES.bounded, { selector: 'p' })).toBeVisible()
@@ -1367,15 +1172,15 @@ describe('Advanced', () => {
     expect(screen.getByRole('button', { name: 'Use service defaults', pressed: true })).toBeInTheDocument()
     expect(screen.getByText('Everything saved')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
-    openSection('Recipe Catalog')
-    fireEvent.click(screen.getByRole('button', { name: 'Explain Recipe Catalog' }))
+    selectView('Catalog setting', 'Catalog: Heading context')
+    fireEvent.click(screen.getByRole('button', { name: 'Explain Catalog' }))
     expect(screen.getByRole('dialog', { name: 'Catalog' })).toBeInTheDocument()
     expect(server.puts()).toEqual([])
     expect(server.request.mock.calls.map(([url]) => String(url))).not.toContainEqual(expect.stringMatching(/extractions|generation/))
   })
 
   it('a starting point changes only the Article draft, Undo restores it, and service defaults restore the request shape', async () => {
-    const server = studio(config({ extractionModels: { fields: 'nuextract' }, extractionSettings: { catalog: { generic: { record_chars: 30000 } } } }))
+    const server = studio(config({ extractionModels: { fields: 'nuextract' }, extractionSettings: { catalog: { unified: { input_tokens: 30000 } } } }))
     await renderPage()
     openAdvanced()
     fireEvent.click(screen.getByRole('button', { name: 'How this works' }))
@@ -1391,25 +1196,25 @@ describe('Advanced', () => {
     fireEvent.click(again.getByRole('button', { name: 'Use these settings' }))
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(1))
-    expect(server.puts()[0]).toMatchObject({ extractionModels: { fields: 'nuextract' }, extractionSettings: { catalog: { generic: { record_chars: 30000 } }, article: { grounding: 'spans' } } })
+    expect(server.puts()[0]).toMatchObject({ extractionModels: { fields: 'nuextract' }, extractionSettings: { catalog: { unified: { input_tokens: 30000 } }, article: { grounding: 'spans' } } })
     expect(JSON.stringify(server.puts()[0])).not.toMatch(/preset|Explore spans/)
     // Apply ended the notice: an edit that keeps those Article settings does not bring it, or its Undo, back.
     await waitFor(() => expect(screen.getByText('Everything saved')).toBeInTheDocument())
     expect(screen.queryByText(/are in your draft/)).toBeNull()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
-    openSection('Recipe Catalog')
-    setting('Glossary')
-    fireEvent.click(screen.getByRole('switch', { name: 'Glossary' }))
+    selectView('Catalog setting', 'Catalog: Heading context')
+    selectView('Catalog setting', 'Catalog: Heading context')
+    fireEvent.click(screen.getByRole('switch', { name: 'Heading context' }))
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
     expect(screen.queryByText(/are in your draft/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull()
-    setting('Glossary')
-    fireEvent.click(screen.getByRole('switch', { name: 'Glossary' }))
+    selectView('Catalog setting', 'Catalog: Heading context')
+    fireEvent.click(screen.getByRole('switch', { name: 'Heading context' }))
     fireEvent.click(screen.getByRole('radio', { name: 'Article' }))
     fireEvent.click(screen.getByRole('button', { name: 'Use service defaults' }))
     apply()
     await waitFor(() => expect(server.puts()).toHaveLength(2))
-    expect(server.puts()[1]!.extractionSettings).toEqual({ catalog: { generic: { record_chars: 30000 } } })
+    expect(server.puts()[1]!.extractionSettings).toEqual({ catalog: { unified: { input_tokens: 30000, headings: true } } })
   })
 
   it('Undo restores the prior Article draft exactly, number text included, and returns focus to How this works', async () => {
@@ -1444,8 +1249,8 @@ describe('Advanced', () => {
     await renderPage()
     openAdvanced()
     fireEvent.click(screen.getByRole('radio', { name: 'Catalog' }))
-    openSection('Recipe Catalog')
-    fireEvent.click(screen.getByRole('button', { name: 'Explain Recipe Catalog' }))
+    selectView('Catalog setting', 'Catalog: Heading context')
+    fireEvent.click(screen.getByRole('button', { name: 'Explain Catalog' }))
     selectView('Topics', 'How this works')
     const point = within(startingPoint('Explore spans and template policies'))
     fireEvent.click(point.getByRole('button', { name: 'Show changes' }))

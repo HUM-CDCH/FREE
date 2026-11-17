@@ -182,7 +182,7 @@ function StudyEvidence({ topic }: { topic: GuideTopic }) {
  *  one-choice-at-a-time studies did not cover. */
 function changedChoices(article: ArticleSettings | undefined): number {
   if (!article) return 0
-  return ARTICLE_KEYS.filter((key) => key !== 'context_tokens' && key !== 'identity_fields' && key !== 'grounding_overflow' &&
+  return ARTICLE_KEYS.filter((key) => key !== 'context_tokens' && key !== 'grounding_overflow' &&
     (article[key] ?? undefined) !== (REFERENCE_ARTICLE[key] ?? undefined)).length
 }
 
@@ -239,7 +239,7 @@ function StartingPointCard({ point, article, onUse }: { point: StartingPoint; ar
 
 /** The design's flowchart (§5), drawn locally; the figure's caption is its text equivalent. */
 const NODE = { x: 26, width: 184, height: 28 } as const
-const ROWS = ['Canonical Source Context', 'Context and grouping', 'Inventory and identity', 'Record values', 'Evidence verification', 'Extraction Result and review'] as const
+const ROWS = ['Canonical Source Context', 'Context and grouping', 'Record values', 'Evidence verification', 'Extraction Result and review'] as const
 const rowY = (index: number) => 4 + index * 48
 const middle = (index: number) => rowY(index) + NODE.height / 2
 const centre = NODE.x + NODE.width / 2

@@ -6,8 +6,9 @@ model calls made and the issues found. `assembly.ground_records` obtains one tec
 per verification group of each record; it does not know which technique it holds. A new grounding arm is a new
 function of this shape and one more entry in `technique`.
 
-`semantic` is the production reference: bounded grounding calls that may answer only with an evidence label each
-claim was shown, or NONE, reading each claim with its field and sibling fields. A label outside the shown set links
+`semantic` is the production reference: bounded grounding calls choose primary evidence each claim was shown,
+or NONE; Article also asks, once for the claims of each list item or nested object, the context attributing them
+to that item, and keeps it on their links. A label outside the shown set links
 nothing. Every claim is verified, even a value that occurs as a bounded token in exactly one passage: the same
 string can belong to another field or another record, so a unique text hit is a candidate location (the matching
 cells offered), never field evidence on its own. Every grounding batch also shows the
@@ -31,6 +32,7 @@ from typing import Any
 
 from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract.calls import Call, complete
+from kei_exp.kie.extract.contexts import FURNITURE, HEADINGS
 from kei_exp.kie.extract.durable import NeedsCall
 from kei_exp.kie.extract.llm import Chat
 from kei_exp.kie.extract.locate import GROUPING, JOINERS, SIGNS, BlockText, _before, _bounded, _whole_number, forms, locate
@@ -59,6 +61,20 @@ QUOTED_GROUNDING = (
     "Do not paraphrase or normalize source text. Escape control characters in JSON strings, for example "
     "a source tab as \\t. " + _GROUNDING_RULES)
 NONE = "NONE"
+RECORD_GROUNDING = (
+    'Ground every claim under "### Claims" in the offered evidence. The claims of a list item or object follow its '
+    'group label. Return a single JSON object with a key for every group label and every '
+    'claim label. Write it compactly, without spaces, indentation or line breaks between JSON tokens. The value of a '
+    'claim is its primary evidence: the one evidence label that prints or directly supports the value in the meaning '
+    'of its field, or NONE. The value of a group is an array of at most 2 evidence labels, possibly empty: only the '
+    'evidence needed to attribute its claims to THIS list item or object, such as its heading, byline or '
+    'affiliation marker, table header or condition; select the smallest complete set. Extracted sibling '
+    'values are claims, not source evidence. A shared heading or qualification applies only within its scope; a '
+    'later statement replaces an earlier value only when it changes the same field for this record. Attribute the '
+    'value to the requested subject and relationship; do not transfer properties from related entities unless the '
+    'source supports that attribution. Use NONE unless the evidence of the claim and of its group together establish '
+    'both the value and its attribution. '
+    + _GROUNDING_RULES)
 SPAN_GROUNDING = (
     'Ground every claim under "### Claims" in the offered canonical source spans. Return one object per claim '
     'with "label" (exactly an offered evidence label or NONE) and "attribution" (a boolean). Select a span and set '
@@ -170,8 +186,10 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
 
     `projected` (Article) shows the record's own scalar fields once and, beside each claim, the scalar fields of every
     list item enclosing it, instead of the whole record: a request's size then depends on its claims and source, never
-    on how many other items the record holds. The reply is budgeted too (every label at its longest within the output
-    reserve), and a failed call names each claim it held.
+    on how many other items the record holds. A claim answers with its label alone; the context attributing a list item
+    or nested object (at most two labels: with more the model listed its claims' own evidence) is asked once, before
+    that item's claims, and a claim of the record itself has none. The reply is budgeted too (every label at its longest
+    within the output reserve), and a failed call names each claim it held.
 
     Every batch retains coarse/non-verbatim support and matching cells. A claim is first offered its precise candidates:
     a selectable cell hides its table, and a list item's claim sees only its own row's cells. A claim that round leaves
@@ -193,7 +211,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     prefix: tuple[str | int, ...] = ("records", record)
     if quoted and span_ids:
         raise ValueError("choose quoted or span-ID verification, not both")
-    instruction = SPAN_GROUNDING if span_ids else QUOTED_GROUNDING if quoted else GROUNDING
+    bundled = projected and not (span_ids or quoted)
+    instruction = RECORD_GROUNDING if bundled else SPAN_GROUNDING if span_ids else QUOTED_GROUNDING if quoted else GROUNDING
     if not passages:
         return [], [], [Issue("no_evidence", "the record has no passages to verify against", record)]
     links: list[Link] = []
@@ -279,12 +298,20 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
         batch = batches.pop(0)
         made_before = len(links)
         lines = []
-        previous_parent = None
+        groups: dict[str, list[str]] = {}  # Article: the claims sharing a parent, whose attribution is asked once
+        previous_parent = group = None
         for claim in batch:
             path, value = claims[claim]
             if path[:-1] != previous_parent:
-                lines += _enclosing(fields, path[2:]) if projected else [_siblings(fields, path[2:])]
+                within = _enclosing(fields, path[2:]) if projected else [_siblings(fields, path[2:])]
+                group = None
+                if bundled and within:
+                    groups[group := f"G{len(groups) + 1}"] = []
+                    within[-1] = f"{group} {within[-1]}"
+                lines += within
                 previous_parent = path[:-1]
+            if group:
+                groups[group].append(claim)
             lines.append(f"{claim} ({describe(schema.record_nodes, path[2:])}): {_text(value)}")
         shown = {label for claim in batch for label in eligible[claim]}
         user = identity + record_fields + "### Claims\n" + "\n".join(lines) + "\n\n### Evidence\n" + _grounding_evidence(
@@ -293,24 +320,29 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
             passages={candidate.passage.id: candidate.passage for candidate in candidates})
         # The instruction states the reply's shape and the evidence lists the labels: constrained, not shown, since
         # showing every claim's label enum grew each request by claims x labels and halved batches.
-        reply_schema = {"type": "object", "properties": {
-            claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch},
-            "required": batch, "additionalProperties": False, "x-free-hidden": True}
-        if quoted:
-            reply_schema["properties"] = {claim: {"type": "object", "properties": {
-                "label": {"type": "string", "enum": [*eligible[claim], NONE]},
-                "quote": {"type": "string", "maxLength": 500},
-                "attribution": {"type": "boolean"}}, "required": ["label", "quote", "attribution"],
-                "additionalProperties": False} for claim in batch}
-        elif span_ids:
-            reply_schema["properties"] = {claim: {"type": "object", "properties": {
-                "label": {"type": "string", "enum": [*eligible[claim], NONE]},
-                "attribution": {"type": "boolean"}}, "required": ["label", "attribution"],
-                "additionalProperties": False} for claim in batch}
+        chosen = {claim: {"type": "string", "enum": [*eligible[claim], NONE]} for claim in batch}
+        if quoted or span_ids:  # an object per claim: its label, what the technique adds, its attribution
+            more = {"quote": {"type": "string", "maxLength": 500}} if quoted else {}
+            chosen = {claim: {"type": "object", "properties": {"label": label, **more, "attribution": {"type": "boolean"}},
+                              "required": ["label", *more, "attribution"], "additionalProperties": False}
+                      for claim, label in chosen.items()}
+        reserve = 2048
+        if bundled:  # each group's attribution context, then its claims
+            context = {"type": "array", "items": {"type": "string", "enum": [
+                label for label in labelled if label in shown]}, "maxItems": 2}
+            opening = {members[0]: group for group, members in groups.items()}
+            chosen = {key: spec for claim, label in chosen.items()
+                      for key, spec in ([(opening[claim], context)] if claim in opening else []) + [(claim, label)]}
+            longest = max(shown, key=len, default=NONE)
+            # A byte bound covers the whole reply, every label at its longest.
+            reserve = max(reserve, len(json.dumps({key: [longest] * 2 if key in groups else max(
+                [*eligible[key], NONE], key=len) for key in chosen}).encode("utf-8")))
+        reply_schema = {"type": "object", "properties": chosen, "required": list(chosen),
+                        "additionalProperties": False, "x-free-hidden": True}
         size = len(instruction) + len(user) + len(json.dumps(reply_schema, ensure_ascii=False))
         count = counter.request_tokens(instruction, user, reply_schema) if counter else None
-        exceeded = count + 2048 > counter.context_tokens if counter else size > budget
-        if projected and not exceeded:  # the reply, every label at its longest, within the output reserve
+        exceeded = count + reserve > counter.context_tokens if counter else size > budget
+        if projected and not bundled and not exceeded:  # legacy label replies keep their fixed reserve
             exceeded = len(json.dumps({claim: max([*eligible[claim], NONE], key=len) for claim in batch})) > 2048
         if exceeded:
             if len(batch) > 1:
@@ -318,13 +350,13 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 batches[0:0] = [batch[:middle], batch[middle:]]
             else:
                 issues.append(Issue("grounding_exceeds_budget",
-                                    (f"{count} input + 2048 output tokens exceed {counter.context_tokens}" if counter
+                                    (f"{count} input + {reserve} output tokens exceed {counter.context_tokens}" if counter
                                      else f"{size} characters exceed {budget}") + "; complete evidence was not sent",
                                     record, claims[batch[0]][0]))
             continue
         try:
             answer, attempts = complete(chat, stage="grounding", record=record, system=instruction, user=user,
-                                       schema=reply_schema, counter=counter, max_tokens=2048 if counter else None)
+                                       schema=reply_schema, counter=counter, max_tokens=reserve if counter else None)
         except NeedsCall:  # the batches after it do not depend on its reply: captured now, they run beside it
             waiting = True
             continue
@@ -337,9 +369,21 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 on_batch([])
             continue
         given = answer if isinstance(answer, dict) else {}
+        attributed = {claim: given.get(group) for group, members in groups.items() for claim in members}
         for claim in batch:
             path, value = claims[claim]
             label = given.get(claim)
+            context = ()
+            if bundled:
+                extra = attributed.get(claim, [])  # a claim of the record itself has no group
+                if not isinstance(extra, list) or len(extra) > 2 or any(
+                        not isinstance(each, str) or each not in shown for each in extra):
+                    issues.append(Issue("missing_claim", f"{claim}: incomplete record evidence", record, path))
+                    continue
+                context = tuple({"segment": labelled[each].passage.id,
+                                 "start": labelled[each].cell.start if labelled[each].cell else 0,
+                                 "end": labelled[each].cell.end if labelled[each].cell else len(labelled[each].passage.text)}
+                                for each in dict.fromkeys(extra) if each != label)
             if span_ids:
                 candidate_reply = label if isinstance(label, dict) else {}
                 label = candidate_reply.get("label")
@@ -372,8 +416,12 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
                 issues.append(Issue("unknown_label", f"{claim} was linked to {label!r}, which was not offered", record, path))
             else:
                 candidate = labelled[label]
+                if bundled:  # the model's choice stays primary: a cell's table, or a split word's other half, is context
+                    joined = [candidate.passage] if candidate.cell is not None else _word_break(passages, candidate.passage)
+                    context += tuple(whole for whole in ({"segment": each.id, "start": 0, "end": len(each.text)}
+                                                         for each in joined) if whole not in context)
                 links.append(_link(path, candidate, contains(candidate.text, value), "model",
-                                   _location(candidate, value) if located else None))
+                                   _location(candidate, value) if located else None, context))
                 if quoted and proofs is not None:
                     proofs.append({"path": list(path), "segment": candidate.passage.id,
                                    "cell": candidate.cell.cell_id if candidate.cell else None,
@@ -390,13 +438,31 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     return links, calls, issues
 
 
+def _word_break(passages: Sequence[Passage], passage: Passage) -> list[Passage]:
+    """The passages sharing a word a hyphen splits with `passage`, before or after it: `signifi-` ending one and
+    `cantly` starting the next in lower case, on its page or the following, with only page headers and footers
+    between. A heading is neither half. Text flow, not meaning: an unhyphenated page end joins nothing, since the next
+    page may begin with another subject's text, while a hyphen that splits no word (`Rh-`, `pre-`) still attaches
+    its neighbour, as context only."""
+    # shortcut: only an ASCII hyphen marks a word break; add the other hyphen characters when a parser emits them.
+    def splits(first: Passage, rest: Passage) -> bool:
+        return (first.label not in HEADINGS and rest.label not in HEADINGS and rest.page <= first.page + 1
+                and re.search(r"[^\W\d]-$", first.text.rstrip()) is not None and rest.text.lstrip()[:1].islower())
+    content = [each for each in passages if each.label not in FURNITURE]
+    if passage not in content:
+        return []
+    at = content.index(passage)
+    return ([each for each in content[at - 1:at] if splits(each, passage)]
+            + [each for each in content[at + 1:at + 2] if splits(passage, each)])
+
+
 def _link(path: tuple[str | int, ...], candidate: _Candidate | SourceSpan, verbatim: bool, linked_by: str,
-          location: dict | None = None) -> Link:
+          location: dict | None = None, context: tuple[dict, ...] = ()) -> Link:
     passage, cell = candidate.passage, candidate.cell
     precise = cell is not None and cell.bbox_pt is not None
     return Link(path, passage.id, passage.page, cell.bbox_pt if precise else passage.bbox_pt,
                 verbatim, linked_by, cell.cell_id if precise else None, "cell" if precise else passage.precision,
-                location)
+                location, context)
 
 
 # A printed number: digits with decimal or thousands separators, perhaps a leading one (`.5`), never part of a word or
@@ -500,7 +566,7 @@ def semantic(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Ch
              skip_paths: frozenset[tuple[str | int, ...]] = frozenset(), projected: bool = False,
              located: bool = False, on_batch: Callable[[Sequence[Link]], None] | None = None) -> tuple[
         list[Link], list[Call], list[Issue]]:
-    """The production reference: one evidence label per claim, or NONE."""
+    """The production reference: primary evidence and, for Article, the context establishing record attribution."""
     return verify(passages, fields, schema, chat, record=record, budget=budget, counter=counter,
                   record_context=record_context, proofs=proofs, skip_paths=skip_paths,
                   projected=projected, located=located, on_batch=on_batch)

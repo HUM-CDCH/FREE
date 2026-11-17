@@ -5,7 +5,8 @@ from kei_exp import runs
 from kei_exp.kie.extract import run as extraction
 from kei_exp.kie.extract import tokens
 from tests.helpers import kei as kei_helper
-from tests.test_extract_grounded import SCHEMA, CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
+from tests.test_unified_catalog import Model, request as catalog_request
 
 V1 = {"catalog": {"strategy": "catalog"}, "article": {"strategy": "article"}}  # no recipe: the version 1 paths
 
@@ -18,7 +19,7 @@ def run_dir(tmp_path, monkeypatch):
 
 
 def request_for(strategy: str) -> extraction.ExtractRequest:
-    return extraction.ExtractRequest.model_validate({"schema": SCHEMA, "options": V1[strategy]})
+    return extraction.ExtractRequest.model_validate({"schema": {"recordDescription":"A site", "schemaNodes":[{"id":"s","name":"site_name","type":"string"}]}, "options": V1[strategy]})
 
 
 def stage_of(schema: dict) -> str:
@@ -46,5 +47,5 @@ def test_an_extraction_publishes_nothing_beside_the_run(run_dir):
     """Durable execution retains results in the coordination schema; no implementation writes an extraction
     directory under the run."""
     extraction.extract(run_dir, request_for("article"), CountingChat(version_1()))
-    extraction.extract(run_dir, request_for("catalog"), CountingChat(version_1()))
+    extraction.extract(run_dir, catalog_request(), CountingChat(Model(__import__("kei_exp.kie.passages", fromlist=["load"]).load(run_dir))), counter=WordCounter())
     assert not (run_dir / "extractions").exists()

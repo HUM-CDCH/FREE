@@ -14,11 +14,11 @@ function handlers(store: Partial<ResearcherProjectStore>) {
 }
 
 describe('project chat API', () => {
-  it('reads the latest entries, leaving out one this Studio no longer reads', async () => {
+  it('refuses unreadable historical chat entries', async () => {
     const listProjectChatEntries = vi.fn().mockResolvedValue([record(), record({ position: 2, entry: { kind: 'retired' } })])
     const response = await handlers({ listProjectChatEntries }).GET!(new Request(url()))
-    expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ entries: [{ projectChatEntryId: entryId, position: 1, entry: record().entry, createdAt: now.toISOString() }] })
+    expect(response.status).toBe(503)
+    expect(await response.json()).toMatchObject({ error: { code: 'persistence_unavailable' } })
     expect(listProjectChatEntries).toHaveBeenCalledWith(projectContextId, 1000)
   })
 

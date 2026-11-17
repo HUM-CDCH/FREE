@@ -17,7 +17,7 @@ import { parseSpreadsheetRows } from './_spreadsheet_schema.js'
 const ROUTE = '/api/project-spreadsheets'
 
 function projectSpreadsheetVersionDto(version: ProjectSpreadsheetVersionRecord) {
-  return projectSpreadsheetVersionResponseSchema.parse({
+  const parsed = projectSpreadsheetVersionResponseSchema.safeParse({
     projectSpreadsheetVersion: {
       projectSpreadsheetVersionId: version.projectSpreadsheetVersionId,
       projectContextId: version.projectContextId,
@@ -27,6 +27,8 @@ function projectSpreadsheetVersionDto(version: ProjectSpreadsheetVersionRecord) 
       createdAt: version.createdAt.toISOString(),
     },
   })
+  if (!parsed.success) throw persistenceUnavailable(parsed.error)
+  return parsed.data
 }
 
 function projectId(url: URL): string {

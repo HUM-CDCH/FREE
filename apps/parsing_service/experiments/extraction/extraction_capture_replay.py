@@ -4,7 +4,6 @@ From the study's pinned Parsing Service checkout:
 PYTHONPATH=src:. .venv/bin/python /path/to/this.py STUDY_DIR REPORT_JSON TOKEN_CACHE
 Missing partition/admission counts fail offline. --allow-tokenize permits only
 new tokenizer probes, saved separately for subsequent offline verification.
-Conditional R2a outputs use their own selection_replay command.
 """
 from __future__ import annotations
 

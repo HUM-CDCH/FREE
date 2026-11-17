@@ -18,8 +18,10 @@ import psycopg
 import pytest
 from dbos import DBOSClient, WorkflowSerializationFormat
 
+from kei_exp.kie.passages import load
 from tests.helpers import catalogue
 from tests.helpers.postgres import checked_conninfo
+from tests.test_unified_catalog import Model as CatalogModel, candidate
 
 FIXTURE=os.environ.get('DURABLE_RECOVERY_FIXTURE')
 pytestmark=[pytest.mark.postgres,pytest.mark.slow,pytest.mark.skipif(not FIXTURE,reason='run durable-recovery.postgres.check.ts')]
@@ -34,9 +36,6 @@ from kei_exp.workflows import boot,config,durable_extract
 from kei_exp.workflows.cli import _redact_dbos_logs
 from kei_exp.workflows.cli import redacted
 from kei_exp.workflows.coordination import CoordinationPool
-# The first process represents a worker that still recorded the patch marker;
-# its replacement uses deprecate_patch and must keep the saved step positions.
-if os.environ.get('FAULT'):DBOS.deprecate_patch=DBOS.patch
 key=next(key for key,model in EXTRACT_MODELS.items() if model.adapter=='instruct')
 EXTRACT_MODELS[key]=replace(EXTRACT_MODELS[key],url=os.environ['MODEL_URL'])
 DEFAULTS.update(fields=key,reasoning=key)
@@ -89,6 +88,12 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
     catalogue.write({'transcriber':'native','pages':[{'page':1,'units':[{'index':0,
       'segments':['1. Hill.','2. Valley.']}]}]},source,generation=case['source']['generation'])
     (source/'params.json').write_text('{}')
+
+    def entry(record, *_):
+        name = 'Valley' if 'Valley' in record else 'Hill'
+        return {'name': candidate(name, name)}
+
+    model = CatalogModel(load(source), entry=entry)
     requests=[]
     class Model(BaseHTTPRequestHandler):
         def log_message(self,*_):pass
@@ -101,12 +106,8 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
             else:
                 requests.append(body)
                 system,user=messages[0]['content'],messages[-1]['content']
-                if 'record boundaries' in system:
-                    parsed={'starts':['B1','B2'],'end':None}
-                elif '### Claims' in user:
-                    shape=body['response_format']['json_schema']['schema']
-                    parsed={key:{'label':'NONE','attribution':False} for key in shape['properties']}
-                else:parsed={'name':'Valley' if 'Valley' in user else 'Hill'}
+                schema=body['response_format']['json_schema']['schema']
+                parsed=model(system,user,schema)
                 output={'choices':[{'message':{'content':json.dumps(parsed)},'finish_reason':'stop'}],
                         'usage':{'prompt_tokens':counted,'completion_tokens':10}}
             raw=json.dumps(output).encode();self.send_response(200);self.send_header('Content-Type','application/json')
@@ -146,7 +147,6 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
         before=len(requests)
         with psycopg.connect(**fields) as admin:
             saved=admin.execute('SELECT count(*) FROM extraction_runtime.checkpoint WHERE id IN (SELECT id FROM extraction_runtime.capture WHERE "extractionId"=%s)',[case['id']]).fetchone()[0]
-            assert admin.execute("SELECT count(*) FROM kei_dbos.operation_outputs WHERE workflow_uuid=%s AND function_name='DBOS.patch-extract-wait-first'",[case['workflow']]).fetchone()[0]==1
             # Exercise a real restart while the crashed process's lease still
             # owns the committed-output/DBOS-ack gap. Other fault cases shorten
             # the lease only to keep the rest of the matrix fast.

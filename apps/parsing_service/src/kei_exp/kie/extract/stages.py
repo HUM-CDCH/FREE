@@ -7,7 +7,7 @@ under `DOCUMENT`). Each record is extracted with one structured-output call unde
 conformed to the schema here. The merge orders a record's fields as the schema does and adds the document-level and
 filename fields. Article requests use served-token admission. The call itself — routing to a role's model, admission,
 invocation, reading the reply and its `Call` accounting — is `calls.complete`. How records are found belongs to each
-strategy: version 1 Catalog discovery lives in `catalog.py`, Article's one document root and its value contexts in
+strategy: Article's one document root and its value contexts live in
 `article.py`. Grounding the extracted values lives in `grounding.py`, which uses the value helpers defined here.
 """
 from __future__ import annotations
@@ -57,10 +57,11 @@ class Link:
     page: int
     bbox_pt: tuple[float, float, float, float]
     verbatim: bool                      # the value occurs as a bounded token in the passage
-    linked_by: str                      # model (lexical only in results from before PROMPT_VERSION 13)
+    linked_by: str                      # model, or structure for a recipe's links
     cell: str | None = None             # local cell identity within segment, only with measured geometry
     precision: str = "segment"
     location: dict | None = None        # Article only: the value's one printing, {spans: [{segment, start, end}], raw}
+    context: tuple[dict, ...] = ()      # ranges attributing the value to its record, or the other half of a split word
 
 
 @dataclass(frozen=True)
