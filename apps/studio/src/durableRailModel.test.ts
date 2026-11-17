@@ -48,7 +48,21 @@ it('keeps a rule link factual and a researcher correction independent of model E
   expect(row.value).toBe(true)
   expect(row.extracted).toBe(false)
   expect(row.kind).toBe('edited')
-  expect(row.chip).toEqual({text:'linked',style:'rule'})
+  expect(row.chip).toEqual({text:'no source',style:'neutral'})
+  expect(row.link).toBeNull()
+})
+
+it('uses only the correction Evidence to locate an edited value',()=> {
+  const evidence=[{anchorId:'corrected',occurrenceIds:['chosen']}]
+  const saved=value({
+    links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'original',
+      linkedBy:'lexical',verbatim:true}],
+    correction:{revision:1,decision:{action:'EDITED',value:true,evidence,included:true}},
+  })
+  const row=durableRailRow(saved,null)
+  expect(row.link).toEqual({resultPath:saved.path,evidenceAnchorId:'corrected'})
+  expect(row.chip).toEqual({text:'linked',style:'link'})
+  expect(row.decision).toMatchObject({evidenceAnchorId:'corrected',reviewedOccurrenceIds:['chosen']})
 })
 
 it('non-verbatim Evidence determines the uncertain filter, count and queue',()=> {

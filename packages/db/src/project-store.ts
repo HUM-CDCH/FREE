@@ -943,7 +943,7 @@ export type ResearcherProjectStore = {
     projectContextId: string,
     sourceDocumentId: string,
   ): Promise<{ interruptedAttempts: readonly { batchSchemaSuggestionId: string; attempt: number }[] } | null>
-  listProjectContexts(limit: number): Promise<ProjectContextListItem[]>
+  listProjectContexts(limit?: number): Promise<ProjectContextListItem[]>
   /** Newest-first persisted events across every owned Project Context. */
   listRecentActivity(limit: number): Promise<ProjectContextActivityEvent[]>
   getProjectContextWithDocuments(projectContextId: string): Promise<{
@@ -1526,7 +1526,7 @@ export function createResearcherProjectStore(
       return { interruptedAttempts: candidates.interruptedAttempts }
     },
     async listProjectContexts(limit) {
-      const rows = await database.orm.public.ProjectContext.where({
+      const query = database.orm.public.ProjectContext.where({
         researcherAccountId,
       })
         .select('id', 'name', 'createdAt')
@@ -1534,13 +1534,11 @@ export function createResearcherProjectStore(
           (project) => project.createdAt.desc(),
           (project) => project.id.desc(),
         ])
-        .take(limit)
-        .all()
+      const rows = await (limit === undefined ? query : query.take(limit)).all()
       if (rows.length === 0) return []
       const projectIds = rows.map((row) => row.id)
 
-      // Everything the summary needs, read as one bounded set of grouped
-      // queries over the owned, limited result set — never per project.
+      // Read summaries as grouped queries over owned projects, never per project.
       const documents = await database.orm.public.SourceDocument.where(
         (document) => document.projectContextId.in(projectIds),
       )

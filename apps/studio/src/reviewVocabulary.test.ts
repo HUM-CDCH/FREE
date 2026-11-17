@@ -10,6 +10,14 @@ it('an uncertain passage is non-verbatim', () => {
   expect(evidenceCheck({ verbatim: false }, 'APPROVED')).toBe('Not an exact match, please double check')
 })
 
+it.each([true, false])('recognises literal %s in historical supporting Evidence', value => {
+  const link = {verbatim: false}
+  expect(evidenceCheck(link, undefined, value, `Active: ${value}`)).toBeNull()
+  expect(evidenceCheck(link, undefined, value, `Active: ${String(value).toUpperCase()}`)).toBeNull()
+  for (const text of ['Active: yes', `Active: ${!value}`, `Active: ${value}hood`, `Active: _${value}`])
+    expect(evidenceCheck(link, undefined, value, text)).toBe('Not an exact match, please double check')
+})
+
 it('reads a field name as words, leaving its path, its acronyms and its capitals alone', () => {
   expect(fieldWords('site_name')).toBe('site name')
   expect(fieldWords('siteName')).toBe('site name')
