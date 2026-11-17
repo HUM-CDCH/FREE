@@ -48,27 +48,6 @@ export function PendingAsk({ asking, messageClass }: { asking: string; messageCl
   )
 }
 
-/** Pre-generation conversation over the same instruction state used by the Regenerate dialog, for a panel showing no
- *  other conversation: the instructions and questions in the order said, then `asking`, the message whose reply is
- *  still coming. The panel scrolls and composes it. */
-export function SchemaInstructionsChat({
-  instructions,
-  messageClass,
-  asking = null,
-}: {
-  instructions: SchemaInstructions
-  messageClass: MessageClass
-  asking?: string | null
-}) {
-  if (instructions.items.length === 0 && asking === null) return null
-  return (
-    <div className="flex flex-col gap-2">
-      {instructions.items.map(({ id }) => <InstructionItem key={id} instructions={instructions} id={id} messageClass={messageClass} />)}
-      {asking !== null && <PendingAsk asking={asking} messageClass={messageClass} />}
-    </div>
-  )
-}
-
 /** Compact post-generation editor for the instructions sent by Regenerate. */
 export function SchemaInstructionsDrawer({
   instructions,

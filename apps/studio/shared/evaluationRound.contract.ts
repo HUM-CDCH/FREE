@@ -27,4 +27,3 @@ export const evaluationRoundsResponseSchema = z
   .strict()
 
 export type EvaluationRound = z.output<typeof evaluationRoundSchema>
-export type EvaluationRoundsResponse = z.output<typeof evaluationRoundsResponseSchema>

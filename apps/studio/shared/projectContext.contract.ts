@@ -149,19 +149,6 @@ export const projectContextErrorResponseSchema = z
 
 const revisionNumber = z.number().int().positive()
 
-/**
- * Annotations project only what Studio needs to reopen. Geometry, offsets, and
- * anchor internals stay in the source resource.
- */
-export const annotationSchema = z
-  .object({
-    annotationId: canonicalUuidSchema,
-    evidenceAnchorId: z.string(),
-    text: z.string(),
-    pageNumber: revisionNumber,
-  })
-  .strict()
-
 /** Same-origin resources pinned to the exact reopened representation. */
 export const sourceRepresentationResourcesSchema = z
   .object({

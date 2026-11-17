@@ -25,10 +25,6 @@ def fixture(name: str) -> dict:
     return json.loads((FIXTURES / f"{name}.json").read_text(encoding="utf-8"))
 
 
-def names() -> list[str]:
-    return sorted(path.stem for path in FIXTURES.glob("*.json"))
-
-
 def write(case: dict | str, run_dir: Path, *, generation: str = GENERATION) -> Path:
     """`run_dir/result/` holding the fixture as a complete canonical result; returns `run_dir`."""
     data = fixture(case) if isinstance(case, str) else case

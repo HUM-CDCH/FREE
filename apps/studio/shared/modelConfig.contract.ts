@@ -37,7 +37,6 @@ export const ingestionModelKeySchema = z.string().min(1).max(128)
 export const ingestionModelChoiceSchema = z
   .object({ ocr: ingestionModelKeySchema.optional(), layout: ingestionModelKeySchema.optional() })
   .strict()
-export type IngestionModelChoice = z.infer<typeof ingestionModelChoiceSchema>
 
 export const modelConfigSchema = z
   .object({
@@ -144,7 +143,6 @@ export const apiErrorBodySchema = z
     error: z.object({ code: z.string(), message: z.string(), details: z.unknown().optional() }).strict(),
   })
   .strict()
-export type ApiErrorBody = z.infer<typeof apiErrorBodySchema>
 
 /** The `details` shape `boundedValidationDetails` attaches to a rejected configuration. */
 export const validationDetailsSchema = z
@@ -154,7 +152,6 @@ export const validationDetailsSchema = z
     truncated: z.boolean(),
   })
   .strict()
-export type ValidationDetails = z.infer<typeof validationDetailsSchema>
 
 export type RouteKey = keyof ModelConfig['routes']
 
