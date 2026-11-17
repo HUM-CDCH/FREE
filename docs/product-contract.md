@@ -99,11 +99,21 @@ FREE's normative product and safety contract is:
    role, and starts Studio without the administrative credential. Each process
    migrates its own DBOS system schema (`dbos`, `kei_dbos`) when it launches. Normal startup never resets the database or
    seeds an account, Project Context, provider, route, or credential.
-   The legacy-retirement migration refuses incompatible persisted settings and
-   JSON shapes before dropping obsolete columns or tables. It never rewrites a
-   pinned method into another version. Delete incompatible development rows or
-   explicitly run the guarded local `pnpm db:reset` before retrying migration;
-   production is never reset.
+   Before dropping obsolete columns and tables, the legacy-retirement
+   migration requires operators to drain queued and running Extractions. It
+   removes retired controls from account preferences and compatible Article
+   pins. These Article Extractions retain their results, corrections, and
+   original resolved options and digests. Resume and Retry use the existing
+   Producing Input Selection. A researcher can adopt a new selection by
+   changing and applying inputs.
+   The migration deletes Batch Extractions with unsupported method pins
+   and every member of those batches. It deletes an Extraction if its
+   requested settings or any Producing Input Selection has an unsupported
+   method pin. It also deletes sampled and pre-durable Extractions. These
+   deletions remove the associated results, corrections, and runtime state.
+   If incompatible stored shapes remain, the migration fails and rolls back
+   the cleanup. Resolve incompatible development data or use the guarded
+   local `pnpm db:reset` before retrying. Production is never reset.
 9. **Proxy parity.** Production runs behind the host-managed nginx or the
    bundled nginx container; local uses containerized nginx. All render the
    same version-controlled proxy fragment for `/free` routing, forwarded
