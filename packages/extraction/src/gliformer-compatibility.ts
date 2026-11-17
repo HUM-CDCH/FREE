@@ -9,10 +9,7 @@ export function gliformerIssues(method: ExtractionMethodIntent, nodes: readonly 
   if (method.models?.reasoning === 'gliformer') issues.push('GLiFormer cannot be the reasoning model')
   if (method.models?.fields !== 'gliformer') return issues
   if (!('unified' in method.settings)) issues.push('the fields model requires unified Catalog extraction')
-  else {
-    for (const control of ['headings', 'verification'] as const)
-      if (method.settings.unified[control] === true) issues.push(`${control} must be Auto or off`)
-  }
+  else if (method.settings.unified.headings === true) issues.push('headings must be Auto or off')
   const visit = (fields: readonly SchemaNode[], parent: string) => {
     if (fields.length === 0) issues.push(`${parent || 'record'} (empty record group)`)
     const names = new Set<string>()

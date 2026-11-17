@@ -68,10 +68,10 @@ FREE's normative product and safety contract is:
    Model Choice and the Ingestion Model Choice. It also holds the account's
    Extraction Method Settings: per Extraction Strategy, how future Extractions
    run (the Model Configuration page's Advanced tab). Unset settings keep the
-   service defaults, except for Article: an Article Extraction started from a
-   current Studio page records Studio's default explicitly (the whole source,
-   large checks in windows), while
-   a page loaded before that default records none. Saved settings never edit an
+   service defaults. Article records the shared Studio and Parsing Service
+   default explicitly: the whole source, large checks in windows. Null Article
+   settings and retired Article keys are refused. Unified Catalog accepts only
+   defaults 11, with no verification switch (Pro mode is retired). Saved settings never edit an
    Extraction Schema and never hold a key. A Project Context uses its owner's configuration. The
    Model Configuration page supports Ollama, OpenAI, Anthropic, Google, vLLM
    and OpenAI-compatible connections. A researcher's API keys stay in their
@@ -99,6 +99,21 @@ FREE's normative product and safety contract is:
    role, and starts Studio without the administrative credential. Each process
    migrates its own DBOS system schema (`dbos`, `kei_dbos`) when it launches. Normal startup never resets the database or
    seeds an account, Project Context, provider, route, or credential.
+   Before dropping obsolete columns and tables, the legacy-retirement
+   migration requires operators to drain queued and running Extractions. It
+   removes retired controls from account preferences and compatible Article
+   pins. These Article Extractions retain their results, corrections, and
+   original resolved options and digests. Resume and Retry use the existing
+   Producing Input Selection. A researcher can adopt a new selection by
+   changing and applying inputs.
+   The migration deletes Batch Extractions with unsupported method pins
+   and every member of those batches. It deletes an Extraction if its
+   requested settings or any Producing Input Selection has an unsupported
+   method pin. It also deletes sampled and pre-durable Extractions. These
+   deletions remove the associated results, corrections, and runtime state.
+   If incompatible stored shapes remain, the migration fails and rolls back
+   the cleanup. Resolve incompatible development data or use the guarded
+   local `pnpm db:reset` before retrying. Production is never reset.
 9. **Proxy parity.** Production runs behind the host-managed nginx or the
    bundled nginx container; local uses containerized nginx. All render the
    same version-controlled proxy fragment for `/free` routing, forwarded
@@ -184,9 +199,8 @@ the saved method single Run reads after saving the schema
 nothing and answers 409 for a method the account has changed since
 (`method_changed`), a Schema Revision with no Record Scope
 (`record_scope_required`), a strategy that contradicts it
-(`record_scope_mismatch`), or, with the unified Catalog method, a Catalog start
-whose saved settings still carry retired Catalog limits the researcher has not
-reviewed and applied (`catalog_migration_required`). A single start is also refused while the newest
+(`record_scope_mismatch`). Catalog uses the unified method for every new single
+and batch start. A single start is also refused while the newest
 Extraction on its Source Representation, a Batch Extraction member included,
 is neither Completed nor Stopped (`extraction_in_progress`, naming it;
 [ADR 0020](adr/0020-one-unfinished-extraction-per-source-representation.md)).

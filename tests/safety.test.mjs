@@ -228,6 +228,17 @@ for (const nginx of ['host', 'container']) {
   }
 }
 
+test('production: the NVFP4 overlay replaces the instruction model and runs fewer calls at once', () => {
+  const config = renderProductionCompose(completeProductionEnvironment('/tmp/free-test-client.pem'),
+    ['-f', 'compose.gpu.yaml', '-f', 'compose.nvfp4.yaml'])
+  assertOwnedParsingTopology(config, true, '3')
+  const command = config.services.extraction_model.command
+  assert.equal(command[0], 'nvidia/Qwen3.8-27B-NVFP4')
+  assert.equal(command[command.indexOf('--kv-cache-memory-bytes') + 1], '8G')
+  assert.equal(command[command.indexOf('--max-num-seqs') + 1], '4')
+  assert.equal(config.services.parsing_service.environment.KEI_EXTRACT_MODEL, command[0])
+})
+
 test('production tracing: enabled by default with content capture off', () => {
   const config = renderProductionCompose({
     ...completeProductionEnvironment('/tmp/free-test-client.pem'),
@@ -298,7 +309,7 @@ test('a stack can use another stack\'s model servers, which share nothing else w
   }
 })
 
-function assertOwnedParsingTopology(config, gpu) {
+function assertOwnedParsingTopology(config, gpu, chunks) {
   const services = config.services
   assert.equal(services.studio.environment.KEI_EXP_URL, 'http://parsing_service:8001')
   // Host-run Model Connections still resolve from Studio, independently of parsing.
@@ -387,9 +398,10 @@ function assertOwnedParsingTopology(config, gpu) {
     assert.equal(services.parsing_worker.depends_on.ocr_model.condition, 'service_healthy')
     // A restarted worker recovers its pending workflows, so it starts once the last extraction server is serving.
     assert.equal(services.parsing_worker.depends_on.extraction_model.condition, 'service_healthy')
-    // A Catalog sends as many entry requests at once as NuExtract runs (--max-num-seqs).
+    // A Catalog sends as many entry requests at once as NuExtract runs (--max-num-seqs), unless the instruction
+    // server needs fewer (compose.nvfp4.yaml).
     const nuSeqs = services.nuextract_model.command[services.nuextract_model.command.indexOf('--max-num-seqs') + 1]
-    assert.equal(services.parsing_worker.environment.KEI_CATALOG_CHUNKS, nuSeqs)
+    assert.equal(services.parsing_worker.environment.KEI_CATALOG_CHUNKS, chunks ?? nuSeqs)
     assert.equal(services.parsing_service.environment.KEI_CATALOG_CHUNKS, undefined)
     // The worker sends a call's priority only to the extraction servers that schedule by it.
     const scheduled = ['nuextract_model', 'extraction_model'].filter(name =>
@@ -629,9 +641,9 @@ for (const [provider, overlay, login] of [
 
 test('no deployment admits new Catalog work on the unified method unless its operator sets the gate', () => {
   const services = renderDevelopmentCompose(deriveDevProfile(parseDevOptions([]), {})).services
-  assert.equal(services.studio.environment.FREE_CATALOG_METHOD, '')
+  assert.equal(services.studio.environment.FREE_CATALOG_METHOD, undefined)
   const base = readFileSync(resolve(ROOT, 'compose.yaml'), 'utf8')
-  assert.ok(base.includes('FREE_CATALOG_METHOD: "${FREE_CATALOG_METHOD:-}"'), 'the unified Catalog stays behind its rollout gate')
+  assert.ok(!base.includes('FREE_CATALOG_METHOD'), 'Catalog has no rollout gate')
 })
 
 test('app shell: the production policy is strict about script, workers and framing', async () => {

@@ -4,7 +4,6 @@ import type { SchemaModelInput } from './_schema_suggestion.js'
 import { ApiError } from './_http.js'
 import { ModelKeyRequiredError } from './_model_keys.js'
 import {
-  BATCH_WINDOWED_SUGGESTION,
   registerBatchSuggestionWorkflow,
   SUGGEST_SCHEMA_BATCH,
   suggestSchemaBatchWorkflow,
@@ -51,8 +50,6 @@ type Scenario = {
   checkpoints?: Map<string, unknown>
   /** Throws when this step is reached, as a crash before it would. */
   crashAt?: string
-  /** Whether the run is past the windowed-suggestion DBOS patch. */
-  patched?: boolean
 }
 
 function harness(scenario: Scenario = {}) {
@@ -108,7 +105,6 @@ function harness(scenario: Scenario = {}) {
       if (scenario.generate) return scenario.generate(key, modelInput)
       return generated(key === 'merge' ? commonTemplate : sourceTemplate)
     },
-    patched: async (name) => scenario.patched === true && name === BATCH_WINDOWED_SUGGESTION,
   }
   return { input, ports, steps, configs, writes, calls, cancel, run: () => suggestSchemaBatchWorkflow(input, ports) }
 }
@@ -118,15 +114,13 @@ afterEach(() => {
 })
 
 describe('suggestSchemaBatch', () => {
-  it('generates each pinned source in its own named step, in sorted order, then merges and publishes once', async () => {
+  it('generates each pinned source in its own named steps, in sorted order, then merges and publishes once', async () => {
     const h = harness()
     await h.run()
-    expect(h.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'merge', 'publish'])
+    expect(h.steps).toEqual(['suggestSource:source-a:window:1', 'suggestSource:source-b:window:1', 'merge:reduce:1:1', 'publish'])
     expect(h.calls.map((call) => call.input.document.markdown?.split('\n')[0])).toEqual([
-      '# Source A', '# Source B', 'SOURCE DOCUMENT source-a SUGGESTION:',
+      '# Source A', '# Source B', 'SOURCE DOCUMENT source-a SCHEMA:',
     ])
-    // A source's pinned page spans reach its model call; the merge's synthetic text has none.
-    expect(h.calls.map((call) => call.input.document.pageSpans)).toEqual([PAGE_SPANS, PAGE_SPANS, undefined])
     expect(h.writes).toHaveLength(1)
     const [write] = h.writes
     if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
@@ -137,54 +131,6 @@ describe('suggestSchemaBatch', () => {
       { sourceDocumentId: 'source-b', sourceCoverage: { complete: true }, combined: true },
     ])
     expect(write.result).not.toHaveProperty('coverage')
-  })
-
-  it('publishes each Source Document suggestion\'s own declaration of what it did not read', async () => {
-    const h = harness({ generate: async (markdown) =>
-      markdown === '# Source B' ? generated(sourceTemplate, EXCERPTED) : generated(markdown === 'merge' ? commonTemplate : sourceTemplate) })
-    await h.run()
-    const [write] = h.writes
-    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
-    expect(write.result.sourceCoverage).toEqual([
-      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true }, combined: true },
-      { sourceDocumentId: 'source-b', sourceCoverage: EXCERPTED, combined: true },
-    ])
-  })
-
-  it('declares a suggestion the merge left out because the combined suggestions exceeded the limit', async () => {
-    // Source C's suggestion alone is over the 48,000-character limit for the merge's input.
-    const wide = Object.fromEntries([['_description', 'One article.'], ...Array.from({ length: 1_000 }, (_, i) => [`field_${i}`, 'string'])])
-    const h = harness({
-      members: [A, B, C],
-      generate: async (markdown) =>
-        generated(markdown === 'merge' ? commonTemplate : markdown === '# Source C' ? wide : sourceTemplate),
-    })
-    await h.run()
-    const [write] = h.writes
-    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
-    const merged = h.calls.at(-1)!.input.document.markdown!
-    expect(merged).toContain('SOURCE DOCUMENT source-a SUGGESTION:')
-    expect(merged).not.toContain('SOURCE DOCUMENT source-c')
-    expect(write.result.sourceCoverage).toEqual([
-      { sourceDocumentId: 'source-a', sourceCoverage: { complete: true }, combined: true },
-      { sourceDocumentId: 'source-b', sourceCoverage: { complete: true }, combined: true },
-      { sourceDocumentId: 'source-c', sourceCoverage: { complete: true }, combined: false },
-    ])
-  })
-
-  it('declares a recovered source step that predates the declaration as not recorded, rather than complete', async () => {
-    const checkpoints = new Map<string, unknown>([
-      ['suggestSource:source-a', { kind: 'definition', sourceDocumentId: 'source-a',
-        definition: { recordDescription: 'One article.', schemaNodes: [{ id: 'title', name: 'title', type: 'string' }] } }],
-    ])
-    const h = harness({ checkpoints })
-    await h.run()
-    const [write] = h.writes
-    if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
-    expect(write.result.sourceCoverage).toEqual([
-      { sourceDocumentId: 'source-a', sourceCoverage: null, combined: true },
-      { sourceDocumentId: 'source-b', sourceCoverage: { complete: true }, combined: true },
-    ])
   })
 
   it('the first failed source ends the attempt: no later source runs, no merge, and its failure is published', async () => {
@@ -203,7 +149,7 @@ describe('suggestSchemaBatch', () => {
         },
       })
       await h.run()
-      expect(h.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'publishFailure'])
+      expect(h.steps).toEqual(['suggestSource:source-a:window:1', 'suggestSource:source-b:window:1', 'publishFailure'])
       expect(h.calls.map((call) => call.input.document.markdown)).toEqual(['# Source A', '# Source B'])
       expect(h.writes).toEqual([{ kind: 'fail', failure }])
     }
@@ -213,21 +159,21 @@ describe('suggestSchemaBatch', () => {
     const h = harness({ members: [A, B, C], generate: async () => { throw new ModelKeyRequiredError() } })
     await h.run()
     expect(h.calls).toHaveLength(1)
-    expect(h.steps).toEqual(['suggestSource:source-a', 'publishFailure'])
+    expect(h.steps).toEqual(['suggestSource:source-a:window:1', 'publishFailure'])
     expect(h.writes).toEqual([{ kind: 'fail', failure: { code: 'model_key_required', message: new ModelKeyRequiredError().message } }])
   })
 
   it('recovery of the same attempt reuses the sources it already checkpointed', async () => {
     const checkpoints = new Map<string, unknown>()
-    const crashed = harness({ members: [A, B, C], checkpoints, crashAt: 'suggestSource:source-c' })
-    await expect(crashed.run()).rejects.toThrow('crashed before suggestSource:source-c')
+    const crashed = harness({ members: [A, B, C], checkpoints, crashAt: 'suggestSource:source-c:window:1' })
+    await expect(crashed.run()).rejects.toThrow('crashed before suggestSource:source-c:window:1')
     expect(crashed.calls).toHaveLength(2)
 
     const recovered = harness({ members: [A, B, C], checkpoints })
     await recovered.run()
-    expect(recovered.steps).toEqual(['suggestSource:source-c', 'merge', 'publish'])
+    expect(recovered.steps).toEqual(['suggestSource:source-c:window:1', 'merge:reduce:1:1', 'publish'])
     expect(recovered.calls.map((call) => call.input.document.markdown?.split('\n')[0])).toEqual([
-      '# Source C', 'SOURCE DOCUMENT source-a SUGGESTION:',
+      '# Source C', 'SOURCE DOCUMENT source-a SCHEMA:',
     ])
     expect(recovered.writes.map((write) => write.kind)).toEqual(['publish'])
   })
@@ -235,25 +181,25 @@ describe('suggestSchemaBatch', () => {
   it('stops without publishing when its attempt was interrupted, superseded or its scope deleted', async () => {
     const stopped = harness({ attemptState: (call) => (call === 0 ? 'current' : 'stopped') })
     await stopped.run()
-    expect(stopped.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b'])
+    expect(stopped.steps).toEqual(['suggestSource:source-a:window:1', 'suggestSource:source-b:window:1'])
     expect(stopped.calls).toHaveLength(1)
     expect(stopped.writes).toEqual([])
 
     const ownerGone = harness({ owner: null })
     await ownerGone.run()
-    expect(ownerGone.steps).toEqual(['suggestSource:source-a'])
+    expect(ownerGone.steps).toEqual(['suggestSource:source-a:window:1'])
     expect(ownerGone.calls).toEqual([])
     expect(ownerGone.writes).toEqual([])
 
     const revisionGone = harness({ readMarkdown: (revisionId) => (revisionId === 'revision-b' ? null : MARKDOWN[revisionId]!) })
     await revisionGone.run()
-    expect(revisionGone.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b'])
+    expect(revisionGone.steps).toEqual(['suggestSource:source-a:window:1', 'suggestSource:source-b:window:1'])
     expect(revisionGone.calls).toHaveLength(1)
     expect(revisionGone.writes).toEqual([])
 
     const stoppedBeforeMerge = harness({ attemptState: (call) => (call < 2 ? 'current' : 'stopped') })
     await stoppedBeforeMerge.run()
-    expect(stoppedBeforeMerge.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'merge'])
+    expect(stoppedBeforeMerge.steps).toEqual(['suggestSource:source-a:window:1', 'suggestSource:source-b:window:1', 'merge:reduce:1:1'])
     expect(stoppedBeforeMerge.calls).toHaveLength(2)
     expect(stoppedBeforeMerge.writes).toEqual([])
   })
@@ -261,7 +207,7 @@ describe('suggestSchemaBatch', () => {
   it('a heterogeneous merge publishes HETEROGENEOUS without a proposal', async () => {
     const h = harness({ generate: async (markdown) => generated(markdown === 'merge' ? emptyTemplate : sourceTemplate) })
     await h.run()
-    expect(h.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'merge', 'publish'])
+    expect(h.steps).toEqual(['suggestSource:source-a:window:1', 'suggestSource:source-b:window:1', 'merge:reduce:1:1', 'publish'])
     expect(h.writes).toEqual([{ kind: 'publish', result: { phase: 'HETEROGENEOUS', sourceCoverage: [
       { sourceDocumentId: 'source-a', sourceCoverage: { complete: true }, combined: true },
       { sourceDocumentId: 'source-b', sourceCoverage: { complete: true }, combined: true },
@@ -276,7 +222,7 @@ describe('suggestSchemaBatch', () => {
       },
     })
     await h.run()
-    expect(h.steps).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'merge', 'publish'])
+    expect(h.steps).toEqual(['suggestSource:source-a:window:1', 'suggestSource:source-b:window:1', 'merge:reduce:1:1', 'publish'])
     expect(h.writes).toEqual([{ kind: 'fail', failure: { code: 'unexpected_failure', message: 'The operation failed unexpectedly.' } }])
   })
 
@@ -313,7 +259,7 @@ describe('suggestSchemaBatch', () => {
     const failed = harness({ members: [A], generate: async () => { throw new Error('model down') } })
     await failed.run()
     const configs = new Map([...h.configs, ...failed.configs])
-    expect([...configs.keys()]).toEqual(['suggestSource:source-a', 'suggestSource:source-b', 'merge', 'publish', 'publishFailure'])
+    expect([...configs.keys()]).toEqual(['suggestSource:source-a:window:1', 'suggestSource:source-b:window:1', 'merge:reduce:1:1', 'publish', 'publishFailure'])
     const dropped = Object.assign(new Error('terminating connection due to administrator command'), { code: '57P01' })
     const wrapped = Object.assign(new Error('Query failed'), { cause: Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }) })
     const refused = Object.assign(new Error('connection refused'), { sqlState: '08006' })
@@ -331,7 +277,7 @@ describe('suggestSchemaBatch', () => {
   it('a failure publication that finds the attempt stopped writes nothing and does not throw', async () => {
     const h = harness({ publishes: 'stopped', generate: async () => { throw new ModelKeyRequiredError() } })
     await expect(h.run()).resolves.toBeUndefined()
-    expect(h.steps).toEqual(['suggestSource:source-a', 'publishFailure'])
+    expect(h.steps).toEqual(['suggestSource:source-a:window:1', 'publishFailure'])
     expect(h.writes.map((write) => write.kind)).toEqual(['fail'])
   })
 
@@ -350,10 +296,9 @@ describe('suggestSchemaBatch', () => {
   })
 })
 
-describe('suggestSchemaBatch, patched to read every window', () => {
+describe('suggestSchemaBatch, reading every window', () => {
   const LONG_A = Array.from({ length: 40 }, (_, i) => `Entry ${i}. ${i === 30 ? 'MIDDLE ' : ''}${'x'.repeat(3_000)}`).join('\n\n')
   const windowed = (scenario: Scenario = {}) => harness({
-    patched: true,
     readMarkdown: (revisionId) => (revisionId === 'revision-a' ? LONG_A : (MARKDOWN[revisionId] ?? null)),
     generate: async (markdown) => {
       if (markdown === 'merge') return generated(commonTemplate)
@@ -432,7 +377,7 @@ describe('suggestSchemaBatch, patched to read every window', () => {
     if (write?.kind !== 'publish' || write.result.phase !== 'READY') throw new Error('expected a READY publication')
     expect(write.result.proposal.schemaNodes.map((node) => node.name)).not.toContain('field_7')
     expect(write.result.proposal.schemaNodes).toHaveLength(219)
-    expect(write.result.sourceCoverage?.every((source) => source.combined)).toBe(true)
+    expect(write.result.sourceCoverage.every((source) => source.combined)).toBe(true)
   })
 
   it('a combination without a common field publishes HETEROGENEOUS', async () => {
@@ -464,13 +409,10 @@ describe('workerSuggestionStore', () => {
 
     await store.publish(SUGGESTION, 2, { phase: 'READY', proposal, sourceCoverage: declared, draft: proposal })
     await store.publish(SUGGESTION, 2, { phase: 'HETEROGENEOUS', sourceCoverage: declared })
-    // A merge step checkpointed before the declaration existed replays its old result.
-    await store.publish(SUGGESTION, 2, { phase: 'READY', proposal, coverage: [{ nodeId: 'title', present: 1, total: 1 }], draft: proposal } as never)
 
     expect(publishBatchSchemaSuggestion.mock.calls).toEqual([
       [SUGGESTION, 2, { phase: 'READY', proposal, coverage: declared, draft: proposal }],
       [SUGGESTION, 2, { phase: 'HETEROGENEOUS', coverage: declared }],
-      [SUGGESTION, 2, { phase: 'READY', proposal, coverage: null, draft: proposal }],
     ])
   })
 })

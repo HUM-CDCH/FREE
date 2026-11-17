@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { describe, expect, it } from 'vitest'
 import {
   BATCH_EXTRACTION_SELECTION_LIMIT,
@@ -10,7 +11,7 @@ import { batchSchemaSuggestionCreateRequestSchema } from './batchSchemaSuggestio
 
 const projectContextId = '51000000-0000-4000-8000-000000000001'
 const schemaRevisionId = '51000000-0000-4000-8004-000000000001'
-const method = { models: null, settings: { article: null } }
+const method = { models: null, settings: { article: REFERENCE_ARTICLE } }
 const sourceDocumentIds = Array.from(
   { length: BATCH_EXTRACTION_SELECTION_LIMIT + 1 },
   (_, index) =>
@@ -73,13 +74,13 @@ describe('Batch start methods', () => {
   const selection = { projectContextId, schemaRevisionId, sourceDocumentIds: sourceDocumentIds.slice(0, 1) }
 
   it("requires the saved method of the strategy's own settings, never a recipe's", () => {
-    for (const [strategy, settings] of [['ARTICLE', { article: null }], ['CATALOG', { generic: null }]] as const) {
+    for (const [strategy, settings] of [['ARTICLE', { article: REFERENCE_ARTICLE }], ['CATALOG', { unified: { defaults: 11 } }]] as const) {
       const request = { strategy, method: { models: { fields: 'instruct' }, settings } }
       expect(batchExtractionRequestSchema.safeParse({ ...selection, ...request }).success).toBe(true)
     }
     for (const request of [
       { strategy: 'ARTICLE' },
-      { strategy: 'ARTICLE', method: { models: null, settings: { generic: null } } },
+      { strategy: 'ARTICLE', method: { models: null, settings: { unified: { defaults: 11 } } } },
       { strategy: 'ARTICLE', method: { models: null, settings: { recipe: null } } },
       { strategy: 'CATALOG', method: { models: null, settings: { recipe: null } } },
     ]) {
@@ -88,8 +89,7 @@ describe('Batch start methods', () => {
   })
 
   it('refuses a method that breaks a rule at the field it concerns', () => {
-    const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, identity: 'reference', identity_fields: [],
-      prompt: 'reference', grounding: 'semantic' }
+    const article = { context: 'full', context_tokens: 12288, overlap_passages: 1, grounding: 'semantic' }
     const parsed = batchExtractionRequestSchema.safeParse({ ...selection, strategy: 'ARTICLE', method: { models: null, settings: { article } } })
     expect(parsed.success).toBe(false)
     expect(parsed.error?.issues).toContainEqual(expect.objectContaining({
@@ -120,6 +120,7 @@ describe('Batch Extraction contracts', () => {
     strategy: 'ARTICLE',
     executionStatus: 'RUNNING',
     createdAt: '2026-09-26T10:00:00.000Z',
+    trial: false,
     members: [
       member(0, 'COMPLETED'),
       member(1, 'COMPLETED', true, review),

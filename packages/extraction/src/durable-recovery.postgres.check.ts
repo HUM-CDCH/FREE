@@ -7,7 +7,7 @@ import { resolve } from 'node:path'
 import { test } from 'node:test'
 import { promisify } from 'node:util'
 import { Client } from 'pg'
-import { migrate,provisionDatabase,seedPreMigrationHistory,CATALOG_TREE } from '../../db/src/record-scope-history-fixture.js'
+import { migrate,provisionDatabase,seedResearchPins,CATALOG_TREE } from '../../db/src/postgres-fixture.js'
 import { ensureKeiRole } from '../../db/src/kei-role.js'
 import { initializeDurableExtraction } from './durable-repository.js'
 import { durableTestNetwork } from './durable-test-network.js'
@@ -28,7 +28,7 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
     try{await maintenance.query(`DROP ROLE IF EXISTS ${role}`)}finally{await maintenance.end()}
   })
   await migrate(target.url);await owner.connect()
-  const history=await seedPreMigrationHistory(owner)
+  const history=await seedResearchPins(owner)
   const password=randomBytes(24).toString('hex')
   await ensureKeiRole(owner,{role,password,schema:'kei_dbos'})
   const workerUrl=new URL(target.url);workerUrl.username=role;workerUrl.password=password
@@ -38,12 +38,12 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
   for(const fault of ['capture_unit','finalize_input','commit_output','saved_result','acknowledge']){
     const id=randomUUID()
     await owner.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
-      VALUES ($1,$2,$3,$4,'CATALOG',$5)`,[id,source.sourceDocumentId,source.sourceRepresentationRevisionId,history.revisions.catalog,{generic:null}])
+      VALUES ($1,$2,$3,$4,'CATALOG',$5)`,[id,source.sourceDocumentId,source.sourceRepresentationRevisionId,history.revisions.catalog,{ unified: { defaults: 11 } }])
     await owner.query('BEGIN')
     try{await initializeDurableExtraction(owner as never,id,{projectContextId:history.projectContextId,
       sourceRepresentationRevisionId:source.sourceRepresentationRevisionId,schemaRevisionId:history.revisions.catalog,
-      schemaTree:CATALOG_TREE,strategy:'CATALOG',catalogRecipe:null,preprocessId:representation.preprocessId,
-      requestedModels:null,requestedSettings:{generic:null}});await owner.query('COMMIT')}
+      schemaTree:CATALOG_TREE,strategy:'CATALOG',preprocessId:representation.preprocessId,
+      requestedModels:null,requestedSettings:{ unified: { defaults: 11 } }});await owner.query('COMMIT')}
     catch(error){await owner.query('ROLLBACK');throw error}
     const head=(await owner.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
     const attempt=(await owner.query('SELECT "workflowId" FROM extraction_runtime.attempt WHERE id=$1',[head.attemptId])).rows[0]

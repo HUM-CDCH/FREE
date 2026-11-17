@@ -10,7 +10,7 @@ from kei_exp.kie.extract import run
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.schema import Schema, evidence_policy
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import evidence, passages
 
 TREE = json.loads((Path(__file__).parent / "fixtures/contracts/evidence-policy.schema.json").read_text())

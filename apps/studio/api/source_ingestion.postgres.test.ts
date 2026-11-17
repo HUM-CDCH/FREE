@@ -300,11 +300,12 @@ describe('ingestSource on PostgreSQL', () => {
     const pdf = uniquePdf()
     await standIn.policy({ convert: { failure: { code: 'source_unreadable', reason: 'PDFium could not open it', retryable: false } } })
 
-    const failed = await settled(await admitted(await ingest(store, projectContextId, pdf)))
+    const failedWorkflow = await admitted(await ingest(store, projectContextId, pdf))
+    const failed = await settled(failedWorkflow)
     expect(failed).toEqual({
       ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document could not be parsed: PDFium could not open it',
     })
-    expect(await staged(projectContextId)).toEqual([])
+    expect(await staged(projectContextId)).toEqual([`${failedWorkflow.split(':')[2]}.pdf`])
 
     await standIn.policy({ convert: 'auto' })
     await created(await ingest(store, projectContextId, pdf))
@@ -321,14 +322,15 @@ describe('ingestSource on PostgreSQL', () => {
     const pdf = uniquePdf()
     partialResults = true
 
-    const refused = await settled(await admitted(await ingest(store, projectContextId, pdf)))
+    const refusedWorkflow = await admitted(await ingest(store, projectContextId, pdf))
+    const refused = await settled(refusedWorkflow)
     expect(refused).toEqual({ ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document was only partially parsed.' })
     const [attempt] = await ingestWorkflows(projectContextId)
     expect(attempt).toMatchObject({
       status: 'SUCCESS',
       output: { ok: false, status: 422, code: 'source_ingestion_failed', message: 'The Source Document was only partially parsed.' },
     })
-    expect(await staged(projectContextId)).toEqual([])
+    expect(await staged(projectContextId)).toEqual([`${refusedWorkflow.split(':')[2]}.pdf`])
     expect(await sourceDocuments(projectContextId)).toEqual([])
 
     partialResults = false

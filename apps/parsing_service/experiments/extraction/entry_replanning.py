@@ -30,7 +30,7 @@ from kei_exp.kie.extract.durable import CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.retained import publish_final
 from tests.test_durable_extraction import Counter as WordCounter, MemoryLease
-from tests.test_extract_grounded import CountingChat
+from tests.helpers.extraction import CountingChat
 from tests.test_unified_catalog import Model, evidence, request as unified_request
 from tests.test_unified_catalog import untimed
 
@@ -268,7 +268,7 @@ def main():
     one = sub.add_parser("record")
     one.add_argument("out", type=Path)
     one.add_argument("--records", type=int, default=40)
-    one.add_argument("--defaults", type=int, default=3, choices=(3, 4, 7))
+    one.add_argument("--defaults", type=int, default=11, choices=(11,))  # the one admitted version
     one.add_argument("--chunks", type=int, default=4)
     two = sub.add_parser("replay")
     two.add_argument("replies", type=Path)

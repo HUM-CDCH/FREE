@@ -59,13 +59,7 @@ export type IngestionStore = Pick<ResearcherProjectStore, 'findSourceDocumentByC
 
 export type IngestionWorkflowPorts = SourceConversionPorts & Readonly<{
   storeFor(owner: string): IngestionStore
-  /** `DBOS.patch`: whether this run takes the patched step sequence; absent, it never does. */
-  patched?(name: string): Promise<boolean>
 }>
-
-/** DBOS patch: a run past it keeps a failed attempt's staged PDF for Retry; Retry, dismissal or garbage collection
- *  removes it (ADR 0014, 4). A run before it removes the file on every outcome. */
-export const RETAIN_FAILED_SOURCE = 'ingest-retain-failed-source'
 
 /** The ok outcome for a Source Document already in the store. */
 export function ingestedOutput(document: Omit<PersistedSourceDocument, 'descriptor'>): IngestedSourceDocumentOutput {
@@ -133,8 +127,8 @@ export async function ingestSourceWorkflow(input: IngestionInput, ports: Ingesti
     if ('ok' in converted) return converted
     return steps.step('publishSourceDocument', () => publish(store, input, converted, ports.packageStore))
   })
-  // Only a failure reaches the patch marker, so a success's history is the one every run before the patch wrote.
-  if (outcome.ok || !(await ports.patched?.(RETAIN_FAILED_SOURCE))) await removeStaged(ports, input.source)
+  // A failed attempt keeps its staged PDF for Retry; Retry, dismissal or garbage collection removes it (ADR 0014, 4).
+  if (outcome.ok) await removeStaged(ports, input.source)
   return outcome
 }
 

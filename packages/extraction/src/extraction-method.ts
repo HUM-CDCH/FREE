@@ -1,7 +1,5 @@
 import { z } from 'zod'
-import { isScalarFieldType } from './allowed-values.js'
 import { ExtractionError } from './errors.js'
-import type { SchemaNode } from './schema.js'
 import type { ExtractionModelChoice, ExtractionStrategy } from './types.js'
 
 const ROLES = ['fields', 'reasoning'] as const
@@ -19,28 +17,18 @@ export const extractionModelChoiceSchema = z
 export const ARTICLE_MIN_CONTEXT_TOKENS = 8_192
 /** The Parsing Service's reference bounded ceiling; full source uses the served context instead. */
 export const ARTICLE_REFERENCE_CONTEXT_TOKENS = 12_288
-/** The Parsing Service's Catalog defaults (`run.py` `Options`, `grounded.py` `CatalogOptions`). */
-export const CATALOG_DEFAULTS = { discovery_chars: 48_000, record_chars: 24_000, input_tokens: 4_096, output_tokens: 1_024 } as const
 
 /** The copy a refused setting shows: beside its field on the Advanced tab and in a refused request's details. */
 export const METHOD_MESSAGES = {
   bounded: 'This choice requires bounded source units.',
   schemaPolicy: 'Schema policies require generated quotes or source spans.',
-  schedule: 'Choose a verification method to use this schedule.',
   overflow: 'Choose a verification method to check large claims in windows.',
-  routing: 'Use generated quotes or source spans, and stop after support.',
-  identity: 'Add the scalar record fields that identify one record.',
-  identityNames: 'Each identity field needs its own non-empty name.',
-  identityLimit: 'Use at most 32 identity fields, each at most 128 characters.',
   contextTokens: 'Enter a whole number of tokens, at least 8,192.',
   overlap: 'Choose 0, 1 or 2 previous passages.',
-  characters: 'Enter a whole number of characters, at least 1,000.',
-  budgetTokens: 'Enter a whole number of tokens, at least 64.',
   inputTokens: 'Enter a whole number of tokens from 512 to 1,048,576, or leave Auto.',
   replyTokens: 'Enter a whole number of tokens from 64 to 65,536, or use the stage defaults.',
   catalogOverlap: 'Choose from 0 to 4 source lines.',
   catalogCandidates: 'Choose from 1 to 1024 context excerpts.',
-  migration: 'Review the unified Catalog settings and apply them before starting a Catalog Extraction.',
 } as const
 
 const wholeNumber = (message: string, minimum: number) => z.number({ error: message }).int(message).min(minimum, message)
@@ -52,15 +40,8 @@ export const articleSettingsSchema = z.object({
   context: z.enum(['full', 'bounded']).default('full'),
   context_tokens: wholeNumber(METHOD_MESSAGES.contextTokens, ARTICLE_MIN_CONTEXT_TOKENS).default(ARTICLE_REFERENCE_CONTEXT_TOKENS),
   overlap_passages: wholeNumber(METHOD_MESSAGES.overlap, 0).max(2, METHOD_MESSAGES.overlap).default(0),
-  identity: z.enum(['reference', 'conservative']).default('reference'),
-  identity_fields: z.array(z.string().min(1, METHOD_MESSAGES.identityNames).max(128, METHOD_MESSAGES.identityLimit))
-    .max(32, METHOD_MESSAGES.identityLimit).default([]),
-  prompt: z.enum(['reference', 'schema']).default('reference'),
   grounding: z.enum(['semantic', 'quoted', 'spans', 'off']).default('semantic'),
-  grounding_schedule: optionalFactor('unresolved'),
   evidence_policy: optionalFactor('schema'),
-  grounding_routing: optionalFactor('origin_lexical'),
-  selection: optionalFactor('supported'),
   rendering: optionalFactor('structured'),
   grouping: optionalFactor('structural'),
   grounding_overflow: optionalFactor('windows'),
@@ -69,125 +50,48 @@ export type ArticleSettings = z.output<typeof articleSettingsSchema>
 
 /** `ArticleOptions` field order: saved, compared and sent Article settings keep it, so equal drafts serialize alike. */
 export const ARTICLE_KEYS = [
-  'context', 'context_tokens', 'overlap_passages', 'identity', 'identity_fields', 'prompt', 'grounding',
-  'grounding_schedule', 'evidence_policy', 'grounding_routing', 'selection', 'rendering', 'grouping', 'grounding_overflow',
+  'context', 'context_tokens', 'overlap_passages', 'grounding',
+  'evidence_policy', 'rendering', 'grouping', 'grounding_overflow',
 ] as const satisfies readonly (keyof ArticleSettings)[]
 
-/** Studio's Article default, not the Parsing Service's (`method.py` `REFERENCE`, which is `UNRECORDED_ARTICLE`): the
- *  whole source, and a claim too large to check in it checked in windows of it. A current Studio page records and sends
- *  it explicitly for an account without saved Article settings (a page loaded before it still sends `article: null`),
- *  and Customize starts from it. The schema's own defaults are `UNRECORDED_ARTICLE`'s. */
+/** Article's shared default: the whole source, with oversized checks read in windows. */
 export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({ grounding_overflow: 'windows' }))
-/** What an Extraction recorded without Article settings (`article: null`) runs: the schema's defaults, the whole source
- *  without windows, as the service runs an omitted `options.article`. */
-export const UNRECORDED_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({}))
 
-export const genericCatalogSettingsSchema = z.object({
-  discovery_chars: wholeNumber(METHOD_MESSAGES.characters, 1_000).optional(),
-  record_chars: wholeNumber(METHOD_MESSAGES.characters, 1_000).optional(),
-}).strict()
-export type GenericCatalogSettings = z.output<typeof genericCatalogSettingsSchema>
-
-/** Recipe factors: `CatalogFactors`. Present factors are complete; each unset switch is on, as the service reads it. */
-export const catalogFactorsSchema = z.object({
-  glossary: z.boolean().default(true),
-  headings: z.boolean().default(true),
-  overlap: z.boolean().default(true),
-  verification: z.boolean().default(true),
-}).strict()
-type CatalogFactors = z.output<typeof catalogFactorsSchema>
-export const recipeCatalogSettingsSchema = z.object({
-  input_tokens: wholeNumber(METHOD_MESSAGES.budgetTokens, 64).optional(),
-  output_tokens: wholeNumber(METHOD_MESSAGES.budgetTokens, 64).optional(),
-  factors: catalogFactorsSchema.optional(),
-}).strict()
-export type RecipeCatalogSettings = z.output<typeof recipeCatalogSettingsSchema>
-
-/** The unified Catalog's versioned service defaults (`unified.py` `DEFAULTS`), pinned to it by the shared contract
- *  fixture: reply reserves per stage, overlap in source lines, heading context, verification, window halvings and
- *  what discovery windows never cross (2: a printed page), whether a durable run reads entries while discovery
- *  still reads later windows (3), and whether an entry's reply may use the context its counted input leaves, its reserve
- *  the floor (4). Version 5 uses budget-sized discovery windows and source-grounded scalar corrections in the
- *  existing verification call. Version 6 reads each value once (`single_pass`): the entry call is shown the value
- *  structure, verification is off, code accepts what it locates and keeps a value without a locatable quote
- *  ungrounded. Version 7 adds counted heading selection and literal scalar inheritance; derived or incomplete
- *  context stays proposed. The candidate ceiling defaults to 32 excerpts. Version 8 is version 6 plus two discovery
- *  readings: a record start copied from the wrong line is placed where it occurs once nearby, and records printed
- *  inside a discovered record (a numbered find in a grave's list) become records of their own, each read beside its
- *  enclosing record's text. Version 10 is version 9 with that second reading pipelined too (`children: 'pipelined'`):
- *  a durable run reads and saves each record as soon as its ranges are final, while discovery still reads later
- *  windows. Auto input is the served context minus the
- *  stage's reserve. New admissions use
- *  `UNIFIED_CATALOG_DEFAULTS_VERSION`; an Extraction keeps the one it was admitted under. */
+/** The unified Catalog's service defaults (`unified.py` `DEFAULTS`), pinned to it by the shared contract fixture:
+ *  reply reserves per stage, overlap in source lines, heading context, window halvings, and an entry reply that may
+ *  use the context its counted input leaves (its reserve the floor). Each value is read once; a value located in its
+ *  record's own text is linked by rule; one inherited from a heading is accepted only when an independent reading
+ *  agrees. Auto input is the served context minus the stage's reserve. Only `UNIFIED_CATALOG_DEFAULTS_VERSION` is
+ *  admitted: the number is provenance, never a switch. */
 const UNIFIED_BASE = {
   reserves: { discovery: 4_096, entry: 4_096, verification: 2_048, arbitration: 512, document: 2_048 },
-  headings: true, verification: true, splits: 6,
+  headings: true, splits: 6,
 } as const
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 11 as const
 export const UNIFIED_CATALOG_DEFAULTS = {
-  1: { ...UNIFIED_BASE, overlap: 1 },
-  2: { ...UNIFIED_BASE, overlap: 3, windows: 'page' },
-  3: { ...UNIFIED_BASE, overlap: 3, windows: 'page', pipelined: true },
-  4: { ...UNIFIED_BASE, overlap: 3, windows: 'page', pipelined: true, entry_reply: 'context' },
-  5: { ...UNIFIED_BASE, reserves: { ...UNIFIED_BASE.reserves, verification: 4_096 }, overlap: 3,
-    windows: 'budget', pipelined: true, entry_reply: 'context', corrections: true },
-  6: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
-    single_pass: true },
-  7: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
-    single_pass: true, heading_context: true, candidates: 32 },
-  8: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
-    single_pass: true, nearby: true, children: true },
-  9: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
-    single_pass: true, nearby: true, children: true, complete_text: true },
-  10: { ...UNIFIED_BASE, overlap: 3, verification: false, windows: 'budget', pipelined: true, entry_reply: 'context',
-    single_pass: true, nearby: true, children: 'pipelined', complete_text: true },
+  [UNIFIED_CATALOG_DEFAULTS_VERSION]: { ...UNIFIED_BASE, overlap: 3, entry_reply: 'context' },
 } as const
-/** Version 10 reads as version 9 (native table-entry granularity, nested records, complete qualified text values) and
- *  saves each record while discovery still reads. */
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 10 as const
-/** Pro mode: an account preference with verification on is admitted under this version, whose verification call reads
- *  every value again and may correct it; the latest reads each value once. */
-export const UNIFIED_CATALOG_PRO_VERSION = 5 as const
 
-/** The unified Catalog's six controls as the account saves them: each an override, absent for the defaults. */
+/** The unified Catalog's five controls as the account saves them: each an override, absent for the defaults. */
 export const unifiedCatalogPreferenceSchema = z.object({
   input_tokens: wholeNumber(METHOD_MESSAGES.inputTokens, 512).max(1_048_576, METHOD_MESSAGES.inputTokens).optional(),
   output_tokens: wholeNumber(METHOD_MESSAGES.replyTokens, 64).max(65_536, METHOD_MESSAGES.replyTokens).optional(),
   overlap: wholeNumber(METHOD_MESSAGES.catalogOverlap, 0).max(4, METHOD_MESSAGES.catalogOverlap).optional(),
   candidates: wholeNumber(METHOD_MESSAGES.catalogCandidates, 1).max(1_024, METHOD_MESSAGES.catalogCandidates).optional(),
   headings: z.boolean().optional(),
-  verification: z.boolean().optional(),
 }).strict()
 export type UnifiedCatalogPreference = z.output<typeof unifiedCatalogPreferenceSchema>
 /** The unified Catalog method one Extraction is admitted with (`options.unified`): the defaults version it runs under
  *  and the overrides, so it stays identifiable when every control is left to the defaults. */
 export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.extend({
-  defaults: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9), z.literal(10)]), // every version of UNIFIED_CATALOG_DEFAULTS: recorded ones stay valid
+  defaults: z.literal(UNIFIED_CATALOG_DEFAULTS_VERSION),
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
-const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings', 'verification'] as const
+const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings'] as const
 
-/** New Catalog admissions use the unified method only where the deployment enables it; until its release gates
- *  pass, the default remains the legacy generic and recipe Catalog. */
-export function unifiedCatalogEnabled(environment: Readonly<Record<string, string | undefined>> = process.env): boolean {
-  return environment.FREE_CATALOG_METHOD === 'unified'
-}
-
-/** Legacy generic and recipe Catalog are saved apart (the recipe is chosen per Extraction); the unified Catalog
- *  has one group of controls for single and batch work alike. */
-export const catalogSettingsSchema = z.object({
-  generic: genericCatalogSettingsSchema.optional(),
-  recipe: recipeCatalogSettingsSchema.optional(),
-  unified: unifiedCatalogPreferenceSchema.optional(),
-}).strict()
+/** One group of Catalog controls for single and batch work. */
+export const catalogSettingsSchema = z.object({ unified: unifiedCatalogPreferenceSchema.optional() }).strict()
 export type CatalogSettings = z.output<typeof catalogSettingsSchema>
-
-export const REFERENCE_CATALOG: CatalogSettings = Object.freeze({
-  generic: { discovery_chars: CATALOG_DEFAULTS.discovery_chars, record_chars: CATALOG_DEFAULTS.record_chars },
-  recipe: {
-    input_tokens: CATALOG_DEFAULTS.input_tokens, output_tokens: CATALOG_DEFAULTS.output_tokens,
-    factors: { glossary: true, headings: true, overlap: true, verification: true },
-  },
-})
 
 /** A Researcher Account's saved method settings per strategy. An absent member means service defaults. */
 export const extractionSettingsSchema = z.object({
@@ -204,19 +108,10 @@ export function articleSettingsIssues(article: ArticleSettings): MethodIssue[] {
   const bounded = article.context === 'bounded'
   const verifiesQuotes = article.grounding === 'quoted' || article.grounding === 'spans'
   if (article.overlap_passages > 0 && !bounded) issues.push({ path: 'overlap_passages', message: METHOD_MESSAGES.bounded })
-  if (article.selection && !bounded) issues.push({ path: 'selection', message: METHOD_MESSAGES.bounded })
   if (article.grouping && !bounded) issues.push({ path: 'grouping', message: METHOD_MESSAGES.bounded })
   if (article.evidence_policy && !verifiesQuotes) issues.push({ path: 'evidence_policy', message: METHOD_MESSAGES.schemaPolicy })
-  if (article.grounding_schedule && article.grounding === 'off')
-    issues.push({ path: 'grounding_schedule', message: METHOD_MESSAGES.schedule })
   if (article.grounding_overflow && article.grounding === 'off')
     issues.push({ path: 'grounding_overflow', message: METHOD_MESSAGES.overflow })
-  if (article.grounding_routing && (!verifiesQuotes || article.grounding_schedule !== 'unresolved'))
-    issues.push({ path: 'grounding_routing', message: METHOD_MESSAGES.routing })
-  if (article.identity === 'conservative' && article.identity_fields.length === 0)
-    issues.push({ path: 'identity_fields', message: METHOD_MESSAGES.identity })
-  if (new Set(article.identity_fields).size !== article.identity_fields.length)
-    issues.push({ path: 'identity_fields', message: METHOD_MESSAGES.identityNames })
   return issues
 }
 
@@ -252,11 +147,6 @@ export function canonicalArticle(article: ArticleSettings): ArticleSettings {
   return canonical as ArticleSettings
 }
 
-/** Catalog key orders (`Options`, `CatalogOptions`, `CatalogFactors`): like Article's, so equal settings serialize alike. */
-const GENERIC_KEYS = ['discovery_chars', 'record_chars'] as const satisfies readonly (keyof GenericCatalogSettings)[]
-const RECIPE_KEYS = ['input_tokens', 'output_tokens', 'factors'] as const satisfies readonly (keyof RecipeCatalogSettings)[]
-const FACTOR_KEYS = ['glossary', 'headings', 'overlap', 'verification'] as const satisfies readonly (keyof CatalogFactors)[]
-
 /** The set values of `keys`, in that order; none is service defaults, i.e. absent: the service dumps its defaults alike. */
 function present<T extends object>(value: T | null | undefined, keys: readonly (keyof T)[]): T | undefined {
   if (value === null || value === undefined) return undefined
@@ -264,78 +154,43 @@ function present<T extends object>(value: T | null | undefined, keys: readonly (
   return kept.length === 0 ? undefined : (Object.fromEntries(kept) as T)
 }
 
-function canonicalGeneric(generic: GenericCatalogSettings | null | undefined): GenericCatalogSettings | undefined {
-  return present(generic, GENERIC_KEYS)
-}
-
-function canonicalRecipe(recipe: RecipeCatalogSettings | null | undefined): RecipeCatalogSettings | undefined {
-  if (recipe === null || recipe === undefined) return undefined
-  return present({ ...recipe, factors: present(recipe.factors, FACTOR_KEYS) }, RECIPE_KEYS)
-}
-
-/** The unified method as admitted, compared and sent: the defaults version and the set overrides, in option order. A
- *  method that names its version keeps it; an account preference takes the latest, or with verification on (Pro mode)
- *  `UNIFIED_CATALOG_PRO_VERSION`, whose own default it is. */
+/** The unified method as admitted, compared and sent: the defaults version and the set overrides, in option order. */
 export function canonicalUnified(preference: UnifiedCatalogPreference | UnifiedCatalogSettings | null | undefined): UnifiedCatalogSettings {
-  // Verification stays explicit, so admission still refuses Pro mode where the fields model cannot verify.
-  const pro = preference?.verification === true && (preference as Partial<UnifiedCatalogSettings> | null | undefined)?.defaults === undefined
-  return present<UnifiedCatalogSettings>({ defaults: pro ? UNIFIED_CATALOG_PRO_VERSION : UNIFIED_CATALOG_DEFAULTS_VERSION, ...preference },
+  return present<UnifiedCatalogSettings>({ defaults: UNIFIED_CATALOG_DEFAULTS_VERSION, ...preference },
     UNIFIED_KEYS)!
 }
 
 /** Saved settings as stored: an explicit Article in full, Catalog members only when they carry a value. */
 export function canonicalExtractionSettings(settings: ExtractionSettings): ExtractionSettings {
-  const generic = canonicalGeneric(settings.catalog?.generic)
-  const recipe = canonicalRecipe(settings.catalog?.recipe)
   const unified = present(settings.catalog?.unified, UNIFIED_KEYS.slice(1) as readonly (keyof UnifiedCatalogPreference)[])
   return {
     ...(settings.article ? { article: canonicalArticle(settings.article) } : {}),
-    ...(generic || recipe || unified
-      ? { catalog: { ...(generic ? { generic } : {}), ...(recipe ? { recipe } : {}), ...(unified ? { unified } : {}) } }
-      : {}),
+    ...(unified ? { catalog: { unified } } : {}),
   }
 }
 
-/** Legacy generic or recipe Catalog overrides the unified settings do not take over: they need an explicit migration. */
-export function legacyCatalogOverrides(settings: ExtractionSettings): boolean {
-  const catalog = canonicalExtractionSettings(settings).catalog
-  return Boolean(catalog?.generic || catalog?.recipe)
-}
-
-/** The settings one Extraction uses, as it is compared, pinned and recorded. `null` records service defaults. */
+/** The explicitly pinned settings one Extraction uses, as it is compared, pinned and recorded. */
 export const activeSettingsSchema = z.union([
-  z.object({ article: articleSettingsSchema.nullable() }).strict(),
-  z.object({ generic: genericCatalogSettingsSchema.nullable() }).strict(),
-  z.object({ recipe: recipeCatalogSettingsSchema.nullable() }).strict(),
+  z.object({ article: articleSettingsSchema }).strict(),
   z.object({ unified: unifiedCatalogSettingsSchema }).strict(),
 ])
 export type ActiveSettings = z.output<typeof activeSettingsSchema>
-export type SettingsSlot = 'article' | 'generic' | 'recipe' | 'unified'
+export type SettingsSlot = 'article' | 'unified'
 
-/** Article uses the Article member. A new Catalog Extraction uses the unified member where the deployment enables it;
- *  otherwise the legacy recipe member when a recipe is chosen, else the legacy generic member. */
-export function settingsSlot(strategy: ExtractionStrategy, catalogRecipe: string | null, unified = false): SettingsSlot {
-  return strategy === 'ARTICLE' ? 'article' : unified ? 'unified' : catalogRecipe ? 'recipe' : 'generic'
+export function settingsSlot(strategy: ExtractionStrategy): SettingsSlot {
+  return strategy === 'ARTICLE' ? 'article' : 'unified'
 }
 
-/** Whether `settings` is the member an Extraction of this strategy and recipe may carry: an admitted unified method has
- *  no recipe, whatever the deployment's current choice for new work. */
-export function settingsFit(strategy: ExtractionStrategy, catalogRecipe: string | null, settings: object): boolean {
-  return settingsSlot(strategy, catalogRecipe) in settings || (strategy === 'CATALOG' && !catalogRecipe && 'unified' in settings)
+/** Only the settings belonging to the declared strategy can run. */
+export function settingsFit(strategy: ExtractionStrategy, settings: object): boolean {
+  return settingsSlot(strategy) in settings
 }
 
-export function activeSettings(
-  settings: ExtractionSettings, strategy: ExtractionStrategy, catalogRecipe: string | null, unified = false,
-): ActiveSettings {
+export function activeSettings(settings: ExtractionSettings, strategy: ExtractionStrategy): ActiveSettings {
   const canonical = canonicalExtractionSettings(settings)
-  switch (settingsSlot(strategy, catalogRecipe, unified)) {
-    // An account on service defaults records Studio's explicitly: `article: null` stays what Extractions admitted before
-    // did, run on the whole source (an omitted `options.article`), which Resume and Retry replay.
-    case 'article': return { article: canonical.article ?? REFERENCE_ARTICLE }
-    case 'recipe': return { recipe: canonical.catalog?.recipe ?? null }
-    case 'generic': return { generic: canonical.catalog?.generic ?? null }
-    case 'unified': return { unified: canonicalUnified(canonical.catalog?.unified) }
-  }
+  return strategy === 'ARTICLE'
+    ? { article: canonical.article ?? REFERENCE_ARTICLE }
+    : { unified: canonicalUnified(canonical.catalog?.unified) }
 }
 
 /** What a start view shows and submits, and what admission compares and pins: the Extraction Model Choice and the
@@ -347,9 +202,9 @@ export const extractionMethodIntentSchema = z.object({
 export type ExtractionMethodIntent = Readonly<{ models: ExtractionModelChoice | null; settings: ActiveSettings }>
 
 export function activeMethod(
-  models: unknown, settings: ExtractionSettings, strategy: ExtractionStrategy, catalogRecipe: string | null, unified = false,
+  models: unknown, settings: ExtractionSettings, strategy: ExtractionStrategy,
 ): ExtractionMethodIntent {
-  return { models: modelChoice(models), settings: activeSettings(settings, strategy, catalogRecipe, unified) }
+  return { models: modelChoice(models), settings: activeSettings(settings, strategy) }
 }
 
 const accountMembersSchema = z.object({ extractionModels: extractionModelChoiceSchema, extractionSettings: extractionSettingsSchema })
@@ -358,59 +213,40 @@ const accountMembersSchema = z.object({ extractionModels: extractionModelChoiceS
  *  first Apply) gives one Extraction. Studio validates the document on every write, so one that fails here is refused,
  *  never read as defaults. */
 export function accountMethod(
-  document: unknown, strategy: ExtractionStrategy, catalogRecipe: string | null, unified = false,
+  document: unknown, strategy: ExtractionStrategy,
 ): ExtractionMethodIntent {
-  if (document === null) return activeMethod(null, {}, strategy, catalogRecipe, unified)
+  if (document === null) return activeMethod(null, {}, strategy)
   const members = accountMembersSchema.safeParse(document)
   if (!members.success || extractionSettingsIssues(members.data.extractionSettings).length > 0)
     throw new ExtractionError('invalid_model_config', 'The saved model configuration is invalid.')
-  // Retired character limits and recipe factors are never converted: the researcher applies the unified settings.
-  if (unified && strategy === 'CATALOG' && legacyCatalogOverrides(members.data.extractionSettings))
-    throw new ExtractionError('catalog_migration_required', METHOD_MESSAGES.migration)
-  return activeMethod(members.data.extractionModels, members.data.extractionSettings, strategy, catalogRecipe, unified)
+  return activeMethod(members.data.extractionModels, members.data.extractionSettings, strategy)
 }
 
 /** A submitted intent in the form admission compares, or null when it is malformed, breaks a rule, or names another
  *  strategy's settings. */
-export function canonicalIntent(value: unknown, strategy: ExtractionStrategy, catalogRecipe: string | null): ExtractionMethodIntent | null {
+export function canonicalIntent(value: unknown, strategy: ExtractionStrategy): ExtractionMethodIntent | null {
   const parsed = extractionMethodIntentSchema.safeParse(value)
-  if (!parsed.success || !settingsFit(strategy, catalogRecipe, parsed.data.settings)) return null
+  if (!parsed.success || !settingsFit(strategy, parsed.data.settings)) return null
   const settings = parsed.data.settings as Partial<Record<SettingsSlot, unknown>>
-  const slot = 'unified' in settings ? 'unified' : settingsSlot(strategy, catalogRecipe)
+  const slot = 'unified' in settings ? 'unified' : settingsSlot(strategy)
   const models = modelChoice(parsed.data.models)
   if (slot === 'unified') return { models, settings: { unified: canonicalUnified(settings.unified as UnifiedCatalogSettings) } }
   if (slot === 'article') {
-    const article = settings.article as ArticleSettings | null
-    if (article === null) return { models, settings: { article: null } }
+    const article = settings.article as ArticleSettings
     return articleSettingsIssues(article).length > 0 ? null : { models, settings: { article: canonicalArticle(article) } }
   }
-  return {
-    models,
-    settings: slot === 'recipe'
-      ? { recipe: canonicalRecipe(settings.recipe as RecipeCatalogSettings | null) ?? null }
-      : { generic: canonicalGeneric(settings.generic as GenericCatalogSettings | null) ?? null },
-  }
+  return null
 }
 
-/** An Extraction's recorded settings: null for one admitted before they were recorded (it ran on service defaults). */
-export function storedSettings(value: unknown, strategy: ExtractionStrategy, catalogRecipe: string | null): ActiveSettings | null {
-  if (value === null || value === undefined) return null
+/** An Extraction's validated, explicitly recorded settings. */
+export function storedSettings(value: unknown, strategy: ExtractionStrategy): ActiveSettings {
   const parsed = activeSettingsSchema.safeParse(value)
-  if (!parsed.success || !settingsFit(strategy, catalogRecipe, parsed.data))
+  if (!parsed.success || !settingsFit(strategy, parsed.data))
     throw new ExtractionError('invalid_extraction_method', 'The admitted extraction method is invalid.')
   return parsed.data
 }
 
-/** The same stored method for reading and listing: a record a later contract no longer parses shows as not recorded, so
- *  one such row never breaks a whole listing. Execution uses `storedSettings`, which refuses it for that run only. */
-export function recordedSettings(value: unknown, strategy: ExtractionStrategy, catalogRecipe: string | null): ActiveSettings | null {
-  try {
-    return storedSettings(value, strategy, catalogRecipe)
-  } catch (error) {
-    if (error instanceof ExtractionError && error.code === 'invalid_extraction_method') return null
-    throw error
-  }
-}
+export const recordedSettings = storedSettings
 
 /** A choice from a request or stored jsonb value: absent, null and empty roles all mean service defaults. */
 export function modelChoice(value: unknown): ExtractionModelChoice | null {
@@ -425,75 +261,35 @@ export function modelChoice(value: unknown): ExtractionModelChoice | null {
 
 export type ExtractionMethod = Readonly<{
   strategy: ExtractionStrategy
-  catalogRecipe: string | null
   requestedModels: ExtractionModelChoice | null
-  /** The admitted settings; null for an Extraction admitted before they were recorded. */
-  requestedSettings: ActiveSettings | null
+  /** The explicitly admitted settings. */
+  requestedSettings: ActiveSettings
 }>
 
-/** The method persisted on an Extraction: a recipe applies only to Catalog, and unchosen roles use service defaults. */
+/** The pinned method; unchosen model roles use deployment defaults. */
 export function extractionMethod(
   strategy: ExtractionStrategy,
-  catalogRecipe: string | null | undefined,
   requestedModels: unknown,
-  requestedSettings?: unknown,
+  requestedSettings: unknown,
 ): ExtractionMethod {
-  const recipe = strategy === 'CATALOG' ? catalogRecipe ?? null : null
   return {
     strategy,
-    catalogRecipe: recipe,
     requestedModels: modelChoice(requestedModels),
-    requestedSettings: storedSettings(requestedSettings, strategy, recipe),
+    requestedSettings: storedSettings(requestedSettings, strategy),
   }
 }
 
-/** The Parsing Service's options for the same pinned method. Service defaults add nothing; an explicit Article is
- *  sent whole; generic Catalog limits are top-level options; recipe factors and budgets join the recipe; the unified
- *  Catalog is `unified`, its defaults version always included. */
+/** The Parsing Service's options for the same pinned method. */
 export function keiMethodOptions(method: ExtractionMethod): Record<string, unknown> {
   const settings = method.requestedSettings
-  const article = settings && 'article' in settings ? settings.article : null
-  const generic = settings && 'generic' in settings ? settings.generic : null
-  const recipe = settings && 'recipe' in settings ? settings.recipe : null
-  const unified = settings && 'unified' in settings ? settings.unified : null
+  const article = 'article' in settings ? settings.article : null
+  const unified = 'unified' in settings ? settings.unified : null
+  if (method.strategy === 'CATALOG' && !unified)
+    throw new ExtractionError('invalid_extraction_method', 'Catalog requires unified settings.')
   return {
     strategy: method.strategy === 'CATALOG' ? 'catalog' : 'article',
     ...(method.requestedModels === null ? {} : { models: method.requestedModels }),
     ...(unified ? { unified: canonicalUnified(unified) } : {}),
     ...(method.strategy === 'ARTICLE' && article ? { article: canonicalArticle(article) } : {}),
-    ...(method.strategy === 'CATALOG' && method.catalogRecipe === null && generic ? canonicalGeneric(generic) : {}),
-    ...(method.catalogRecipe === null ? {} : { catalog: { recipe: method.catalogRecipe, ...(canonicalRecipe(recipe) ?? {}) } }),
   }
-}
-
-export type IdentityFieldIssue = Readonly<{ name: string; reason: 'missing' | 'nested' | 'not-scalar' | 'document' | 'filename' }>
-
-/** Identity fields the pinned schema cannot key records by: absent, only nested, not a single value, or not read from
- *  the record (`valueSource`: the whole document, or the source's filename). Exact names, exact case. The Parsing
- *  Service checks the same at execution (`ExtractRequest._identity_fields_exist`); this refuses before anything is
- *  enqueued. */
-export function identityFieldIssues(nodes: readonly SchemaNode[], fields: readonly string[]): IdentityFieldIssue[] {
-  const topLevel = new Map(nodes.map((node) => [node.name, node]))
-  const nested = new Set<string>()
-  const visit = (node: SchemaNode): void => node.children?.forEach((child) => { nested.add(child.name); visit(child) })
-  nodes.forEach(visit)
-  return fields.flatMap((name): IdentityFieldIssue[] => {
-    const node = topLevel.get(name)
-    if (!node) return [{ name, reason: nested.has(name) ? 'nested' : 'missing' }]
-    if (node.valueSource !== undefined) return [{ name, reason: node.valueSource === 'document' ? 'document' : 'filename' }]
-    return isScalarFieldType(node.type) ? [] : [{ name, reason: 'not-scalar' }]
-  })
-}
-
-const IDENTITY_REASONS: Readonly<Record<IdentityFieldIssue['reason'], string>> = {
-  missing: 'not in this schema',
-  nested: 'not a top-level field',
-  'not-scalar': 'not a single value',
-  document: 'read once for the whole document',
-  filename: 'taken from the source’s filename',
-}
-
-export function identityFieldsMessage(issues: readonly IdentityFieldIssue[]): string {
-  const named = issues.map(({ name, reason }) => `${name} (${IDENTITY_REASONS[reason]})`).join(', ')
-  return `These identity fields are not scalar record fields of the selected Schema Revision: ${named}.`
 }

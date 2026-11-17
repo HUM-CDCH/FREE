@@ -10,7 +10,7 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 from opentelemetry.trace import StatusCode
 
-from kei_exp.kie.extract import calls, grounded
+from kei_exp.kie.extract import calls
 from kei_exp.kie.extract.llm import Reply
 from tests.helpers.chat import FakeChat
 
@@ -99,18 +99,3 @@ def test_raised_errors_keep_the_failure_without_exporting_their_content(spans):
     assert "PRIVATE PROVIDER RESPONSE" not in recorded(span)
     assert [(event.name, dict(event.attributes)) for event in span.events] == [
         ("exception", {"exception.type": "RuntimeError"})]
-
-
-def test_catalog_chunk_threads_stay_on_the_step_s_trace(spans):
-    prelude = SimpleNamespace(evidence=None, schema=None, recipe=None, options=None, chat=None, counters={})
-    with calls._TRACER.start_as_current_span("planExtractionCallsV1") as step:
-        pieces = grounded._in_chunks(prelude, [[(1, None)], [(2, None)]],
-                                     lambda *_: trace.get_current_span().get_span_context().trace_id)
-    assert [found for _, found in pieces] == [[step.get_span_context().trace_id]] * 2
-
-
-def test_a_recovered_record_is_two_spans_the_looped_one_an_error(spans, monkeypatch):
-    from tests.test_extract_stages import READ, recovering
-    recovering(monkeypatch, READ)
-    records = [span for span in spans.get_finished_spans() if span.name == "record"]
-    assert [span.status.status_code for span in records] == [StatusCode.ERROR, StatusCode.UNSET]

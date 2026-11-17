@@ -57,7 +57,7 @@
     "options": {
       "strategy": "catalog",
       "unified": {
-        "defaults": 1
+        "defaults": 11
       }
     }
   },
@@ -201,7 +201,7 @@
       "fields": "fake/extractor",
       "reasoning": "fake/extractor"
     },
-    "prompt_version": 8,
+    "prompt_version": 11,
     "document_version": 3,
     "schema": {
       "recordDescription": "One entry of a catalogue of finds.",
@@ -257,14 +257,13 @@
       "strategy": "catalog",
       "models": null,
       "unified": {
-        "defaults": 1
+        "defaults": 11
       }
     },
     "started": "2026-09-29T12:00:00+00:00",
     "seconds": 0.0,
     "execution": {
       "version": 1,
-      "extraction_id": null,
       "source": {
         "run_id": "run-contract",
         "generation": "20260923T000000.000000Z-fixture0",
@@ -272,7 +271,7 @@
       },
       "schema_sha256": "03fdb1e37c99bf5a615c986b72ac5f716f162857db57c16276e73e86115d4c1b",
       "method": {
-        "defaults": 1
+        "defaults": 11
       },
       "defaults": {
         "reserves": {
@@ -282,16 +281,17 @@
           "arbitration": 512,
           "document": 2048
         },
-        "overlap": 1,
+        "overlap": 3,
         "headings": true,
-        "verification": true,
-        "splits": 6
+        "splits": 6,
+        "entry_reply": "context"
       },
       "effective": {
-        "overlap": 1,
+        "overlap": 3,
         "headings": true,
-        "verification": true,
         "splits": 6,
+        "entry_reply": "context",
+        "candidates": 32,
         "stages": {
           "discovery": {
             "role": "reasoning",
@@ -324,8 +324,9 @@
         "fields": "fake/extractor",
         "reasoning": "fake/extractor"
       },
-      "prompt_version": 8,
-      "discovery_version": 8,
+      "prompt_version": 11,
+      "discovery_version": 12,
+      "entry_version": 8,
       "tokenizers": {
         "fields": {
           "source": "words",
@@ -343,10 +344,10 @@
         }
       }
     },
-    "execution_sha256": "2b0854139d63224c30bec792b73f78f2e854cbbff5e856e5d6ae628d68ae3161",
+    "execution_sha256": "c5a67c2230f67c4635e181a724b69942b0c84509a8c3b3bf9403ab0b7a0a6dfc",
     "discovery": {
-      "version": 8,
-      "execution_sha256": "2b0854139d63224c30bec792b73f78f2e854cbbff5e856e5d6ae628d68ae3161",
+      "version": 12,
+      "execution_sha256": "c5a67c2230f67c4635e181a724b69942b0c84509a8c3b3bf9403ab0b7a0a6dfc",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -431,17 +432,35 @@
           "context_omitted": []
         }
       ],
+      "children": {
+        "windows": 1,
+        "failed": 0
+      },
       "issues": [],
       "calls": [
         {
           "stage": "discovery",
           "record": null,
-          "input_tokens": 267,
+          "input_tokens": 448,
           "output_tokens": 5,
           "finish": "stop",
           "ok": true,
           "error": null,
-          "counted_input_tokens": 267,
+          "counted_input_tokens": 448,
+          "context_tokens": 16384,
+          "max_output_tokens": 4096,
+          "recovered": false,
+          "milliseconds": 0
+        },
+        {
+          "stage": "discovery",
+          "record": null,
+          "input_tokens": 231,
+          "output_tokens": 5,
+          "finish": "stop",
+          "ok": true,
+          "error": null,
+          "counted_input_tokens": 231,
           "context_tokens": 16384,
           "max_output_tokens": 4096,
           "recovered": false,
@@ -449,7 +468,7 @@
         }
       ]
     },
-    "discovery_sha256": "5331a34ce17a668af0590df720ace8f24f3449ad6c17b0eb007bfa0025f11fe3",
+    "discovery_sha256": "67a2dfd1e19c4fbd034d1848716e5379059c10c961b90c13edeefda8208f805b",
     "records": [
       {
         "label": "12",
@@ -501,8 +520,15 @@
         "raw": "12",
         "verbatim": true,
         "support": "literal",
-        "linked_by": "verification",
-        "item": null
+        "linked_by": "lexical",
+        "item": null,
+        "context": [
+          {
+            "segment": "p1_s1",
+            "start": 0,
+            "end": 45
+          }
+        ]
       },
       {
         "path": [
@@ -531,8 +557,15 @@
         "raw": "Adorf",
         "verbatim": true,
         "support": "literal",
-        "linked_by": "verification",
-        "item": null
+        "linked_by": "lexical",
+        "item": null,
+        "context": [
+          {
+            "segment": "p1_s1",
+            "start": 0,
+            "end": 45
+          }
+        ]
       },
       {
         "path": [
@@ -561,8 +594,15 @@
         "raw": "Bronze",
         "verbatim": true,
         "support": "literal",
-        "linked_by": "verification",
-        "item": null
+        "linked_by": "lexical",
+        "item": null,
+        "context": [
+          {
+            "segment": "p1_s1",
+            "start": 0,
+            "end": 45
+          }
+        ]
       },
       {
         "path": [
@@ -593,8 +633,15 @@
         "raw": "Nadel",
         "verbatim": true,
         "support": "literal",
-        "linked_by": "verification",
+        "linked_by": "lexical",
         "item": [
+          {
+            "segment": "p1_s1",
+            "start": 29,
+            "end": 44
+          }
+        ],
+        "context": [
           {
             "segment": "p1_s1",
             "start": 29,
@@ -631,8 +678,15 @@
         "raw": "2",
         "verbatim": true,
         "support": "literal",
-        "linked_by": "verification",
+        "linked_by": "lexical",
         "item": [
+          {
+            "segment": "p1_s1",
+            "start": 29,
+            "end": 44
+          }
+        ],
+        "context": [
           {
             "segment": "p1_s1",
             "start": 29,
@@ -667,8 +721,15 @@
         "raw": "第3号",
         "verbatim": true,
         "support": "literal",
-        "linked_by": "verification",
-        "item": null
+        "linked_by": "lexical",
+        "item": null,
+        "context": [
+          {
+            "segment": "p1_s2",
+            "start": 0,
+            "end": 32
+          }
+        ]
       },
       {
         "path": [
@@ -697,8 +758,15 @@
         "raw": "北京出土 Material: Jade",
         "verbatim": true,
         "support": "literal",
-        "linked_by": "verification",
-        "item": null
+        "linked_by": "lexical",
+        "item": null,
+        "context": [
+          {
+            "segment": "p1_s2",
+            "start": 0,
+            "end": 32
+          }
+        ]
       },
       {
         "path": [
@@ -727,8 +795,15 @@
         "raw": "Jade",
         "verbatim": true,
         "support": "literal",
-        "linked_by": "verification",
-        "item": null
+        "linked_by": "lexical",
+        "item": null,
+        "context": [
+          {
+            "segment": "p1_s2",
+            "start": 0,
+            "end": 32
+          }
+        ]
       },
       {
         "path": [
@@ -757,8 +832,15 @@
         "raw": "Gilded",
         "verbatim": false,
         "support": "supporting",
-        "linked_by": "verification",
-        "item": null
+        "linked_by": "lexical",
+        "item": null,
+        "context": [
+          {
+            "segment": "p1_s2",
+            "start": 0,
+            "end": 32
+          }
+        ]
       }
     ],
     "proposed": [],
@@ -811,7 +893,8 @@
     "processing": {
       "discovery": {
         "windows": 1,
-        "failed": 0
+        "failed": 0,
+        "children_windows": 1
       },
       "entries": {
         "entries": 2,
@@ -819,7 +902,6 @@
         "failed": 0
       },
       "verification": {
-        "enabled": true,
         "undecided": 0
       },
       "document": {
@@ -844,6 +926,48 @@
       {
         "stage": "discovery",
         "record": null,
+        "input_tokens": 448,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 448,
+        "context_tokens": 16384,
+        "max_output_tokens": 4096,
+        "recovered": false
+      },
+      {
+        "stage": "discovery",
+        "record": null,
+        "input_tokens": 231,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 231,
+        "context_tokens": 16384,
+        "max_output_tokens": 4096,
+        "recovered": false
+      },
+      {
+        "stage": "entry",
+        "record": 0,
+        "input_tokens": 269,
+        "output_tokens": 5,
+        "seconds": 0.0,
+        "finish": "stop",
+        "ok": true,
+        "error": null,
+        "counted_input_tokens": 269,
+        "context_tokens": 16384,
+        "max_output_tokens": 16115,
+        "recovered": false
+      },
+      {
+        "stage": "entry",
+        "record": 1,
         "input_tokens": 267,
         "output_tokens": 5,
         "seconds": 0.0,
@@ -852,63 +976,7 @@
         "error": null,
         "counted_input_tokens": 267,
         "context_tokens": 16384,
-        "max_output_tokens": 4096,
-        "recovered": false
-      },
-      {
-        "stage": "entry",
-        "record": 0,
-        "input_tokens": 168,
-        "output_tokens": 5,
-        "seconds": 0.0,
-        "finish": "stop",
-        "ok": true,
-        "error": null,
-        "counted_input_tokens": 168,
-        "context_tokens": 16384,
-        "max_output_tokens": 4096,
-        "recovered": false
-      },
-      {
-        "stage": "verification",
-        "record": 0,
-        "input_tokens": 150,
-        "output_tokens": 5,
-        "seconds": 0.0,
-        "finish": "stop",
-        "ok": true,
-        "error": null,
-        "counted_input_tokens": 150,
-        "context_tokens": 16384,
-        "max_output_tokens": 2048,
-        "recovered": false
-      },
-      {
-        "stage": "entry",
-        "record": 1,
-        "input_tokens": 166,
-        "output_tokens": 5,
-        "seconds": 0.0,
-        "finish": "stop",
-        "ok": true,
-        "error": null,
-        "counted_input_tokens": 166,
-        "context_tokens": 16384,
-        "max_output_tokens": 4096,
-        "recovered": false
-      },
-      {
-        "stage": "verification",
-        "record": 1,
-        "input_tokens": 146,
-        "output_tokens": 5,
-        "seconds": 0.0,
-        "finish": "stop",
-        "ok": true,
-        "error": null,
-        "counted_input_tokens": 146,
-        "context_tokens": 16384,
-        "max_output_tokens": 2048,
+        "max_output_tokens": 16117,
         "recovered": false
       },
       {
@@ -927,9 +995,9 @@
       }
     ],
     "tokens": {
-      "input": 1003,
-      "output": 30
+      "input": 1321,
+      "output": 25
     },
-    "fingerprint": "ffdb0df9c8be6c6d5949e8cb0f41ec7a0ff69dcaf310955f23c9a2b662bfe841"
+    "fingerprint": "f6a0c122583236f58811a36b5b3d7291f7bac3da7e03c2373ad5583629edd617"
   }
 }

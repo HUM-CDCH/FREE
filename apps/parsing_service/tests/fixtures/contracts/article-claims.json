@@ -462,15 +462,10 @@
  "options": {
   "strategy": "article",
   "models": null,
-  "discovery_chars": 48000,
-  "record_chars": 24000,
   "article": {
    "context": "bounded",
    "context_tokens": 8192,
    "overlap_passages": 0,
-   "identity": "reference",
-   "identity_fields": [],
-   "prompt": "reference",
    "grounding": "quoted",
    "evidence_policy": "schema"
   }

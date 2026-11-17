@@ -1,4 +1,4 @@
-import { legacyCatalogOverrides, METHOD_MESSAGES, type ExtractionMethodIntent } from 'extraction/extraction-method'
+import { type ExtractionMethodIntent } from 'extraction/extraction-method'
 import { methodLines, modelsLine, settingsHeadline } from './methodSummary'
 import type { SavedMethodState } from './savedMethod'
 
@@ -20,20 +20,12 @@ export function SavedMethodSummary({ saved, method, conflict, onRefresh }: {
       </p>
     )
   const lines = methodLines(method.settings)
-  // Retired Catalog controls are never converted: until the unified settings are applied, a Catalog start is refused.
-  const migration = 'unified' in method.settings && legacyCatalogOverrides(saved.config.extractionSettings)
   return (
-    <details open={conflict !== null || migration || undefined} className="text-secondary">
+    <details open={conflict !== null || undefined} className="text-secondary">
       <summary className="cursor-pointer font-medium text-ink-muted">
         {`Saved advanced settings: ${settingsHeadline(method.settings)}`}
       </summary>
       <div className="mt-1 rounded-md border border-line bg-surface p-3">
-        {migration && (
-          <p role="alert" className="mb-2 text-compact text-danger">
-            {METHOD_MESSAGES.migration} Your saved Catalog settings still use retired character limits or recipe
-            factors: open Model configuration, Advanced, Catalog.
-          </p>
-        )}
         {conflict && (
           <p role="alert" className="mb-2 text-compact text-danger">
             {conflict}{' '}<button type="button" className={link} onClick={onRefresh}>Refresh summary</button>

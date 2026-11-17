@@ -9,7 +9,7 @@ from kei_exp.kie.extract.contexts import Context, assemble_document
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.routing import value_origins
 from tests.test_durable_extraction import MemoryLease, finish, linked_while_running
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import evidence, passages
 
 
@@ -52,7 +52,8 @@ def test_overlap_joins_only_its_contributing_occurrences_and_preserves_nested_po
 
 def test_an_empty_occurrence_map_never_falls_back_to_value_equality():
     readings, root = [{"fees": [10]}, {"fees": [10]}], {"fees": [10]}
-    assert len(value_origins(readings, root, {}, [])[0]["sources"]) == 2  # captured union studies
+    with pytest.raises(ValueError, match="need item_sources"):
+        value_origins(readings, root, {}, [])
     assert value_origins(readings, root, {}, [], strict=False, item_sources={}) == [
         {"path": ["fees", 0], "kind": "value", "sources": []}]
     with pytest.raises(ValueError, match="no extraction origin"):

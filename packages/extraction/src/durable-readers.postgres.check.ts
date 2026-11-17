@@ -1,9 +1,10 @@
+import { REFERENCE_ARTICLE } from './extraction-method.js'
 import assert from 'node:assert/strict'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { Client, Pool } from 'pg'
 import { createDisposableRuntime } from 'db/postgres-test-helpers'
-import { migrate, provisionDatabase, seedPreMigrationHistory, ARTICLE_TREE } from '../../db/src/record-scope-history-fixture.js'
+import { migrate, provisionDatabase, seedResearchPins, ARTICLE_TREE } from '../../db/src/postgres-fixture.js'
 import { accountMethod } from './extraction-method.js'
 
 /** Readers show durable Extractions only, to their owner only; fresh admission creates native coordination. */
@@ -26,7 +27,7 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   const { createDurableRepository, initializeDurableExtraction, DURABLE_RECONCILE } = await import('./durable-repository.js')
   const { createResearcherExtractionPersistence } = await import('./postgres-persistence.js')
   // Public Extraction rows from before durable execution: published, reviewed and batch members, none with a head.
-  const history = await seedPreMigrationHistory(admin)
+  const history = await seedResearchPins(admin)
   await admin.query('CREATE SCHEMA reader_test; CREATE TABLE reader_test.queue (id text PRIMARY KEY, input jsonb NOT NULL)')
   const execution: import('./dependencies.js').ExtractionExecution = {
     enqueue: async (client, workflow, input) => {
@@ -40,19 +41,19 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
 
   assert.deepEqual(await owner.readDocumentExtractions({ sourceDocumentId: d1.sourceDocumentId }),
     { sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId, latestAttempt: null, latestReviewed: null })
-  assert.equal(await owner.readExtractionAttempt(history.extractions.article.reviewed), null)
-  assert.equal(await owner.readBatch({ projectContextId: history.projectContextId, batchExtractionId: history.batches.catalog }), null)
+  assert.equal(await owner.readExtractionAttempt(randomUUID()), null)
+  assert.equal(await owner.readBatch({ projectContextId: history.projectContextId, batchExtractionId: randomUUID() }), null)
   assert.deepEqual(await owner.listBatches(history.projectContextId, 50), [])
 
   const id = randomUUID()
   const representation = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1', [d1.sourceRepresentationRevisionId])).rows[0]
   await admin.query('INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings") VALUES ($1,$2,$3,$4,\'ARTICLE\',$5)',
-    [id, d1.sourceDocumentId, d1.sourceRepresentationRevisionId, history.revisions.article, { article: null }])
+    [id, d1.sourceDocumentId, d1.sourceRepresentationRevisionId, history.revisions.article, { article: REFERENCE_ARTICLE }])
   await admin.query('BEGIN')
   try {
     await initializeDurableExtraction(admin as never, id, { projectContextId: history.projectContextId, sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,
-      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', catalogRecipe: null, preprocessId: representation.preprocessId,
-      requestedModels: null, requestedSettings: { article: null } })
+      schemaRevisionId: history.revisions.article, schemaTree: ARTICLE_TREE, strategy: 'ARTICLE', preprocessId: representation.preprocessId,
+      requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE } })
     await admin.query('COMMIT')
   } catch (error) { await admin.query('ROLLBACK'); throw error }
   const listed = await owner.readDocumentExtractions({ sourceDocumentId: d1.sourceDocumentId })
@@ -67,13 +68,13 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   const other = createResearcherExtractionPersistence(stranger, execution, { database: createDisposableRuntime(source) })
   assert.equal(await other.readExtractionAttempt(id), null)
   assert.equal(await other.readDocumentExtractions({ sourceDocumentId: d1.sourceDocumentId }), null)
-  assert.equal(await other.readBatch({ projectContextId: history.projectContextId, batchExtractionId: history.batches.catalog }), null)
+  assert.equal(await other.readBatch({ projectContextId: history.projectContextId, batchExtractionId: randomUUID() }), null)
 
   const rows = async () => (await admin.query('SELECT count(*)::int AS n FROM public.extraction')).rows[0].n as number
   const heads = async () => (await admin.query('SELECT count(*)::int AS n FROM extraction_runtime.head')).rows[0].n as number
   const before = { rows: await rows(), heads: await heads() }
   await admin.query('UPDATE public."schemaRevision" SET "recordScope"=$2 WHERE id=$1', [history.revisions.article, 'document'])
-  const method = accountMethod(null, 'ARTICLE', null)  // what an account that never applied settings is shown
+  const method = accountMethod(null, 'ARTICLE')  // what an account that never applied settings is shown
   // A single run waits while the newest Extraction on its revision is unfinished (ADR 0020).
   await admin.query('UPDATE extraction_runtime.head SET acknowledgement=\'COMPLETED\' WHERE id=$1', [id])
   const admitted = await owner.scheduleExtraction({ kind: 'fresh', extractionId: randomUUID(), sourceRepresentationRevisionId: d1.sourceRepresentationRevisionId,

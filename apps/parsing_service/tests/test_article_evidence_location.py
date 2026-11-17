@@ -17,7 +17,7 @@ from kei_exp.kie.extract.spans import SourceSpan
 from kei_exp.kie.passages import Passage
 from kei_exp.pagefile import PageTable, TableCell
 from tests.test_article_claims_contract import scripted_artifact
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, passages
 from tests.test_extraction_rendering import table_passage
 

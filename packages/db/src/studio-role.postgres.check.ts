@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { after, test } from 'node:test'
 import { Client } from 'pg'
 import { ensureKeiRole } from './kei-role.js'
-import { migrate, provisionDatabase } from './record-scope-history-fixture.js'
+import { migrate, provisionDatabase } from './postgres-fixture.js'
 import { ensureStudioRole } from './studio-role.js'
 
 /**

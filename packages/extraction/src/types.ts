@@ -19,38 +19,23 @@ export type EvidenceLink = Readonly<{
   evidenceAnchorId: string
   precision?: 'cell' | 'segment' | 'input'
   /** The value occurs as a bounded token in the linked anchor. Unified links may instead carry supporting Evidence,
-   *  including for boolean values. Absent on older links. */
+   *  including for boolean values. Absent on a provisional mark Studio places itself (`provisionalMarks`). */
   verbatim?: boolean
-  /** How the link was made when not by the grounder: the values call cited
-   *  the block and code found the value in it, or code found the value in
+  /** How the link was made when not by the grounder: code found the value in
    *  exactly one candidate. Absent means the grounder chose the anchor. */
-  linkedBy?: 'citation_lexical' | 'lexical'
-  /** Version 2 (recipe Catalog) evidence: code-point spans of the value in its canonical segment, the key that
-   *  introduced it or the heading it was inherited from, and the precision its box can claim. Version 3 (unified
-   *  Catalog): the verified value's literal span or supporting passage. Absent on version 1. */
-  grounding?: EvidenceGrounding | VerifiedGrounding
+  linkedBy?: 'lexical'
+  /** Catalog Evidence: the verified value's literal span or supporting passage. Absent on Article links. */
+  grounding?: VerifiedGrounding
   /** An Article (version 1) link's value printing: its one code-point span in the linked segment and the printed text.
    *  Where to draw it only; it claims no rule, so it is never `grounding`. */
   location?: Readonly<{ textSpans: readonly TextSpan[]; raw: string }>
+  contextSpans?: readonly TextSpan[]
   /** Where the value prints on its page, one box per printed line in PDF points from the top-left of the displayed
    *  page (ADR 0031). Where to draw it only; Studio checks each lies inside its anchor before drawing. */
   valueBoxes?: readonly Readonly<{ x0: number; y0: number; x1: number; y1: number }>[]
 }>
 
 export type TextSpan = Readonly<{ segment: string; start: number; end: number }>
-
-export type EvidenceGrounding = Readonly<{
-  linkedBy: 'key' | 'structure'
-  provenance: 'token' | 'positional' | 'inherited'
-  textSpans: readonly TextSpan[]
-  keySpans: readonly TextSpan[]
-  alternatives: readonly (readonly TextSpan[])[]
-  heading: string | null
-  precision: 'cell' | 'segment' | 'input'
-  raw: string
-  /** The document's own glossary expansion of `raw`, with both glossary spans; the record keeps the raw value. */
-  normalized: Readonly<{ value: string; rule: 'glossary'; keySpan: TextSpan; expansionSpan: TextSpan }> | null
-}>
 
 /** Version 3 evidence: a separate verification request accepted the value (`verification`), or with a single pass only
  *  code located it (`lexical`); `literal` spans print the value itself, `supporting` spans are the passage that
@@ -88,12 +73,10 @@ export type ExtractionAttemptSnapshot = Readonly<{
   extractionSchemaId: string
   schemaRevisionNumber: number
   strategy: ExtractionStrategy
-  /** The numbered-catalogue recipe admitted with a Catalog Extraction; null for generic Catalog and Article. */
-  catalogRecipe: string | null
   /** The model choice admitted with this Extraction (`Extraction.requestedModels`). */
   requestedModels?: ExtractionModelChoice | null
   /** The method settings admitted with this Extraction (`Extraction.requestedSettings`). */
-  requestedSettings?: ActiveSettings | null
+  requestedSettings: ActiveSettings
   executionStatus: ExtractionExecutionStatus
   /** The latest finalization of any of its result/decision cuts; later work stays separate. */
   finalizedReview: FinalizedReview | null
@@ -107,8 +90,6 @@ export type FreshExtractionInput = Readonly<{
   sourceRepresentationRevisionId: string
   schemaRevisionId: string
   strategy: ExtractionStrategy
-  /** The numbered-catalogue recipe chosen for this Catalog Extraction; null or absent for generic Catalog. */
-  catalogRecipe?: string | null
   /** The saved method the researcher saw at start: admission refuses it unless it is still the account's, then pins it. */
   method: ExtractionMethodIntent
   /** The page the researcher was reading when Run was clicked (one-based): the order kei reads records in, never which

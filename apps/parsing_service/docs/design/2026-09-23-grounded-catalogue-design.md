@@ -1,8 +1,8 @@
 # Grounded numbered-catalogue segmentation and extraction: contract
 
-Status: implemented. This document fixes what the code relies on for the optional recipe Catalog path. It
-amends the [model/ingest design](2026-09-14-kie-model-and-ingest-design.md) where §10 says so and leaves the
-[canonical evidence design](2026-09-21-canonical-evidence-design.md) unchanged.
+Status: retired. This document records the former recipe Catalog path. The unified Catalog is the only current
+Catalog method. Section 10 amended the [model/ingest design](2026-09-14-kie-model-and-ingest-design.md).
+The [canonical evidence design](2026-09-21-canonical-evidence-design.md) still applies.
 
 ## 1. Scope and selection
 

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { Client } from 'pg'
-import { migrate, provisionDatabase } from '../../db/src/record-scope-history-fixture.js'
+import { migrate, provisionDatabase } from '../../db/src/postgres-fixture.js'
 import { withHeldSourceDocumentLock } from 'db/postgres-test-helpers'
 import { accountMethod, REFERENCE_ARTICLE } from './extraction-method.js'
 import type { ExtractionExecution } from './dependencies.js'
@@ -52,7 +52,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
     statuses: async () => new Map(),
   }
   const persistence = createResearcherExtractionPersistence(owner, execution, { database: db })
-  const method = accountMethod(null, 'ARTICLE', null)  // what an account that never applied settings is shown
+  const method = accountMethod(null, 'ARTICLE')  // what an account that never applied settings is shown
   const single: RunSingleInput = { kind: 'fresh', extractionId: randomUUID(), sourceRepresentationRevisionId: documents[0].revisionId, schemaRevisionId: revisionId, strategy: 'ARTICLE', method }
   const batch: ScheduleBatchInput = { projectContextId: projectId, schemaRevisionId: revisionId, strategy: 'ARTICLE', method, sourceDocumentIds: documents.map(document => document.id), repetition: 'create-new' }
   const counts = async () => (await admin.query(`SELECT
@@ -67,7 +67,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   assert.deepEqual(await counts(), { extractions: 1, batches: 0, heads: 1, dispatches: 1, queued: 1 })
   assert.equal((await persistence.scheduleExtraction(single))?.disposition, 'replayed')
   assert.equal((await counts()).queued, 1)
-  const changedArticle={...REFERENCE_ARTICLE,prompt:'schema' as const}
+  const changedArticle={...REFERENCE_ARTICLE,rendering:'structured' as const}
   const changedMethod={models:null,settings:{article:changedArticle}}
   const beforeRefusals=await counts()
   await assert.rejects(persistence.scheduleExtraction({...single,method:changedMethod}),{code:'extraction_id_conflict'})
@@ -170,7 +170,7 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   // single and equal-selection batch replays retain their admitted methods after that Apply.
   const savedConfiguration={connections:[],routes:{schemaSuggestion:null,interaction:null},extractionModels:{},
     ingestionModels:{},extractionSettings:{article:changedArticle}}
-  assert.deepEqual(accountMethod(savedConfiguration,'ARTICLE',null),changedMethod)
+  assert.deepEqual(accountMethod(savedConfiguration,'ARTICLE'),changedMethod)
   await assert.rejects(withHeldSourceDocumentLock(target.url,documents[1].id,
     ()=>persistence.scheduleExtraction({...single,extractionId:randomUUID(),sourceRepresentationRevisionId:documents[1].revisionId}),
     async run=>{await run('INSERT INTO public."modelConfiguration" ("researcherAccountId",document) VALUES ($1,$2)',
@@ -182,9 +182,9 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   assert.equal(changedBatch?.disposition,'created')
   assert.notEqual(changedBatch?.batch.batchExtractionId,nativeBatch?.batch.batchExtractionId)
   assert.equal(changedBatch?.batch.members.length,documents.length)
-  // A page loaded before Studio recorded Article's service defaults submits `article: null`: stale once the account
+  // A page loaded before Studio recorded Article's service defaults submits `article: REFERENCE_ARTICLE`: stale once the account
   // has saved Article settings (admitted while it has none, at the end).
-  const stale={models:null,settings:{article:null}}
+  const stale={models:null,settings:{article: REFERENCE_ARTICLE}}
   await assert.rejects(persistence.scheduleExtraction({...single,extractionId:randomUUID(),
     sourceRepresentationRevisionId:documents[1].revisionId,method:stale}),{code:'method_changed'})
 
@@ -222,12 +222,12 @@ test('admission commits only durable work, replays it, rolls back a failed enque
   const last=await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID()})
   assert.equal(last?.disposition,'created')
 
-  // Without saved Article settings, that stale `article: null` is admitted as recorded: the method its page showed.
+  // Without saved Article settings, that stale `article: REFERENCE_ARTICLE` is admitted as recorded: the method its page showed.
   await settle(last!.extraction.extractionId,'RUN','COMPLETED')
   await admin.query('UPDATE public."modelConfiguration" SET document=$2 WHERE "researcherAccountId"=$1',
     [owner,{...savedConfiguration,extractionSettings:{}}])
   const admittedStale=await persistence.scheduleExtraction({...spareRun,extractionId:randomUUID(),method:stale})
   assert.equal(admittedStale?.disposition,'created')
   assert.deepEqual((await admin.query('SELECT "requestedSettings" FROM public.extraction WHERE id=$1',
-    [admittedStale!.extraction.extractionId])).rows[0].requestedSettings,{article:null})
+    [admittedStale!.extraction.extractionId])).rows[0].requestedSettings,{article: REFERENCE_ARTICLE})
 })

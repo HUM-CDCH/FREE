@@ -13,7 +13,7 @@ from pathlib import Path
 from kei_exp.kie.extract import run
 from kei_exp.kie.extract.schema import Schema
 from tests.test_article_grounding_scale import SCHEMA, item
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import evidence, passages
 
 FIXTURE = Path(__file__).parent / "fixtures" / "contracts" / "article-claims.json"

@@ -133,6 +133,7 @@ function fakeDatabase(
         revisionNumber: 1,
         origin: 'SUGGESTION',
         schemaTree: nodes('site'),
+        modelAttribution: null,
         createdAt: new Date('2026-08-01T12:00:00Z'),
       },
     ],

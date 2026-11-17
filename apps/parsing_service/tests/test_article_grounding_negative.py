@@ -20,8 +20,8 @@ from kei_exp.kie.extract.routing import verify_routed
 from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.stages import leaves
 from kei_exp.pagefile import PageTable, TableCell
-from tests.test_article_grounding_scale import SCHEMA, labelling
-from tests.test_extract_grounded import CountingChat, WordCounter
+from tests.test_article_grounding_scale import SCHEMA, labelling, no_context
+from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import passages
 
 GROUPED = Schema.model_validate({"recordDescription": "One price list.", "schemaNodes": [
@@ -61,7 +61,7 @@ def ground(fields: dict, source, path: tuple, script, schema: Schema = SCHEMA):
 
     def recording(system, user, reply_schema):
         users.append(user)
-        return script(system, user, reply_schema)
+        return no_context(reply_schema) | script(system, user, reply_schema)
     links, _, issues = grounding.semantic(source, fields, schema, CountingChat(recording), record=0,
         counter=LimitedCounter(WordCounter(), 8192), record_context="the whole document\n{}", projected=True,
         skip_paths=frozenset(every - {("records", 0, *path)}))
@@ -108,7 +108,7 @@ def claim(user: str) -> tuple[str, str, str]:
 
 def within(user: str) -> str:
     """The claim's enclosing item fields, as the request shows them."""
-    return re.findall(r"^Within [^:]+: (.*)$", claims_part(user), re.MULTILINE)[-1]
+    return re.findall(r"^G\d+ Within [^:]+: (.*)$", claims_part(user), re.MULTILINE)[-1]
 
 
 def table_item(n: int, **values) -> dict:

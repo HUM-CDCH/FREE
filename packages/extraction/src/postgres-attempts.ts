@@ -21,7 +21,7 @@ import type {
 export function readAttemptRows(orm: DatabaseOrm, extractionIds: readonly string[]) {
   return orm.public.Extraction.where((row) => row.id.in([...extractionIds]))
     .select(
-      'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy', 'catalogRecipe',
+      'id', 'sourceDocumentId', 'sourceRepresentationRevisionId', 'schemaRevisionId', 'strategy',
       'requestedModels', 'requestedSettings', 'batchExtractionId', 'createdAt',
     )
     .all()
@@ -141,9 +141,8 @@ export async function attemptSnapshot(orm: DatabaseOrm, attempt: DerivedAttempt)
     extractionSchemaId: schema.extractionSchemaId,
     schemaRevisionNumber: schema.revisionNumber,
     strategy: row.strategy as ExtractionStrategy,
-    catalogRecipe: row.catalogRecipe,
     requestedModels: modelChoice(row.requestedModels),
-    requestedSettings: recordedSettings(row.requestedSettings, row.strategy as ExtractionStrategy, row.catalogRecipe),
+    requestedSettings: recordedSettings(row.requestedSettings, row.strategy as ExtractionStrategy),
     batchExtractionId: row.batchExtractionId,
     createdAt: row.createdAt,
     executionStatus: durableStatus(attempt.head),

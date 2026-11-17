@@ -1,3 +1,4 @@
+import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   ApiRequestError,
@@ -39,7 +40,7 @@ describe('durable extraction admission client', () => {
     sourceDocumentId: '44444444-4444-4444-8444-444444444444',
     sourceRepresentationRevisionId: '22222222-2222-4222-8222-222222222222',
     schemaRevisionId: '33333333-3333-4333-8333-333333333333',
-    strategy: 'ARTICLE', catalogRecipe: null, requestedModels: null, requestedSettings: null,
+    strategy: 'ARTICLE', requestedModels: null, requestedSettings: { article: REFERENCE_ARTICLE },
     executionStatus: 'QUEUED', finalizedReview: null, batchExtractionId: null, createdAt: '2026-08-10T00:00:00.000Z',
   }
 
@@ -53,7 +54,7 @@ describe('durable extraction admission client', () => {
         return Promise.resolve(jsonResponse(attempt))
       }),
     )
-    const method = { models: null, settings: { article: null } }
+    const method = { models: null, settings: { article: REFERENCE_ARTICLE } }
     await expect(requestExtraction({
       id: extractionId, sourceRepresentationRevisionId: attempt.sourceRepresentationRevisionId,
       schemaRevisionId: attempt.schemaRevisionId, strategy: 'ARTICLE', method,

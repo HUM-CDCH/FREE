@@ -275,7 +275,7 @@ def report(study: dict, cells: list[dict], output: Path, verification_path: Path
             artifact = read(checked(item["result"]))["artifact"]
             source = next(source for source in study["sources"] if source["id"] == cell["source"])
             if (artifact["execution_scope"] != "grounding_on_fixed_upstream" or artifact["upstream"] != source["fixed_upstream"]
-                    or any(artifact[key] != bundle[key] for key in ("records", "inventory", "contexts", "value_contexts", "conflicts"))):
+                    or any(artifact[key] != bundle[key] for key in ("records", "contexts", "value_contexts", "conflicts"))):
                 raise ValueError("grounding result changed frozen upstream content")
             canonical = load(Path(source["run"]))
             if (artifact["generation"], artifact["digest"]) != (canonical.generation, canonical.digest):

@@ -1,10 +1,8 @@
 import { authenticatedFetch } from '../auth/authenticatedFetch.ts'
 import { ensureModelKeysSent } from '../modelKeys/modelKeyHandoff'
 import {
-  batchExtractionListResponseSchema,
   batchExtractionOpenResponseSchema,
-  batchExtractionResponseSchema,
-  type BatchExtraction,
+  projectExtractionsResponseSchema,
 } from '../../shared/batchExtraction.contract'
 import {
   batchSchemaSuggestionErrorResponseSchema,
@@ -76,25 +74,15 @@ async function read(url: string, init?: RequestInit): Promise<unknown> {
   return value
 }
 
-export async function listBatchExtractions(
-  projectContextId: string,
-  signal?: AbortSignal,
-): Promise<BatchExtraction[]> {
-  return (await listProjectExtractions(projectContextId, signal, false)).batchExtractions
+/** The project's Batch Extractions and each document's latest Extraction. */
+export async function listProjectExtractions(projectContextId: string, signal?: AbortSignal) {
+  const query = new URLSearchParams({ projectContextId, limit: '50', latest: '1' })
+  return projectExtractionsResponseSchema.parse(await read(`/api/batch-extractions?${query}`, { signal }))
 }
 
-/** The project's Batch Extractions and, asked for with `latest`, each document's latest Extraction. */
-export async function listProjectExtractions(projectContextId: string, signal?: AbortSignal, latest = true) {
-  const query = new URLSearchParams({ projectContextId, limit: '50', ...latest && { latest: '1' } })
-  return batchExtractionListResponseSchema.parse(
-    await read(`/api/batch-extractions?${query}`, { signal }),
-  )
-}
-
-/** The read's latest Extractions, as the chat takes them; null from a server that does not answer them. */
+/** The read's latest Extractions, as the chat takes them. */
 export const projectLatest = ({ latestExtractions, reviewedExtractions, newestExtractionIds }: Awaited<ReturnType<typeof listProjectExtractions>>) =>
-  latestExtractions && reviewedExtractions && newestExtractionIds
-    ? { extractions: latestExtractions, reviewed: reviewedExtractions, newest: newestExtractionIds } : null
+  ({ extractions: latestExtractions, reviewed: reviewedExtractions, newest: newestExtractionIds })
 
 /**
  * Opens one Batch Extraction over the researcher's selection. The server owns
@@ -125,17 +113,6 @@ export async function openBatchExtraction(
       signal,
     }),
   )
-}
-
-export async function getBatchExtraction(
-  projectContextId: string,
-  batchExtractionId: string,
-  signal?: AbortSignal,
-) {
-  const query = new URLSearchParams({ projectContextId })
-  return batchExtractionResponseSchema.parse(
-    await read(`/api/batch-extractions/${batchExtractionId}?${query}`, { signal }),
-  ).batchExtraction
 }
 
 export async function createBatchSchemaSuggestion(

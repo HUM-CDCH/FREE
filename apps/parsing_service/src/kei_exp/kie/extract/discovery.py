@@ -100,30 +100,6 @@ SHARED_CONTEXT = ("\nUse context instead of other for shared qualifications outs
                   "Mark where context begins and where ordinary other text resumes. Narrative paragraphs, indices and "
                   "bibliographies are other, not context merely because they follow a table. Context never starts "
                   "a record and never belongs to a record's own text.")
-
-
-HEADING_DISCOVERY = (
-    "You find where records begin in a source document. A record is: {description}\n"
-    "Use that description to distinguish records from their contents: numbered subitems or details within a record "
-    "continue it unless they independently meet the record description. "
-    "The WINDOW lists source lines, each after a label such as [L1]. Report, in source order, every place in the "
-    "WINDOW where a record begins (\"record\") and where text that belongs to no record begins (\"other\": front "
-    "matter, a heading between records, an index or a bibliography). A record may begin in the middle of a line and "
-    "one line may hold several records. Give each place as a list: the label of its line; \"record\" or \"other\"; "
-    "the record's printed number or label when it has one, else null; and, only when the place begins after the "
-    "start of its line, a fourth item: the exact characters where it begins, copied from that line (a few words). "
-    "A record's start includes any leading printed label: include that label in the copied start, not just the "
-    "words after it. Omit the fourth item for a place at the line's start. Never include the [L1] line label in "
-    "copied source text. "
-    "Answer "
-    "\"begins_inside_record\": true when the first WINDOW line continues a record that began before the WINDOW, false "
-    "when it does not, null when you cannot tell; and \"ends_inside_record\": true when the last record in the WINDOW "
-    "continues after it, false when it does not, null when you cannot tell. A WINDOW line's label may name its "
-    "layout kind (heading or table row); a kind is a hint, never text of the line. CONTEXT lines are shown for "
-    "orientation "
-    "only: never report a place in them. Return only the JSON object, on one line, without indentation.")
-
-
 # Defaults 8: one more reading over the discovered records finds records printed inside them (`children`).
 CHILDREN = (
     "You list the records printed inside other records of a source document. A record is: {description}\n"
@@ -177,8 +153,7 @@ def units_of(passages: Sequence[Passage]) -> list[Unit]:
 def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
          lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = (),
          candidates: int = CANDIDATES, heading_context: bool = False) -> list[Window] | None:
-    """Consecutive windows over `units`; `lead` and `trail` are the units just outside. Defaults 7 (`heading_context`)
-    fixes primary windows and overlap before selecting whole headings newest first, skipping those that do not fit;
+    """Consecutive windows over `units`; `lead` and `trail` are the units just outside. With enclosing-record context, it fixes primary windows and overlap before selecting whole headings newest first, skipping those that do not fit;
     at most `candidates` are measured individually. None when not even one code point fits beside the instructions."""
     if heading and heading_context:
         windows = plan(units, texts, fits, overlap=overlap, lead=lead, trail=trail)
@@ -409,7 +384,7 @@ def groups_of(units: Sequence[Unit], passages: Sequence[Passage], by: str) -> li
 def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, str, dict], bool],
              ask: Callable[..., dict | None], *, overlap: int, splits: int, by: str = "budget", workers: int = 1,
              progress: Callable[[list[dict], list[dict]], None] | None = None, frontier: bool = False,
-             unanswered: tuple[type[BaseException], ...] = (), heading_context: bool = False,
+             unanswered: tuple[type[BaseException], ...] = (),
              nearby: bool = False, shared_context: bool = False) -> dict | None:
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
@@ -429,7 +404,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     `unanswered`, every window is answered: `workers` are asked at once, and the first error stops the rest."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
-    system = (HEADING_DISCOVERY if heading_context else DISCOVERY).format(description=description)
+    system = DISCOVERY.format(description=description)
     if shared_context:
         system += SHARED_CONTEXT
 
@@ -464,9 +439,6 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
         answer = ask(None, system, user, _reply(labels, shared_context=shared_context), calls, issues)
         observed = _observe(answer, window, texts, labels, issues, nearby=nearby,
                             shared_context=shared_context) if answer is not None else None
-        if heading_context and observed is not None and len(window.primary) > 1 and depth < splits and \
-                any(kind == "unresolved" for _, _, kind, _ in observed.places):
-            return None, calls, issues  # the halves replace this reading, including its provisional progress
         if observed is not None:
             with lock:
                 done.append(observed)
@@ -544,7 +516,7 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     else:
         readings, complete = [item for each in read(windows, 0) for item in each], True
     seen = [observed for observed, _, _ in readings if observed is not None]
-    return {**_assemble(seen, evidence, texts, prefix=not complete, heading_context=heading_context), "windows": [_window_json(each) for each in seen],
+    return {**_assemble(seen, evidence, texts, prefix=not complete), "windows": [_window_json(each) for each in seen],
             "issues": [*(Issue("reading_order", detail) for detail in evidence.order_issues),
                        *(issue for _, _, issues in readings for issue in issues)],
             "calls": [call for _, calls, _ in readings for call in calls]} | ({"complete": complete} if frontier else {})
@@ -835,8 +807,7 @@ def _window_json(seen: _Seen) -> dict:
             "context_omitted": [{"kind": kind, **ranges_json([unit])[0]} for kind, unit in seen.window.omitted]}
 
 
-def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, prefix: bool = False,
-              heading_context: bool = False) -> dict:
+def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, prefix: bool = False) -> dict:
     """Regions from the windows' places and their explicit continuation observations; then entries and the ledger.
 
     A `prefix` is the windows read so far from the start of the source: a later window only adds entries after them,
@@ -907,12 +878,12 @@ def _assemble(seen: list[_Seen], evidence: Evidence, texts: dict[str, str], *, p
         previous = each
         cuts.append(settled())
     if prefix:
-        body = _ledger(regions, units, entries, evidence, texts, heading_context=heading_context)
+        body = _ledger(regions, units, entries, evidence, texts )
         return {**body, "entries": entries[:settled()], "cuts": cuts}
     if previous is not None and previous.ok:
         close({False: "validated", True: "unresolved" if _unread_after(units[-1], evidence) else "source_end",
                None: "unresolved"}[previous.ends])
-    return {**_ledger(regions, units, entries, evidence, texts, heading_context=heading_context), "cuts": cuts}
+    return {**_ledger(regions, units, entries, evidence, texts ), "cuts": cuts}
 
 
 def _same_label(one: str | None, other: str | None) -> bool:
@@ -937,7 +908,7 @@ def _unread_after(last: Unit, evidence: Evidence) -> bool:
 
 
 def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidence: Evidence,
-            texts: dict[str, str], *, heading_context: bool = False) -> dict:
+            texts: dict[str, str]) -> dict:
     ledger: list[dict] = []
     others: list[dict] = []
     begun: set[int] = set()  # an entry continued after other text owns several regions; its context is its first's
@@ -951,7 +922,7 @@ def _ledger(regions: list[list], units: list[Unit], entries: list[dict], evidenc
             if entry not in begun:
                 begun.add(entry)
                 # Range dictionaries stay read-only; share them without sharing the growing prefix list.
-                entries[entry]["context"] = others.copy() if heading_context else others[-CONTEXT_UNITS:]
+                entries[entry]["context"] = others[-CONTEXT_UNITS:]
             entries[entry]["ranges"] += ranges_json(owned)
         elif kind in ("other", "context"):
             others += ranges_json(owned)

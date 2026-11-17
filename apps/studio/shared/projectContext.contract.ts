@@ -117,8 +117,7 @@ export const projectContextActivityEventSchema = z
 export const projectContextListResponseSchema = z
   .object({
     projectContexts: z.array(projectContextListItemSchema),
-    // Defaulted so a reader of an older response shape still parses.
-    recentActivity: z.array(projectContextActivityEventSchema).default([]),
+    recentActivity: z.array(projectContextActivityEventSchema),
   })
   .strict()
 export const projectContextWithDocumentsResponseSchema = z
@@ -149,19 +148,6 @@ export const projectContextErrorResponseSchema = z
   .strict()
 
 const revisionNumber = z.number().int().positive()
-
-/**
- * Annotations project only what Studio needs to reopen. Geometry, offsets, and
- * anchor internals stay in the source resource.
- */
-export const annotationSchema = z
-  .object({
-    annotationId: canonicalUuidSchema,
-    evidenceAnchorId: z.string(),
-    text: z.string(),
-    pageNumber: revisionNumber,
-  })
-  .strict()
 
 /** Same-origin resources pinned to the exact reopened representation. */
 export const sourceRepresentationResourcesSchema = z
@@ -210,14 +196,6 @@ export const documentReopenResponseSchema = z
         resources: sourceRepresentationResourcesSchema,
       })
       .strict(),
-    annotationSet: z
-      .object({
-        annotationSetId: canonicalUuidSchema,
-        revisionNumber,
-        annotations: z.array(annotationSchema),
-      })
-      .strict()
-      .nullable(),
     extractionSchema: z
       .object({
         extractionSchemaId: canonicalUuidSchema,

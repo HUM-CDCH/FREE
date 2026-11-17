@@ -38,4 +38,3 @@ export const modelOperationSchema = z.discriminatedUnion('kind', [
 ])
 export const modelOperationListingSchema = z.object({ operations: z.array(modelOperationSchema).max(20) }).strict()
 export type ModelOperation = z.infer<typeof modelOperationSchema>
-export type ModelOperationListing = z.infer<typeof modelOperationListingSchema>

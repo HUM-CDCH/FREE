@@ -13,14 +13,8 @@ class ArticleOptions(BaseModel):
     context: Literal["full", "bounded"] = "full"
     context_tokens: int = Field(default=12288, ge=8192)
     overlap_passages: int = Field(default=0, ge=0, le=2)
-    identity: Literal["reference", "conservative"] = "reference"
-    identity_fields: tuple[str, ...] = ()
-    prompt: Literal["reference", "schema"] = "reference"
     grounding: GroundingChoice = "semantic"
-    grounding_schedule: Literal["unresolved"] | None = None
     evidence_policy: Literal["schema"] | None = None
-    grounding_routing: Literal["origin_lexical"] | None = None
-    selection: Literal["supported"] | None = None
     rendering: Literal["structured"] | None = None
     grouping: Literal["structural"] | None = None
     grounding_overflow: Literal["windows"] | None = None
@@ -28,14 +22,8 @@ class ArticleOptions(BaseModel):
     @model_serializer(mode="wrap")
     def serialized(self, handler):
         result = handler(self)
-        if self.grounding_schedule is None:
-            result.pop("grounding_schedule")
         if self.evidence_policy is None:
             result.pop("evidence_policy")
-        if self.grounding_routing is None:
-            result.pop("grounding_routing")
-        if self.selection is None:
-            result.pop("selection")  # preserve the registered all-unit reference serialization
         if self.rendering is None:
             result.pop("rendering")
         if self.grouping is None:
@@ -46,39 +34,19 @@ class ArticleOptions(BaseModel):
 
     @model_validator(mode="after")
     def coherent(self):
-        if self.grounding_routing is not None and (
-                self.grounding_schedule != "unresolved" or self.grounding not in {"quoted", "spans"}):
-            raise ValueError("grounding routing requires unresolved quoted or span verification")
         if self.evidence_policy is not None and self.grounding not in {"quoted", "spans"}:
             raise ValueError("schema evidence policy requires quoted or span grounding")
-        if self.grounding_schedule is not None and self.grounding == "off":
-            raise ValueError("grounding scheduling requires verification")
         if self.grounding_overflow is not None and self.grounding == "off":
             raise ValueError("grounding overflow windows require verification")
-        if self.identity == "conservative" and not self.identity_fields:
-            raise ValueError("conservative reconciliation requires explicit identity_fields")
-        if len(set(self.identity_fields)) != len(self.identity_fields):
-            raise ValueError("identity_fields must be unique")
         if self.context == "full" and self.overlap_passages:
             raise ValueError("overlap applies to bounded contexts only")
-        if self.selection is not None and self.context != "bounded":
-            raise ValueError("record-specific selection requires bounded contexts")
         if self.grouping is not None and self.context != "bounded":
             raise ValueError("structural grouping requires bounded contexts")
         return self
 
 
-# What an omitted `article` option runs: the complete-source method of every Extraction admitted without recorded
-# settings, which Resume and Retry replay. Current Studio pages record Studio's default explicitly (with windows).
-REFERENCE = ArticleOptions()
-
-
-class CatalogFactors(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True)
-    glossary: bool = True
-    headings: bool = True
-    overlap: bool = True
-    verification: bool = True
+# Article uses the same explicit defaults in Studio and the Parsing Service.
+REFERENCE = ArticleOptions(grounding_overflow="windows")
 
 
 class LimitedCounter:

@@ -57,8 +57,7 @@ workflows: Studio enqueues `extractDurableV1` on `kei-extract` and
 outside any lane limit. Each planned call starts at once, up to
 `KEI_CATALOG_CHUNKS` per role, and the attempt is planned again as soon as one
 ends; a Pause, Stop or failure is acknowledged only once every call it started
-has ended. The retired `extract-wait-first` patch consumes existing markers on
-replay without adding markers to new attempts. Attempts reach the coordination schema only through a
+has ended. Attempts reach the coordination schema only through a
 pool of at most four short calls to allowlisted `extraction_runtime` routines,
 and no pooled connection or transaction spans a model call. After a crash,
 recovery waits up to 40 s for the previous process's 30-second lease to expire:
@@ -73,8 +72,7 @@ between JSON tokens. It keeps the original source, guidance and token budget;
 both attempts stay in History. A failed bounded reply still halts the attempt;
 Retry/Resume continues the bounded recovery and never repeats the original.
 
-`KEI_RUNS` holds the runs' sources, canonical parse results and recipe
-segmentations; durable Extraction results live in the coordination schema. It is
+`KEI_RUNS` holds the runs' sources, canonical parse results; durable Extraction results live in the coordination schema. It is
 durable service data: later Extractions need the original parse generation.
 `KEI_SOURCE_INBOX` is where Studio stages source PDFs; kei only reads it. Model
 weights under `/models` are a separate cache. Debug files are never
@@ -118,7 +116,7 @@ run would lose its result.
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: how many recipe or unified Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
+| `KEI_CATALOG_CHUNKS` | Worker only: how many Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
 
@@ -222,13 +220,9 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   model that cannot take a role (NuExtract cannot reason) is refused before any
   call.
 - A result keeps ungrounded values explicit, and its `calls` lists every model
-  call: a generic Catalog record call that looped on whitespace and was read on
-  its one bounded-grammar retry is kept, failed, with `recovered: true`, and
-  does not by itself make the result incomplete.
-  Unified Catalog entry calls use the same one-retry policy for whitespace
-  loops between JSON tokens, including before a later token. Durable recovery
-  preserves the original source, guidance and budgets; Retry reuses the saved
-  recovery and completed entries.
+  call. Catalog entry calls can retry a whitespace loop between JSON tokens once
+  with a bounded grammar. Durable recovery preserves the original source,
+  guidance and budgets. Retry reuses the saved recovery and completed entries.
 - The task scope is the schema's `recordScope` (`document` for Article,
   `records` for a Catalog; `tests/fixtures/contracts/record-scope.json`). A
   declared scope must match `options.strategy`; an undeclared one (CLI,
@@ -236,101 +230,49 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   record fails (`record_scope_violation: ...`) and is never retained; so does an
   Article whose root no value context answered (`article_root_unanswered: ...`)
   rather than retain an all-null root.
-- Article extracts the document as one object, which may contain arrays;
-  `options.article` holds its research settings. A Catalog without
-  `options.catalog` or `options.unified` runs generic discovery (result
-  version 1). `options.catalog = {recipe, input_tokens?, output_tokens?,
-  factors?}` selects a recipe such as `numbered-catalogue-de@1`: result version
-  2, with structural segmentation and code-verified span Evidence (see the
-  [grounded catalogue design](docs/design/2026-09-23-grounded-catalogue-design.md)).
-  `options.unified = {defaults, input_tokens?, output_tokens?, overlap?,
-  candidates?, headings?, verification?}` runs the unified Catalog: result version 3, no
-  recipe and no character limits (a request naming either is refused). From
-  `defaults` 3 a durable run reads the entries the windows already read decide
-  while discovery asks the rest, lists them under its `unified-prefix:<attempt>:<count>`
-  plans and shows their candidates, and verifies them once discovery has ended;
-  an entry's calls are captured by where it starts and what it covers, not by
-  its number. From `defaults` 4 an entry's reply may use the served context its
-  counted input leaves, its reserve the floor (an explicit `output_tokens` or a
-  native fields model keeps the reserve). Defaults 5 lets discovery span physical pages
-  within the counted token budget, retaining internal sections and lists as record content.
-  The existing verification call reads scalar fields afresh, without the draft
-  values anchoring its answer, and returns each complete value with a source quote;
-  code checks the field type and the quoted record text before acceptance. List
-  identities remain unchanged. Its reply reserve is 4096 tokens to accommodate
-  corrected passages. Defaults 6 drops that compulsory verification: the entry call
-  is shown the full reply schema, code checks each value once (type, quoted
-  record text, table row, list item occurrence) and links a located value `lexical`,
-  never as verified; a value whose quote is missing or found nowhere stays a proposal
-  without Evidence, one printed neither in its located quote nor in source text
-  enclosing that quote stays rejected. Located
-  values that disagree still go to arbitration; `verification: true` adds verdicts on
-  the fixed candidates. Earlier admissions retain their pinned defaults and prompts.
-  Defaults 7 builds on the same single pass, with heading context selected within counted
-  budgets. Discovery also retries a copied boundary that cannot be located uniquely in
-  its source line on the window's two halves, within the existing split bound. Superseded
-  replies keep their calls and issues; only final readings own source text, and exhausted
-  recovery leaves affected text unresolved. Discovery keeps all preceding record-free
-  ranges as candidates. Primary windows and overlap are fixed first; whole excerpts are considered newest first,
-  skipping an oversized one so smaller older excerpts can still fit. When the full
-  context does not fit, `candidates` (default 32, range 1–1024) bounds individual
-  measurements; older excerpts are omitted unmeasured. Split retries reconsider
-  kept and omitted context. Every omission is named in `context_omitted`.
-  Shown excerpts retain source order and source identities, marking the latest;
-  labels are metadata, never quotable evidence. A scalar outside lists may inherit
-  only a printed non-Boolean literal from shown context. Derived heading values
-  retain their supporting spans as proposals, never accepted Evidence. A candidate
-  whose spans all lie in shown context followed by an omitted excerpt stays a
-  `context_incomplete` proposal: the unseen excerpt could supersede it. Older
-  omissions do not prevent acceptance. List values and item occurrences still
-  require the entry's own text. Without verification, eligible literals are linked
-  `lexical`; `verification: true` checks applicability and supersession against the
-  same shown context, without re-extracting values.
-  Defaults 8 is defaults 6 with two discovery readings for prose reports. A copied
-  record start found nowhere in its named line is placed where it occurs exactly once
-  in a neighbouring line or across the named line's break (`boundary_relocated`).
-  Once discovery is complete, one more counted reading per window of the entries' own
-  lines lists the records printed inside them (a numbered find in a grave's list):
-  each becomes its own entry owning its whole lines, names its enclosing entry as
-  `parent` and is read with that entry's remaining text as context, from which a scalar
-  stated for the enclosing record as a whole may be taken. The ledger stays disjoint;
-  a child that is not whole lines of one entry after its first line, or that repeats
-  the entry's own printed label, is dropped (`child_dropped`); a failed children reply
-  leaves the parents whole and processing incomplete. Entries are read only after the
-  whole discovery, so a durable run shows no records before it. Known limits: a durable
-  run asks the children windows one per planning round; a cut-off or invalid children
-  reply is not split or retried; children windows have no overlap, so a child listed
-  across a window cut is lost to its parent; a rerun masks retained records' text, so a
-  child reread after its parent was retained loses that parent as context; a child may
-  still take its parent's identifier from context when the parent states it for itself.
-  Defaults 9 retains defaults 8's children pass and lets the schema determine the
-  discovery unit: primary table entries are peers, while titles and indices that
-  only repeat records described elsewhere are record-free. Requested enclosing
-  records stay whole until the children pass. Discovery explicitly marks shared
-  table qualifications (units, abbreviation definitions and note meanings);
-  those ranges within or immediately after a table are shared with its entries
-  as context, never added to their owned text. Ordinary narrative, another table,
-  a heading or another record ends following qualifications. Field instructions
-  ask for complete source expressions, preserve identifying qualifiers, and
-  distinguish a verbatim quote from a value's editorial note markers. This is a
-  model decision, with no punctuation stripping or field-specific cleanup.
-  Defaults 1–8 retain their prompts and recorded versions.
-  Defaults 10 is defaults 9 with the children pass pipelined: the same discovery and
-  entry readings, asked earlier. While discovery still reads, a durable run carves the
-  records its read windows settle, then reads, lists and saves each entry whose ranges
-  and context can no longer change. No children window crosses the entries one
-  discovery window settles, so nothing found later changes a window already asked
-  (defaults 9 packs them over the whole discovery: defaults 10 asks more, smaller ones);
-  an entry is final once every children window up to its last line is answered, and a
-  table entry also once the notes after its table are read. A children call is
-  admitted before the next discovery window, and the windows that wait are asked
-  together. The first records wait for the first discovery window alone; a later
-  record still waits for every window before it.
-  Defaults 8 and 9 keep reading no entry before the whole discovery.
-  Studio admits defaults 10 by default, only where its
-  `FREE_CATALOG_METHOD=unified` gate is on; an account's Pro mode (verification on in Studio's
-  Catalog settings) admits version 5 instead, whose verification call reads every value again. The [pipeline map](docs/extraction-experiments.md#pipeline-map) traces
-  each method's calls.
+- Article extracts the document as one object, which may contain arrays; `options.article` holds its settings.
+  Article version 22 grounds in one call the claims that fit its input and reply budgets. A claim answers with its
+  primary evidence; the context attributing a list item or nested object is asked once for that item's claims and
+  retained on each of them, and a claim of the record itself carries none. The model's evidence stays primary: a word
+  a hyphen splits at a page or column end is cited with its other half as context, whichever half was chosen, and a
+  page end without a hyphen joins nothing. Complete structured replies are budgeted before admission; oversized
+  batches split without truncating source evidence. Unanswered claims and malformed context replies remain
+  incomplete; NONE is a completed rejection.
+  Every Catalog uses unified (result version 3). An omitted Catalog settings object uses defaults version 11.
+  `options.unified = {defaults, input_tokens?, output_tokens?, overlap?, candidates?, headings?}` runs the unified
+  Catalog: result version 3, no recipe and no character limits (a request naming either is refused). Only defaults
+  version 11 is accepted; the number is recorded as the execution's provenance, never read as a switch.
+  Discovery reads records across physical pages within counted token budgets, discovers peer records according to
+  the schema, identifies shared table qualifications, and pipelines children discovery for settled records. A child
+  owns its lines and reads its enclosing record's remaining text as context. Durable runs save entries once their
+  ranges and context are settled, while discovery continues over later windows. Later discoveries cannot change
+  already captured calls. An entry's reply may use the served context its input leaves, with its reply reserve as
+  the floor. Field instructions preserve complete source expressions and identifying qualifications, without
+  field-specific cleanup.
+  Each value is read once, and a value located in its record's own text is linked by rule (`lexical`): locality uses
+  the record's owned ranges, not a list item's identifying anchor cell. A missing or unlocated quote stays a proposal
+  without Evidence. Links keep record attribution context alongside value spans. A scalar located outside the
+  record's owned ranges (inherited from a heading) requires an independent reading without the candidate value,
+  using intervening source to expose superseded headings; only an equal, source-located reading receives Evidence
+  (`verification`), and the check never substitutes a different value. Only the record's own text or its admitted
+  context can supply the supporting quote: intervening records are shown to judge supersession, not to supply
+  inherited values. Records that share their earliest admitted heading are read in one call per field, up to 16
+  records at a time: the source from that heading to the last of them is shown once, each record under its own
+  label, and each record's reading is still judged alone. With multiple inherited fields, sharing can require more
+  calls than the individual check, which batches those fields per record. A child, a record whose context does not
+  all precede it, and a shared reply that is not valid keep one call per record. Which records share a heading is
+  known once discovery is complete: a durable run that reads entries earlier keeps such a value as a
+  `verification_pending` proposal until then. A value whose own check cannot fit the verification budget (the source
+  from its heading to the record is too long) stays a `verification_over_budget` proposal: final, so the record is
+  saved and processing completes, with a `verification_over_budget` issue; only a failed or invalid reply stays
+  undecided. Disagreeing accepted values go to arbitration with their source.
+  Known limits: a heading value reaches this check only when the entry model quotes the heading, although the
+  entry prompt says CONTEXT is not part of the record; a model that obeys strictly leaves the field null. A list
+  item's value quoted from a sibling item's text is still located, and linked, by rule. The verification reserve
+  (2048 tokens) can cut off a long inherited value's reading, which then stays an unresolved proposal.
+  There is no verification switch: Studio's Pro mode (every value judged again) is retired, unmeasured on this
+  version, and a request naming `verification` is refused. Studio admits defaults 11 for every new Catalog. The
+  [pipeline map](docs/extraction-experiments.md#pipeline-map) traces each method's calls.
 
 Limitations:
 
@@ -338,16 +280,13 @@ Limitations:
   vLLM's `/tokenize` and its reported context size, or, for GLiFormer fields,
   the service's own `/tokenize` and the input ceiling its `/info` reports;
   otherwise the request is refused before any call. Oversized input is
-  reported, never clipped. Only generic Catalog uses character budgets instead
-  (`record_chars`, `discovery_chars`), naming any source text a budget cut in a
-  `text_truncated` issue.
+  reported, never clipped.
 - `complete` applies to record values and is not a recall score: array-item
   recall and semantic correctness still need evaluation. Document-level fields
   are listed as `unverified`.
 - Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
-- Under defaults 7 heading applicability is a model judgement, not a code check
-  of heading hierarchy. A stale heading the model accepts can still be wrong.
+- The model judges heading applicability. A stale heading the model accepts can still be wrong.
   Standing headings can be omitted when requests have no room; long histories
   repeat context references and one omission row per range per entry in artifacts.
 - Native word alignment constrains physical rows; it cannot infer a missing
@@ -379,22 +318,11 @@ specifications. `kie/runner.py` orchestrates ingest and OCR;
 `reuse.py` finds another run's result and ingest of the same recipe.
 `result.py` publishes canonical pages and manifests; `pagefile.py` validates
 their identities and hashes. `kie/passages.py` reads those artifacts as the
-`Evidence`/`Passage` view shared by the recipe stages and extraction; it imports
+`Evidence`/`Passage` view used by extraction; it imports
 neither. `kie/extract/` performs record discovery, structured extraction,
 grounding and result publication; its
 [ownership table](docs/extraction-experiments.md#ownership) names each
 module's responsibility.
-The recipe path is split across these files:
-- `kie/recipe.py` and `kie/recipes/` hold the recipes;
-- `kie/stages/{layout,route,segment}.py` produce lines, roles and blocks;
-- `kie/segmentation.py` holds the artifact;
-- `kie/segmentation_run.py` reuses a validated artifact or computes and publishes it;
-- `kie/extract/{grounded,tokens,locate}.py` do bounded extraction, token
-  counting and span location;
-- `kie/boundaries.py` handles boundary labels and block-F1
-  (`python -m kei_exp.kie.boundaries report|prefill|score RUN_DIR`, read-only
-  on the run).
-
 The designs under `docs/design/` are the contracts that code cites as
 `spec N.N` or `design §N`.
 

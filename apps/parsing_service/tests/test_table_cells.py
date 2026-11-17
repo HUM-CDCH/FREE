@@ -74,20 +74,20 @@ def test_missing_geometry_stays_coarse_and_wrong_cell_is_rejected():
     assert links == [] and issues[0].code == 'unknown_label'
 
 
-def test_grounded_catalog_uses_only_spans_wholly_inside_one_cell():
+def test_catalog_links_use_only_spans_wholly_inside_one_cell():
     from kei_exp.kie.blocks import Span
     from kei_exp.kie.extract.acceptance import Outcome
     from kei_exp.kie.extract.catalog_result import evidence_link
     item = passage()
     cell = item.table.cells[2]
     span = Span(segment_id=item.id, start=cell.start, end=cell.end)
-    outcome = Outcome('accepted', ('records', 0, 'entry_no'), '7-8', spans=[span], linked_by='key')
-    assert evidence_link(outcome, {item.id: item}, {})['cell'] == cell.cell_id
+    outcome = Outcome('accepted', ('records', 0, 'entry_no'), '7-8', spans=[span])
+    assert evidence_link(outcome, {item.id: item})['cell'] == cell.cell_id
     outcome.alternatives = [[span]]
-    assert evidence_link(outcome, {item.id: item}, {})['precision'] == 'segment'
+    assert evidence_link(outcome, {item.id: item})['precision'] == 'segment'
     outcome.alternatives = []
     outcome.spans = [Span(segment_id=item.id, start=cell.start, end=item.table.cells[3].end)]
-    assert evidence_link(outcome, {item.id: item}, {})['cell'] is None
+    assert evidence_link(outcome, {item.id: item})['cell'] is None
 
 
 @pytest.mark.parametrize("projected", [False, True])

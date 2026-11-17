@@ -168,15 +168,10 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   limits; leave it unset to offer neither. Log the CLIs in as the
   [README](../../README.md#models) shows; in production Claude Code's
   `CLAUDE_CODE_OAUTH_TOKEN` goes in `.env`.
-- `FREE_CATALOG_METHOD` (optional; `unified`) admits new single and batch
-  Catalog Extractions on the unified Catalog method instead of the generic and
-  recipe Catalog methods. It is experimental: the unified method has not yet
-  passed a held-out evaluation on independent labelled documents, so leave it
-  unset unless you have checked it on your own documents.
-  Accounts with generic or recipe Catalog preferences must apply the unified settings
-  before their next Catalog Extraction; admitted work, including a retried
-  Extraction ID, keeps the method it was admitted with. Unsetting it again
-  pauses new unified admissions; admitted unified work still runs and reads.
+- Catalog uses the unified method for every single and batch Extraction. There is no deployment gate or recipe
+  selector. The migration removes retired generic/recipe account preferences and the `extraction.catalogRecipe`
+  column; live unified preferences and Article settings stay. Old generic/recipe Extractions cannot resume and
+  should be run again. Drain in-flight Catalog work before deploying. This decision does not claim held-out accuracy.
 - `FREE_ADMIN_DATABASE_URL`'s role must own database `free` or hold `CREATE`
   on it, and be able to create roles; Compose uses `postgres`. The entrypoint
   refuses to prepare a `free_studio` or `kei` that is a superuser or owns
@@ -272,7 +267,7 @@ for every server's weights, the document-layout process, and the operating
 system; on DGX Spark, system memory is shared with the GPU.
 
 Constrained decoding can loop on whitespace between JSON tokens; the Parsing
-Service recovers a generic Catalog record call that does with a bounded
+Service recovers a durable record call that does with a bounded
 xgrammar grammar ([service contract](../../apps/parsing_service/README.md)).
 The worker pins its `xgrammar` EBNF generator in
 `apps/parsing_service/pyproject.toml`; each server image supplies its own grammar
@@ -284,6 +279,15 @@ worse than the loop.
 
 For direct Compose commands, add `-f compose.gpu.yaml` after the local or
 production overlay. The normal launcher selects it after its GPU probe.
+
+`compose.nvfp4.yaml`, added after `compose.gpu.yaml`, replaces the
+instruction model with `nvidia/Qwen3.8-27B-NVFP4` and multi-token prediction.
+The service name, and so every client address, stays the same. This is the
+DGX Spark deployment's reasoning server. The overlay also sets the worker's
+`KEI_CATALOG_CHUNKS` to 3 instead of `NUEXTRACT_MAX_NUM_SEQS`: its 8G KV cache
+holds about 118k tokens, and four unified discovery windows of about 29k
+tokens at once fill it, so vLLM preempts them and the first window takes more
+than twice as long. The launcher does not add this overlay.
 
 ### Sharing model servers between stacks
 

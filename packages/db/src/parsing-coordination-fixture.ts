@@ -2,7 +2,7 @@
 import { Client } from 'pg'
 import { validateDisposableTestDatabaseTarget } from './database-url.js'
 import { ensureKeiRole } from './kei-role.js'
-import { migrate } from './record-scope-history-fixture.js'
+import { migrate } from './postgres-fixture.js'
 
 async function main() {
   let input = ''

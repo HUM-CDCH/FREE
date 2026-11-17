@@ -1,4 +1,4 @@
-"""The version 1 artifact, assembled the same way for Article and the version 1 Catalog.
+"""The Article version 1 artifact.
 
 Each strategy finds its records and reads their values its own way; what they share after that lives here: the
 document-level values read in each context and reconciled across them, each record's values grounded through the
@@ -25,11 +25,10 @@ from kei_exp.kie.extract.calls import Call
 from kei_exp.kie.extract.contexts import GROUPING_VERSION, Context, assemble_document, sharing
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.method import ArticleOptions
-from kei_exp.kie.extract.routing import OVERFLOW_VERSION, VERSION as GROUNDING_ROUTING_VERSION, verify_routed
+from kei_exp.kie.extract.routing import OVERFLOW_VERSION, verify_routed
 from kei_exp.kie.extract.spans import VERSION as SPAN_GROUNDING_VERSION
 from kei_exp.kie.extract.rendering import RENDERING_VERSION
 from kei_exp.kie.extract.schema import Schema, evidence_policy
-from kei_exp.kie.extract.selection import VERSION as SELECTION_VERSION
 from kei_exp.kie.extract.stages import Issue, Link, extract_document, leaves, merge
 from kei_exp.kie.extract.tokens import TokenCounter
 from kei_exp.kie.passages import Evidence, Passage
@@ -75,7 +74,13 @@ PROMPT_VERSION = 18
 # again shortened or differently cased after exactly one earlier item (a running header's initials) may be its repeat;
 # `of` is asked as the shortest excerpt naming the work.
 # 17: resolution constrains its reply without showing its schema (RESOLUTION states the shape).
-ARTICLE_VERSION = 17
+# 22 (18 to 21 were numbered on unmerged branches): bounded contexts use the document-value request, and the retired
+# selection, identity and routing settings and the inventory output are gone; grounding reserves its complete
+# structured reply and shares one request among the claims that fit the input and reply budgets, each answered by
+# its label alone; the context attributing a list item or object is asked once for its claims and kept beside the
+# primary evidence; the model's evidence stays primary: a word a hyphen splits across passages is cited with its
+# other half as context, whichever half was chosen, and a page end without a hyphen joins nothing.
+ARTICLE_VERSION = 22
 
 
 def fingerprint(result: dict, request, model: dict) -> str:
@@ -90,12 +95,8 @@ def fingerprint(result: dict, request, model: dict) -> str:
            and request.options.article.rendering is not None else {}),
         **({"grouping_version": GROUPING_VERSION} if request.options.article is not None
            and request.options.article.grouping is not None else {}),
-        **({"selection_version": SELECTION_VERSION}
-           if request.options.article is not None and request.options.article.selection is not None else {}),
         **({"span_grounding_version": SPAN_GROUNDING_VERSION}
            if request.options.article is not None and request.options.article.grounding == "spans" else {}),
-        **({"grounding_routing_version": GROUNDING_ROUTING_VERSION}
-           if request.options.article is not None and request.options.article.grounding_routing is not None else {}),
         **({"grounding_overflow_version": OVERFLOW_VERSION}
            if request.options.article is not None and request.options.article.grounding_overflow is not None else {}),
     })).hexdigest()
@@ -146,7 +147,7 @@ class GroundingResult:
 
 def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Schema, chat, *,
                    budget: int, counter=None,
-                   method: ArticleOptions | None = None, identities: Sequence[dict] | None = None,
+                   method: ArticleOptions, identities: Sequence[dict],
                    contexts: Sequence[Context] = (), value_contexts: Sequence[Sequence[Context]] = (),
                    origins: Sequence[Sequence[dict]] = (), resume: frozenset = frozenset(),
                    on_batch: Callable[[Sequence[Link]], None] | None = None) -> GroundingResult:
@@ -155,15 +156,14 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
     Article supplies identities and complete source contexts; each claim is routed to the context its value was read
     from first (`routing.verify_routed`: exhaustive fallback, stopping at support) and shown with its enclosing items'
     fields rather than the whole root (`grounding.verify`'s `projected`), each link with its value's one printing when
-    there is one (`located`). Generic Catalog uses the owned passages in each slice, its links unlocated. Neither path
-    extracts or reconciles values here. `resume` names paths an earlier grounding of the same values already
+    there is one (`located`). This stage never extracts or reconciles values. `resume` names paths an earlier grounding of the same values already
     supported: they are not checked again. `on_batch` runs after each grounding batch with the links it made.
     """
     result = GroundingResult()
-    verifier = grounding.technique(method.grounding if method is not None else None)
-    for number, (group, fields) in enumerate(slices):
+    verifier = grounding.technique(method.grounding)
+    for number, (_, fields) in enumerate(slices):
         skipped_paths = set()
-        if method is not None and method.evidence_policy == "schema":
+        if method.evidence_policy == "schema":
             for path, _ in leaves(fields):
                 policy = evidence_policy(schema.record_nodes, path)
                 if policy != "quoted":
@@ -172,30 +172,18 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
                     result.skipped.append({"path": list(full_path), "policy": policy})
                     result.issues.append(Issue("evidence_policy_skipped", f"{policy}: source verification not requested",
                                                number, full_path))
-        groups = [c.passages for c in contexts] if identities is not None else [group]
         verification = dict(record=number, budget=budget, counter=counter,
             record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
-                ensure_ascii=False)) if identities is not None else None,
+                ensure_ascii=False)),
             proofs=result.proofs, on_batch=on_batch)
-        if identities is not None:
-            links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
-                origins=origins[number], value_contexts=value_contexts[number],
-                skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, located=True,
-                windows=method is not None and method.grounding_overflow == "windows", **verification)
-            result.links += links
-            result.calls += calls
-            result.issues += issues
-            result.routes += routes
-            groups = []
-        for group in groups:
-            links, calls, issues = verifier(group, fields, schema, chat,
-                skip_paths=frozenset(skipped_paths | ({link.path for link in result.links}
-                    if method is not None and method.grounding_schedule == "unresolved" else set())), **verification)
-            # Retain the first support in execution order; all calls/proofs remain auditable.
-            known = {link.path for link in result.links}
-            result.links += [link for link in links if link.path not in known]
-            result.calls += calls
-            result.issues += issues
+        links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
+            origins=origins[number], value_contexts=value_contexts[number],
+            skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, located=True,
+            windows=method.grounding_overflow == "windows", **verification)
+        result.links += links
+        result.calls += calls
+        result.issues += issues
+        result.routes += routes
     return result
 
 
@@ -276,6 +264,10 @@ def link_json(link: Link) -> dict:
     dumped = {**asdict(link), "path": list(link.path), "bbox_pt": list(link.bbox_pt)}
     if link.location is None:
         del dumped["location"]
+    if not link.context:
+        del dumped["context"]
+    else:
+        dumped["context"] = list(link.context)
     return dumped
 
 

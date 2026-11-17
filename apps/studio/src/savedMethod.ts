@@ -4,14 +4,13 @@ import type { ExtractionStrategy } from '../shared/extraction.contract'
 import type { ModelConfig } from '../shared/modelConfig.contract'
 import { apiErrorText, getModelConfig, onModelConfigSaved } from './providerConfig/providerConfig.data'
 
-/** What a start view needs to know of the account and the deployment: the saved document, and whether new Catalog
- *  Extractions use the unified method. */
-export type SavedMethodSource = Readonly<{ config: ModelConfig; unifiedCatalog?: boolean }>
+/** The account's saved configuration used by a start view. */
+export type SavedMethodSource = Readonly<{ config: ModelConfig }>
 
 /** The saved method a start view shows and submits: the same function admission compares it with. */
-export function savedMethodFor(saved: SavedMethodSource, strategy: ExtractionStrategy, catalogRecipe: string | null): ExtractionMethodIntent {
-  const { config, unifiedCatalog } = saved
-  return activeMethod(config.extractionModels, config.extractionSettings, strategy, catalogRecipe, unifiedCatalog === true)
+export function savedMethodFor(saved: SavedMethodSource, strategy: ExtractionStrategy): ExtractionMethodIntent {
+  const { config } = saved
+  return activeMethod(config.extractionModels, config.extractionSettings, strategy)
 }
 
 export type SavedMethodState =
@@ -30,9 +29,9 @@ export function useSavedMethod(): { state: SavedMethodState; refresh: () => Prom
     current.current = controller
     setState({ status: 'loading' })
     try {
-      const { config, deployment } = await getModelConfig(controller.signal)
+      const { config } = await getModelConfig(controller.signal)
       if (controller.signal.aborted) return null
-      const ready = { config, ...(deployment.unifiedCatalog ? { unifiedCatalog: true } : {}) }
+      const ready = { config }
       setState({ status: 'ready', ...ready })
       return ready
     } catch (cause) {
@@ -43,7 +42,7 @@ export function useSavedMethod(): { state: SavedMethodState; refresh: () => Prom
   // An Apply in this page is the saved document: it replaces any read still in flight.
   useEffect(() => onModelConfigSaved((config) => {
     current.current?.abort()
-    setState((previous) => ({ status: 'ready', config, ...(previous.status === 'ready' && previous.unifiedCatalog ? { unifiedCatalog: true } : {}) }))
+    setState({ status: 'ready', config })
   }), [])
   useEffect(() => {
     let mounted = true

@@ -22,7 +22,3 @@ export const stabiliseSchemaRevisionResponseSchema = z
     stabilisedAt: z.string(),
   })
   .strict()
-
-export type StabiliseSchemaRevisionResponse = z.infer<
-  typeof stabiliseSchemaRevisionResponseSchema
->

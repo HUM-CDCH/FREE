@@ -18,8 +18,6 @@ export type ExtractionStrategy = z.infer<typeof extractionStrategySchema>
 
 const requestUuid = z.uuid().transform((value) => value.toLowerCase())
 
-/** A numbered-catalogue recipe reference (`id@version`), chosen per Catalog Extraction; kei-exp owns the recipes. */
-export const catalogRecipeSchema = z.string().regex(/^[a-z0-9][a-z0-9-]*@[1-9][0-9]*$/)
 
 /** The two roles an Extraction's model calls split into: `fields` reads values off the source, `reasoning` decides over
  *  labelled text (record starts, grounding, arbitration). kei-exp routes each role to one of its deployment's models. */
@@ -52,7 +50,6 @@ export const extractionRequestSchema = z
     sourceRepresentationRevisionId: requestUuid,
     schemaRevisionId: requestUuid,
     strategy: extractionStrategySchema,
-    catalogRecipe: catalogRecipeSchema.optional(),
     /** The saved method the start view showed: the Extraction Model Choice and this strategy's settings. Admission
      *  refuses it when the account's saved method changed since, and pins it otherwise. */
     method: extractionMethodIntentSchema,
@@ -61,11 +58,7 @@ export const extractionRequestSchema = z
     startPage: z.number().int().positive().optional(),
   })
   .strict()
-  .refine((request) => request.catalogRecipe === undefined || request.strategy === 'CATALOG', {
-    path: ['catalogRecipe'],
-    message: 'A recipe applies to a Catalog Extraction only.',
-  })
-  .refine((request) => settingsFit(request.strategy, request.catalogRecipe ?? null, request.method.settings), {
+  .refine((request) => settingsFit(request.strategy, request.method.settings), {
     path: ['method', 'settings'],
     message: 'The saved settings do not match this Extraction Strategy.',
   })
@@ -80,7 +73,6 @@ export function methodRuleIssues(request: { method: z.output<typeof extractionMe
     context.addIssue({ code: 'custom', path: ['method', 'settings', 'article', issue.path], message: issue.message })
 }
 
-export type ExtractionRequest = z.infer<typeof extractionRequestSchema>
 export type ExtractionRequestInput = z.input<typeof extractionRequestSchema>
 
 /** A named immutable result/decision cut of a durable Extraction. */
@@ -104,12 +96,10 @@ export const extractionAttemptSchema = z
     sourceRepresentationRevisionId: z.uuid(),
     schemaRevisionId: z.uuid(),
     strategy: extractionStrategySchema,
-    /** The numbered-catalogue recipe a Catalog Extraction was admitted with; null for generic Catalog and for Article. */
-    catalogRecipe: catalogRecipeSchema.nullable(),
     /** The admitted Extraction Model Choice; null when every role kept kei-exp's deployment default. */
     requestedModels: extractionModelChoiceSchema.nullable(),
     /** The settings admitted with the Extraction. */
-    requestedSettings: activeSettingsSchema.nullable(),
+    requestedSettings: activeSettingsSchema,
     executionStatus: extractionExecutionStatusSchema,
     /** The latest finalization of any of its cuts; later work stays separate and live inspection shows the live cut. */
     finalizedReview: finalizedReviewSchema.nullable(),
@@ -117,10 +107,7 @@ export const extractionAttemptSchema = z
     createdAt: z.iso.datetime(),
   })
   .strict()
-  .superRefine((attempt, context) => {
-    if (attempt.catalogRecipe !== null && attempt.strategy !== 'CATALOG')
-      context.addIssue({ code: 'custom', path: ['catalogRecipe'], message: 'A recipe applies to a Catalog Extraction only.' })
-  })
+
 
 export type ExtractionAttempt = z.infer<typeof extractionAttemptSchema>
 

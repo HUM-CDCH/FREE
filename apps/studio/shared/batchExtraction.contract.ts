@@ -48,10 +48,9 @@ export function batchMethodFitsStrategy(request: {
   strategy: z.output<typeof extractionStrategySchema>
   method: z.output<typeof extractionMethodIntentSchema>
 }): boolean {
-  return settingsFit(request.strategy, null, request.method.settings)
+  return settingsFit(request.strategy, request.method.settings)
 }
 
-export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema>
 
 /**
  * A member is one durable Extraction: its head's lifecycle, whether its current result cut holds saved values, and a
@@ -82,8 +81,8 @@ export const batchExtractionSchema = z
     strategy: extractionStrategySchema,
     executionStatus: projectOperationStatusSchema,
     createdAt: z.iso.datetime(),
-    /** Opened before its Schema Revision was approved: a trial round. Absent from an older server. */
-    trial: z.boolean().optional(),
+    /** Opened before its Schema Revision was approved: a trial round. */
+    trial: z.boolean(),
     members: z.array(batchExtractionMemberSchema),
   })
   .strict()
@@ -126,6 +125,8 @@ export const batchExtractionListResponseSchema = z
   .object({ batchExtractions: z.array(batchExtractionSchema), latestExtractions: z.array(latestExtractionSchema).optional(),
     reviewedExtractions: z.array(latestExtractionSchema).optional(), newestExtractionIds: z.array(canonicalUuidSchema).optional() })
   .strict()
+/** The same list asked for with `latest=1`. */
+export const projectExtractionsResponseSchema = batchExtractionListResponseSchema.required()
 
 /** A member's run has settled for now: paused, stopped, failed or completed, so its saved values hold still. */
 const SETTLED: ReadonlySet<BatchExtractionMember['executionStatus']> = new Set(['PAUSED', 'STOPPED', 'FAILED', 'COMPLETED'])

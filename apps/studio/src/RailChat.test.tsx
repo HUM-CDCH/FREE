@@ -28,6 +28,22 @@ function renderChat(props: Partial<Omit<RailChatProps, 'chat'>> = {}) {
 }
 
 describe('RailChat', () => {
+  it.each(['reply', 'edit'] as const)('waits for a pending %s before offering Record Scope', (request) => {
+    const props = { schema: schemaWithFields(), sourceDocumentName: 'letters.pdf', latest: null,
+      onShowView: vi.fn(), recordScope: { value: null, onChange: vi.fn() } }
+    function PendingRequest({ busy }: { busy: boolean }) {
+      const chat = useSchemaChat({ schema: props.schema })
+      return <RailChat {...props} chat={{ ...chat, loading: busy && request === 'edit',
+        asking: busy && request === 'reply' ? 'make it simpler' : null }} />
+    }
+    const view = render(<PendingRequest busy={false} />)
+    expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
+    view.rerender(<PendingRequest busy />)
+    expect(screen.queryByRole('region', { name: 'Choose Record Scope' })).not.toBeInTheDocument()
+    view.rerender(<PendingRequest busy={false} />)
+    expect(screen.getByRole('region', { name: 'Choose Record Scope' })).toBeVisible()
+  })
+
   it('asks for Generate template before the first template and generates with the kept instructions', () => {
     const onGenerate = vi.fn()
     renderChat({ schema: createSchemaEditorController(testSchemaPersistence()), onGenerate })
@@ -284,7 +300,7 @@ describe('the second trial', () => {
       documents: ['a', 'b', 'c'].map((id) => ({ id, name: `${id}.pdf` })), currentDocumentId: 'a',
       batches: [{ batchExtractionId: 'trial-1', projectContextId: 'project-1', schemaRevisionId: 'revision-2', extractionSchemaId: 'schema',
         extractionSchemaName: 'Letters', schemaRevisionNumber: 2, strategy: 'CATALOG' as const, executionStatus: 'COMPLETED' as const,
-        createdAt: '2026-11-01T00:00:00.000Z', members: [member('a'), member('b')] }],
+        createdAt: '2026-11-01T00:00:00.000Z', trial: true, members: [member('a'), member('b')] }],
       latest: null, roundId: null, busy: false, error: null,
     },
     start: vi.fn(), approve: vi.fn(), stopBatch: vi.fn(), open: vi.fn(), export: vi.fn(), id: 'project-1', addDocuments: vi.fn(),

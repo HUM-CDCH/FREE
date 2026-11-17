@@ -44,7 +44,6 @@ const control =
  *  strategy is not the schema's saved Article/Catalog scope. Nothing started. */
 const METHOD_REFUSALS: ReadonlySet<string> = new Set([
   'method_changed',
-  'catalog_migration_required',
   'record_scope_required',
   'record_scope_mismatch',
 ])
@@ -687,7 +686,7 @@ function PreparedTemplate({
         schemaRevisionId: admitted.schemaRevisionId,
         strategy: runStrategy,
         sourceDocumentIds: [...selected],
-        method: savedMethodFor(savedState, runStrategy, null),
+        method: savedMethodFor(savedState, runStrategy),
       })
       onOpened(opened)
     } catch (error) {
@@ -718,7 +717,7 @@ function PreparedTemplate({
       <div className="mb-3">
         {strategy !== null && (
           <SavedMethodSummary saved={saved.state} conflict={methodConflict}
-            method={saved.state.status === 'ready' ? savedMethodFor(saved.state, strategy, null) : null}
+            method={saved.state.status === 'ready' ? savedMethodFor(saved.state, strategy) : null}
             onRefresh={() => { setRefusal(null); void saved.refresh() }} />
         )}
       </div>

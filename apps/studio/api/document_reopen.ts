@@ -7,7 +7,6 @@ import type {
   ResearcherProjectStore,
 } from '../../../packages/db/src/project-store.js'
 import {
-  annotationSchema,
   canonicalUuidSchema,
   documentReopenResponseSchema,
 } from '../shared/projectContext.contract.js'
@@ -29,10 +28,6 @@ import {
 const ROUTE =
   /^\/api\/project-contexts\/([^/]+)\/source-documents\/([^/]+)\/reopen$/
 
-// `strip` so a persisted Annotation carrying more than Studio reopens is
-// projected down to the browser contract rather than rejected.
-const storedAnnotationsSchema = z.array(annotationSchema.strip())
-
 /** Durable state that cannot be projected is unreadable, not silently rewritten. */
 function durable<T>(schema: z.ZodType<T>, value: unknown): T {
   const parsed = schema.safeParse(value)
@@ -49,11 +44,9 @@ function storedDefinition(schemaTree: unknown, recordScope: unknown) {
   return durable(savedSchemaDefinitionSchema, { ...(schemaTree as object), recordScope })
 }
 
-/** A revision's source declaration is advisory: one that does not read as a declaration is not recorded, never
- *  a reason to refuse the reopen. */
+/** A saved source declaration is parsed strictly; absent coverage remains absent. */
 function storedSourceCoverage(value: unknown): SourceCoverage | null {
-  const declared = sourceCoverageSchema.safeParse(value)
-  return declared.success ? declared.data : null
+  return value === null ? null : durable(sourceCoverageSchema, value)
 }
 
 function representationResources(
@@ -148,14 +141,6 @@ async function reopenResponse(
         snapshot.projectContext.projectContextId,
         representation.sourceRepresentationId,
         resourceVersion,
-      ),
-    },
-    annotationSet: snapshot.annotationSet && {
-      annotationSetId: snapshot.annotationSet.annotationSetId,
-      revisionNumber: snapshot.annotationSet.revisionNumber,
-      annotations: durable(
-        storedAnnotationsSchema,
-        snapshot.annotationSet.snapshot,
       ),
     },
     extractionSchema: snapshot.extractionSchema && {

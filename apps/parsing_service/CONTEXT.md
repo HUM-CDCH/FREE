@@ -6,7 +6,7 @@ terms only. How a stage computes anything lives in
 [the KIE data model and stage 0 design](docs/design/2026-09-14-kie-model-and-ingest-design.md) and the code; the
 processing boundary and HTTP contract live in [README.md](README.md), product concepts in FREE's root
 `CONTEXT.md`. `crop` and `region` belong to the OCR stage's layout cut; the canonical passage view
-(`kie/passages.py`), shared by the recipe stages and extraction, calls a canonical segment a `Passage`; the
+(`kie/passages.py`) calls a canonical segment a `Passage`; the
 extraction module (`kie/extract`) uses `record` for an extracted occurrence under an Extraction Schema.
 
 ## The document and its images
@@ -69,7 +69,9 @@ in the selected page range. Adapters number their records and events by it. **So
 unit (the page itself, or a book page of the ingest) and crop an ordinal names; the OCR stage maps one
 to the other (`ocr.inventory`).
 
-## The catalogue
+## The former numbered-catalogue recipe
+
+This vocabulary records the retired recipe Catalog path.
 
 **Entry** — a numbered catalogue record in the book. `entry_label` is the number as printed: `31`, `31a`.
 
@@ -94,9 +96,7 @@ continuation: an entry that merely runs over several paragraphs inside one colum
 ## The pipeline
 
 **Stage** — one step of the pipeline, owning its own namespace. Ingest and OCR are modules with a `run(...)`
-that writes only that namespace: ingest the book-page images, OCR the canonical page files. The recipe stages
-(`kie/stages/{layout,route,segment}.py`) are pure functions over canonical evidence; `kie/segmentation_run.py`
-reuses their validated segmentation or computes and publishes it.
+that writes only that namespace: ingest the book-page images, OCR the canonical page files.
 
 **Artifact** — a stage's JSON output file, holding that stage's namespace alone. **Envelope** — the
 artifact's header, recording what the stage was and what it was run on. **Fingerprint** — a hash of a

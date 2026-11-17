@@ -62,9 +62,8 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
     steps: dbosSteps,
     generate: generateSchemaWithModel,
     store: workerSuggestionStore(createInternalProjectWorkerStore()),
-    patched: (name) => DBOS.patch(name),
   }))
-  registerIngestionWorkflow(() => ({ ...sourceConversionWorkflowPorts(), patched: (name) => DBOS.patch(name) }))
+  registerIngestionWorkflow(sourceConversionWorkflowPorts)
   registerReprocessWorkflow(sourceConversionWorkflowPorts)
   registerSchemaGenerationWorkflow(() => {
     const worker = createInternalProjectWorkerStore()
@@ -72,7 +71,6 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
       steps: dbosSteps,
       readSource: (id) => worker.readRevisionSchemaSource(id),
       generate: generateSchemaWithModel,
-      patched: (name) => DBOS.patch(name),
     }
   })
   registerSchemaEditWorkflow(() => {
@@ -86,7 +84,6 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
       respond: respondToSchemaEdit,
       answerWindow: answerFromWindow,
       combineAnswers: combineWindowAnswers,
-      patched: (name) => DBOS.patch(name),
     }
   })
   registerSchemaChatWorkflow(() => {

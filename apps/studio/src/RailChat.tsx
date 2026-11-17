@@ -131,7 +131,9 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     project: project ? { ...project.guide, moreDocuments: moreKey ? more.value : undefined } : null,
   }
   // A message that asked to extract is answered by its own step until the researcher chooses; else the next step.
-  const step = chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
+  const next = chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
+  // Finish answering the researcher before asking for scope; an edit may produce a proposal to review first.
+  const step = next?.key === 'scope' && (chat.loading || chat.asking !== null) ? null : next
   // The documents ticked in the step's picker: its own initial ones until the researcher changes them.
   const [ticked, setTicked] = useState<{ key: string; ids: ReadonlySet<string> } | null>(null)
   const picked = step?.picker ? (ticked?.key === step.key ? ticked.ids : new Set(step.picker.initial)) : null
