@@ -88,9 +88,11 @@ def test_checkpoint_recovery_across_native_process_death(tmp_path,index):
     catalogue.write({'transcriber':'native','pages':[{'page':1,'units':[{'index':0,
       'segments':['1. Hill.','2. Valley.']}]}]},source,generation=case['source']['generation'])
     (source/'params.json').write_text('{}')
+
     def entry(record, *_):
         name = 'Valley' if 'Valley' in record else 'Hill'
         return {'name': candidate(name, name)}
+
     model = CatalogModel(load(source), entry=entry)
     requests=[]
     class Model(BaseHTTPRequestHandler):
