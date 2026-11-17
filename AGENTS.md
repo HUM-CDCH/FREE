@@ -1,6 +1,9 @@
 # FREE repository context
 
-If the docs and the existing code disagree, follow the existing code, and list every mismatch in your final reply.
+Use the existing code to establish current behavior. The
+[product and safety contract](docs/product-contract.md) defines required
+behavior. Report every mismatch between code and documentation you encounter
+during the task in your final reply.
 
 - Read `docs/product-contract.md` before changing authentication, persistence,
   deployment, database lifecycle, or verification. It is the normative product
@@ -29,36 +32,30 @@ If the docs and the existing code disagree, follow the existing code, and list e
 - This repository is public: no credentials, internal hostnames/IPs, personal
   data or non-redistributable documents in tracked files (see `CONTRIBUTING.md`).
 
+## Task completion
+
+Make reversible local decisions and complete the authorized work. Verify the
+affected behavior. In your final reply, report the checks you ran, what remains
+unverified, and any blockers.
+
 ## Sustainable design
 
-This codebase is yours: what it does and how it is built depend entirely on your
-choices, and you will continue developing it over time. Build it with sustainable
-design in mind:
-
-- **Strategic approach, not tactical:** your primary goal is to keep the structure
-  clean and easy to change tomorrow, as well as making the code work today.
-- **Deep modules:** design components that offer powerful functionality through
-  simple interfaces. Avoid fragmentation into shallow modules full of pass-through
-  methods.
-- **Pull complexity downward:** a module's ease of use matters more than its ease
-  of implementation. Absorb complexity within the module instead of pushing it
-  onto callers.
-- **Define errors out of existence:** design abstractions so that edge cases fit
-  naturally into the standard flow, reducing unnecessary branches and exceptions.
+- Keep the codebase easy to change by giving modules simple interfaces and
+  avoiding layers that only pass calls through.
+- Handle complexity and edge cases inside the module so callers can use the
+  standard flow.
 
 ## Commands
 
-- `pnpm test`: run the fast unit and static checks
+- `pnpm test`: run the fast unit and static checks without a running stack
 - `pnpm build`: build Studio
 - `pnpm lint`: lint Studio
 - `pnpm dev`: start the local Compose stack
 
-## Code Map
-
-- `apps/`: application source
-- `packages/`: packages
-- `tests/`: automated tests
-- `docs/`: project documentation
+Before requesting review of code changes, run `pnpm typecheck`, `pnpm lint`,
+and `pnpm test:unit` as required by [CONTRIBUTING.md](CONTRIBUTING.md#workflow),
+along with the [verification tiers](docs/operations/local-development.md#verification)
+affected by the change.
 
 ## Conventions
 
