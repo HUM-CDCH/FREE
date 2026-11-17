@@ -48,7 +48,3 @@ export const projectSpreadsheetErrorSchema = z
 export const projectSpreadsheetErrorResponseSchema = z
   .object({ error: projectSpreadsheetErrorSchema })
   .strict()
-
-export type ProjectSpreadsheetFailure = z.infer<
-  typeof projectSpreadsheetErrorSchema
->

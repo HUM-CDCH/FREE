@@ -1,13 +1,11 @@
-"""The KIE model's validation rules, pinned on hand-built values (no PDF, no GPU): geometry, source, page, heading
-event and block, the ingest config at parse time and against a source, the effective config, and the ingest artifact
-with its report and envelope. Each section's refusals are one parametrized test; what each one refuses is its id."""
+"""Validation of evidence spans, geometry, ingest settings and ingest artifacts."""
 
 import hashlib
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from kei_exp.kie.blocks import Block, HeadingEvent, Span
+from kei_exp.kie.blocks import Span
 from kei_exp.kie.ingest_model import IngestArtifact, IngestConfig, IngestReport, Page, Placement, Source
 from kei_exp.kie.primitives import Bbox, IngestError
 
@@ -94,20 +92,6 @@ def source(spreads: int = 2, size_pt: tuple[float, float] = PAGE_PT, **overrides
 
 def span(segment_id: str, start: int, end: int) -> dict:
     return {"segment_id": segment_id, "start": start, "end": end}
-
-
-def block(id: str, label: str, no: int, suffix: str, primary: list[dict], **overrides) -> dict:
-    fields = {
-        "id": id,
-        "entry_label": label,
-        "entry_no": no,
-        "entry_suffix": suffix,
-        "primary_spans": primary,
-        "context_spans": [],
-        "continuation": False,
-        "heading_events": [],
-    }
-    return {**fields, **overrides}
 
 
 def spread_report(spread: int, **overrides) -> dict:
@@ -313,55 +297,6 @@ PAGE_REJECTIONS = [
 
 @pytest.mark.parametrize("build", PAGE_REJECTIONS)
 def test_page_refuses(build):
-    with pytest.raises(ValidationError):
-        build()
-
-
-# --- HeadingEvent, Block -----------------------------------------------------------------------------
-
-
-def test_a_block_label_carries_its_number_and_suffix():
-    assert Block.model_validate(block("b2", "31a", 31, "a", [span("p1_s1", 0, 3)])).entry_suffix == "a"
-
-
-HEADING_BLOCK_REJECTIONS = [
-    pytest.param(
-        lambda: HeadingEvent.model_validate({"id": "h1", "kind": "bezirk", "level": 1, "text": "Bezirk Halle",
-                                             "spans": []}),
-        id="a heading event without evidence",
-    ),
-    pytest.param(
-        lambda: HeadingEvent.model_validate({"id": "h1", "kind": "kreis", "level": 0, "text": "x",
-                                             "spans": [span("p2_s1", 0, 1)]}),
-        id="a heading level under 1",
-    ),
-    pytest.param(
-        lambda: HeadingEvent.model_validate({"id": "h1", "kind": "", "level": 1, "text": "x",
-                                             "spans": [span("p2_s1", 0, 1)]}),
-        id="a heading without a kind",
-    ),
-    pytest.param(lambda: Block.model_validate(block("b1", "31", 31, "", [])), id="a block without primary spans"),
-    pytest.param(
-        lambda: Block.model_validate(block("b1", "31", 32, "", [span("p1_s1", 0, 3)])),
-        id="a label that disagrees with its number",
-    ),
-    pytest.param(
-        lambda: Block.model_validate(block("b1", "31a", 31, "", [span("p1_s1", 0, 3)])),
-        id="a label that drops its suffix",
-    ),
-    pytest.param(
-        lambda: Block.model_validate(block("b1", "a31", 31, "a", [span("p1_s1", 0, 3)])),
-        id="a label without leading digits",
-    ),
-    pytest.param(
-        lambda: Block.model_validate(block("b1", "31\n", 31, "", [span("p1_s1", 0, 3)])),
-        id="a newline read as an empty suffix",
-    ),
-]
-
-
-@pytest.mark.parametrize("build", HEADING_BLOCK_REJECTIONS)
-def test_heading_event_and_block_refuse(build):
     with pytest.raises(ValidationError):
         build()
 

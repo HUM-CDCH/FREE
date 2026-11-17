@@ -106,9 +106,3 @@ export async function seedResearch(packages: CanonicalPackageStore): Promise<See
     generation: manifest.generation,
   }
 }
-
-/** Removes what seedResearch wrote: the project cascades its documents, schemas and Extractions. */
-export async function removeResearch(seeded: SeededResearch): Promise<void> {
-  await db.orm.public.ProjectContext.where({ id: seeded.projectContextId }).delete()
-  await db.orm.public.ResearcherAccount.where({ id: seeded.researcherAccountId }).delete()
-}

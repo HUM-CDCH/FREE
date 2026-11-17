@@ -116,7 +116,7 @@ run would lose its result.
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: how many Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
+| `KEI_CATALOG_CHUNKS` | Worker only: how many Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
 
@@ -220,13 +220,9 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   model that cannot take a role (NuExtract cannot reason) is refused before any
   call.
 - A result keeps ungrounded values explicit, and its `calls` lists every model
-  call: a generic Catalog record call that looped on whitespace and was read on
-  its one bounded-grammar retry is kept, failed, with `recovered: true`, and
-  does not by itself make the result incomplete.
-  Unified Catalog entry calls use the same one-retry policy for whitespace
-  loops between JSON tokens, including before a later token. Durable recovery
-  preserves the original source, guidance and budgets; Retry reuses the saved
-  recovery and completed entries.
+  call. Catalog entry calls can retry a whitespace loop between JSON tokens once
+  with a bounded grammar. Durable recovery preserves the original source,
+  guidance and budgets. Retry reuses the saved recovery and completed entries.
 - The task scope is the schema's `recordScope` (`document` for Article,
   `records` for a Catalog; `tests/fixtures/contracts/record-scope.json`). A
   declared scope must match `options.strategy`; an undeclared one (CLI,
@@ -290,8 +286,7 @@ Limitations:
   are listed as `unverified`.
 - Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
-- Under defaults 7 heading applicability is a model judgement, not a code check
-  of heading hierarchy. A stale heading the model accepts can still be wrong.
+- The model judges heading applicability. A stale heading the model accepts can still be wrong.
   Standing headings can be omitted when requests have no room; long histories
   repeat context references and one omission row per range per entry in artifacts.
 - Native word alignment constrains physical rows; it cannot infer a missing

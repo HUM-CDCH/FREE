@@ -21,8 +21,7 @@ shows the value's whole printed words once; what that refuses still waits for Pr
 Nothing finer exists. Surya (surya-ocr 0.22.1), the default OCR model, returns one box per block; on 3 pages probed
 its full-page output held no nested line boxes. A segment Surya read keeps that one box (`PageSegment` in
 `pagefile.py`), and parsed_document.v2 gives each text observation one bbox (`parsed-document.ts`). The recipe
-path's lines are source lines, "because Surya's blocks are paragraphs and no line geometry exists"
-(`kie/stages/layout.py`).
+path used source lines split on newlines because Surya supplied block geometry without line geometry.
 
 Over the saved Studio extractions (17 with Evidence, 5,548 links, 6 documents, 2 of them real scans), 1,069
 citations sit on OCR'd blocks whose text layer does not show the quote; their blocks print a median of 3 lines (p90
@@ -79,7 +78,7 @@ recipe path's source line.
   per workflow, at most 5 s per cited block at p90, no conversion more than 10% slower. Past it, blocks keep the
   paragraph mark, and a GPU detector needs a deployment amendment: a detector model server, or GPU access and a GPU
   torch build for the worker.
-- **Stored as a derived artifact of the parse**, as a recipe segmentation is (`kie/segmentation.py`): one file per
+- **Stored as a derived artifact of the parse**, as the former recipe segmentation was: one file per
   cited segment under the run, named by Result generation, Evidence reference and algorithm version, published by
   rename, and recording the digest of the text it was aligned to, the detector checkpoint, the OCR model and
   `KEI_OCR_REVISION`. A published file is kept, so a later attempt redoes no block. Canonical manifests and page
@@ -99,8 +98,8 @@ recipe path's source line.
   to `deleteRuns` once no Source Representation revision or durable head names it. `kei-lines:<attempt>` joins its
   attempt's durable graph: Studio's reconciler, scope cancellation (`cancelScopeWork`), the kei stand-in used in
   tests and `delete_quiescent_history` count it with the `kei-call` children, so a tombstoned head keeps the run
-  pinned until it can no longer write. The spec's "attempts only read runs" (also in `gc.py`) becomes: attempts
-  write into a run only derived artifacts, a recipe segmentation (as already) and Printed Lines.
+  pinned until it can no longer write. This amends the spec's "attempts only read runs" rule (also in `gc.py`).
+  Attempts may write only the derived Printed Lines artifacts into a run.
 
 ## Consequences
 
