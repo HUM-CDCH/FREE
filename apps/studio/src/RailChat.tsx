@@ -1,11 +1,12 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
 import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { extractStep, nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
+import { confirmedOption, extractStep, nextStep, type ChatOffer, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard,
+  type StepOption } from './chatGuide'
 import { ChatTranscript } from './SchemaChatParts'
 import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
@@ -13,6 +14,9 @@ import { CONVERSATION_EMPTY } from './SchemaPanel'
 import { PendingAsk } from './SchemaInstructions'
 import { NO_ACTION_REPLY, type SchemaChat } from './useSchemaChat'
 
+/** The reply to a "yes" beside a step with nothing to go ahead with, or one that has moved on since. */
+export const NOTHING_TO_CONFIRM_REPLY = 'There is nothing here to go ahead with: choose from the step below, or say what to do.'
+const NO_REGENERATE_REPLY = 'The template cannot be generated again here.'
 const PRE_SCHEMA_EMPTY = "Ask about the document, or say what to extract. I'll suggest a template when you're ready."
 
 export type RailChatProps = {
@@ -21,6 +25,8 @@ export type RailChatProps = {
   sourceDocumentName: string
   /** Extraction Schema generation; omitted where generation is unavailable. */
   onGenerate?: (instruction: string) => void
+  /** Asks to generate the template again once there is one (the Regenerate dialog), where the workspace can. */
+  onRegenerate?: () => void
   recordScope?: { value: RecordScope | null; onChange: (scope: RecordScope) => void; disabled?: boolean }
   /** Run extraction, where the workspace offers it. */
   run?: { start: () => void; available: boolean; unavailableReason: string | null } | null
@@ -59,7 +65,7 @@ export type RailChatProps = {
  * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
  * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, onRegenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -152,8 +158,11 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     run.start()
   }, [restartReady, restartFor, run])
 
-  function choose(card: StepCard, option: StepOption, text = '') {
-    const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
+  // The step a message is sent beside, with its ticks, which a "yes" goes ahead with (ADR 0034).
+  const offer = (card: StepCard | null): ChatOffer | null => card && { card, picked: picked ? [...picked] : [] }
+
+  function choose(card: StepCard, option: StepOption, text = '', ticks: ReadonlySet<string> | null = picked) {
+    const ids = option.picks && card.picker && ticks ? card.picker.documents.map(({ id }) => id).filter((id) => ticks.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
     // A choice that moves the workflow on, chosen under another view, returns to the conversation so the next step is
     // in front of the researcher; one that opens a view goes there, and a run's controls leave the view as it is.
@@ -163,7 +172,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     if (said) {
       if (!canSay) return
       reveal()
-      void (preSchema ? chat.ask(said) : chat.send(said))
+      void (preSchema ? chat.ask(said, offer(card)) : chat.send(said, offer(card)))
     } else {
       // Only a choice that does something is noted in the conversation.
       if (!UNNOTED.has(option.action)) chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
@@ -216,6 +225,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     act[option.action]()
   }
 
+
   // The home always shows the conversation; elsewhere the step stands in for it.
   const open = mode === 'full'
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -243,12 +253,40 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     if (step.key.startsWith('extract:')) chat.clearExtractRequest()
     else setDismissed((current) => new Set(current).add(step.key))
   }
-  const ask = () => { if (!instructions.draft.trim()) return; reveal(); setAside(); void chat.ask() }
-  const send = () => { if (!chat.input.trim()) return; reveal(); setAside(); void chat.send(chat.input) }
+  // The step goes with the message, as it was before sending set it aside.
+  const ask = () => { if (!instructions.draft.trim()) return; const offered = offer(step); reveal(); setAside(); void chat.ask(undefined, offered) }
+  const send = () => { if (!chat.input.trim()) return; const offered = offer(step); reveal(); setAside(); void chat.send(chat.input, offered) }
 
   const blocked = !!pending || chat.loading
   // What is typed in place of a step goes where the composer's message would.
   const canSay = preSchema ? chat.asking === null : editable && !blocked
+
+  // A message that asked to make the template, or agreed to the step it was sent beside, is carried out as the workspace
+  // stands now (ADR 0034): before the first template, Generate template comes back here; after it, the Regenerate
+  // dialog opens; a "yes" goes ahead with the step's lead option.
+  const { heard, clearHeard, appendMessage } = chat
+  const [shownGenerate, setShownGenerate] = useState<number | null>(null)
+  if (heard?.action === 'generate' && preSchema && heard.request !== shownGenerate) {
+    setShownGenerate(heard.request)
+    setDismissed((current) => new Set([...current].filter((key) => !key.startsWith('generate:'))))
+  }
+  // Read with the workspace as it stands when the request arrives, not as it stood when the message was sent.
+  const carryOut = useEffectEvent((request: NonNullable<typeof heard>) => {
+    clearHeard()
+    if (request.action === 'generate') {
+      if (preSchema) return
+      if (onRegenerate) onRegenerate()
+      else appendMessage(NO_REGENERATE_REPLY)
+      return
+    }
+    const confirmed = request.offer && confirmedOption(guide, request.offer.card)
+    if (confirmed) choose(confirmed.card, confirmed.option, '', new Set(request.offer!.picked))
+    else appendMessage(NOTHING_TO_CONFIRM_REPLY)
+  })
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the chat's request, carried out once as it arrives
+    if (heard) carryOut(heard)
+  }, [heard])
   const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} scopeBlockedReason={snap.editingBlockedReason} sayDisabled={!canSay}
     onChoose={(option) => choose(step, option)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })}
     composer={composer} onSay={() => composerRef.current?.focus()} onFold={mode === 'step' ? () => setUnfolded(null) : undefined} />

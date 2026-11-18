@@ -4,7 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type { SchemaRevision } from '../shared/schemaRevision.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import { createSchemaEditorController, durableSchemaPersistence, type SchemaEditorController } from './currentSchemaRevision'
-import { NO_ACTION_REPLY, useSchemaChat } from './useSchemaChat'
+import { NO_ACTION_REPLY, NO_TEMPLATE_REPLY, useSchemaChat } from './useSchemaChat'
+import type { ChatOffer } from './chatGuide'
 
 const { requestSchemaEdit, requestSchemaChat, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
   requestSchemaEdit: vi.fn(), requestSchemaChat: vi.fn(), deleteModelOperation: vi.fn(async () => {}), listModelOperations: vi.fn(async () => []),
@@ -90,6 +91,42 @@ it('answers a message that only declines with the chat box, proposing nothing', 
   await act(() => hook.result.current.send('No thanks'))
   expect(hook.result.current.proposalReview.pending).toBeNull()
   expect(hook.result.current.messages.slice(-2)).toEqual([{ role: 'user', text: 'No thanks' }, { role: 'assistant', text: NO_ACTION_REPLY }])
+})
+
+const offer: ChatOffer = {
+  card: { key: 'generate:0', title: 'Generate template', question: 'Suggest a template from a.pdf?', options: [{ action: 'generate', label: 'Generate template', tone: 'positive' }] },
+  picked: [],
+}
+
+it('before the first schema, a template asked for is the page\'s, with what it should hold kept for generation', async () => {
+  requestSchemaChat.mockResolvedValueOnce({ kind: 'requested', action: 'generate', focus: 'the dates' })
+  const { hook } = setup('representation-1')
+  await act(() => hook.result.current.ask('give me a template of the dates', offer))
+  expect(requestSchemaChat.mock.calls[0]![5]).toBe('Generate template: Suggest a template from a.pdf?')
+  expect(hook.result.current.instructions.items).toMatchObject([{ text: 'the dates' }])
+  expect(hook.result.current.heard).toMatchObject({ action: 'generate', offer })
+})
+
+it('before the first schema, a request to extract says there is no template yet and leads to generating one', async () => {
+  requestSchemaChat.mockResolvedValueOnce({ kind: 'requested', action: 'extract', focus: null })
+  const { hook } = setup('representation-1')
+  await act(() => hook.result.current.ask('extract everything'))
+  expect(hook.result.current.instructions.items).toEqual([])
+  expect(hook.result.current.messages.slice(-2)).toEqual([{ role: 'user', text: 'extract everything' }, { role: 'assistant', text: NO_TEMPLATE_REPLY }])
+  expect(hook.result.current.heard).toMatchObject({ action: 'generate', offer: null })
+})
+
+it('a yes is the page\'s to carry out beside the step it was sent with, and the model reads the steps answered', async () => {
+  requestSchemaEdit.mockResolvedValueOnce({ status: 'requested', action: 'confirm', focus: null })
+  const { hook } = setup()
+  act(() => hook.result.current.appendStep('Template ready', 'View template'))
+  await act(() => hook.result.current.send('yes', offer))
+  expect(requestSchemaEdit.mock.calls[0]![4]).toContainEqual({ role: 'note', text: 'The researcher chose “View template” at the step “Template ready”.' })
+  expect(requestSchemaEdit.mock.calls[0]![5]).toBe('Generate template: Suggest a template from a.pdf?')
+  expect(hook.result.current.proposalReview.pending).toBeNull()
+  expect(hook.result.current.heard).toMatchObject({ action: 'confirm', offer })
+  act(() => hook.result.current.clearHeard())
+  expect(hook.result.current.heard).toBeNull()
 })
 
 it('before the first schema, a message that only declines is answered and never kept for generation', async () => {

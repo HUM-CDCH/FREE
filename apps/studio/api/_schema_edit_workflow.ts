@@ -27,6 +27,8 @@ export type SchemaEditInput = Readonly<{
   instruction: string
   /** The chat before the instruction, oldest first. */
   history: ChatHistory
+  /** What the chat offered beside the instruction (ADR 0034); absent from runs started before it. */
+  offer?: string | null
   temperature: number | null
 }>
 export type SchemaEditProposed = { baseSchemaRevisionId: string; response: SchemaEditResponse }
@@ -78,6 +80,7 @@ export async function proposeSchemaEditWorkflow(
         signal: AbortSignal.timeout(MODEL_OPERATION_TIMEOUT_MS),
         generate: ports.generate,
         history: input.history,
+        offer: input.offer ?? null,
         answerable: true,
         respond: ports.respond,
       })
