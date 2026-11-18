@@ -5,7 +5,7 @@ import { Client,Pool } from 'pg'
 import { createDisposableRuntime } from 'db/postgres-test-helpers'
 import { migrate,provisionDatabase,seedResearchPins,ARTICLE_TREE } from '../../db/src/postgres-fixture.js'
 import { createGarbageReferences } from '../../db/src/garbage-references.js'
-import { createDurableRepository,initializeDurableExtraction,DurableConflict,DurableNotFound,collectDeletedDurableGraphs,reconcileDurableAttempts } from './durable-repository.js'
+import { createDurableRepository,initializeDurableExtraction,DurableConflict,DurableNotFound,collectDeletedDurableGraphs,reconcileDurableAttempts,setFeedbackIncluded } from './durable-repository.js'
 import { createResearcherExtractionPersistence } from './postgres-persistence.js'
 import { REFERENCE_ARTICLE } from './extraction-method.js'
 
@@ -177,6 +177,69 @@ test('cell decisions persist at their named cut and aggregate only after each po
     value:[{count:2,seen:true}]},async()=>{})
   await assert.rejects(owner.saveCellApproval(id,valueId,{...approval,snapshotVersion:2,expectedRevision:edited.revision}),/Undo the whole-value decision/)
   assert.equal((await secondView.page(id)).values[0]?.approvedCells,undefined)
+})
+
+test('feedback reports the guidance the runtime captures after a schema change and a cell approval', async t => {
+  const base = process.env.EXTRACTION_TEST_DATABASE_URL!
+  const target = await provisionDatabase(base, `free_test_cell_feedback_${randomBytes(5).toString('hex')}`)
+  const admin = new Client({connectionString: target.url}), source = new Pool({connectionString: target.url, max: 4})
+  t.after(async () => { await source.end(); await admin.end(); await target.drop() })
+  await migrate(target.url); await admin.connect()
+  const fixture = await seedResearchPins(admin), document=fixture.documents.d1
+  const preprocessId = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',
+    [document.sourceRepresentationRevisionId])).rows[0].preprocessId
+  const id = randomUUID(), schemaRevisionId = fixture.revisions.article
+  const requestedSettings = {article: REFERENCE_ARTICLE}
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
+    VALUES ($1,$2,$3,$4,'ARTICLE',$5)`, [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,requestedSettings])
+  await admin.query('BEGIN')
+  try {
+    await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
+      sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId,schemaTree:ARTICLE_TREE,
+      strategy:'ARTICLE',preprocessId,requestedModels:null,requestedSettings})
+    await admin.query('COMMIT')
+  } catch (error) { await admin.query('ROLLBACK'); throw error }
+  const head = (await admin.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  // The same value read under two meanings of its field: the edit of the first no longer fits the second.
+  const table = (count: string) => ({id:'table',name:'table',type:'array',children:[{id:'count',name:'count',type:count}]})
+  const path = ['records',0,'table'], valueId = 'table'
+  const value = {id:valueId,recordId:'record',fieldId:'table',path,selectionId:head.selectionId,schemaRevisionId,node:table('integer'),
+    modelValue:[{count:1}],evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
+  for (const [version,saved] of [[1,value],[2,{...value,node:table('number'),modelValue:[{count:1.5}]}]] as const) {
+    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
+      VALUES ($1,$2,$3,$4,$5,$6,'{}')`, [randomUUID(),id,version,head.selectionId,'a'.repeat(64),JSON.stringify([saved])])
+  }
+  await admin.query('UPDATE extraction_runtime.head SET "snapshotVersion"=2 WHERE id=$1',[id])
+  const invoke = async (name: string, args: unknown[]) =>
+    (await admin.query(`SELECT extraction_runtime.${name}(${args.map((_,index)=>'$'+(index+1)).join(',')}) AS v`,args)).rows[0].v
+  const {epoch} = await invoke('claim',[id,head.attemptId,randomUUID()])
+  const units = ['edited','cell-approved','included-again']
+  const plan = await invoke('publish_plan',[id,head.attemptId,epoch,randomUUID(),'record',{plannerVersion:1,selectionId:head.selectionId,
+    sourceGeneration:head.sourcePin.generation,units:units.map(key=>({key})),coverage:{}}])
+  const owner = createDurableRepository(fixture.accountId,source)
+  // What the runtime gives the next admitted call, beside what feedback says is active and included.
+  const guidance = async (unit: string) => {
+    const capture = await invoke('capture_unit',[id,head.attemptId,epoch,randomUUID(),unit,
+      {stage:'record',scope:'source-anchor',ordinal:units.indexOf(unit),planDigest:plan.digest,role:'fields'}])
+    const listed = await owner.feedback(fixture.projectContextId)
+    assert.deepEqual(listed.filter(row=>row.active&&row.included).map(row=>row.id),capture.candidates.map((row:{id:string})=>row.id))
+    return {listed,captured:capture.candidates.map((row:{id:string})=>row.id) as string[]}
+  }
+  const edit = await owner.saveCorrection(id,valueId,{snapshotVersion:1,expectedRevision:0,action:'EDITED',value:[{count:2}],
+    included:true,evidence:[]},async()=>{})
+  assert.deepEqual((await guidance('edited')).captured,[edit.id])
+
+  const cell = await owner.saveCellApproval(id,valueId,{snapshotVersion:2,expectedRevision:edit.revision,path:[...path,0,'count'],approved:true})
+  const superseded = await guidance('cell-approved')
+  assert.deepEqual(superseded.captured,[])
+  // The cell approval is no correction to list; the edit it superseded names the revision a write must now name.
+  assert.deepEqual(superseded.listed.map(row=>[row.id,row.active,row.included,row.reviewRevision]),[[edit.id,false,true,cell.revision]])
+
+  await assert.rejects(setFeedbackIncluded(fixture.accountId,fixture.projectContextId,{id:edit.id,expectedRevision:edit.revision,included:true},source),DurableConflict)
+  const again = await setFeedbackIncluded(fixture.accountId,fixture.projectContextId,{id:edit.id,expectedRevision:cell.revision,included:true},source)
+  const restored = await guidance('included-again')
+  assert.deepEqual(restored.captured,[again.id])
+  assert.deepEqual(restored.listed.map(row=>[row.id,row.active,row.reviewRevision]),[[again.id,true,again.revision],[edit.id,false,again.revision]])
 })
 
 test('native pilot finalization drives batch progress and unlocks only its producing schema',async t=> {

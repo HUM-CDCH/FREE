@@ -521,8 +521,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const owns = await client.query('SELECT id FROM public."projectContext" WHERE id=$1 AND "researcherAccountId"=$2', [projectId,owner])
       if (!owns.rowCount) throw new DurableNotFound('That Project was not found.')
       const rows=(await client.query(`SELECT c.*,e."sourceDocumentId" FROM extraction_runtime.correction c
-        JOIN public.extraction e ON e.id=c."extractionId" WHERE c."projectId"=$1
-        AND NOT (c.decision ? 'approvedCells') ORDER BY c."feedbackVersion" DESC`,[projectId])).rows
+        JOIN public.extraction e ON e.id=c."extractionId" WHERE c."projectId"=$1 ORDER BY c."feedbackVersion" DESC`,[projectId])).rows
       const target=targetId?await ownedHead(client,owner,targetId):null
       if(target && target.projectId!==projectId) throw new DurableNotFound('That target was not found in this Project.')
       if(selectionId&&!target)throw new DurableInvalid('Choose an Extraction for this input selection.')
@@ -531,11 +530,15 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const nodes=new Map<string,ReturnType<typeof parseExtractionSchema>['schemaNodes'][number]>()
       const visit=(items:ReturnType<typeof parseExtractionSchema>['schemaNodes'])=> {for(const node of items){nodes.set(node.id,node);if(node.children)visit(node.children)}}
       if(selection)visit(executionDefinition(selection.schemaTree).schemaNodes)
-      const seen=new Set<string>()
-      return rows.map(row=> {
-        const key=row.extractionId+':'+row.valueId,active=!seen.has(key);seen.add(key)
-        const node=nodes.get(row.candidate.fieldId)
-        return {...row,active,targetCompatibility:!target?'not_evaluated':node&&fieldMeaning(node)===row.candidate.meaning&&adaptedCorrection(row.candidate.node,node,row.candidate.value)!==undefined?'compatible':'incompatible'}
+      // A value's newest revision is its active decision, as capture_unit reads it, and the revision a write must name.
+      // A cell approval can be that revision: it is not listed as a correction, yet it supersedes the ones before it.
+      const newest=new Map<string,number>()
+      return rows.flatMap(row=> {
+        const key=row.extractionId+':'+row.valueId
+        if(!newest.has(key))newest.set(key,row.revision)
+        if('approvedCells' in row.decision)return []
+        const reviewRevision=newest.get(key)!,node=nodes.get(row.candidate.fieldId)
+        return {...row,active:row.revision===reviewRevision,reviewRevision,targetCompatibility:!target?'not_evaluated':node&&fieldMeaning(node)===row.candidate.meaning&&adaptedCorrection(row.candidate.node,node,row.candidate.value)!==undefined?'compatible':'incompatible'}
       })
     }) },
   }
