@@ -287,8 +287,11 @@ function History({id,shown,current,live,review,onSnapshot}:{id:string;shown:bool
 /** Whether the results shown hold the same version of a value as the open review's. */
 /** A Value Disagreement's readings at each place, in no particular order, as a decision binds to them. */
 const readings=(value:Value)=>value.disagreement?.map(d=>JSON.stringify([d.path,d.alternatives.map(a=>JSON.stringify(a.value)).sort()])).sort()
-const observes=(page:DurablePage|null,ack:ReviewAcknowledgement)=>Boolean(page&&page.feedbackVersion>=ack.feedbackVersion
-  &&page.values.some(value=>value.id===ack.valueId&&reviewRevision(value)>=ack.revision))
+/** A save the reads have yet to show. A cell save also keeps the value as re-read after it, with its snapshot: the
+ *  review of a table goes on from it, cell after cell, without waiting for those reads. */
+type Acknowledged=Pick<ReviewAcknowledgement,'extractionId'|'valueId'|'revision'|'feedbackVersion'>&{reread?:{value:Value;version:number}}
+const holds=(page:DurablePage|null,ack:Acknowledged)=>Boolean(page?.values.some(value=>value.id===ack.valueId&&reviewRevision(value)>=ack.revision))
+const observes=(page:DurablePage|null,ack:Acknowledged)=>Boolean(page&&page.feedbackVersion>=ack.feedbackVersion)&&holds(page,ack)
 const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
   &&JSON.stringify(readings(a))===JSON.stringify(readings(b))
 
@@ -377,14 +380,21 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const historical=pinned&&loadedCut?.historical===true
   const pinnedRef=useRef(pinned)
   const pin=(value:boolean)=>{pinnedRef.current=value;setPinned(value)}
-  const [acknowledgements,setAcknowledgements]=useState<ReadonlyMap<string,ReviewAcknowledgement>>(()=>new Map())
-  const page=pinned?loadedCut?.page??null:latestPage
+  const [acknowledgements,setAcknowledgements]=useState<ReadonlyMap<string,Acknowledged>>(()=>new Map())
+  const read=pinned?loadedCut?.page??null:latestPage
   // Release a receipt only once both the latest read and the shown live decision cut have caught up.
   const pendingDecisions=useMemo(()=>new Map([...acknowledgements].filter(([,ack])=>
-    ack.extractionId===id&&!(observes(latestPage,ack)&&(historical||observes(page,ack))))),[acknowledgements,id,latestPage,page,historical])
+    ack.extractionId===id&&!(observes(latestPage,ack)&&(historical||observes(read,ack))))),[acknowledgements,id,latestPage,read,historical])
   if(pendingDecisions.size!==acknowledgements.size)setAcknowledgements(pendingDecisions)
+  // Until then a cell save's re-read value stands in for the older one read for its snapshot, so its approved cells
+  // and its revision stay. The counts and the decision version remain the read's; a decision cut shows its own.
+  const page=useMemo(()=> {
+    const ahead=read&&!historical?[...pendingDecisions.values()].filter(ack=>ack.reread?.version===read.snapshotVersion&&!holds(read,ack)):[]
+    return read&&ahead.length?{...read,values:read.values.map(value=>ahead.find(ack=>ack.valueId===value.id)?.reread!.value??value)}:read
+  },[read,historical,pendingDecisions])
   // Only explicit decision cuts bypass protection; a pinned snapshot can still follow live decisions.
-  const blocked=new Set(historical?[]:pendingDecisions.keys())
+  const blocked=useMemo(()=>new Set(historical?[]:[...pendingDecisions].filter(([,ack])=>!(ack.reread&&holds(page,ack))).map(([key])=>key)),
+    [historical,pendingDecisions,page])
   // Every accepted state clears the view's command, snapshot and value errors, as every accepted read did; an opened
   // cut that could not be read stays said until it is.
   if(errorsBefore!==state){setErrorsBefore(state);if(page)setError(null)}
@@ -438,7 +448,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     // Wait for our saved revision before opening another machine for this value; one the page does not hold is read.
     const valueId=markValueId(key)
     const pending=pendingDecisions.get(valueId)
-    if(!historical&&pending&&!observes(page,pending))return
+    if(pending&&blocked.has(valueId)&&!observes(page,pending))return
     selectionFromMark.current=fromMark&&focus?valueId:null
     setPart(key===valueId||key.endsWith('#correction')?null:key)
     setListAnchor(key)
@@ -451,7 +461,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       if(result.values[0]){reveal(result.values[0].recordId);setReview({value:result.values[0],version:result.snapshotVersion,feedbackVersion:result.feedbackVersion,cutGeneration})}
       else setError('That value is not saved in this snapshot.')
     }).catch(error=>{if(generation===selectedGeneration.current)setError(error.message)})
-  },[page,id,focus,pendingDecisions,historical,pinned,loadedCut])
+  },[page,id,focus,pendingDecisions,blocked,historical,pinned,loadedCut])
   // Choosing a value in the list, or opening a link to it, shows its Evidence on the source once: in one-by-one the
   // follow does when the value changes what it follows (also once a pending source arrives), else choose does. A
   // mark leaves the source's scroll position alone.
@@ -583,8 +593,14 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     pin(true)
     ++selectedGeneration.current
     const generation=++readGenerations.current.snapshot
-    try {const next=await readValues(id,query);if(generation===readGenerations.current.snapshot){setLoadedCut({page:next,historical:query.feedbackVersion!==undefined,generation});return next}
-      return null}
+    try {
+      const next=await readValues(id,query)
+      if(generation!==readGenerations.current.snapshot)return null
+      // Another cut than the one shown: what was chosen or is being saved on that one does not follow it here.
+      if(query.feedbackVersion!==undefined||next.snapshotVersion!==page.snapshotVersion)++selectedGeneration.current
+      setLoadedCut({page:next,historical:query.feedbackVersion!==undefined,generation})
+      return next
+    }
     catch(error){if(generation===readGenerations.current.snapshot)setError(error instanceof Error?error.message:'Unable to load the saved snapshot.');return null}
   }
   const showLatest=()=>{pin(false);++readGenerations.current.snapshot;++selectedGeneration.current}
@@ -657,26 +673,30 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       if(!focus&&link)onEvidence(link.evidenceAnchorId,undefined,link)
     }}:undefined
   const cellReviewGeneration=selectedGeneration.current
+  // A cell save answers after the view may have moved on: this is the handler of the render it was started from.
   const onCellsChanged=(value:Value,feedbackVersion:number,approvedKey?:string)=> {
+    if(!review)return
+    const {version,cutGeneration}=review
+    // The save stands whatever is shown by now, so its re-read value is kept until the reads show it.
+    setAcknowledgements(previous=>new Map(previous).set(value.id,{extractionId:id,valueId:value.id,revision:reviewRevision(value),feedbackVersion,reread:{value,version}}))
     void reader.refresh()
-    if(selectedGeneration.current!==cellReviewGeneration||!review)return
     if(pinnedRef.current) {
       const generation=readGenerations.current.snapshot
-      void readValues(id,{snapshotVersion:review.version}).then(next=>{
-        if(generation!==readGenerations.current.snapshot)return
-        setLoadedCut(previous=>previous&&previous.page.feedbackVersion>next.feedbackVersion
-          ? previous : {page:next,historical:false,generation})
-      },error=>{if(generation===readGenerations.current.snapshot)setError(error.message)})
+      // The pinned results follow their own snapshot's live decisions. A saved review or another snapshot opened
+      // meanwhile is not that cut: it stays.
+      void readValues(id,{snapshotVersion:version}).then(next=>setLoadedCut(previous=>previous&&!previous.historical
+        &&previous.page.snapshotVersion===next.snapshotVersion&&previous.page.feedbackVersion<=next.feedbackVersion?{...previous,page:next}:previous),
+      error=>{if(generation===readGenerations.current.snapshot)setError(error.message)})
     }
-    if(focus&&approvedKey) {
-      const approved=new Set(value.approvedCells?.map(path=>partKey(value.id,path)))
-      const remaining=queue.filter(item=>item.key===approvedKey||!approved.has(item.key))
-      const next=nextToCheck(remaining,approvedKey,blocked)
-      if(!next){setReview(null);return}
-      if(markValueId(next)!==value.id){selectValue(next);return}
-      setPart(next)
-    }
-    setReview({...review,value,feedbackVersion})
+    // The review the save was made in shows it, also when another of its cells was chosen meanwhile.
+    setReview(previous=>previous?.value.id===value.id&&previous.version===version&&previous.cutGeneration===cutGeneration?{...previous,value,feedbackVersion}:previous)
+    if(selectedGeneration.current!==cellReviewGeneration||!focus||!approvedKey)return
+    const approved=new Set(value.approvedCells?.map(path=>partKey(value.id,path)))
+    const remaining=queue.filter(item=>item.key===approvedKey||!approved.has(item.key))
+    const next=nextToCheck(remaining,approvedKey,blocked)
+    if(!next)setReview(null)
+    else if(markValueId(next)!==value.id)selectValue(next)
+    else setPart(next)
   }
   const valueReview=review&&<ValueReview part={reviewParts.find(each=>each.key===chosenPart)} pick={pick} onCellsChanged={onCellsChanged} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onNext={openNext} onPrevious={()=>selectValue(previousInQueue(queue,activeQueueKey??review.value.id))} onGo={selectValue} queue={queue} blocked={blocked} keyboardRoot={keyboardRoot} headerSlot={headerSlot}

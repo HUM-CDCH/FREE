@@ -1162,12 +1162,15 @@ it('changes a chosen reading only through Undo, which returns the value to To ch
 /** `skelet = {art, dele: [{nr, note}]}`, its art and its first note linked. */
 const skeletArt={evidenceAnchorId:'a_p1_s0',resultPath:['records',0,'skelet','art'],precision:'segment'}
 const skeletNote={evidenceAnchorId:'a_p1_s2_r1_c1',resultPath:['records',0,'skelet','dele',0,'note'],precision:'cell'}
-const openSkelet=async(correction:unknown=null,links:unknown[]=[skeletArt,skeletNote],readOnly=false)=> {
+const skeletPage=(correction:unknown=null,links:unknown[]=[skeletArt,skeletNote],snapshotVersion=1)=> {
   const node={id:'skelet',name:'skelet',type:'object',children:[{id:'art',name:'art',type:'string'},
     {id:'dele',name:'dele',type:'array',children:[{id:'nr',name:'nr',type:'string'},{id:'note',name:'note',type:'string'}]}]}
   const value={id:'v1',recordId:'document',fieldId:'skelet',path:['records',0,'skelet'],selectionId:'original',schemaRevisionId:'schema',node,
     modelValue:{art:'Human',dele:[{nr:'1',note:'Tooth'}]},evidence:[],links,grounding:'grounded',processing:'saved',lineage:[],correction,historicalCorrection:null}
-  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  return {snapshotVersion,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+}
+const openSkelet=async(correction:unknown=null,links:unknown[]=[skeletArt,skeletNote],readOnly=false)=> {
+  const page=skeletPage(correction,links)
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
@@ -1231,6 +1234,83 @@ it('one-by-one advances to the next unread cell only once the current approval i
   expect(selectedCell()).toHaveAttribute('aria-pressed','true')
   acknowledge({id:'cell',revision:1,feedbackVersion:1,included:false})
   await waitFor(()=>expect(screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth, to check'})).toHaveAttribute('aria-pressed','true'))
+})
+
+const nrCell='skelet › dele › #1 › nr',noteCell='skelet › dele › #1 › note'
+const cellPath=(column:string)=>['records',0,'skelet','dele',0,column]
+/** Each cell save of `page`'s value answers with its receipt once `gate` opens; a read of the value after it holds
+ *  every cell saved so far. Returns the saves requested. */
+const cellSaves=(page:DurablePage,gate?:Promise<unknown>)=> {
+  const saves:{path:unknown[]}[]=[]
+  vi.mocked(durableRequest).mockImplementation((async(_url:string,body?:{path:unknown[]})=> {
+    if(!body)return {...page,feedbackVersion:saves.length,values:[{...page.values[0],approvedCells:saves.map(save=>save.path),reviewRevision:saves.length}]}
+    saves.push(body)
+    await gate
+    return {id:'cell',revision:saves.length,feedbackVersion:saves.length,included:false}
+  }) as never)
+  return saves
+}
+const approveCell=(name:string)=>fireEvent.click(within(screen.getByRole('group',{name:`Decision for ${name}`})).getByRole('button',{name:/^Approve/}))
+
+it('keeps a saved cell approved, with its revision, in the list and a reopened review while the reads still answer without it',async()=>{
+  // The reader keeps answering with the page read before the save.
+  const {page}=await openSkelet(),saves=cellSaves(page)
+  expect(within(screen.getByRole('region',{name:'Check first'})).getByRole('button',{name:/nr/})).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:`${nrCell}: 1, to check`}))
+  approveCell(nrCell)
+  await screen.findByRole('button',{name:`${nrCell}: 1, approved`})
+  await act(async()=>{})
+  fireEvent.click(screen.getByRole('button',{name:/^To check skelet (?!›)/,expanded:true}))
+  expect(screen.queryByRole('region',{name:'Review skelet'})).toBeNull()
+  expect(screen.queryByRole('region',{name:'Check first'})).toBeNull()
+  fireEvent.click(screen.getByRole('button',{name:/^To check skelet (?!›)/}))
+  expect(screen.getByRole('button',{name:`${nrCell}: 1, approved`})).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:`${noteCell}: Tooth`}))
+  approveCell(noteCell)
+  await screen.findByRole('button',{name:`${noteCell}: Tooth, approved`})
+  expect(saves).toEqual([{snapshotVersion:1,expectedRevision:0,path:cellPath('nr'),approved:true},
+    {snapshotVersion:1,expectedRevision:1,path:cellPath('note'),approved:true}])
+})
+
+it('shows a cell approval in its review although another of its cells was chosen on the source while it saved',async()=>{
+  const {page,selection,marks}=await openSkelet(),gate=Promise.withResolvers<void>(),saves=cellSaves(page,gate.promise)
+  fireEvent.click(screen.getByRole('button',{name:`${nrCell}: 1, to check`}))
+  approveCell(nrCell)
+  await waitFor(()=>expect(saves).toHaveLength(1))
+  act(()=>{selection.select(marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key,false,'extraction')})
+  await act(async()=>gate.resolve())
+  expect(await screen.findByRole('button',{name:`${nrCell}: 1, approved`})).toBeVisible()
+  approveCell(noteCell)
+  await screen.findByRole('button',{name:`${noteCell}: Tooth, approved`})
+  expect(saves[1]).toMatchObject({expectedRevision:1,path:cellPath('note')})
+})
+
+it.each([['the list',false],['one-by-one review',true]] as const)('keeps the saved review that opened while a cell approval was being saved in %s',async(_view,oneByOne)=>{
+  const live=skeletPage(null,undefined,2),gate=Promise.withResolvers<void>(),historicalRead=Promise.withResolvers<DurablePage>()
+  live.values.push(reviewValue('b','Second title') as never)
+  const historical={...live,snapshotVersion:1,finalization:{id:'final',snapshotVersion:1,feedbackVersion:0}}
+  vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,snapshotVersion:2},page:live} as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],snapshots:[],
+    finalizations:[{id:'final',snapshotVersion:1,feedbackVersion:0}]} as never)
+  // The saved review's read is pending; a read after it is of the snapshot's live decisions.
+  vi.mocked(readValues).mockReturnValueOnce(historicalRead.promise).mockResolvedValue({...live,feedbackVersion:1})
+  const saves=cellSaves(live,gate.promise)
+  render(<Results attempt={article} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
+  fireEvent.click(await screen.findByRole('button',{name:'Open finalized review of results 1'}))
+  if(oneByOne)fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  else {
+    fireEvent.click(await screen.findByRole('button',{name:/^To check skelet (?!›)/}))
+    fireEvent.click(screen.getByRole('button',{name:`${nrCell}: 1, to check`}))
+  }
+  approveCell(nrCell)
+  await waitFor(()=>expect(saves).toHaveLength(1))
+  await act(async()=>historicalRead.resolve(historical as DurablePage))
+  await screen.findByText(/Showing saved results 1 · a saved review/)
+  await act(async()=>gate.resolve())
+  await waitFor(()=>expect(readValues).toHaveBeenCalledTimes(2))
+  await act(async()=>{})
+  expect(screen.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+  expect(screen.queryByRole('heading',{name:'Second title'})).toBeNull()
 })
 
 it('lets a part be picked in a saved review',async()=>{
