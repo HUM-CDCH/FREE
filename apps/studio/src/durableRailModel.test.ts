@@ -177,6 +177,29 @@ it('names each scalar part of a composite value with its own link, and keys it b
   expect(valueParts(value())).toEqual([])
 })
 
+it('builds a large table\'s cell rows without searching its links, judgments or anchors again for each cell',()=> {
+  const columns=['a','b','c','d','e'],rows=400,cells=rows*columns.length
+  const reads={links:0,judgments:0,anchors:0}
+  const counted=<T extends object>(target:T,field:string,of:keyof typeof reads)=>new Proxy(target,{get:(from,key,receiver)=>{
+    if(key===field)reads[of]++
+    return Reflect.get(from,key,receiver)
+  }})
+  const paths=Array.from({length:rows},(_,row)=>columns.map(column=>['records',0,'table',row,column])).flat()
+  const anchor=(index:number)=>`a_p${index}`
+  const node={id:'table',name:'table',type:'array' as const,children:columns.map(name=>({id:name,name,type:'string' as const}))}
+  const saved=value({id:'t',fieldId:'table',path:['records',0,'table'],node,
+    modelValue:Array.from({length:rows},(_,row)=>Object.fromEntries(columns.map(column=>[column,`${column}${row}`]))),
+    links:paths.map((resultPath,index)=>counted({evidenceAnchorId:anchor(index),resultPath,verbatim:true},'resultPath','links')) as never,
+    check:{protocol:1,model:{},judgments:paths.map((path,index)=>counted({path,status:'ok' as const,label:index===cells-1?0 as const:1 as const},'path','judgments'))}})
+  const document={evidence_index:{anchors:paths.map((_,index)=>counted({anchor_id:anchor(index),producer_observations:[{page_number:index+1}]},'anchor_id','anchors'))}}
+  const parts=durableRailModel({values:[saved]} as DurablePage,document as never).records[0]!.rows[0]!.parts!
+  expect(parts).toHaveLength(cells)
+  expect(parts.map(part=>[part.link?.evidenceAnchorId,part.page,part.priority])).toEqual(
+    paths.map((_,index)=>[anchor(index),index+1,index===cells-1?'unsupported':'supported']))
+  // One pass indexes each list; a search per cell would read each cells × cells / 2 times.
+  for(const count of Object.values(reads))expect(count).toBeLessThanOrEqual(2*cells)
+})
+
 it('shows a single-pass list leaf code located as rule-linked, and an uncited leaf beside it as without Evidence',()=> {
   const node={id:'finds',name:'finds',type:'array' as const,children:[{id:'nr',name:'nr',type:'string' as const},{id:'note',name:'note',type:'string' as const}]}
   const located={evidenceAnchorId:'a_p1_s2',resultPath:['records',0,'finds',0,'nr'],verbatim:true,
