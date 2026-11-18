@@ -18,6 +18,7 @@
     "./durable": "./src/durable.ts",
     "./durable-contract": "./src/durable-contract.ts",
     "./durable-types": "./src/durable-types.ts",
+    "./table-cell-review": "./src/table-cell-review.ts",
     "./value-disagreement": "./src/value-disagreement.ts"
   },
   "scripts": {

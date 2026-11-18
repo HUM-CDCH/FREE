@@ -55,7 +55,7 @@ it('shows every saved table row and absent cell in list and one-by-one review',a
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'COMPLETED',controlVersion:1,snapshotVersion:1,
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
   render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  fireEvent.click(await screen.findByRole('button',{name:/To check remains/}))
+  fireEvent.click(await screen.findByRole('button',{name:/^To check remains (?!›)/}))
   const checkTable=()=>{
     const table=screen.getByRole('table',{name:'parts'})
     expect(within(table).getAllByRole('columnheader').map(cell=>cell.textContent)).toEqual(['number','description','notes'])
@@ -868,7 +868,7 @@ it('offers the unchecked list after saving and undoing an edit, then cancelling 
   vi.mocked(readDurable).mockResolvedValue({state,page} as never)
   vi.mocked(durableRequest).mockResolvedValue({id:'correction',revision:1,feedbackVersion:1,included:false})
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  fireEvent.click(await screen.findByRole('button',{name:/To check samples/}))
+  fireEvent.click(await screen.findByRole('button',{name:/^To check samples (?!›)/}))
   fireEvent.click(screen.getByRole('button',{name:'Edit'}))
   const edited=samples.modelValue.map((value,index)=>index===0?{...value,tensile_strength_mpa:11}:value)
   fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:JSON.stringify(edited)}})
@@ -880,7 +880,7 @@ it('offers the unchecked list after saving and undoing an edit, then cancelling 
   vi.mocked(durableRequest).mockImplementation((async(path:string)=>path.endsWith('/history')?{corrections:[]}:{id:'undo',revision:2,feedbackVersion:2,included:false}) as never)
   vi.mocked(readDurable).mockResolvedValue({state,page:{...page,feedbackVersion:2,values:[title,{...samples,correction:{revision:2,decision:{action:'PENDING',value:samples.modelValue,included:false,evidence:[]}}}]}} as never)
   fireEvent.click(screen.getByRole('button',{name:'Undo'}))
-  fireEvent.click(await screen.findByRole('button',{name:/To check samples/}))
+  fireEvent.click(await screen.findByRole('button',{name:/^To check samples (?!›)/}))
   fireEvent.click(screen.getByRole('button',{name:'Edit'}))
   fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:JSON.stringify([{...samples.modelValue[0],tensile_strength_mpa:'invalid'},samples.modelValue[1]])}})
   fireEvent.click(screen.getByRole('button',{name:'Save edit'}))
@@ -889,8 +889,9 @@ it('offers the unchecked list after saving and undoing an edit, then cancelling 
   fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
   expect(screen.getByRole('img',{name:/1 approved, 0 edited, 0 rejected, 1 to check/})).toBeVisible()
   expect(screen.queryByText(/All saved values are checked/)).toBeNull()
-  expect(screen.getByRole('region',{name:'Review samples'})).toBeVisible()
-  expect(screen.getByRole('button',{name:/Approve and next/})).toBeEnabled()
+  const samplesReview=screen.getByRole('region',{name:'Review samples'})
+  expect(samplesReview).toBeVisible()
+  expect(within(samplesReview).getByRole('button',{name:'Approve and next'})).toBeEnabled()
   expect(screen.getByText('10')).toBeVisible()
 })
 
@@ -935,7 +936,8 @@ it('reveals and scrolls shared Evidence in a collapsed record through a filter, 
 
 it('lights the rows of values hovered on the page, a collapsed record\'s header for its own, and says which row is under the pointer',async()=>{
   const page=reviewPage()
-  page.values=page.values.map((value,index)=>({...value,recordId:index===0?'first':'second',path:['records',index===0?0:1,value.id]})) as never
+  page.values=page.values.map((value,index)=>({...value,recordId:index===0?'first':'second',path:['records',index===0?0:1,value.id],
+    links:index===0?[]:[{evidenceAnchorId:'anchor',resultPath:['records',1,value.id],verbatim:true}]})) as never
   vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
   const selection=createSelectionChannel()
   const view=render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt}
@@ -1160,19 +1162,22 @@ it('changes a chosen reading only through Undo, which returns the value to To ch
 /** `skelet = {art, dele: [{nr, note}]}`, its art and its first note linked. */
 const skeletArt={evidenceAnchorId:'a_p1_s0',resultPath:['records',0,'skelet','art'],precision:'segment'}
 const skeletNote={evidenceAnchorId:'a_p1_s2_r1_c1',resultPath:['records',0,'skelet','dele',0,'note'],precision:'cell'}
-const openSkelet=async(correction:unknown=null,links:unknown[]=[skeletArt,skeletNote],readOnly=false)=> {
+const skeletPage=(correction:unknown=null,links:unknown[]=[skeletArt,skeletNote],snapshotVersion=1)=> {
   const node={id:'skelet',name:'skelet',type:'object',children:[{id:'art',name:'art',type:'string'},
     {id:'dele',name:'dele',type:'array',children:[{id:'nr',name:'nr',type:'string'},{id:'note',name:'note',type:'string'}]}]}
   const value={id:'v1',recordId:'document',fieldId:'skelet',path:['records',0,'skelet'],selectionId:'original',schemaRevisionId:'schema',node,
     modelValue:{art:'Human',dele:[{nr:'1',note:'Tooth'}]},evidence:[],links,grounding:'grounded',processing:'saved',lineage:[],correction,historicalCorrection:null}
-  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+  return {snapshotVersion,feedbackVersion:0,reviewCounts:{required:1,toCheck:1,approved:0,edited:0,rejected:0},values:[value],total:1,next:null,coverage:{}} as unknown as DurablePage
+}
+const openSkelet=async(correction:unknown=null,links:unknown[]=[skeletArt,skeletNote],readOnly=false)=> {
+  const page=skeletPage(correction,links)
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
     selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:1,inFlight:0}},page} as never)
   const onEvidence=vi.fn(),selection=createSelectionChannel()
   selection.select('v1',true,'extraction')
   render(<Results attempt={article} document={null} currentSchema={null} selection={selection} onEvidence={onEvidence} readOnly={readOnly}/>)
   await screen.findByRole('region',{name:'Review skelet'})
-  return {onEvidence,marks:()=>selection.snapshot().marks!,selection}
+  return {onEvidence,marks:()=>selection.snapshot().marks!,selection,page}
 }
 
 it('picks a part of a composite value: its mark, its Evidence, and back to the whole value',async()=>{
@@ -1188,13 +1193,124 @@ it('picks a part of a composite value: its mark, its Evidence, and back to the w
   expect(note()).toHaveAttribute('aria-pressed','true')
   expect(marks().selected).toBe(tooth)
   // A part with no link shows none; picking the chosen part again chooses the whole value.
-  expect(screen.getByRole('button',{name:'skelet › dele › #1 › nr: 1'})).toHaveAttribute('title','Source not found')
+  expect(screen.getByRole('button',{name:'skelet › dele › #1 › nr: 1, to check'})).toHaveAttribute('title','Source not found')
   fireEvent.click(note())
   expect(marks().selected).toBe('v1')
   // A part's mark selects its value and that part.
   act(()=>{selection.select(tooth,false,'extraction')})
   await waitFor(()=>expect(note()).toHaveAttribute('aria-pressed','true'))
   expect(marks().selected).toBe(tooth)
+})
+
+it('shows approval only for the saved cell at its named snapshot',async()=>{
+  const {page}=await openSkelet()
+  const path=['records',0,'skelet','dele',0,'note']
+  vi.mocked(durableRequest).mockImplementation((async(url:string,body?:unknown)=>{
+    if(body!==undefined)return {id:'correction',revision:1,feedbackVersion:1,included:false}
+    expect(url.endsWith('/values/v1?snapshotVersion=1')).toBe(true)
+    return {...page,feedbackVersion:1,values:[{...page.values[0],approvedCells:[path],reviewRevision:1}]}
+  }) as never)
+  fireEvent.click(screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'}))
+  fireEvent.click(within(screen.getByRole('group',{name:'Decision for skelet › dele › #1 › note'})).getByRole('button',{name:'Approve'}))
+  expect(await screen.findByRole('button',{name:'skelet › dele › #1 › note: Tooth, approved'})).toHaveAttribute('aria-pressed','true')
+  expect(screen.getByRole('button',{name:'skelet › dele › #1 › nr: 1, to check'})).toBeEnabled()
+  expect(vi.mocked(durableRequest)).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/v1/cells',
+    {snapshotVersion:1,expectedRevision:0,path,approved:true})
+  expect(screen.queryByText(/accepted, not read/i)).toBeNull()
+})
+
+it('one-by-one advances to the next unread cell only once the current approval is saved',async()=>{
+  const {page}=await openSkelet(null,[skeletArt,{...skeletNote,verbatim:false}])
+  let acknowledge!: (value: unknown)=>void
+  const writing=new Promise(resolve=>{acknowledge=resolve})
+  const path=['records',0,'skelet','dele',0,'nr']
+  vi.mocked(durableRequest).mockImplementation((async(_url:string,body?:unknown)=>body!==undefined ? writing
+    : {...page,feedbackVersion:1,values:[{...page.values[0],approvedCells:[path],reviewRevision:1}]}) as never)
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
+  const selectedCell=()=>screen.getByRole('button',{name:'skelet › dele › #1 › nr: 1, to check'})
+  expect(selectedCell()).toHaveAttribute('aria-pressed','true')
+  fireEvent.keyDown(selectedCell(),{key:'a'})
+  await screen.findByText('Saving your decision…')
+  expect(selectedCell()).toHaveAttribute('aria-pressed','true')
+  acknowledge({id:'cell',revision:1,feedbackVersion:1,included:false})
+  await waitFor(()=>expect(screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth, to check'})).toHaveAttribute('aria-pressed','true'))
+})
+
+const nrCell='skelet › dele › #1 › nr',noteCell='skelet › dele › #1 › note'
+const cellPath=(column:string)=>['records',0,'skelet','dele',0,column]
+/** Each cell save of `page`'s value answers with its receipt once `gate` opens; a read of the value after it holds
+ *  every cell saved so far. Returns the saves requested. */
+const cellSaves=(page:DurablePage,gate?:Promise<unknown>)=> {
+  const saves:{path:unknown[]}[]=[]
+  vi.mocked(durableRequest).mockImplementation((async(_url:string,body?:{path:unknown[]})=> {
+    if(!body)return {...page,feedbackVersion:saves.length,values:[{...page.values[0],approvedCells:saves.map(save=>save.path),reviewRevision:saves.length}]}
+    saves.push(body)
+    await gate
+    return {id:'cell',revision:saves.length,feedbackVersion:saves.length,included:false}
+  }) as never)
+  return saves
+}
+const approveCell=(name:string)=>fireEvent.click(within(screen.getByRole('group',{name:`Decision for ${name}`})).getByRole('button',{name:/^Approve/}))
+
+it('keeps a saved cell approved, with its revision, in the list and a reopened review while the reads still answer without it',async()=>{
+  // The reader keeps answering with the page read before the save.
+  const {page}=await openSkelet(),saves=cellSaves(page)
+  expect(within(screen.getByRole('region',{name:'Check first'})).getByRole('button',{name:/nr/})).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:`${nrCell}: 1, to check`}))
+  approveCell(nrCell)
+  await screen.findByRole('button',{name:`${nrCell}: 1, approved`})
+  await act(async()=>{})
+  fireEvent.click(screen.getByRole('button',{name:/^To check skelet (?!›)/,expanded:true}))
+  expect(screen.queryByRole('region',{name:'Review skelet'})).toBeNull()
+  expect(screen.queryByRole('region',{name:'Check first'})).toBeNull()
+  fireEvent.click(screen.getByRole('button',{name:/^To check skelet (?!›)/}))
+  expect(screen.getByRole('button',{name:`${nrCell}: 1, approved`})).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:`${noteCell}: Tooth`}))
+  approveCell(noteCell)
+  await screen.findByRole('button',{name:`${noteCell}: Tooth, approved`})
+  expect(saves).toEqual([{snapshotVersion:1,expectedRevision:0,path:cellPath('nr'),approved:true},
+    {snapshotVersion:1,expectedRevision:1,path:cellPath('note'),approved:true}])
+})
+
+it('shows a cell approval in its review although another of its cells was chosen on the source while it saved',async()=>{
+  const {page,selection,marks}=await openSkelet(),gate=Promise.withResolvers<void>(),saves=cellSaves(page,gate.promise)
+  fireEvent.click(screen.getByRole('button',{name:`${nrCell}: 1, to check`}))
+  approveCell(nrCell)
+  await waitFor(()=>expect(saves).toHaveLength(1))
+  act(()=>{selection.select(marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key,false,'extraction')})
+  await act(async()=>gate.resolve())
+  expect(await screen.findByRole('button',{name:`${nrCell}: 1, approved`})).toBeVisible()
+  approveCell(noteCell)
+  await screen.findByRole('button',{name:`${noteCell}: Tooth, approved`})
+  expect(saves[1]).toMatchObject({expectedRevision:1,path:cellPath('note')})
+})
+
+it.each([['the list',false],['one-by-one review',true]] as const)('keeps the saved review that opened while a cell approval was being saved in %s',async(_view,oneByOne)=>{
+  const live=skeletPage(null,undefined,2),gate=Promise.withResolvers<void>(),historicalRead=Promise.withResolvers<DurablePage>()
+  live.values.push(reviewValue('b','Second title') as never)
+  const historical={...live,snapshotVersion:1,finalization:{id:'final',snapshotVersion:1,feedbackVersion:0}}
+  vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,snapshotVersion:2},page:live} as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],snapshots:[],
+    finalizations:[{id:'final',snapshotVersion:1,feedbackVersion:0}]} as never)
+  // The saved review's read is pending; a read after it is of the snapshot's live decisions.
+  vi.mocked(readValues).mockReturnValueOnce(historicalRead.promise).mockResolvedValue({...live,feedbackVersion:1})
+  const saves=cellSaves(live,gate.promise)
+  render(<Results attempt={article} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
+  fireEvent.click(await screen.findByRole('button',{name:'Open finalized review of results 1'}))
+  if(oneByOne)fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  else {
+    fireEvent.click(await screen.findByRole('button',{name:/^To check skelet (?!›)/}))
+    fireEvent.click(screen.getByRole('button',{name:`${nrCell}: 1, to check`}))
+  }
+  approveCell(nrCell)
+  await waitFor(()=>expect(saves).toHaveLength(1))
+  await act(async()=>historicalRead.resolve(historical as DurablePage))
+  await screen.findByText(/Showing saved results 1 · a saved review/)
+  await act(async()=>gate.resolve())
+  await waitFor(()=>expect(readValues).toHaveBeenCalledTimes(2))
+  await act(async()=>{})
+  expect(screen.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+  expect(screen.queryByRole('heading',{name:'Second title'})).toBeNull()
 })
 
 it('lets a part be picked in a saved review',async()=>{
@@ -1209,16 +1325,16 @@ it('lets a part be picked while a decision saves; the decisions and moves wait',
   const {marks}=await openSkelet()
   vi.mocked(durableRequest).mockReturnValue(new Promise(()=>{}))
   fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
-  fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  fireEvent.click(screen.getByRole('button',{name:'Approve value and next'}))
   await screen.findByText('Saving your decision…')
   const note=screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'})
   expect(note).toBeEnabled()
   fireEvent.click(note)
   expect(note).toHaveAttribute('aria-pressed','true')
   expect(marks().selected).toBe(marks().savedLinks!.find(saved=>saved.link===skeletNote)!.key)
-  expect(screen.getByRole('button',{name:/Approve and next/})).toBeDisabled()
+  expect(screen.getByRole('button',{name:'Approve value and next'})).toBeDisabled()
   expect(screen.getByRole('button',{name:/Previous/})).toBeDisabled()
-  expect(screen.getByRole('button',{name:/skelet, to check/})).toBeDisabled()
+  expect(within(screen.getByRole('list',{name:'Values in review order'})).getByRole('button',{name:/nr, to check/})).toBeDisabled()
 })
 
 it('styles each part\'s mark by its own link, not by the whole value\'s',async()=>{
@@ -1460,6 +1576,54 @@ it('does not reopen locally approved values while the page refresh is pending',a
   ])
 })
 
+it('puts later ungrounded values and table cells before ordinary values and opens the selected cell Evidence',async()=>{
+  const document=decodeParsedDocument(rawDocument)
+  const anchor=document.evidence_index.anchors[0]!.anchor_id
+  const page=reviewPage()
+  const first={...page.values[0]!,links:[{resultPath:['records',0,'a'],evidenceAnchorId:anchor,verbatim:true}]}
+  const unlinked={...page.values[1]!,recordId:'second',path:['records',1,'b']}
+  const cellPath=['records',2,'measurements',1,'week12']
+  const cellLink={resultPath:cellPath,evidenceAnchorId:anchor,verbatim:false,precision:'cell' as const}
+  const table={...page.values[2]!,recordId:'third',path:['records',2,'measurements'],
+    node:{id:'measurements',name:'measurements',type:'array' as const,children:[{id:'week12',name:'week12',type:'number' as const}]},
+    modelValue:[{week12:21},{week12:22}],links:[
+      {...cellLink,resultPath:['records',2,'measurements',0,'week12'],verbatim:true},
+      cellLink,
+    ]}
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page:{...page,values:[first,unlinked,table]}} as never)
+  const onEvidence=vi.fn()
+  const selection=createSelectionChannel()
+  render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={document}
+    currentSchema={null} onEvidence={onEvidence} selection={selection}/>)
+
+  const checkFirst=await screen.findByRole('region',{name:'Check first'})
+  const priorityRows=within(checkFirst).getAllByRole('button')
+  expect(priorityRows).toHaveLength(2)
+  expect(priorityRows[0]).toHaveAccessibleName(/Second title.*Source not found/)
+  expect(priorityRows[1]).toHaveAccessibleName(/measurements › #2 › week12.*22.*Not an exact match/)
+  expect(checkFirst).toHaveTextContent('Record 2')
+  expect(checkFirst).toHaveTextContent('Record 3')
+  expect(checkFirst.compareDocumentPosition(screen.getByText('First title'))&Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  fireEvent.click(priorityRows[1]!)
+  expect(onEvidence).toHaveBeenCalledWith(anchor,undefined,cellLink)
+  expect(selection.snapshot().marks?.selected).toBe('c#'+JSON.stringify(cellPath))
+  expect(screen.getByRole('table',{name:'measurements'})).toBeVisible()
+
+  fireEvent.click(screen.getByRole('button',{name:'Use document order'}))
+  expect(screen.queryByRole('region',{name:'Check first'})).toBeNull()
+  fireEvent.click(screen.getByRole('button',{name:/To check measurements/}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
+  expect(screen.getByRole('heading',{name:'First title'})).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:/Leave one-by-one review/}))
+  fireEvent.click(screen.getByRole('button',{name:/^To check a First title/}))
+  fireEvent.click(screen.getByRole('button',{name:'Use Check first order'}))
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
+  expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:/^Skip/}))
+  expect(screen.getByRole('heading',{name:'22'})).toBeVisible()
+  expect(onEvidence).toHaveBeenLastCalledWith(anchor,undefined,cellLink)
+})
+
 it('uses acknowledged eligibility for Skip, Up next and re-entry while reads are held',async()=>{
   const page=reviewPage()
   page.values[2]={...page.values[2]!,recordId:'second',path:['records',1,'c']}
@@ -1473,7 +1637,7 @@ it('uses acknowledged eligibility for Skip, Up next and re-entry while reads are
   expect(await screen.findByRole('heading',{name:'Second title'})).toBeVisible()
   expect(screen.queryByText('First title')).toBeNull()
   expect(screen.getByText('c').parentElement).toHaveTextContent('Third title')
-  expect(screen.getByText('2 of 2')).toBeVisible()
+  expect(screen.getByText('Check first · 2 of 3')).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:/^Skip\b/}))
   expect(screen.getByRole('heading',{name:'Third title'})).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:/Leave one-by-one review/}))

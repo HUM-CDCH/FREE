@@ -1,6 +1,6 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { SchemaNode } from 'extraction/schema'
-import { reviewDraft } from './durableReviewMachine'
+import { reviewDraft, reviewRevision } from './durableReviewMachine'
 
 /** One saved value of a member's latest results, as the durable reader returns it. */
 export type GridValue = DurablePage['values'][number]
@@ -71,7 +71,7 @@ export const layoutValues = (layout: GridLayout): GridValue[] =>
  *  value back to To check (`PENDING`) keeps its model value and guides nothing. */
 export function decisionBody(value: GridValue, snapshotVersion: number, action: GridAction, edited?: unknown) {
   const draft = reviewDraft(value)
-  const expectedRevision = value.correction?.revision ?? value.historicalCorrection?.revision ?? 0
+  const expectedRevision = reviewRevision(value)
   if (action === 'PENDING')
     return { expectedRevision, snapshotVersion, action, value: value.modelValue, included: false, evidence: [] }
   return {

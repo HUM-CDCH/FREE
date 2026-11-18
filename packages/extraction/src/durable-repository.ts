@@ -1,11 +1,14 @@
 import { randomUUID, createHash } from 'node:crypto'
 import type { Pool, PoolClient } from 'pg'
+import type { z } from 'zod'
 import { pool as sharedPool, stableJson, withPoolClientTransaction } from 'db'
 import { extractionMethod, keiMethodOptions, canonicalIntent } from './extraction-method.js'
 import { parseExtractionSchema, type RecordScope, type SchemaNode } from './schema.js'
 import { keiRunOf } from './kei-handoff.js'
 import { durableAdoptSchema, durableCommandSchema, durableCorrectionSchema, durableHeadSchema,
-  durableSelectionSchema, durableStatus, durableValueSchema, plannedRecords, type DurableHead, type DurableValue } from './durable-contract.js'
+  durableSelectionSchema, durableStatus, durableValueSchema, durableCellApprovalSchema, plannedRecords,
+  type DurableHead, type DurableValue, type ResultPath } from './durable-contract.js'
+import { tableCellReview } from './table-cell-review.js'
 import { correctionValueFits, fieldMeaning, adaptedCorrection, modelDigest, resolvedValue } from './durable-feedback.js'
 import { refuseIncompatibleGliformer } from './gliformer-compatibility.js'
 import { plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
@@ -27,7 +30,14 @@ async function resultSchemaRevisions(client: PoolClient, head: DurableHead): Pro
     JOIN public."extractionSchema" s ON s.id=r."extractionSchemaId"
     WHERE i."extractionId"=$1 AND s."projectContextId"=$2 ORDER BY r."revisionNumber",r.id`, [head.id,head.projectId])).rows
 }
-function reviewFits(correction: {candidate:{meaning:string;node:SchemaNode;modelDigest:string};decision:{action:string;value?:unknown;snapshotVersion?:number}}, value: DurableValue): boolean {
+type CorrectionDecision = z.output<typeof durableCorrectionSchema> & { approvedCells?: ResultPath[] }
+type Correction = {
+  id: string; projectId: string; extractionId: string; valueId: string; revision: number; feedbackVersion: number;
+  snapshotVersion: number; selectionId: string; included: boolean; createdAt: Date;
+  decision: CorrectionDecision;
+  candidate: {id:string;fieldId:string;meaning:string;node:SchemaNode;modelDigest:string;value:unknown;sourceContext:string;grounded:boolean};
+}
+function reviewFits(correction: Correction, value: DurableValue): boolean {
   if(correction.candidate.meaning!==fieldMeaning(value.node)) return false
   if(correction.decision.action==='EDITED') return adaptedCorrection(correction.candidate.node,value.node,correction.decision.value)!==undefined
   return correction.candidate.modelDigest===modelDigest(value)
@@ -49,6 +59,54 @@ function reviewProjection<C extends Parameters<typeof reviewFits>[0]>(historical
   const compatible=historicalCorrection===null || reviewFits(historicalCorrection,value)
   return {correction:compatible && historicalCorrection ? {...historicalCorrection,decision:{...historicalCorrection.decision,...(historicalCorrection.decision.action==='EDITED'?{value:adaptedCorrection(historicalCorrection.candidate.node,value.node,historicalCorrection.decision.value)}:{})}} : null,
     historicalCorrection:compatible ? null : historicalCorrection,correctionCompatibility:compatible ? 'compatible' as const : 'incompatible' as const}
+}
+
+/** Cell approvals belong to the named snapshot. A whole-value edit, rejection or reset clears them. */
+async function cutCorrections(client: PoolClient, id: string, snapshotVersion: number, feedbackVersion: number,
+  valueId?: string) {
+  return (await client.query(`WITH revisions AS (
+    SELECT "valueId", max(revision) AS "reviewRevision",
+      max(revision) FILTER (WHERE NOT (decision ? 'approvedCells') OR "snapshotVersion"=$3) AS "projectedRevision",
+      max(revision) FILTER (WHERE (decision ? 'approvedCells' AND "snapshotVersion"=$3)
+        OR (NOT (decision ? 'approvedCells') AND decision->>'action'<>'APPROVED')) AS "cellRevision"
+    FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "feedbackVersion"<=$2
+      AND ($4::text IS NULL OR "valueId"=$4) GROUP BY "valueId"
+  )
+  SELECT review.*, revisions."valueId", revisions."reviewRevision", cells.decision->'approvedCells' AS "cutApprovedCells"
+  FROM revisions
+  LEFT JOIN extraction_runtime.correction review ON review."extractionId"=$1
+    AND review."valueId"=revisions."valueId" AND review.revision=revisions."projectedRevision"
+  LEFT JOIN extraction_runtime.correction cells ON cells."extractionId"=$1
+    AND cells."valueId"=revisions."valueId" AND cells.revision=revisions."cellRevision"
+  ORDER BY revisions."valueId"`,
+  [id,feedbackVersion,snapshotVersion,valueId??null])).rows
+}
+
+async function lockedReviewTarget(client: PoolClient, owner: string, id: string, valueId: string,
+  input: {snapshotVersion: number; expectedRevision: number}) {
+  const initial = await ownedHead(client,owner,id)
+  const feedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1 FOR UPDATE', [initial.projectId])).rows[0]
+  const head = await ownedHead(client,owner,id,true)
+  const snapshot = (await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,input.snapshotVersion])).rows[0]
+  const value = snapshot ? durableValueSchema.array().parse(snapshot.values).find(v=>v.id===valueId) : null
+  if (!value || value.processing !== 'saved') throw new DurableInvalid('Choose a structurally valid saved value.')
+  const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
+  if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
+  return {head,value,revision:revision+1,feedbackVersion:feedback.version+1}
+}
+
+async function publishCorrection(client: PoolClient, target: Awaited<ReturnType<typeof lockedReviewTarget>>,
+  decision: CorrectionDecision, context: Record<string,unknown> | void) {
+  const {head,value,revision,feedbackVersion}=target
+  const id = randomUUID()
+  const candidate = {id,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:decision.value ?? null,
+    sourceContext:stableJson({...context,sourceRevisionId:head.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue}),grounded:decision.evidence.length>0}
+  const included = decision.included && decision.action === 'EDITED'
+  await client.query(`INSERT INTO extraction_runtime.correction
+    (id,"projectId","extractionId","valueId",revision,"feedbackVersion","snapshotVersion","selectionId",decision,candidate,included)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [id,head.projectId,head.id,value.id,revision,feedbackVersion,decision.snapshotVersion,value.selectionId,decision,candidate,included])
+  await client.query('UPDATE extraction_runtime."feedbackHead" SET version=$2 WHERE id=$1', [head.projectId,feedbackVersion])
+  return {id,revision,feedbackVersion,included}
 }
 
 /** The document History window: its live Extractions newest first, one more than it shows to tell it is truncated. Only
@@ -262,8 +320,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         if (!Number.isInteger(snapshotVersion) || snapshotVersion < 0 || snapshotVersion > head.snapshotVersion ||
           !Number.isInteger(feedbackVersion) || feedbackVersion < 0 || feedbackVersion > latestFeedback)
           throw new DurableInvalid('Choose a committed result and review snapshot.')
-        const corrections = (await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
-          WHERE "extractionId"=$1 AND "feedbackVersion" <= $2 ORDER BY "valueId",revision DESC`, [id,feedbackVersion])).rows
+        const corrections = await cutCorrections(client,id,snapshotVersion,feedbackVersion)
         const correctionsByValue = new Map(corrections.map(correction=>[correction.valueId,correction]))
         const allValues = snapshot ? durableValueSchema.array().parse(snapshot.values) : []
         const values=input.valueId?allValues.filter(v=>v.id===input.valueId):allValues
@@ -276,7 +333,12 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
               if ('support' in producer) return unifiedEvidenceLink(producer,anchorId)
               return plainEvidenceLink(producer,anchorId)
             })
-            return {...value,links,...reviewProjection(correctionsByValue.get(value.id) ?? null,value)}
+            const saved = correctionsByValue.get(value.id)
+            const projection = reviewProjection(saved?.id ? saved : null,value)
+            const approvedCells: ResultPath[] | undefined = saved?.cutApprovedCells ?? undefined
+            const revision:number|undefined=saved?.reviewRevision
+            return {...value,links,...projection,...(revision===undefined?{}:{reviewRevision:revision}),
+              ...(approvedCells===undefined?{}:{approvedCells})}
           })
         const saved=projected.filter(value=>value.processing==='saved')
         const count=(action:string)=>saved.filter(value=>value.correction?.decision.action===action).length
@@ -303,28 +365,46 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       // source and snapshot pins used here are immutable and rechecked below.
       const context=await validateEvidence(validated.value,input.evidence,validated.sourceRevisionId)
       return runtimeTransaction(source,async client => {
-        const initial = await ownedHead(client,owner,id)
-        const feedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1 FOR UPDATE', [initial.projectId])).rows[0]
-        const head = await ownedHead(client,owner,id,true)
-        const snapshot = (await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,input.snapshotVersion])).rows[0]
-        const value = snapshot ? durableValueSchema.array().parse(snapshot.values).find(v=>v.id===valueId) : null
-        if (!value || value.processing !== 'saved') throw new DurableInvalid('Choose a structurally valid saved value.')
+        const target = await lockedReviewTarget(client,owner,id,valueId,input)
+        const {value}=target
         if (input.action === 'EDITED' && !correctionValueFits(value.node,input.value)) throw new DurableInvalid('The correction does not fit its producing field.')
-        const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
-        if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
-        const feedbackVersion = feedback.version+1, correctionId = randomUUID()
         // Approving a Value Disagreement saves the reading chosen at each place and the value they make.
         const choosing = input.action === 'APPROVED' && (input.choices !== undefined || value.disagreement !== undefined)
         const decision = choosing ? {...input,value:resolvedValue(value,input.choices ?? [])} : input
         if (choosing && decision.value === undefined) throw new DurableInvalid('Choose one reading for each part of this value whose readings disagree.')
-        const candidate = {id:correctionId,fieldId:value.fieldId,meaning:fieldMeaning(value.node),node:value.node,modelDigest:modelDigest(value),value:decision.value ?? null,
-          sourceContext:stableJson({...context,sourceRevisionId:head.sourceRevisionId,recordId:value.recordId,modelValue:value.modelValue}),grounded:input.evidence.length>0}
-        const included = input.included && input.action === 'EDITED'
-        await client.query(`INSERT INTO extraction_runtime.correction
-          (id,"projectId","extractionId","valueId",revision,"feedbackVersion","snapshotVersion","selectionId",decision,candidate,included)
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [correctionId,head.projectId,id,valueId,revision+1,feedbackVersion,input.snapshotVersion,value.selectionId,decision,candidate,included])
-        await client.query('UPDATE extraction_runtime."feedbackHead" SET version=$2 WHERE id=$1', [head.projectId,feedbackVersion])
-        return { id:correctionId,revision:revision+1,feedbackVersion,included }
+        return publishCorrection(client,target,decision,context)
+      })
+    },
+    saveCellApproval(id: string, valueId: string, raw: unknown) {
+      const input = durableCellApprovalSchema.parse(raw)
+      return runtimeTransaction(source,async client => {
+        const target = await lockedReviewTarget(client,owner,id,valueId,input)
+        const {value}=target
+        const cells = tableCellReview(value)
+        const pathKey = JSON.stringify(input.path)
+        if (!cells.paths.some(path=>JSON.stringify(path)===pathKey))
+          throw new DurableInvalid('Choose a populated original table cell.')
+        const whole = (await client.query<Correction>(`SELECT * FROM extraction_runtime.correction
+          WHERE "extractionId"=$1 AND "valueId"=$2 AND NOT (decision ? 'approvedCells')
+          ORDER BY revision DESC LIMIT 1`, [id,valueId])).rows[0]
+        const wholeDecision = whole && reviewFits(whole,value) ? whole.decision : undefined
+        if (wholeDecision?.action === 'EDITED' || wholeDecision?.action === 'REJECTED')
+          throw new DurableInvalid('Undo the whole-value decision before reviewing its original cells.')
+        const [prior] = await cutCorrections(client,id,input.snapshotVersion,target.feedbackVersion-1,valueId)
+        const paths: ResultPath[] = prior?.cutApprovedCells ?? []
+        const approvals = new Set(paths.map(path=>JSON.stringify(path)))
+        if (approvals.has(pathKey) === input.approved)
+          throw new DurableInvalid(input.approved ? 'This cell is already approved.' : 'This cell has no approval to undo.')
+        if (input.approved) approvals.add(pathKey)
+        else approvals.delete(pathKey)
+        // shortcut: decisions store the approved paths so far, switch to per-path events if large tables make history expensive.
+        const approvedCells = cells.paths.filter(path=>approvals.has(JSON.stringify(path)))
+        const complete = cells.wholeValue && approvedCells.length === cells.paths.length
+        const decision: CorrectionDecision = wholeDecision?.action === 'APPROVED'
+          ? {...wholeDecision,approvedCells,expectedRevision:input.expectedRevision,snapshotVersion:input.snapshotVersion}
+          : {action:complete?'APPROVED':'PENDING',evidence:[],included:false,approvedCells,
+            expectedRevision:input.expectedRevision,snapshotVersion:input.snapshotVersion}
+        return publishCorrection(client,target,decision,undefined)
       })
     },
     history(id: string) { return runtimeTransaction(source,async (client)=> {
@@ -397,8 +477,11 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         JOIN public."schemaRevision" r ON r.id=(m.value->>'schemaRevisionId')::uuid
         WHERE h.id=ANY($1)`,[ids,valueId])).rows.map(row=>[row.extractionId,row] as const))
       const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[projectId])).rows[0]?.version ?? 0
-      const corrections=new Map((await client.query(`SELECT DISTINCT ON ("extractionId") * FROM extraction_runtime.correction
-        WHERE "extractionId"=ANY($1) AND "valueId"=$2 AND "feedbackVersion"<=$3 ORDER BY "extractionId",revision DESC`,[ids,valueId,feedback])).rows
+      const corrections=new Map((await client.query(`SELECT DISTINCT ON (c."extractionId") c.* FROM extraction_runtime.correction c
+        JOIN extraction_runtime.head h ON h.id=c."extractionId"
+        WHERE c."extractionId"=ANY($1) AND c."valueId"=$2 AND c."feedbackVersion"<=$3
+        AND (NOT (c.decision ? 'approvedCells') OR c."snapshotVersion"=h."snapshotVersion")
+        ORDER BY c."extractionId",c.revision DESC`,[ids,valueId,feedback])).rows
         .map(row=>[row.extractionId as string,row] as const))
       return {truncated,
         untraceableRevisions:new Set(shown.filter(row=>row.sourceRepresentationRevisionId!==anchor.sourceRepresentationRevisionId)
@@ -422,8 +505,10 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
       const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[head.projectId])).rows[0]
       if(!snapshot || !Number.isInteger(input.feedbackVersion) || input.feedbackVersion<0 || input.feedbackVersion>feedback.version) throw new DurableInvalid('Choose a committed review snapshot.')
-      const decisions=(await client.query(`SELECT DISTINCT ON ("valueId") * FROM extraction_runtime.correction
-        WHERE "extractionId"=$1 AND "feedbackVersion"<=$2 ORDER BY "valueId",revision DESC`,[id,input.feedbackVersion])).rows
+      const decisions=(await cutCorrections(client,id,input.snapshotVersion,input.feedbackVersion))
+        .filter(correction=>correction.id)
+        .map(({reviewRevision: _reviewRevision,cutApprovedCells,...correction})=>
+          cutApprovedCells===null ? correction : {...correction,decision:{...correction.decision,approvedCells:cutApprovedCells}})
       const reviewable=durableValueSchema.array().parse(snapshot.values).filter(v=>v.processing==='saved')
       if(reviewable.some(v=>!decisions.some(c=>c.valueId===v.id && c.decision.action!=='PENDING' && reviewFits(c,v))))
         throw new DurableInvalid('Review each saved value in this snapshot before finalizing.')
@@ -445,11 +530,15 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const nodes=new Map<string,ReturnType<typeof parseExtractionSchema>['schemaNodes'][number]>()
       const visit=(items:ReturnType<typeof parseExtractionSchema>['schemaNodes'])=> {for(const node of items){nodes.set(node.id,node);if(node.children)visit(node.children)}}
       if(selection)visit(executionDefinition(selection.schemaTree).schemaNodes)
-      const seen=new Set<string>()
-      return rows.map(row=> {
-        const key=row.extractionId+':'+row.valueId,active=!seen.has(key);seen.add(key)
-        const node=nodes.get(row.candidate.fieldId)
-        return {...row,active,targetCompatibility:!target?'not_evaluated':node&&fieldMeaning(node)===row.candidate.meaning&&adaptedCorrection(row.candidate.node,node,row.candidate.value)!==undefined?'compatible':'incompatible'}
+      // A value's newest revision is its active decision, as capture_unit reads it, and the revision a write must name.
+      // A cell approval can be that revision: it is not listed as a correction, yet it supersedes the ones before it.
+      const newest=new Map<string,number>()
+      return rows.flatMap(row=> {
+        const key=row.extractionId+':'+row.valueId
+        if(!newest.has(key))newest.set(key,row.revision)
+        if('approvedCells' in row.decision)return []
+        const reviewRevision=newest.get(key)!,node=nodes.get(row.candidate.fieldId)
+        return {...row,active:row.revision===reviewRevision,reviewRevision,targetCompatibility:!target?'not_evaluated':node&&fieldMeaning(node)===row.candidate.meaning&&adaptedCorrection(row.candidate.node,node,row.candidate.value)!==undefined?'compatible':'incompatible'}
       })
     }) },
   }

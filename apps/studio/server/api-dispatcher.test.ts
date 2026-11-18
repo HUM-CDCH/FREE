@@ -58,6 +58,7 @@ describe('eager API dispatcher', () => {
       ['/api/healthz', 'healthz'],
       ['/api/edit_schema', 'edit_schema'],
       ['/api/generate_schema', 'generate_schema'],
+      ['/api/extractions/extraction/durable/values/table/cells', 'durable_extractions'],
       ['/api/project-contexts', 'project_contexts'],
       ['/api/project-contexts/project', 'project_contexts'],
       [

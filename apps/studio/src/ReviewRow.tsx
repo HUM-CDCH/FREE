@@ -1,7 +1,7 @@
 import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import { DECISION_WORD, type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
+import { DECISION_WORD, type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, supportNote, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -68,13 +68,15 @@ export type ReviewRowProps = {
   onTypedEdit?: (value: unknown) => void
   /** The open value's parts, each pickable to show only its Evidence. */
   pick?: PartPick
+  canApproveWhole?: boolean
+  canUndoWhole?: boolean
   /** A decision is saving or the review is a saved one: the row and its edit wait, picking a part never does. */
   locked?: boolean
 }
 
 /** One value, and when selected its expansion: one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, canDecide, saved, editing, node,
-  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onTypedEdit, pick, locked = false }: ReviewRowProps) {
+  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onTypedEdit, pick, canApproveWhole = true, canUndoWhole = true, locked = false }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const linked = row.decision !== null && row.link !== null
@@ -82,10 +84,11 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   const decided = row.kind === 'approved' || row.kind === 'edited' || row.kind === 'rejected'
   const word = row.decision ? DECISION_WORD[row.decision.action] : ''
   const style = row.chip?.style ?? 'neutral'
+  const support = supportNote(row)
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
       <button ref={rowRef} type="button" disabled={locked} aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
-        aria-label={`${stateLabel(row)} ${fieldWords(row.name)} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
+        aria-label={`${stateLabel(row)} ${fieldWords(row.name)} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${!selected && row.kind === 'to-check' && row.reason ? `, ${row.reason}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
         className={`${grid} min-h-7.5 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
@@ -96,6 +99,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
             <span className={`min-w-0 first-letter:uppercase ${selected ? '[overflow-wrap:anywhere]' : 'truncate'}`}>{fieldWords(row.name)}</span>
           </span>
           <span className={`text-content font-medium text-ink [overflow-wrap:anywhere] ${selected ? 'block' : 'line-clamp-2'}`}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
+          {!selected && row.kind === 'to-check' && row.reason && <span className="flex items-start gap-1 text-compact text-stale-ink"><DoubtGlyph /><span>{row.reason}</span></span>}
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
           {row.changed && <span className="block text-compact text-stale-ink">Changed since you checked it, please check again</span>}
         </span>
@@ -114,6 +118,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
               {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span>{row.doubt}</span></p>}
             </>
           )}
+          {support && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span>{support.text}</span></p>}
           {!linked && row.evidence && (
             <>
               <p className="m-0 text-compact font-semibold text-ink">{row.evidence.label}</p>
@@ -132,8 +137,8 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
           ) : row.kind === 'to-check' && canDecide ? (
             <div className="flex flex-wrap items-center gap-2">
               <div role="group" aria-label={`Decision for ${fieldWords(row.name)}`} className="inline-flex h-7.5 overflow-hidden rounded-md border border-line bg-surface">
-                {!row.disagreement && <button type="button" onClick={() => onDecide('APPROVED')} className="inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
-                  <ApprovedGlyph />Approve</button>}
+                {canApproveWhole && !row.disagreement && <button type="button" onClick={() => onDecide('APPROVED')} className="inline-flex cursor-pointer items-center gap-1.5 px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
+                  <ApprovedGlyph />{pick?.parts.size ? 'Approve value' : 'Approve'}</button>}
                 <button type="button" onClick={onEdit} className="inline-flex cursor-pointer items-center gap-1.5 border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
                   <EditedGlyph />Edit</button>
                 <button type="button" onClick={() => onDecide('REJECTED')} className="inline-flex cursor-pointer items-center gap-1.5 border-l border-line px-2.5 text-compact font-semibold text-ink hover:bg-surface-muted">
@@ -145,7 +150,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
           ) : decided && canDecide ? (
             <div className="flex items-center gap-2">
               <span className="text-secondary font-semibold text-ink">{word}</span>
-              <Button variant="ghost" onClick={onUndo}><UndoGlyph />Undo</Button>
+              {canUndoWhole && <Button variant="ghost" onClick={onUndo}><UndoGlyph />Undo</Button>}
             </div>
           ) : null}
         </div>

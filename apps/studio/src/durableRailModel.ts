@@ -1,12 +1,13 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import type { SchemaNode } from 'extraction/schema'
+import { tableCellReview } from 'extraction/table-cell-review'
 import type { EvidenceLink } from 'extraction/durable-types'
 import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
 import { linkOrigin } from './linkOrigin'
 import type { DurableState } from './durableExtractionApi'
 import type { StatusLine } from './ResultsHeader'
-import { evidenceCheck, type RailModel, type RailRecord, type RailRow } from './reviewVocabulary'
+import { evidenceCheck, supportNote, type RailModel, type RailRecord, type RailRow, type ReviewPriority } from './reviewVocabulary'
 
 export type RetainedValue = DurablePage['values'][number]
 
@@ -22,7 +23,7 @@ export type RunProgress = {
 
 /** One scalar part of an object or list value (a nested field, a table cell, a list entry) at its full result path, with
  *  the model link located to exactly that path. `key` names it among the marks: its value's id and its path. */
-export type ValuePart = { key: string; path: readonly (string | number)[]; name: string; value: unknown; link: EvidenceLink | null }
+export type ValuePart = { key: string; path: readonly (string | number)[]; name: string; value: unknown; link: EvidenceLink | null; reviewable?: boolean; approved?: boolean }
 
 export const partKey = (valueId: string, path: readonly (string | number)[]) => `${valueId}#${JSON.stringify(path)}`
 /** The value a mark key names, itself or through one of its parts (value ids are digests, never with `#`). */
@@ -31,20 +32,45 @@ export const markValueId = (key: string) => key.split('#', 1)[0]!
  *  correction Evidence (`{id}#correction`) is the whole decision's, so it lights with the value and with any of its parts. */
 export const ownsMark = (selected: string, key: string) => key === selected || key.startsWith(`${selected}#`) || key === `${markValueId(selected)}#correction`
 
+/** One index per saved object, built on first use and dropped with it: each row of a table looks up its link, anchor and
+ *  judgments, so a search per row would make a large table quadratic. */
+function indexed<Owner extends object, Index>(build: (owner: Owner) => Index) {
+  const built = new WeakMap<Owner, Index>()
+  return (owner: Owner) => { let index = built.get(owner); if (!index) built.set(owner, index = build(owner)); return index }
+}
+/** Each key's items in their order; the first is the one `find` returns. */
+function byKey<Item>(items: readonly Item[], key: (item: Item) => string) {
+  const groups = new Map<string, Item[]>()
+  for (const item of items) { const at = key(item), group = groups.get(at); if (group) group.push(item); else groups.set(at, [item]) }
+  return groups
+}
+const linksByPath = indexed((links: RetainedValue['links']) => byKey(links, link => JSON.stringify(link.resultPath)))
+const anchorsById = indexed((document: ParsedDocument) => byKey(document.evidence_index.anchors, anchor => anchor.anchor_id))
+const judgmentsByPath = indexed((check: NonNullable<RetainedValue['check']>) => byKey(check.judgments, judgment => JSON.stringify(judgment.path)))
+
 /** The parts of an object or list value as shown (an edit or the chosen readings, else the model's), in schema order; a
  *  scalar value has none. A part keeps the model's link to its path only where the model read the same there. In an
  *  edited list an index can name another item, so an item keeps its links only where the list keeps its length and the
  *  item reads once in the model's and once in the edit, at the same index; no insert, drop or reorder of equal items. */
 export function valueParts(value: RetainedValue): ValuePart[] {
   const parts: ValuePart[] = []
+  const action = value.correction?.decision.action
+  const eligible = action === 'EDITED' || action === 'REJECTED' ? [] : tableCellReview(value).paths
+  const cells = new Set(eligible.map(path=>JSON.stringify(path)))
+  const approvals = new Set(value.approvedCells?.map(path=>JSON.stringify(path)))
   // Two readings are the same whatever their keys' order; an unedited value's parts are the model's own.
   // shortcut: an edited list's moved, resized or repeated items and a row with one edited cell lose their links; upgrade
   // when an edit carries each item's model index.
   const json = (at: unknown) => JSON.stringify(at, (_, each) => each && typeof each === 'object' && !Array.isArray(each)
     ? Object.fromEntries(Object.entries(each).sort(([a], [b]) => a < b ? -1 : 1)) : each)
   const same = (a: unknown, b: unknown) => a === b || json(a) === json(b)
-  const part = (path: (string | number)[], name: string[], at: unknown, read: unknown, kept: boolean) => parts.push({key: partKey(value.id, path), path,
-    name: name.join(' › '), value: at, link: kept && same(at, read) ? value.links.find(link => JSON.stringify(link.resultPath) === JSON.stringify(path)) ?? null : null})
+  const links = linksByPath(value.links)
+  const part = (path: (string | number)[], name: string[], at: unknown, read: unknown, kept: boolean) => {
+    const place = JSON.stringify(path)
+    parts.push({key: partKey(value.id, path), path, name: name.join(' › '), value: at,
+      link: kept && same(at, read) ? links.get(place)?.[0] ?? null : null,
+      reviewable: cells.has(place), approved: cells.has(place) && approvals.has(place)})
+  }
   const walk = (node: SchemaNode, at: unknown, read: unknown, path: (string | number)[], name: string[], kept: boolean) => {
     const field = (from: unknown, child: string) => from && typeof from === 'object' ? (from as Record<string, unknown>)[child] : null
     if (node.type === 'object') for (const child of node.children) walk(child, field(at, child.name), field(read, child.name), [...path, child.name], [...name, child.name], kept)
@@ -78,20 +104,34 @@ export const sharedColor = (colors: readonly (string | undefined)[]) =>
 export const evidenceColorVars = (color: string | undefined): Record<string, string> => color ? {'--color-ev': color,
   '--color-ev-soft': `color-mix(in srgb, ${color} 24%, white)`, '--color-ev-ghost': `color-mix(in srgb, ${color} 12%, white)`} : {}
 
-/** Identity, producing types and model links come from the fixed saved page.
- * Display paths never identify a correction or transfer a decision. With `part`, the row's Evidence is that part's: its
- * own link (or none), page and chip; the decision stays the whole value's. */
+/** A value's place in the review order, from its support check alone: not supported when any scalar it
+ *  holds was judged so, else to verify when any has no verdict, else supported; null when no checker judged it. With
+ *  `path`, that one part's. */
+export function reviewPriority(check: RetainedValue['check'], path?: readonly (string | number)[]): ReviewPriority | null {
+  const judged = !check ? [] : path ? judgmentsByPath(check).get(JSON.stringify(path)) ?? [] : check.judgments
+  if (judged.length === 0) return null
+  if (judged.some(each => each.status === 'ok' && each.label === 0)) return 'unsupported'
+  return judged.every(each => each.status === 'ok') ? 'supported' : 'to-verify'
+}
+
+/** With `part`, the row uses that scalar's Evidence and retains its owning value's edit and rejection controls. */
 export function durableRailRow(value: RetainedValue, document: ParsedDocument | null, part?: ValuePart): RailRow {
   const correction = value.correction?.decision
   const action = correction?.action
   const link = part ? part.link : value.links[0] ?? null
-  const anchor = document?.evidence_index.anchors.find(each => each.anchor_id === link?.evidenceAnchorId)
+  const anchor = document && link ? anchorsById(document).get(link.evidenceAnchorId)?.[0] : undefined
   const page = anchor?.producer_observations[0]?.page_number ?? null
   const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),path:entry.path,alternatives:entry.alternatives.map(a=>({value:a.value,pages:originPages(a.segments)}))}))
   const kind = value.processing !== 'saved' ? value.processing === 'absent' ? 'missing' : 'not-reviewable'
     : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
   const doubt = link ? evidenceCheck(link, action === 'PENDING' ? undefined : action) : null
   const origin = link ? linkOrigin(link) : null
+  const priority = reviewPriority(value.check, part?.path)
+  // A linked value's chip also says its support check; one without a link already reads "no source".
+  const support = link ? supportNote({ priority, kind }) : null
+  const composite = !part && (value.node.type === 'object' || value.node.type === 'array')
+  const reason = value.processing !== 'saved' ? null : disagreement ? 'Different readings in the source'
+    : composite ? null : !link ? 'Source not found' : link.verbatim === false ? 'Not an exact match' : null
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
     value: reviewedValue(value), extracted: value.modelValue,
@@ -102,12 +142,12 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
     } : null,
     // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'different readings' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'
-      : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · not exact' : ''}`,
+      : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · not exact' : ''}${support ? ` · ${support.word}` : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},
     evidence: disagreement ? {label:'Different readings',detail:'Pick one, or edit.'} : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'Source not found' : 'Not read yet',
       detail: value.processing === 'saved' ? 'Please check it in the document.'
         : value.processing === 'absent' ? 'Nothing found in the document.' : 'Can be checked once it is read.'} : null,
-    doubt, changed: false, disagreement, page,
+    doubt, reason, priority, changed: false, disagreement, page,
     retained: {reviewable: value.processing === 'saved',
       attribution: value.historicalCorrection ? 'Your earlier decision no longer fits this value.' : undefined},
   }
@@ -126,6 +166,14 @@ export function durableRailModel(page: DurablePage, document: ParsedDocument | n
   const documentRows: RailRow[] = []
   for (const value of page.values) {
     const row = durableRailRow(value, document)
+    if ((row.kind === 'to-check' || row.kind === 'approved') && !row.disagreement) {
+      const parts = valueParts(value).filter((part) => part.value != null && part.value !== '')
+      row.parts = parts.map((part) => ({
+        ...durableRailRow(value, document, part),
+        key: part.key, name: part.name, resultPath: [...part.path], value: part.value, extracted: part.value,
+        kind: part.reviewable ? (part.approved ? 'approved' : 'to-check') : row.kind,
+      }))
+    }
     if (value.node.valueSource) { documentRows.push(row); continue }
     let record = groups.get(value.recordId)
     if (!record) {
@@ -158,7 +206,7 @@ export function durableRailModel(page: DurablePage, document: ParsedDocument | n
   return {document: documentRows, records, counts: {
     toCheck: count('to-check'), approved: count('approved'), edited: count('edited'), rejected: count('rejected'),
     required: rows.filter(row => row.retained?.reviewable).length,
-    doubtful: rows.filter(row => row.doubt).length, notReviewable: rows.filter(row => !row.retained?.reviewable).length,
+    doubtful: rows.reduce((count, row) => count + (row.parts?.length ? row.parts.filter(part => part.doubt).length : Number(Boolean(row.doubt))), 0), notReviewable: rows.filter(row => !row.retained?.reviewable).length,
   }}
 }
 

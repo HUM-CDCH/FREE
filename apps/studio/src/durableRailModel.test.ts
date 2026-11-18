@@ -1,8 +1,8 @@
-import { passesFilter, rowText } from './reviewVocabulary'
+import { passesFilter, rowText, supportNote } from './reviewVocabulary'
 import { expect, it } from 'vitest'
 import type { DurablePage } from 'extraction/durable-types'
-import { durableRailModel, durableRailRow, markValueId, ownsMark, partKey, valueParts, type RetainedValue } from './durableRailModel'
-import { reviewQueue } from './reviewQueue'
+import { durableRailModel, durableRailRow, markValueId, ownsMark, partKey, reviewPriority, valueParts, type RetainedValue } from './durableRailModel'
+import { oneByOneQueue } from './reviewQueue'
 
 const value=(overrides:Partial<RetainedValue>={}):RetainedValue=>({
   id:'saved-value',recordId:'source-bound-record',fieldId:'flag',path:['records',0,'flag'],
@@ -57,10 +57,66 @@ it('non-verbatim Evidence determines the uncertain filter, count and queue',()=>
       links:[{...diagnostic,resultPath:['records',0,id],evidenceAnchorId:'own-anchor'}]}))
   const model=durableRailModel({values} as DurablePage,null)
   const rows=model.records[0].rows
+  expect(rows.map(row=>[row.key,row.reason])).toEqual([['ordinary',null],['supporting','Not an exact match']])
   expect(rows.map(row=>passesFilter(row,'doubt'))).toEqual([false,true])
   expect(model.counts.doubtful).toBe(1)
   expect(rows[0].chip?.style).toBe('link')
-  expect(reviewQueue(model).map(row=>row.key)).toEqual(['supporting','ordinary'])
+  expect(oneByOneQueue(model).map(row=>row.key)).toEqual(['supporting','ordinary'])
+})
+
+type Judgment=NonNullable<RetainedValue['check']>['judgments'][number]
+const check=(...judgments:Judgment[]):RetainedValue['check']=>({protocol:1,model:{model:'example/checker'},judgments})
+const judgment=(path:(string|number)[],status:Judgment['status'],label:Judgment['label']=null):Judgment=>({path,status,label})
+
+it('reads a value\'s review priority from its support check alone, and a part\'s from its own judgment',()=> {
+  const title=['records',0,'work','title'],year=['records',0,'work','year'],place=['records',0,'work','place']
+  expect(reviewPriority(undefined)).toBeNull()
+  expect(reviewPriority(check(judgment(title,'ok',1),judgment(year,'ok',1)))).toBe('supported')
+  expect(reviewPriority(check(judgment(title,'ok',1),judgment(year,'input_limit')))).toBe('to-verify')
+  expect(reviewPriority(check(judgment(title,'no_evidence')))).toBe('to-verify')
+  expect(reviewPriority(check(judgment(title,'unavailable')))).toBe('to-verify')
+  const mixed=check(judgment(title,'ok',1),judgment(year,'no_evidence'),judgment(place,'ok',0))
+  expect(reviewPriority(mixed)).toBe('unsupported')
+  expect([title,year,place].map(path=>reviewPriority(mixed,path))).toEqual(['supported','to-verify','unsupported'])
+  expect(reviewPriority(mixed,['records',0,'work','publisher'])).toBeNull()
+})
+
+it('shows a support check on the extracted value only, never as an approval, and keeps its place after a decision',()=> {
+  const path=['records',0,'flag'],node={id:'flag',name:'flag',type:'string' as const}
+  const link={resultPath:path,evidenceAnchorId:'own-anchor',verbatim:true}
+  const linked=(overrides:Partial<RetainedValue>)=>durableRailRow(value({node,modelValue:'x',links:[link],...overrides}),null)
+  const unsupported=linked({check:check(judgment(path,'ok',0))})
+  expect(unsupported.priority).toBe('unsupported')
+  expect(unsupported.chip).toEqual({text:'linked · check first',style:'link'})
+  expect(supportNote(unsupported)?.word).toBe('check first')
+  const supported=linked({check:check(judgment(path,'ok',1))})
+  expect(supported.priority).toBe('supported')
+  expect(supported.chip).toEqual({text:'linked',style:'link'})
+  expect(supportNote(supported)).toBeNull()
+  const unlinked=durableRailRow(value({node,modelValue:'x',check:check(judgment(path,'no_evidence'))}),null)
+  expect(unlinked.priority).toBe('to-verify')
+  expect(unlinked.chip?.text).toBe('no source')
+  expect(supportNote(unlinked)?.word).toBe('not checked')
+  const edited=linked({check:check(judgment(path,'ok',0)),
+    correction:{revision:1,decision:{action:'EDITED',value:'y',evidence:[],included:true}} as RetainedValue['correction']})
+  expect(edited.priority).toBe('unsupported')
+  expect(edited.chip?.text).toBe('linked')
+  expect(supportNote(edited)).toBeNull()
+  const plain=linked({})
+  expect(plain.priority).toBeNull()
+  expect(plain.chip).toEqual({text:'linked',style:'link'})
+})
+
+it('orders the saved values of every record by their support checks, the document\'s fields with them',()=> {
+  const field=(id:string,record:number,recordId:string,judged:RetainedValue['check'],extra:Partial<RetainedValue>={})=>value({id,recordId,fieldId:id,
+    path:['records',record,id],node:{id,name:id,type:'string'},modelValue:'x',check:judged,links:[{resultPath:['records',record,id],evidenceAnchorId:id,verbatim:true}],...extra})
+  const values=[field('a',0,'first',check(judgment(['records',0,'a'],'ok',1))),field('b',0,'first',check(judgment(['records',0,'b'],'no_evidence')),{links:[]}),
+    field('c',1,'second',check(judgment(['records',1,'c'],'ok',0))),field('d',1,'second',undefined),
+    field('e',0,'document',check(judgment(['records',0,'e'],'ok',0)),{node:{id:'e',name:'e',type:'string',valueSource:'document'}})]
+  const model=durableRailModel({values} as DurablePage,null)
+  expect(oneByOneQueue(model,false).map(item=>item.key)).toEqual(['e','a','b','c','d'])
+  // Missing Evidence comes first; ordinary values keep document order regardless of a support verdict.
+  expect(oneByOneQueue(model).map(item=>item.key)).toEqual(['b','e','c','a','d'])
 })
 
 it('shows a linked value saved while the run goes on as linked, not as still being checked',()=> {
@@ -119,6 +175,29 @@ it('names each scalar part of a composite value with its own link, and keys it b
   expect(durableRailRow(saved,null,parts[2]).link).toBe(cell)
   expect(durableRailRow(saved,null,parts[0]).decision?.evidenceAnchorId).toBe('a_p1_s2_r1_c1')
   expect(valueParts(value())).toEqual([])
+})
+
+it('builds a large table\'s cell rows without searching its links, judgments or anchors again for each cell',()=> {
+  const columns=['a','b','c','d','e'],rows=400,cells=rows*columns.length
+  const reads={links:0,judgments:0,anchors:0}
+  const counted=<T extends object>(target:T,field:string,of:keyof typeof reads)=>new Proxy(target,{get:(from,key,receiver)=>{
+    if(key===field)reads[of]++
+    return Reflect.get(from,key,receiver)
+  }})
+  const paths=Array.from({length:rows},(_,row)=>columns.map(column=>['records',0,'table',row,column])).flat()
+  const anchor=(index:number)=>`a_p${index}`
+  const node={id:'table',name:'table',type:'array' as const,children:columns.map(name=>({id:name,name,type:'string' as const}))}
+  const saved=value({id:'t',fieldId:'table',path:['records',0,'table'],node,
+    modelValue:Array.from({length:rows},(_,row)=>Object.fromEntries(columns.map(column=>[column,`${column}${row}`]))),
+    links:paths.map((resultPath,index)=>counted({evidenceAnchorId:anchor(index),resultPath,verbatim:true},'resultPath','links')) as never,
+    check:{protocol:1,model:{},judgments:paths.map((path,index)=>counted({path,status:'ok' as const,label:index===cells-1?0 as const:1 as const},'path','judgments'))}})
+  const document={evidence_index:{anchors:paths.map((_,index)=>counted({anchor_id:anchor(index),producer_observations:[{page_number:index+1}]},'anchor_id','anchors'))}}
+  const parts=durableRailModel({values:[saved]} as DurablePage,document as never).records[0]!.rows[0]!.parts!
+  expect(parts).toHaveLength(cells)
+  expect(parts.map(part=>[part.link?.evidenceAnchorId,part.page,part.priority])).toEqual(
+    paths.map((_,index)=>[anchor(index),index+1,index===cells-1?'unsupported':'supported']))
+  // One pass indexes each list; a search per cell would read each cells × cells / 2 times.
+  for(const count of Object.values(reads))expect(count).toBeLessThanOrEqual(2*cells)
 })
 
 it('shows a single-pass list leaf code located as rule-linked, and an uncited leaf beside it as without Evidence',()=> {
