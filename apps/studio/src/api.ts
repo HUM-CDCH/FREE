@@ -207,6 +207,7 @@ export async function requestSchemaChat(
   signal: AbortSignal | undefined,
   operationId: string,
   history: ChatHistory = [],
+  offer: string | null = null,
 ): Promise<SchemaChatReply> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -214,6 +215,8 @@ export async function requestSchemaChat(
   form.append('message', message)
   // The whole conversation before the message goes with it, so a follow-up can refer to it.
   if (history.length) form.append('history', JSON.stringify(history))
+  // What the chat offers beside the message, which a "yes" or a "no" answers.
+  if (offer) form.append('offer', offer)
   // The operation ID makes the POST repeatable.
   form.append('operation_id', operationId)
   return postModelForm('/schema_chat', form, (data) => schemaChatReplySchema.parse(data), signal)
@@ -308,6 +311,7 @@ export async function requestSchemaEdit(
   signal: AbortSignal | undefined,
   operationId: string,
   history: ChatHistory = [],
+  offer: string | null = null,
 ): Promise<SchemaEditResponse> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -320,6 +324,7 @@ export async function requestSchemaEdit(
     )
   form.append('instruction', instruction)
   if (history.length) form.append('history', JSON.stringify(history))
+  if (offer) form.append('offer', offer)
   // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
   form.append('operation_id', operationId)
   return postModelForm('/edit_schema', form, decodeSchemaEdit, signal)
