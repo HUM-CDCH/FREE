@@ -253,7 +253,7 @@ describe('repeatable model POST', () => {
     const result = requestSchema(context, undefined, { instruction: 'Catalog entries', operationId: OPERATION, base: null })
     await vi.advanceTimersByTimeAsync(3_000)
 
-    await expect(result).resolves.toEqual({ template: { title: 'string' }, sourceCoverage: null })
+    await expect(result).resolves.toEqual({ template: { title: 'string' }, fieldDescriptions: [], sourceCoverage: null })
     expect(stub.requests).toEqual([
       'PUT /api/model-keys', 'POST /api/generate_schema',
       'PUT /api/model-keys', 'POST /api/generate_schema',
@@ -306,7 +306,7 @@ describe('repeatable model POST', () => {
     ])
     const result = requestSchema(context, undefined, { operationId: OPERATION, base: null })
     await vi.advanceTimersByTimeAsync(3_000)
-    await expect(result).resolves.toEqual({ template: { title: 'string' }, sourceCoverage: null })
+    await expect(result).resolves.toEqual({ template: { title: 'string' }, fieldDescriptions: [], sourceCoverage: null })
     expect(stub.posts()).toBe(2)
     expect(stub.bodies.map((body) => Object.fromEntries(body).operation_id)).toEqual([OPERATION, OPERATION])
 
@@ -456,5 +456,13 @@ describe('decoders', () => {
     const sourceCoverage = { complete: false, sourceCharacters: 50_040, omitted: [{ page: 1, start: 23_000, end: 27_040 }] }
     expect(decodeSchemaDone({ template: {}, raw: '{}', pages: null, sourceCoverage })).toMatchObject({ sourceCoverage })
     expect(decodeSchemaDone({ template: {}, raw: '{}', pages: null })).toMatchObject({ sourceCoverage: null })
+  })
+
+  it("reads a generation's scalar field notes, none when the response has none, and fails loud on malformed ones", () => {
+    const fieldDescriptions = [{ path: ['items', 'name'], description: 'The item name.' }]
+    expect(decodeSchemaDone({ template: {}, fieldDescriptions, raw: '{}', pages: null })).toMatchObject({ fieldDescriptions })
+    expect(decodeSchemaDone({ template: {}, raw: '{}', pages: null })).toMatchObject({ fieldDescriptions: [] })
+    expect(() => decodeSchemaDone({ template: {}, fieldDescriptions: [{ path: [], description: 'x' }], raw: '{}', pages: null }))
+      .toThrow("generate_schema: invalid 'fieldDescriptions'")
   })
 })

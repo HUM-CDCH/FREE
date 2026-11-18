@@ -40,10 +40,12 @@ export function modelOperationOf(status: WorkflowStatus): ModelOperation | null 
     createdAt: new Date(status.createdAt).toISOString(),
     failure,
   }
+  const generated = output?.ok ? output as SchemaGenerated : null
   return match[1] === 'suggestion'
     ? { kind: 'generation', ...common, baseSchemaRevisionId: input.baseSchemaRevisionId,
-        template: output?.ok ? (output as SchemaGenerated).template : null,
-        sourceCoverage: output?.ok ? ((output as SchemaGenerated).sourceCoverage ?? null) : null }
+        template: generated?.template ?? null,
+        ...(generated?.fieldDescriptions && { fieldDescriptions: [...generated.fieldDescriptions] }),
+        sourceCoverage: generated?.sourceCoverage ?? null }
     : { kind: 'proposal', ...common, baseSchemaRevisionId: (input as SchemaEditInput).baseSchemaRevisionId,
         response: output?.ok ? (output as SchemaEditProposed).response : null }
 }
