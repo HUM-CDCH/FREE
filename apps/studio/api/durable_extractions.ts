@@ -87,8 +87,8 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
         const extractionId=canonicalUuidSchema.parse(url.searchParams.get('extractionId')), valueId=z.string().min(1).max(512).parse(url.searchParams.get('valueId'))
         return json(valueHistoryResponseSchema.parse(await repository.valueHistory(projectId!,sourceDocumentId!,extractionId,valueId)),{headers:noStore})
       }
-      const match=/^\/api\/extractions\/([0-9a-f-]+)\/durable(?:\/(control|selection|adopt|values|history|finalize|source))?(?:\/([^/]+))?$/.exec(url.pathname)
-      if(!match) throw new ApiError(404,'not_found','API route not found.')
+      const match=/^\/api\/extractions\/([0-9a-f-]+)\/durable(?:\/(control|selection|adopt|values|history|finalize|source))?(?:\/([^/]+)(\/cells)?)?$/.exec(url.pathname)
+      if(!match || match[4] && (match[2]!=='values' || request.method!=='POST')) throw new ApiError(404,'not_found','API route not found.')
       const id=z.uuid().parse(match[1]), action=match[2]
       if(request.method==='GET') {
         if(!action) {
@@ -118,6 +118,7 @@ export function createResearcherApiHandlers(store: ResearcherProjectStore) {
         if(action==='selection') return json(await repository.saveSelection(id,body),{headers:noStore})
         if(action==='adopt') return json(await repository.adoptSelection(id,body),{headers:noStore})
         if(action==='finalize') return json(await repository.finalize(id,z.object({snapshotVersion:z.number().int().positive(),feedbackVersion:z.number().int().nonnegative()}).strict().parse(body)),{headers:noStore})
+        if(action==='values' && match[3] && match[4]) return json(await repository.saveCellApproval(id,decodeURIComponent(match[3]),body),{headers:noStore})
         if(action==='values' && match[3]) return json(await repository.saveCorrection(id,decodeURIComponent(match[3]),body,async(value,evidence,sourceRevisionId)=> {
           const document=await pinnedSource(sourceRevisionId)
           for(const selected of evidence) {

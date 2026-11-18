@@ -92,6 +92,93 @@ test('boolean review requires decisions and finalizes without legacy grounding c
   })
 })
 
+test('cell decisions persist at their named cut and aggregate only after each populated cell is approved', async t => {
+  const base = process.env.EXTRACTION_TEST_DATABASE_URL!
+  const target = await provisionDatabase(base, `free_test_cell_review_${randomBytes(5).toString('hex')}`)
+  const admin = new Client({connectionString: target.url}), source = new Pool({connectionString: target.url, max: 4})
+  t.after(async () => { await source.end(); await admin.end(); await target.drop() })
+  await migrate(target.url); await admin.connect()
+  const fixture = await seedResearchPins(admin), document=fixture.documents.d1
+  const preprocessId = (await admin.query('SELECT "preprocessId" FROM public."sourceRepresentationRevision" WHERE id=$1',
+    [document.sourceRepresentationRevisionId])).rows[0].preprocessId
+  const id = randomUUID(), schemaRevisionId = fixture.revisions.article
+  const requestedSettings = {article: REFERENCE_ARTICLE}
+  await admin.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
+    VALUES ($1,$2,$3,$4,'ARTICLE',$5)`, [id,document.sourceDocumentId,document.sourceRepresentationRevisionId,schemaRevisionId,requestedSettings])
+  await admin.query('BEGIN')
+  try {
+    await initializeDurableExtraction(admin as never,id,{projectContextId:fixture.projectContextId,
+      sourceRepresentationRevisionId:document.sourceRepresentationRevisionId,schemaRevisionId,schemaTree:ARTICLE_TREE,
+      strategy:'ARTICLE',preprocessId,requestedModels:null,requestedSettings})
+    await admin.query('COMMIT')
+  } catch (error) { await admin.query('ROLLBACK'); throw error }
+  const {selectionId} = (await admin.query('SELECT "selectionId" FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
+  const node = {id:'table',name:'table',type:'array',children:[
+    {id:'count',name:'count',type:'integer'}, {id:'seen',name:'seen',type:'boolean'},
+  ]}
+  const path = ['records',0,'table'], valueId = 'table'
+  const value = {id:valueId,recordId:'record',fieldId:'table',path,selectionId,schemaRevisionId,node,
+    modelValue:[{count:0,seen:false},{count:1,seen:null}],evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
+  for (const version of [1,2]) {
+    await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
+      VALUES ($1,$2,$3,$4,$5,$6,'{}')`, [randomUUID(),id,version,selectionId,'a'.repeat(64),JSON.stringify([value])])
+  }
+  await admin.query(`UPDATE extraction_runtime.head SET "snapshotVersion"=2,acknowledgement='COMPLETED' WHERE id=$1`,[id])
+  const owner = createDurableRepository(fixture.accountId,source)
+  const other = createDurableRepository(randomUUID(),source)
+  const secondView = createDurableRepository(fixture.accountId,source)
+  const firstPath = [...path,0,'count'], secondPath = [...path,0,'seen'], thirdPath = [...path,1,'count']
+  const approval = {snapshotVersion:1,expectedRevision:0,path:firstPath,approved:true}
+  await assert.rejects(other.saveCellApproval(id,valueId,approval),DurableNotFound)
+  await assert.rejects(other.page(id),DurableNotFound)
+  await assert.rejects(owner.saveCellApproval(id,valueId,{...approval,path:[...path,1,'seen']}),/populated original table cell/)
+  await assert.rejects(owner.saveCorrection(id,valueId,{snapshotVersion:1,expectedRevision:0,action:'APPROVED',approvedCells:[firstPath]},async()=>{}))
+  const first = await owner.saveCellApproval(id,valueId,approval)
+  const partial = await secondView.page(id,{snapshotVersion:1})
+  assert.deepEqual(partial.values[0]?.approvedCells,[firstPath])
+  assert.equal(partial.reviewCounts.toCheck,1)
+  assert.equal((await secondView.page(id,{snapshotVersion:1,feedbackVersion:0})).values[0]?.approvedCells,undefined)
+  const differentSnapshot = await secondView.page(id)
+  assert.equal(differentSnapshot.values[0]?.approvedCells,undefined)
+  assert.equal(differentSnapshot.values[0]?.reviewRevision,first.revision)
+  await assert.rejects(owner.finalize(id,{snapshotVersion:1,feedbackVersion:first.feedbackVersion}),/Review each saved value/)
+
+  const secondApproval = {...approval,path:secondPath,expectedRevision:first.revision}
+  const thirdApproval = {...secondApproval,path:thirdPath}
+  const raced = await Promise.allSettled([owner.saveCellApproval(id,valueId,secondApproval),secondView.saveCellApproval(id,valueId,thirdApproval)])
+  const rejected = raced.find(result=>result.status==='rejected')
+  assert.ok(rejected?.reason instanceof DurableConflict)
+  const remaining = raced[0]?.status==='fulfilled' ? thirdApproval : secondApproval
+  const last = await owner.saveCellApproval(id,valueId,{...remaining,expectedRevision:first.revision+1})
+  const completedCut = {snapshotVersion:1,feedbackVersion:last.feedbackVersion}
+  const complete = await secondView.page(id,completedCut)
+  assert.deepEqual(complete.values[0]?.approvedCells,[firstPath,secondPath,thirdPath])
+  assert.equal(complete.reviewCounts.approved,1)
+  assert.equal(complete.finalization,null)
+  await assert.rejects(owner.finalize(id,{snapshotVersion:2,feedbackVersion:last.feedbackVersion}),/Review each saved value/)
+  await owner.finalize(id,completedCut)
+
+  const undone = await owner.saveCellApproval(id,valueId,{...approval,expectedRevision:last.revision,approved:false})
+  const live = await secondView.page(id,{snapshotVersion:1})
+  assert.deepEqual(live.values[0]?.approvedCells,[secondPath,thirdPath])
+  assert.equal(live.reviewCounts.toCheck,1)
+  assert.ok((await secondView.page(id,completedCut)).finalization)
+  assert.deepEqual((await secondView.page(id,completedCut)).values[0]?.approvedCells,[firstPath,secondPath,thirdPath])
+
+  const whole = await owner.saveCorrection(id,valueId,{snapshotVersion:2,expectedRevision:undone.revision,action:'APPROVED'},async()=>{})
+  const legacy = await secondView.page(id)
+  assert.equal(legacy.reviewCounts.approved,1)
+  assert.equal(legacy.values[0]?.approvedCells,undefined)
+  assert.deepEqual((await secondView.page(id,{snapshotVersion:1})).values[0]?.approvedCells,[secondPath,thirdPath])
+  const explicit = await owner.saveCellApproval(id,valueId,{...approval,snapshotVersion:2,expectedRevision:whole.revision})
+  await owner.saveCellApproval(id,valueId,{...approval,snapshotVersion:2,expectedRevision:explicit.revision,approved:false})
+  assert.equal((await secondView.page(id)).reviewCounts.approved,1)
+  const edited = await owner.saveCorrection(id,valueId,{snapshotVersion:2,expectedRevision:explicit.revision+1,action:'EDITED',
+    value:[{count:2,seen:true}]},async()=>{})
+  await assert.rejects(owner.saveCellApproval(id,valueId,{...approval,snapshotVersion:2,expectedRevision:edited.revision}),/Undo the whole-value decision/)
+  assert.equal((await secondView.page(id)).values[0]?.approvedCells,undefined)
+})
+
 test('native pilot finalization drives batch progress and unlocks only its producing schema',async t=> {
   const base=process.env.EXTRACTION_TEST_DATABASE_URL
   if(!base)throw new Error('Set EXTRACTION_TEST_DATABASE_URL to a guarded disposable target.')

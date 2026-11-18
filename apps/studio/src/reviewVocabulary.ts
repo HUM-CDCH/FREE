@@ -21,6 +21,10 @@ export type RowKind =
   | 'not-reviewable' | 'missing' | 'contested'
   | 'reading' | 'checking' | 'queued'
 export type ChipStyle = 'link' | 'rule' | 'doubtful' | 'neutral'
+/** Where a value's support check places it in the review order: the source text was judged not to support
+ *  it, no verdict could be reached (no source text, too long an input, the checker unavailable), or it was judged
+ *  supported. It orders the review only; a supported value is checked like any other. */
+export type ReviewPriority = 'unsupported' | 'to-verify' | 'supported'
 type Path = (string | number)[]
 
 export type RailRow = {
@@ -39,6 +43,12 @@ export type RailRow = {
   /** A not reviewable value's label and detail. */
   evidence: { label: string; detail: string } | null
   doubt: string | null
+  /** Why the extracted value asks to be checked first, in one line; the decision does not change it. */
+  reason?: string | null
+  /** The extracted value's support check, when the backend attempted one. */
+  priority?: ReviewPriority | null
+  /** Populated original scalars in document order; they share this row's saved value identity. */
+  parts?: readonly RailRow[]
   /** The run-time decision was not kept at settlement. */
   changed: boolean
   /** A Value Disagreement's readings at each place, none of them chosen by FREE. */
@@ -115,7 +125,7 @@ export const isNotReviewable = (kind: RowKind) => kind === 'not-reviewable' || k
 export type ValueFilter = 'check' | 'doubt' | 'notrev' | 'all'
 
 export const passesFilter = (row: RailRow, filter: ValueFilter) =>
-  filter === 'all' || (filter === 'check' ? row.kind === 'to-check' : filter === 'doubt' ? row.doubt !== null : isNotReviewable(row.kind))
+  filter === 'all' || (filter === 'check' ? row.kind === 'to-check' : filter === 'doubt' ? row.doubt !== null || Boolean(row.parts?.some(part => part.doubt)) : isNotReviewable(row.kind))
 
 /** An uncertain passage: the extracted value is not printed word for word in its linked Evidence.
  *  This describes the extracted value, so none after an edit or a rejection. The code keeps the older
@@ -123,6 +133,15 @@ export const passesFilter = (row: RailRow, filter: ValueFilter) =>
 export function evidenceCheck(link: { verbatim?: boolean }, action?: ReviewAction): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
   if (link.verbatim === false) return 'Not an exact match, please double check'
+  return null
+}
+
+/** What the researcher reads of a support check, and its short word for a chip. It describes the extracted value, so
+ *  none after an edit or a rejection; and none for a supported value, which is no approval. */
+export function supportNote(row: Pick<RailRow, 'priority' | 'kind'>): { text: string; word: string } | null {
+  if (row.kind === 'edited' || row.kind === 'rejected') return null
+  if (row.priority === 'unsupported') return { text: 'The source text may not support this value, please check it first', word: 'check first' }
+  if (row.priority === 'to-verify') return { text: 'Its support could not be checked automatically', word: 'not checked' }
   return null
 }
 

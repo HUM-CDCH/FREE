@@ -2,7 +2,8 @@ import { useLayoutEffect, useRef, type MouseEvent, type ReactNode } from 'react'
 import { isDecidable, passesFilter, type RailModel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import { ApprovedGlyph, DisclosureGlyph, SpinnerGlyph } from './ui/icons'
 import { observeEvidenceHover } from './evidenceHover'
-import { markValueId } from './durableRailModel'
+import { Button } from './ui'
+import type { QueueItem } from './reviewQueue'
 import type { SelectionChannel } from './selectionChannel'
 
 /** A record header's right-hand state, as text and as the section's accessible name. */
@@ -24,7 +25,9 @@ const NOTHING = <p className="m-0 px-4 pt-1 pb-3 text-secondary text-ink-muted">
  * The list: one component for both phases, records keyed by their index so settlement
  * moves nothing; a document's fields once above them; an Article's one record flat. The caller renders each row.
  */
-export default function ReviewList({ model, article, finding, filter, selectedKey, linkedKeys, selection, isOpen, onToggle, renderRow }: {
+export default function ReviewList({
+  model, article, finding, filter, selectedKey, linkedKeys, selection, isOpen, onToggle, renderRow, prioritized = [], order,
+}: {
   model: RailModel
   article: boolean
   /** Before discovery: the one block that becomes the list. */
@@ -37,22 +40,28 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
   isOpen: (record: RailRecord) => boolean
   onToggle: (record: RailRecord) => void
   renderRow: (row: RailRow, pinned: boolean) => ReactNode
+  prioritized?: readonly QueueItem[]
+  order?: { priority: boolean; onToggle: () => void }
 }) {
   const root = useRef<HTMLDivElement>(null)
   // Subscribe here, not in Results or the workspace. Hover changes only the affected wrappers and collapsed headers;
   // it never renders a value row again. Rebind after React changes the list or opens a record.
   useLayoutEffect(() => observeEvidenceHover(selection, [root.current], true))
-  const rowsOf = (rows: readonly RailRow[]) => rows.flatMap((row) => {
+  const priorityKeys = new Set(prioritized.map((item) => item.key))
+  const render = (row: RailRow, context?: string) => {
     const passes = passesFilter(row, filter)
     const linked = linkedKeys.has(row.key)
     return passes || row.key === selectedKey || linked ? [
       <div key={row.key} data-result-key={row.key} data-hover-keys={JSON.stringify([row.key])} data-evidence-linked={linked || undefined}
         className={`${row.key !== selectedKey ? '[&.hovered]:rounded-md [&.hovered]:bg-surface-muted [&.hovered]:shadow-none' : ''} ${linked ? 'rounded-md bg-ev-ghost shadow-[inset_2px_0_0_var(--color-ev)]' : ''}`}>
         {linked && <span className="sr-only">Linked to the selected passage</span>}
+        {context && <p className="m-0 px-8 pt-1 text-compact text-ink-muted">{context}</p>}
         {renderRow(row, !passes)}
       </div>,
     ] : []
-  })
+  }
+  const rowsOf = (rows: readonly RailRow[]) =>
+    rows.flatMap((row) => priorityKeys.has(row.key) ? [] : render(row))
   if (finding) return (
     <div className={`${section} flex flex-col gap-2.5 p-3`}>
       <span className="flex items-center gap-1.5 text-secondary text-ink"><SpinnerGlyph />Finding the records in the source…</span>
@@ -67,27 +76,42 @@ export default function ReviewList({ model, article, finding, filter, selectedKe
   const onMouseMove = (event: MouseEvent) => {
     const key = (event.target as Element).closest<HTMLElement>('[data-result-key]')?.dataset.resultKey ?? null
     const hovered = selection.snapshot().hover
-    const lit = hovered?.length === 1 ? markValueId(hovered[0]!) : hovered ? undefined : null
+    const lit = hovered?.length === 1 ? hovered[0] : hovered ? undefined : null
     if (key !== lit) selection.hover(key ? [key] : null)
   }
+  const records = order
+    ? [...model.records].sort((first, second) => first.index - second.index)
+    : model.records
+  const first = prioritized.flatMap((item) => {
+    const context = article ? undefined : item.record?.label ?? 'Document'
+    return render(item.row, context)
+  })
   return (
     <div ref={root} className="flex flex-col gap-2" onMouseMove={onMouseMove} onMouseLeave={() => selection.hover(null)}>
-      {model.document.length > 0 && (
+      {order && <div className="flex justify-end">
+        <Button onClick={order.onToggle}>{order.priority ? 'Use document order' : 'Use Check first order'}</Button>
+      </div>}
+      {first.length > 0 && <section aria-label="Check first" className={`${section} p-1`}>
+        <h3 className="m-0 px-2 pt-1.5 pb-1 text-content font-bold text-ink">Check first</h3>
+        {first}
+      </section>}
+      {model.document.some((row) => !priorityKeys.has(row.key)) && (
         <section aria-label="Document" className={`${section} p-1`}>
           <h3 className="m-0 px-2 pt-1.5 pb-1 text-content font-bold text-ink">Document</h3>
           {rowsOf(model.document)}
         </section>
       )}
       {article ? (
-        <div className={`${section} p-1`}>{model.records.flatMap((record) => rowsOf(record.rows))}</div>
-      ) : model.records.map((record) => {
+        <div className={`${section} p-1`}>{records.flatMap((record) => rowsOf(record.rows))}</div>
+      ) : records.map((record) => {
         const state = recordState(record)
         const open = record.state !== 'queued' && isOpen(record)
-        const rows = open ? rowsOf(record.rows) : []
+        const remaining = record.rows.filter(row => !priorityKeys.has(row.key))
+        const rows = open ? remaining.flatMap(row => render(row)) : []
         return (
           <section key={record.key ?? record.index} aria-label={`${record.label}, ${state.text}`} className={section}>
             <button type="button" aria-expanded={open} disabled={record.state === 'queued'} onClick={() => onToggle(record)}
-              data-hover-keys={JSON.stringify(open ? [] : record.rows.map(row => row.key))}
+              data-hover-keys={JSON.stringify(open ? [] : remaining.map(row => row.key))}
               className="flex h-9.5 w-full cursor-pointer items-center gap-1.5 px-2.5 text-left outline-none hover:bg-surface-muted [&.hovered]:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
               <DisclosureGlyph open={open} />
               <b className="min-w-10 truncate text-content text-ink">{record.label}</b>

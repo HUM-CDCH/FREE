@@ -32,9 +32,11 @@ FREE's normative product and safety contract is:
    Repetition elsewhere does not make the linked passage uncertain. FREE derives
    no confidence score from this hint, and only a researcher's decision approves a
    value. Approve, reject and typed edit decisions are revisioned corrections
-   of stable saved values, saved in numbered Project decision versions; a
-   concurrent write reports a conflict instead of overwriting a newer
-   decision. Review is finalized only by an explicit action on one named
+   of stable saved values, saved in numbered Project decision versions. An
+   individual table-cell approval belongs to its result snapshot and Decision
+   Version. The researcher can reopen it in another browser. Other cells keep
+   their own review state. A whole-table decision alone cannot establish
+   individual cell approvals. A concurrent write reports a conflict. Review is finalized only by an explicit action on one named
    result snapshot and decision version, never by saving a correction, and
    finalizing never freezes the Extraction. When an Article's source is read
    in separate parts, a model call settles each place to the document's own

@@ -11,7 +11,7 @@ export function observeEvidenceHover(channel: SelectionChannel, roots: readonly 
     previous = hovered
     for (const root of roots) for (const element of root?.querySelectorAll<HTMLElement>('[data-hover-keys]') ?? []) {
       const keys = JSON.parse(element.dataset.hoverKeys!) as string[]
-      const lit = hovered?.some(key => keys.some(each => wholeValues ? markValueId(key) === markValueId(each) : ownsMark(key, each))) ?? false
+      const lit = hovered?.some(key => keys.some(each => wholeValues && !each.includes('#') ? markValueId(key) === each : ownsMark(key, each))) ?? false
       element.classList.toggle('hovered', lit)
     }
   }

@@ -5,6 +5,8 @@ import { durableRequest, durableRoot } from './durableExtractionApi'
 
 type Value=DurablePage['values'][number]
 type Draft={choices?:{path:string[];value:unknown}[];value:unknown;included:boolean;evidence:{anchorId:string;occurrenceIds:string[]}[]}
+export const reviewRevision = (value: Value) =>
+  value.reviewRevision ?? value.correction?.revision ?? value.historicalCorrection?.revision ?? 0
 type Action='APPROVED'|'EDITED'|'REJECTED'|'PENDING'
 export type ReviewAcknowledgement=DurableCorrectionReceipt & {extractionId:string;valueId:string;action:Action}
 export function reviewDraft(value:Value):Draft {
@@ -18,9 +20,12 @@ export const durableReviewMachine=setup({
   actions:{chooseAction:assign({action:({event,context})=>event.type==='save'?event.action:context.action})},
   actors:{loadSaved:fromPromise(async({input}:{input:{extractionId:string;valueId:string;snapshotVersion:number}})=>durableRequest<DurablePage>(`${durableRoot(input.extractionId)}/values/${encodeURIComponent(input.valueId)}?snapshotVersion=${input.snapshotVersion}`)),save:fromPromise(async({input}:{input:{extractionId:string;valueId:string;body:unknown}})=>durableRequest<DurableCorrectionReceipt>(`${durableRoot(input.extractionId)}/values/${encodeURIComponent(input.valueId)}`,input.body)),
     loadPrevious:fromPromise(async({input}:{input:{extractionId:string;value:Value;snapshotVersion:number}})=> {
-      const revision=input.value.correction?.revision??input.value.historicalCorrection?.revision??0
+      const current=input.value.correction??input.value.historicalCorrection
       const history=await durableRequest<DurableHistory>(`${durableRoot(input.extractionId)}/history`)
-      const previous=history.corrections.find(correction=>correction.valueId===input.value.id&&correction.revision===revision-1)
+      const wholeDecisions=history.corrections.filter(correction=>correction.valueId===input.value.id&&correction.decision?.approvedCells===undefined)
+      const whole=current?.decision.approvedCells===undefined ? current :
+        wholeDecisions.findLast(correction=>correction.revision<current.revision)
+      const previous=wholeDecisions.findLast(correction=>correction.revision<(whole?.revision??0))
       if(!previous)return {action:'PENDING' as Action,draft:{value:input.value.modelValue,included:false,evidence:[]}}
       // Reuse the reader's producing-type projection. Undo never restores an
       // incompatible decision or invents child intent from an old whole value.
@@ -36,7 +41,7 @@ export const durableReviewMachine=setup({
     viewing:{on:{edit:{target:'editing',actions:assign({draft:({event})=>event.draft,error:null})},save:{target:'saving',actions:'chooseAction'},undo:{target:'undoing'}}},
     editing:{on:{edit:{actions:assign({draft:({event})=>event.draft})},save:{target:'saving',actions:'chooseAction'},undo:{target:'undoing'},refresh:{target:'reloading'},cancel:{target:'viewing',actions:assign({error:null})}}},
     undoing:{invoke:{src:'loadPrevious',input:({context})=>({extractionId:context.extractionId,value:context.value,snapshotVersion:context.snapshotVersion}),onDone:{target:'saving',actions:assign({draft:({event})=>event.output.draft,action:({event})=>event.output.action})},onError:{target:'editing',actions:assign({error:({event})=>event.error instanceof Error?event.error.message:'Unable to load the previous decision.'})}}},
-    saving:{invoke:{src:'save',input:({context})=>({extractionId:context.extractionId,valueId:context.value.id,body:{expectedRevision:context.value.correction?.revision??context.value.historicalCorrection?.revision??0,snapshotVersion:context.snapshotVersion,action:context.action,value:context.draft.value,included:context.draft.included,evidence:context.draft.evidence,...(context.action==='APPROVED' && context.draft.choices?{choices:context.draft.choices}:{})}}),onDone:{target:'saved',actions:assign({acknowledgement:({event,context})=>({...event.output,extractionId:context.extractionId,valueId:context.value.id,action:context.action})})},onError:{target:'editing',actions:assign({error:({event})=>event.error instanceof Error?event.error.message:'Unable to save. Your draft is still here.'})}}},
+    saving:{invoke:{src:'save',input:({context})=>({extractionId:context.extractionId,valueId:context.value.id,body:{expectedRevision:reviewRevision(context.value),snapshotVersion:context.snapshotVersion,action:context.action,value:context.draft.value,included:context.draft.included,evidence:context.draft.evidence,...(context.action==='APPROVED' && context.draft.choices?{choices:context.draft.choices}:{})}}),onDone:{target:'saved',actions:assign({acknowledgement:({event,context})=>({...event.output,extractionId:context.extractionId,valueId:context.value.id,action:context.action})})},onError:{target:'editing',actions:assign({error:({event})=>event.error instanceof Error?event.error.message:'Unable to save. Your draft is still here.'})}}},
     reloading:{invoke:{src:'loadSaved',input:({context})=>({extractionId:context.extractionId,valueId:context.value.id,snapshotVersion:context.snapshotVersion}),onDone:{target:'editing',actions:assign({value:({event,context})=>event.output.values[0]??context.value,comparing:true,error:null})},onError:{target:'editing',actions:assign({error:'Unable to reload the saved decision. Your draft is still here.'})}}},
     saved:{type:'final'},
   },
