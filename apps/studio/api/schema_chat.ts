@@ -8,7 +8,7 @@ import {
 } from './_http.js'
 import { json, parseTemperature } from './_http.js'
 import { awaitOperation, startOrJoinOperation, type ModelOperationClient } from './_model_operation.js'
-import { formChatHistory, formContextIdentity, ownedSourceScope } from './_schema_edit.js'
+import { formChatHistory, formChatOffer, formContextIdentity, ownedSourceScope } from './_schema_edit.js'
 import { ANSWER_SCHEMA_CHAT, type SchemaChatAnswered, type SchemaChatInput } from './_schema_chat_workflow.js'
 
 const FIELDS = [
@@ -17,6 +17,7 @@ const FIELDS = [
   'operation_id',
   'message',
   'history',
+  'offer',
   'temperature',
 ] as const
 
@@ -25,7 +26,8 @@ type SchemaChatStore = Pick<ResearcherProjectStore, 'researcherAccountId' | 'get
 /**
  * A chat message before the first schema as a durable operation: ownership is checked here, in PostgreSQL; the model
  * calls run in the `answerSchemaChat` workflow under the client-minted operation ID, so a repeated POST joins it. The
- * answer is the reply: a question's answer, or `instruction` for a message the page keeps for generation.
+ * answer is the reply: a question's answer, `instruction` for a message the page keeps for generation, `none` for one
+ * that only declines, or `requested` for one that asks Studio to generate, extract or go ahead (ADR 0034).
  */
 export function createPostSchemaChat(
   store: SchemaChatStore,
@@ -50,6 +52,7 @@ export function createPostSchemaChat(
         sourceRepresentationRevisionId,
         message: message.trim(),
         history: formChatHistory(form),
+        offer: formChatOffer(form),
         temperature,
       }
       const workflowID = `chat:${operationId}`

@@ -491,3 +491,47 @@ describe('RightRail asked to extract in the chat', () => {
     expect(await screen.findByText(/That leaves the template as it is/)).toBeInTheDocument()
   })
 })
+
+describe('RightRail carries out what a chat message asks for', () => {
+  function schemaFor() {
+    const schema = testSchema()
+    // The model context names the revision the draft stands on, so the reply is not taken as stale.
+    vi.spyOn(schema, 'requestModelEdit').mockResolvedValue({ projectContextId: 'project', extractionSchemaId: 'schema',
+      schemaRevisionId: schema.snapshot().extractableSchemaRevisionId as string })
+    return schema
+  }
+  const say = (text: string) => {
+    const input = chatInput()
+    fireEvent.change(input, { target: { value: text } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+  }
+
+  it('goes ahead with the step\'s lead option for a yes, reading the step beside the message', async () => {
+    vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'requested', action: 'confirm', focus: null })
+    const run = { start: vi.fn(), available: true }
+    renderRail({ schema: schemaFor(), run })
+    expect(screen.getByRole('region', { name: 'Run extraction' })).toBeInTheDocument()
+    say('yes, go ahead')
+    await waitFor(() => expect(run.start).toHaveBeenCalledOnce())
+    expect(vi.mocked(requestSchemaEdit).mock.calls[0]![5]).toBe('Run extraction: Run the extraction on test.pdf?')
+    // The step answered is noted in the conversation, as a click on it is.
+    expect(screen.getByTitle('Run extraction · ▶ Run extraction')).toBeInTheDocument()
+  })
+
+  it('says so when a yes has nothing to go ahead with', async () => {
+    vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'requested', action: 'confirm', focus: null })
+    renderRail({ schema: schemaFor() })
+    say('yes')
+    expect(await screen.findByText(/There is nothing here to go ahead with/)).toBeInTheDocument()
+  })
+
+  it('asks before generating the template again, with what it should hold among its instructions', async () => {
+    vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'requested', action: 'generate', focus: 'the dates' })
+    const onGenerateInstructions = vi.fn()
+    renderRail({ schema: schemaFor(), onGenerateInstructions })
+    say('give me a template of this doc, focusing on the dates')
+    const dialog = await screen.findByRole('dialog', { name: 'Regenerate from the document' })
+    expect(within(dialog).getByText('the dates')).toBeInTheDocument()
+    expect(onGenerateInstructions).not.toHaveBeenCalled()
+  })
+})

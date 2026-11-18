@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { exportableResults, extractStep, nextStep, type GuideInput, type ProjectGuideInput } from './chatGuide'
+import { confirmedOption, exportableResults, extractStep, nextStep, offerText, type GuideInput, type ProjectGuideInput } from './chatGuide'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
 import { guidedWorkflow } from './projectContexts/guidedWorkflow'
@@ -472,5 +472,35 @@ describe('nextStep in a project', () => {
     const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
       extractedSourceDocumentCount: 4, reviewedSourceDocumentCount: 4 })
     expect(step({ summary: done })?.key).toBe('run:first')
+  })
+})
+
+describe('offerText', () => {
+  it('says the step\'s title and its question, or its notice', () => {
+    expect(offerText(nextStep(base)!)).toBe('Run extraction: Run the extraction on letters.pdf?')
+    expect(offerText(nextStep({ ...base, latest: latest('RUNNING') })!)).toBe('Extraction: Reading records · 3 of 14')
+  })
+})
+
+describe('confirmedOption', () => {
+  it('goes ahead with the step\'s lead option as the step stands now, dismissed or not', () => {
+    const card = nextStep(base)!
+    expect(confirmedOption(base, card)).toMatchObject({ card: { key: 'run:first' }, option: { action: 'run' } })
+    expect(confirmedOption({ ...base, dismissed: new Set(['run:first']) }, card)?.option.action).toBe('run')
+  })
+
+  it('has nothing to go ahead with once the step moved on, or its lead option cannot', () => {
+    const card = nextStep(base)!
+    expect(confirmedOption({ ...base, latest: latest('RUNNING') }, card)).toBeNull()
+    expect(confirmedOption({ ...base, run: { unavailableReason: 'Parsing.', available: false } }, card)).toBeNull()
+    // A running Extraction offers nothing to agree to: its Pause and Stop are not a yes.
+    expect(confirmedOption({ ...base, latest: latest('RUNNING') }, nextStep({ ...base, latest: latest('RUNNING') })!)).toBeNull()
+  })
+
+  it('keeps a stop that sending set aside, and reads the extract step afresh', () => {
+    const ready = nextStep({ ...base, templateReady: true, templateShown: true })!
+    expect(confirmedOption(base, ready)?.option.action).toBe('continue')
+    const extract = extractStep(base, 4)
+    expect(confirmedOption(base, extract)).toBeNull()
   })
 })
