@@ -3,6 +3,7 @@ import {
   enumerateFieldPaths,
   mkId,
   templateToSchemaDefinition,
+  type FieldNote,
   type RecordScope,
   type SchemaDefinition,
   type SchemaNode,
@@ -282,16 +283,25 @@ export type SchemaEditorController = {
   subscribe(listener: () => void): () => void
 
   /** Runs a generation; `cancel` is what a user's Stop calls on the server, before the wait ends. The request resolves
-   *  the template and may declare what of the source the model read. */
+   *  the template and may declare what of the source the model read and the template's scalar field notes. */
   generate(
-    request: (signal: AbortSignal, declareSourceCoverage: (coverage: SourceCoverage | null) => void) => Promise<unknown>,
+    request: (
+      signal: AbortSignal,
+      declareSourceCoverage: (coverage: SourceCoverage | null) => void,
+      declareFieldDescriptions: (notes: readonly FieldNote[]) => void,
+    ) => Promise<unknown>,
     options?: { cancel?: () => Promise<void> },
   ): Promise<void>
   cancelGeneration(): void
   /** The Project Context scope used to recover model operations after reload. */
   operationScope(): { projectContextId: string; extractionSchemaId: string | null }
   /** Saves a generation that finished while no tab waited for it, but only onto its base; true when it was saved. */
-  restoreGeneration(template: unknown, baseSchemaRevisionId: string | null, sourceCoverage?: SourceCoverage | null): Promise<boolean>
+  restoreGeneration(
+    template: unknown,
+    baseSchemaRevisionId: string | null,
+    sourceCoverage?: SourceCoverage | null,
+    fieldDescriptions?: readonly FieldNote[],
+  ): Promise<boolean>
 
   confirmDefinition(definition: SchemaDefinition): Promise<void>
   commit(
@@ -670,12 +680,15 @@ export function createSchemaEditorController(
       publish()
       try {
         let declared: SourceCoverage | null = null
+        let notes: readonly FieldNote[] = []
         const generatedSchema = await request(abort.signal, (coverage) => {
           declared = coverage
+        }, (declaredNotes) => {
+          notes = declaredNotes
         })
         if (abort.signal.aborted || disposed) return
         if (input || proposal || baseScope !== currentScope() || epoch !== replacementVersion || (base === null ? draft !== null : !draft || !sameSchemaDefinition(base, draft))) throw new Error('The template changed during generation. Generate again from the current template.')
-        const parsed = templateToSchemaDefinition(generatedSchema)
+        const parsed = templateToSchemaDefinition(generatedSchema, notes)
         const definition = normalizeSchemaDefinition(parsed)
         if (!(await adoptGenerated(definition, declared, abort.signal))) return
         generating = false
@@ -696,7 +709,7 @@ export function createSchemaEditorController(
     /** Saves a generation that finished while no tab waited for it (a reload or a restart), but only onto its base: the
      *  base is still the acknowledged revision of a clean draft, or no Extraction Schema exists yet. Anything else — and a
      *  conflict, meaning newer work landed first — drops it without an error (spec, *Generation*). */
-    async restoreGeneration(template, baseSchemaRevisionId, coverage = null) {
+    async restoreGeneration(template, baseSchemaRevisionId, coverage = null, fieldDescriptions = []) {
       if (disposed || generating || blocked()) return false
       const save = persistence.saveState() ?? null
       const onBase = baseSchemaRevisionId === null
@@ -706,7 +719,7 @@ export function createSchemaEditorController(
       if (!onBase) return false
       let definition: SchemaDefinition
       try {
-        definition = normalizeSchemaDefinition(templateToSchemaDefinition(template))
+        definition = normalizeSchemaDefinition(templateToSchemaDefinition(template, fieldDescriptions))
       } catch {
         return false
       }

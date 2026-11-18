@@ -2,9 +2,9 @@ import type { DocumentInput } from './_document.js'
 import { documentFileParts } from './_pdf.js'
 import { schemaPrompt, schemaSourceExcerpts } from './_schema.js'
 import { ApiError } from './_http.js'
-import { parseTemplate, parseUnknownJson } from './_model_output.js'
+import { parseUnknownJson } from './_model_output.js'
 import { traceModelCall } from '../server/tracing.js'
-import { parseSchemaEditOutput, schemaEditPrompt } from './_schema_edit_output.js'
+import { parseSchemaEditOutput, schemaEditPrompt, suggestedFieldNotes } from './_schema_edit_output.js'
 import {
   executeSchemaSuggestion,
   resolveModelTarget,
@@ -18,13 +18,20 @@ import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract.j
 import {
   parseBatchSuggestionDefinition,
   templateToSchemaDefinition,
+  type FieldNote,
   type SchemaDefinition,
 } from 'extraction/schema'
+
+/** A suggested compact template with the scalar field notes it cannot hold (`suggestedFieldNotes`). */
+export type SuggestedSchema = {
+  readonly template: Record<string, unknown>
+  readonly fieldDescriptions: readonly FieldNote[]
+}
 
 export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly instruction: string
-  /** An edit may carry scalar note changes beside its compact template, in the same model reply. */
+  /** A suggestion's sidecar sets scalar notes; an edit's may also clear them (`withFieldDescriptions`). */
   readonly edit?: true
   /** The Markdown is one window of the source (see `schemaSourceWindows`): send it as it is, never excerpted. */
   readonly window?: boolean
@@ -89,7 +96,7 @@ export async function suggestOnRoute(
     temperature,
     signal,
   }, dependencies.fetch)
-  const output = edit ? await parseSchemaEditOutput(generated.response) : { template: await parseTemplate(generated.response) }
+  const output = await parseSchemaEditOutput(generated.response)
   const parsed = output.template
   if (typeof parsed._description !== 'string' || parsed._description.trim().length === 0)
     throw new ApiError(502, 'invalid_model_output', 'The generated Extraction Schema has no root record description.')
@@ -118,11 +125,13 @@ export async function answerOf(response: string): Promise<string | null> {
 
 const SOURCE_SUGGESTION_INSTRUCTION =
   'Suggest reusable extraction fields for this Source Document. FREE records Evidence and its locations itself, so suggest only fields that describe the content of the researcher\'s records.'
+const DEFINITIONS =
+  ' Give every kept field one definition, taken or combined from the supplied ones, in its group\'s "_description" or in "fieldDescriptions".'
 const MERGE_INSTRUCTION =
-  'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.'
+  'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.' + DEFINITIONS
 
 const UNION_INSTRUCTION =
-  'Return one compact Extraction Schema for one Source Document from the supplied schemas, each suggested from one part of it: keep every field found in any of them, folding fields that name the same thing into one field of one supported shape, and write one _description that defines a complete root record of the whole document. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.'
+  'Return one compact Extraction Schema for one Source Document from the supplied schemas, each suggested from one part of it: keep every field found in any of them, folding fields that name the same thing into one field of one supported shape, and write one _description that defines a complete root record of the whole document. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.' + DEFINITIONS
 
 /**
  * One request of `reduceSchemas`: combine labelled schemas already within one request's length into one template —
@@ -135,7 +144,7 @@ export async function combineSchemas(
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
   temperature?: number,
-): Promise<Record<string, unknown>> {
+): Promise<SuggestedSchema> {
   const generated = await generate(caller, {
     document: { file: null, markdown: text, pages: null },
     instruction: mode === 'union' ? UNION_INSTRUCTION : MERGE_INSTRUCTION,
@@ -143,12 +152,12 @@ export async function combineSchemas(
     ...(temperature === undefined ? {} : { temperature }),
     signal,
   })
-  return generated.template
+  return { template: generated.template, fieldDescriptions: suggestedFieldNotes(generated.fieldDescriptions) }
 }
 
-function modelSuggestedDefinition(template: unknown): SchemaDefinition {
+function modelSuggestedDefinition({ template, fieldDescriptions }: SuggestedSchema): SchemaDefinition {
   try {
-    return parseBatchSuggestionDefinition(templateToSchemaDefinition(template))
+    return parseBatchSuggestionDefinition(templateToSchemaDefinition(template, fieldDescriptions))
   } catch (error) {
     throw new ApiError(502, 'invalid_model_output',
       error instanceof Error ? error.message : 'The model returned an invalid Schema Suggestion.')
@@ -169,7 +178,8 @@ export async function suggestBatchSource(
     window,
     signal,
   })
-  return { definition: modelSuggestedDefinition(generated.template), sourceCoverage: generated.sourceCoverage }
+  const fieldDescriptions = suggestedFieldNotes(generated.fieldDescriptions)
+  return { definition: modelSuggestedDefinition({ template: generated.template, fieldDescriptions }), sourceCoverage: generated.sourceCoverage }
 }
 
 /** `combineSchemas` for batch definitions: the combination must be an editable batch definition too. */

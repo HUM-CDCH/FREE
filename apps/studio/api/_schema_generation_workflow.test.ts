@@ -65,7 +65,7 @@ describe('suggestSchemaWorkflow', () => {
     await expect(suggestSchemaWorkflow(input, keyless.ports)).resolves.toMatchObject({ ok: false, status: 409, code: 'model_key_required' })
   })
 
-  it("the step's output copies only the template, the raw text, the page count, the source declaration and the base", async () => {
+  it("the step's output copies only the template, its field notes, the raw text, the page count, the source declaration and the base", async () => {
     const key = plantedKey()
     const { generate, ports: p } = ports()
     vi.mocked(generate).mockResolvedValue({
@@ -75,8 +75,23 @@ describe('suggestSchemaWorkflow', () => {
 
     const output = await suggestSchemaWorkflow(input, p)
 
-    expect(Object.keys(output).sort()).toEqual(['baseSchemaRevisionId', 'ok', 'pages', 'raw', 'sourceCoverage', 'template'])
+    expect(Object.keys(output).sort()).toEqual(['baseSchemaRevisionId', 'fieldDescriptions', 'ok', 'pages', 'raw', 'sourceCoverage', 'template'])
     expect(holdsKey(output, key)).toBe(false)
+  })
+
+  it("keeps the suggestion's well-formed scalar field notes and drops malformed ones", async () => {
+    const { generate, ports: p } = ports()
+    vi.mocked(generate).mockResolvedValue({
+      template: TEMPLATE, raw: '{}', pages: null, sourceCoverage: { complete: true },
+      fieldDescriptions: [
+        { path: ['title'], description: ' The entry heading. ' },
+        { path: [], description: 'No path.' }, { path: ['title'], description: '  ' }, { path: ['title'] }, 'title',
+      ],
+    } as never)
+
+    await expect(suggestSchemaWorkflow(input, p)).resolves.toMatchObject({
+      ok: true, fieldDescriptions: [{ path: ['title'], description: 'The entry heading.' }],
+    })
   })
 
   it('a document read that fails is a typed 503 persistence_unavailable and no step', async () => {
@@ -149,9 +164,40 @@ describe('suggestSchemaWorkflow, reading every window', () => {
     expect(replay.names.filter((name) => name.startsWith('suggestWindow:'))).toEqual(['suggestWindow:1', 'suggestWindow:2', 'suggestWindow:3'])
     expect(replay.names.some((name) => name.startsWith('reduce:'))).toBe(true)
     expect(result).toEqual({
-      ok: true, template: { _description: 'One entry.', union: 'string' }, raw: JSON.stringify({ _description: 'One entry.', union: 'string' }),
+      ok: true, template: { _description: 'One entry.', union: 'string' }, fieldDescriptions: [],
+      raw: JSON.stringify({ _description: 'One entry.', union: 'string' }),
       pages: null, sourceCoverage: { complete: true }, baseSchemaRevisionId: input.baseSchemaRevisionId,
     })
+  })
+
+  it('each window sends its field notes into the union, which returns the kept fields\' notes', async () => {
+    const { steps } = checkpointedSteps(new Map())
+    const generate = vi.fn(async (_caller: unknown, call: { document: { markdown: string }; instruction: string }) =>
+      call.instruction === input.instruction
+        ? { template: windowTemplate(call.document.markdown), raw: '{}', pages: null, sourceCoverage: { complete: true as const },
+            fieldDescriptions: [{ path: [Object.keys(windowTemplate(call.document.markdown))[1]!], description: 'A window field.' }] }
+        : { template: { _description: 'One entry.', union: 'string' }, raw: '{}', pages: null, sourceCoverage: { complete: true as const },
+            fieldDescriptions: [{ path: ['union'], description: 'The combined field.' }] })
+    const result = await suggestSchemaWorkflow(input, { steps, readSource: async () => ({ markdown: LONG, pageSpans: [] }), generate } as unknown as SchemaGenerationPorts)
+
+    const unionText = generate.mock.calls.find(([, call]) => call.instruction !== input.instruction)![1].document.markdown
+    expect(unionText).toContain('"fieldDescriptions":[{"path":["from_Entry_0_"],"description":"A window field."}]')
+    expect(result).toMatchObject({ ok: true, fieldDescriptions: [{ path: ['union'], description: 'The combined field.' }] })
+  })
+
+  it('a combination recorded before suggestions returned notes replays as its template without notes', async () => {
+    const checkpoints = new Map<string, unknown>()
+    const first = windowedPorts(checkpointedSteps(checkpoints).steps)
+    await suggestSchemaWorkflow(input, first.ports)
+    const reduce = [...checkpoints.keys()].filter((name) => name.startsWith('reduce:'))
+    expect(reduce.length).toBeGreaterThan(0)
+    for (const name of reduce) checkpoints.set(name, { ok: true, value: { _description: 'One entry.', union: 'string' } })
+
+    const replay = windowedPorts(checkpointedSteps(checkpoints).steps)
+    const result = await suggestSchemaWorkflow(input, replay.ports)
+
+    expect(replay.generate).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ ok: true, template: { _description: 'One entry.', union: 'string' }, fieldDescriptions: [] })
   })
 
   it('sends a fitting source whole in one call and no combination', async () => {

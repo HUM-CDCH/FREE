@@ -1664,7 +1664,7 @@ describe('field rows (redesign §6)', () => {
     const tabOrder = Array.from(row.querySelectorAll<HTMLElement>('button, [tabindex]'))
       .filter((element) => element !== row && !element.hasAttribute('disabled') && element.tabIndex >= 0)
       .map((element) => element.getAttribute('aria-label') ?? element.getAttribute('title') ?? element.textContent)
-    expect(tabOrder).toEqual(['Move title', 'Type: string — click to edit', 'Edit title', 'Add note to title', 'Delete title', 'Research rule'])
+    expect(tabOrder).toEqual(['Move title', 'Type: string — click to edit', 'Research rule', 'Edit title', 'Add note to title', 'Delete title'])
     const edit = within(row).getByRole('button', { name: 'Edit title' })
     edit.focus()
     expect(edit).toHaveFocus()
@@ -1727,11 +1727,18 @@ describe('field rows (redesign §6)', () => {
     expect(screen.queryByText('nyt_felt')).not.toBeInTheDocument()
   })
 
-  it('a note renders in full as a second line and opens the note form', () => {
+  it('a note shows on one line beside its field, opens in full on a click and then opens the note form', () => {
     renderPanel()
     const row = screen.getByRole('listitem', { name: 'title' })
-    expect(within(row).getByText('Research rule')).toBeInTheDocument()
-    fireEvent.click(within(row).getByText('Research rule'))
+    const closed = within(row).getByRole('button', { name: 'Research rule', expanded: false })
+    expect(closed).toHaveAttribute('title', 'Research rule')
+    expect(closed.className.split(/\s+/)).toContain('truncate')
+    expect(closed.closest('[data-row-content]')).not.toBeNull()
+    fireEvent.click(closed)
+    const open = within(row).getByRole('button', { name: 'Research rule' })
+    expect(open.closest('[data-row-content]')).toBeNull()
+    expect(screen.queryByRole('textbox', { name: 'Field notes' })).not.toBeInTheDocument()
+    fireEvent.click(open)
     expect(screen.getByRole('textbox', { name: 'Field notes' })).toBeInTheDocument()
   })
 

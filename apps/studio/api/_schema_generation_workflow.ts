@@ -1,7 +1,9 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import type { SchemaSource } from 'db'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
-import { combineSchemas, type generateSchemaWithModel } from './_schema_suggestion.js'
+import type { FieldNote } from 'extraction/schema'
+import { combineSchemas, type generateSchemaWithModel, type SuggestedSchema } from './_schema_suggestion.js'
+import { suggestedFieldNotes } from './_schema_edit_output.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationFailure, type OperationResult } from './_model_operation.js'
 import { schemaSourceWindows } from './_schema.js'
@@ -25,6 +27,8 @@ export type SchemaGenerationInput = Readonly<{
 }>
 export type SchemaGenerated = {
   template: Record<string, unknown>
+  /** The template's scalar field notes; absent from an outcome recorded before suggestions returned them. */
+  fieldDescriptions?: readonly FieldNote[]
   raw: string
   pages: number | null
   /** What the model received of the source. */
@@ -58,6 +62,13 @@ export async function modelStep<T>(steps: WorkflowSteps, name: string, run: (sig
   return result.value
 }
 
+/** A combination step's output: a step recorded before suggestions returned notes holds the bare template, which
+ *  always has its root `_description`; the `{template, fieldDescriptions}` pair never does. */
+function recordedSuggestion(output: SuggestedSchema | Record<string, unknown>): SuggestedSchema {
+  const legacy = output as Record<string, unknown>
+  return typeof legacy._description === 'string' ? { template: legacy, fieldDescriptions: [] } : output as SuggestedSchema
+}
+
 /** Every window suggested in its own step, then the window suggestions combined (their union) level by level. */
 async function suggestFromWindows(
   input: SchemaGenerationInput,
@@ -66,7 +77,8 @@ async function suggestFromWindows(
 ): Promise<OperationResult<SchemaGenerated>> {
   const caller = { researcherAccountId: input.owner }
   try {
-    const suggestions: { template: Record<string, unknown>; raw: string; pages: number | null }[] = []
+    // A step recorded before suggestions returned notes replays without `fieldDescriptions`.
+    const suggestions: { template: Record<string, unknown>; fieldDescriptions?: readonly FieldNote[]; raw: string; pages: number | null }[] = []
     for (const [index, window] of schemaSourceWindows(markdown).entries()) {
       suggestions.push(await modelStep(ports.steps, `suggestWindow:${index + 1}`, async (signal) => {
         const generated = await ports.generate(caller, {
@@ -77,16 +89,23 @@ async function suggestFromWindows(
           signal,
         })
         // Only the model's text: never the provider's response, headers or metadata.
-        return { template: generated.template, raw: generated.raw, pages: generated.pages }
+        return {
+          template: generated.template, fieldDescriptions: suggestedFieldNotes(generated.fieldDescriptions),
+          raw: generated.raw, pages: generated.pages,
+        }
       }))
     }
-    const template = await reduceSchemas(
-      suggestions.map((suggestion, index) => ({ label: `WINDOW ${index + 1}`, schema: suggestion.template })),
-      (text, step) => modelStep(ports.steps, step, (signal) =>
-        combineSchemas(caller, 'union', text, signal, ports.generate, input.temperature ?? undefined)),
+    // Each window's notes travel with its template, so the union keeps a definition for every field it keeps.
+    const { template, fieldDescriptions } = await reduceSchemas(
+      suggestions.map((suggestion, index) => ({
+        label: `WINDOW ${index + 1}`,
+        schema: { template: suggestion.template, fieldDescriptions: suggestion.fieldDescriptions ?? [] },
+      })),
+      async (text, step) => recordedSuggestion(await modelStep(ports.steps, step, (signal) =>
+        combineSchemas(caller, 'union', text, signal, ports.generate, input.temperature ?? undefined))),
     )
     return {
-      ok: true, template, raw: suggestions.length === 1 ? suggestions[0]!.raw : JSON.stringify(template),
+      ok: true, template, fieldDescriptions, raw: suggestions.length === 1 ? suggestions[0]!.raw : JSON.stringify(template),
       pages: suggestions[0]!.pages, sourceCoverage: { complete: true }, baseSchemaRevisionId: input.baseSchemaRevisionId,
     }
   } catch (error) {

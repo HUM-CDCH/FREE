@@ -198,13 +198,30 @@ export function templateToNodes(value: unknown): SchemaNode[] {
     })
 }
 
-export function templateToSchemaDefinition(value: unknown): SchemaDefinition {
+/** A scalar field's note by its exact field-name path from the root (no array indexes): a compact template's type
+ *  tokens cannot hold one, so a Schema Suggestion returns its notes beside the template. */
+export type FieldNote = { path: string[]; description: string }
+
+/** `notes` describe scalar fields of `value`; a note naming no scalar field of it is ignored. */
+export function templateToSchemaDefinition(value: unknown, notes: readonly FieldNote[] = []): SchemaDefinition {
   if (!isRecord(value) || typeof value._description !== 'string')
     throw new Error('The Extraction Schema requires a root record description.')
   return parseSchemaDefinition({
     recordDescription: value._description,
-    schemaNodes: templateToNodes(value),
+    schemaNodes: withFieldNotes(templateToNodes(value), notes),
   })
+}
+
+function withFieldNotes(nodes: SchemaNode[], notes: readonly FieldNote[]): SchemaNode[] {
+  if (notes.length === 0) return nodes
+  const byPath = new Map(notes.map(({ path, description }) => [fieldPathKey(path), description.trim()]))
+  const apply = (level: SchemaNode[], parent: readonly string[]): SchemaNode[] => level.map((node) => {
+    const path = [...parent, node.name]
+    if (node.children) return { ...node, children: apply(node.children, path) }
+    const description = byPath.get(fieldPathKey(path))
+    return description ? { ...node, description } : node
+  })
+  return apply(nodes, [])
 }
 
 /** The template of a definition's tree; a saved definition's record scope is not part of the template. */
