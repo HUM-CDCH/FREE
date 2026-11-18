@@ -33,7 +33,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   const packages = createCanonicalPackageStore(required(env, 'FREE_TEST_PACKAGE_ROOT'))
   let holdFirstClock = firstRun
   await launchStudioDbos({
-    databaseUrl: url, schema,
+    databaseUrl: url, keiDatabaseUrl: url, schema,
     keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'),
     executorId: required(env, 'FREE_TEST_EXECUTOR'),
     register: () => registerStudioWorkflows({ garbagePorts: () => garbagePorts({

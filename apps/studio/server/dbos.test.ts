@@ -68,6 +68,7 @@ vi.mock('pg', () => {
 })
 
 const URL = 'postgresql://x'
+const QUEUE_URL = 'postgresql://queue'
 
 async function freshModule() {
   return import('./dbos.js')
@@ -106,7 +107,7 @@ describe('Studio DBOS', () => {
       sdk.calls.push('register')
     })
 
-    const dbos = await launchStudioDbos({ databaseUrl: URL, register })
+    const dbos = await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register })
 
     expect(sdk.calls).toEqual([
       'clock',
@@ -129,13 +130,13 @@ describe('Studio DBOS', () => {
       sdk.state.initialized = true
     })
 
-    await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
   })
 
   it('registers the studio queue and one global slot each for suggest and gc', async () => {
     const { launchStudioDbos } = await freshModule()
 
-    await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
 
     expect(sdk.DBOS.registerQueue.mock.calls).toEqual([
       ['studio', { minPollingIntervalMs: 100 }],
@@ -147,7 +148,7 @@ describe('Studio DBOS', () => {
   it('applies schedules only when a host asks, after all queues exist', async () => {
     const { launchStudioDbos } = await freshModule()
     const schedule = vi.fn(async () => { sdk.calls.push('schedule') })
-    await launchStudioDbos({ databaseUrl: URL, register: () => undefined, schedule })
+    await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined, schedule })
     expect(sdk.calls.slice(-2)).toEqual(['registerQueue:gc', 'schedule'])
     expect(schedule).toHaveBeenCalledOnce()
   })
@@ -155,7 +156,7 @@ describe('Studio DBOS', () => {
   it('creates the admission client as studio on dbos and the kei client as kei on kei_dbos', async () => {
     const { launchStudioDbos } = await freshModule()
 
-    const dbos = await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    const dbos = await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
 
     expect(sdk.create.mock.calls).toEqual([
       [
@@ -168,7 +169,7 @@ describe('Studio DBOS', () => {
       ],
       [
         {
-          systemDatabaseUrl: URL,
+          systemDatabaseUrl: QUEUE_URL,
           systemDatabaseSchemaName: 'kei_dbos',
           systemDatabasePoolSize: 4,
           applicationName: 'kei',
@@ -185,12 +186,12 @@ describe('Studio DBOS', () => {
     const { launchStudioDbos } = await freshModule()
     const register = vi.fn()
 
-    const first = launchStudioDbos({ databaseUrl: URL, register })
-    const second = launchStudioDbos({ databaseUrl: 'postgresql://other', register })
+    const first = launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register })
+    const second = launchStudioDbos({ databaseUrl: 'postgresql://other', keiDatabaseUrl: QUEUE_URL, register })
 
     expect(second).toBe(first)
     await first
-    expect(launchStudioDbos({ databaseUrl: URL, register })).toBe(first)
+    expect(launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register })).toBe(first)
     expect(sdk.DBOS.launch).toHaveBeenCalledOnce()
     expect(register).toHaveBeenCalledOnce()
   })
@@ -199,13 +200,13 @@ describe('Studio DBOS', () => {
     // Vite evaluates server/dbos.ts afresh after an edit to it and on every dev-server restart.
     const first = await freshModule()
     const register = vi.fn()
-    const launched = await first.launchStudioDbos({ databaseUrl: URL, register })
+    const launched = await first.launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register })
     vi.resetModules()
     const reloaded = await freshModule()
     expect(reloaded).not.toBe(first)
 
     await expect(
-      reloaded.launchStudioDbos({ databaseUrl: URL, register: vi.fn() }),
+      reloaded.launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: vi.fn() }),
     ).resolves.toBe(launched)
     expect(reloaded.studioDbos()).toBe(launched)
     expect(sdk.DBOS.launch).toHaveBeenCalledOnce()
@@ -224,7 +225,7 @@ describe('Studio DBOS', () => {
       .mockRejectedValueOnce(unreachable)
 
     await expect(
-      launchStudioDbos({ databaseUrl: URL, register: () => undefined }),
+      launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined }),
     ).rejects.toBe(unreachable)
     expect(sdk.calls.slice(-3)).toEqual([
       'client:studio:dbos',
@@ -234,7 +235,7 @@ describe('Studio DBOS', () => {
     expect(sdk.state.initialized).toBe(false)
     expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
 
-    const retried = await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    const retried = await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
     expect(studioDbos()).toBe(retried)
     expect(sdk.DBOS.launch).toHaveBeenCalledOnce()
   })
@@ -249,7 +250,7 @@ describe('Studio DBOS', () => {
       sdk.state.initialized = false
     })
 
-    await expect(launchStudioDbos({ databaseUrl: URL, register: () => undefined })).rejects.toBe(unavailable)
+    await expect(launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })).rejects.toBe(unavailable)
     expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
     expect(sdk.DBOS.shutdown).toHaveBeenCalledOnce()
     for (const client of sdk.clients) expect(client.destroy).toHaveBeenCalledOnce()
@@ -260,7 +261,7 @@ describe('Studio DBOS', () => {
     sdk.DBOS.isInitialized.mockReturnValueOnce(true)
     const register = vi.fn()
 
-    expect(() => launchStudioDbos({ databaseUrl: URL, register })).toThrow(
+    expect(() => launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register })).toThrow(
       /launched outside launchStudioDbos/,
     )
     expect(sdk.DBOS.setConfig).not.toHaveBeenCalled()
@@ -271,7 +272,7 @@ describe('Studio DBOS', () => {
     const { launchStudioDbos, studioDbos } = await freshModule()
 
     expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
-    const launched = await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    const launched = await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
 
     expect(studioDbos()).toBe(launched)
     expect(studioDbos()).toMatchObject({
@@ -282,7 +283,7 @@ describe('Studio DBOS', () => {
 
   it('shutdown stops DBOS and destroys both clients once; a second shutdown does nothing', async () => {
     const { launchStudioDbos, shutdownStudioDbos, studioDbos } = await freshModule()
-    await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
     sdk.calls.length = 0
     sdk.DBOS.shutdown.mockImplementationOnce(async () => {
       expect(studioDbos()).toMatchObject({ admission: sdk.clients[0], kei: sdk.clients[1] })
@@ -301,7 +302,7 @@ describe('Studio DBOS', () => {
 
   it('a new launch waits for shutdown to finish before starting DBOS again', async () => {
     const { launchStudioDbos, shutdownStudioDbos, studioDbos } = await freshModule()
-    await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
     let release!: () => void
     const held = new Promise<void>((resolve) => { release = resolve })
     sdk.DBOS.shutdown.mockImplementationOnce(async () => {
@@ -312,7 +313,7 @@ describe('Studio DBOS', () => {
 
     const stopping = shutdownStudioDbos()
     await vi.waitFor(() => expect(sdk.DBOS.shutdown).toHaveBeenCalledOnce())
-    const restarting = launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    const restarting = launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
     expect(sdk.DBOS.launch).toHaveBeenCalledOnce()
     release()
     await stopping
@@ -322,7 +323,7 @@ describe('Studio DBOS', () => {
 
   it('shutdown closes both clients even when DBOS fails to stop', async () => {
     const { launchStudioDbos, shutdownStudioDbos } = await freshModule()
-    await launchStudioDbos({ databaseUrl: URL, register: () => undefined })
+    await launchStudioDbos({ databaseUrl: URL, keiDatabaseUrl: QUEUE_URL, register: () => undefined })
     const stuck = new Error('DBOS did not stop')
     sdk.DBOS.shutdown.mockRejectedValueOnce(stuck)
 

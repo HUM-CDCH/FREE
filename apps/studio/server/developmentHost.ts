@@ -1,5 +1,6 @@
 import { normalizePath, type ViteDevServer } from 'vite'
 import { relative } from 'node:path'
+import { studioDatabaseUrls } from './config.js'
 
 const RELOAD_COALESCE_MS = 50
 
@@ -23,6 +24,7 @@ const developmentProcess = globalThis as { [DBOS_OWNER]?: object }
 type StudioDbosModule = {
   launchStudioDbos(options: {
     databaseUrl: string
+    keiDatabaseUrl: string
     register: () => void
     schedule?: () => Promise<void>
   }): Promise<unknown>
@@ -58,9 +60,7 @@ export async function createDevelopmentHost<T>(
   const launchDbos = () => {
     launched ??= (async () => {
       if (!server.httpServer) return
-      const databaseUrl = process.env.DATABASE_URL
-      if (!databaseUrl)
-        throw new Error("DATABASE_URL must name Studio's database.")
+      const databaseUrls = studioDatabaseUrls()
       const dbosModule = (await server.ssrLoadModule(
         '/server/dbos.ts',
       )) as StudioDbosModule
@@ -69,7 +69,7 @@ export async function createDevelopmentHost<T>(
       )) as StudioWorkflowsModule
       dbos = dbosModule
       await dbosModule.launchStudioDbos({
-        databaseUrl,
+        ...databaseUrls,
         register: workflows.registerStudioWorkflows,
         schedule: workflows.applyStudioSchedules,
       })

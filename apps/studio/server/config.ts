@@ -33,6 +33,14 @@ export class StudioConfigurationError extends Error {
   }
 }
 
+export function studioDatabaseUrls(environment: NodeJS.ProcessEnv = process.env) {
+  const databaseUrl = environment.DATABASE_URL
+  const keiDatabaseUrl = environment.FREE_KEI_QUEUE_DATABASE_URL
+  if (!databaseUrl) throw new StudioConfigurationError("DATABASE_URL must name Studio's database.")
+  if (!keiDatabaseUrl) throw new StudioConfigurationError("FREE_KEI_QUEUE_DATABASE_URL must name Studio's Parsing Service queue connection.")
+  return { databaseUrl, keiDatabaseUrl }
+}
+
 function required(
   environment: NodeJS.ProcessEnv,
   name: string,

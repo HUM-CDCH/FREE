@@ -24,7 +24,7 @@ type Observations={ingestId:string;convertId:string;repaired?:GarbageSummary;cur
 export async function run({firstRun,env}:{firstRun:boolean;env:NodeJS.ProcessEnv}):Promise<void> {
   const url=required(env,'DATABASE_URL'),schema=required(env,'FREE_TEST_DBOS_SCHEMA')
   const project=required(env,'FREE_TEST_PROJECT'),observations=required(env,'GC_OBSERVATIONS')
-  await launchStudioDbos({databaseUrl:url,schema,keiSchema:required(env,'FREE_TEST_KEI_SCHEMA'),
+  await launchStudioDbos({databaseUrl:url,keiDatabaseUrl:url,schema,keiSchema:required(env,'FREE_TEST_KEI_SCHEMA'),
     executorId:required(env,'FREE_TEST_EXECUTOR'),register:registerStudioWorkflows,schedule:applyStudioSchedules})
   if(firstRun) {
     const store=createResearcherProjectStore(required(env,'FREE_TEST_ACCOUNT'))

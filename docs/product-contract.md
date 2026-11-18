@@ -95,8 +95,9 @@ FREE's normative product and safety contract is:
 8. **Safe startup.** Authored forward migrations finish before Studio becomes
    ready, both for a fresh database and an already-migrated one. Studio's
    entrypoint runs them as the administrative role, then prepares the Parsing
-   Service's restricted role and schema and Studio's own restricted runtime
-   role, and starts Studio without the administrative credential. Each process
+   Service's restricted role and schema, Studio's runtime role, and Studio's
+   separate Parsing Service queue role. Studio starts without the administrative
+   or worker credential. Each process
    migrates its own DBOS system schema (`dbos`, `kei_dbos`) when it launches. Normal startup never resets the database or
    seeds an account, Project Context, provider, route, or credential.
    Before dropping obsolete columns and tables, the legacy-retirement
@@ -145,7 +146,10 @@ deployment paths, and speculative extensibility.
   role (role preparation does not change privileges the role may hold on other
   databases in the same PostgreSQL server); it owns only Studio's
   `dbos` schema. The Parsing Service's `kei` owns only `kei_dbos` and calls
-  only its allowlisted coordination routines.
+  only its allowlisted coordination routines. Studio's separate `free_kei_queue`
+  login submits, reads, cancels and deletes workflows in `kei_dbos`. It owns no
+  objects and has no privileges on research data, Extraction coordination, or
+  Studio's workflow history. `free_studio` has no access to `kei_dbos`.
 - Session cookies are signed, and logout saves the session's sign-out in
   PostgreSQL so a copy of the cookie is refused until it would have expired,
   also after a restart; a logout the database cannot save signs the browser
