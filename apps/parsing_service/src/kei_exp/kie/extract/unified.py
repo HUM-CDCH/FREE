@@ -543,7 +543,7 @@ def _field_path(path: tuple) -> tuple:
 
 
 class _Checker:
-    """Checks record or document text; defaults 7 also admits shown heading context for scalars outside lists."""
+    """Check quotes and values against the source, allowing supplied context for scalars outside lists."""
 
     def __init__(self, view: BlockText, shown: tuple[int, int], window: int, nodes: list[Node],
                  tables: dict[str, PageTable] | None = None, *, repair: bool = True, enclosing: bool = False,
@@ -756,8 +756,7 @@ ENTRY = ("You extract structured data from one record of a source document. A re
          "item appears, or null. Read values from the RECORD text; EARLIER and LATER text belongs to the same record "
          "and is shown so that a value crossing the cut is whole; CONTEXT is not part of the record. Never invent a "
          "value. Return only the JSON object.")
-# Defaults 6 (`single_pass`): the entry call is the only reading of a value. Complete values are asked here, as
-# version 5's corrections asked them of a second reading. The shared LLM messages show the full reply schema.
+# Ask the entry call for complete values so a quote in the record can support a value without a second reading.
 SINGLE_PASS = ("\nGive each value complete: a descriptive field's whole passage across paragraphs or pages, without "
                "text of other fields.")
 VERIFY_RECORD = (
@@ -931,7 +930,7 @@ class _Run:
     def _read(self, stage: str, number: int | None, units: list[Unit], system: str, schema: dict, marker: str,
               heading: tuple[Unit, ...], out: _Work, *, parent: bool = False) -> list[tuple[Window, dict | None]]:
         """Every window's reply in source order; a failed window is halved up to the versioned number of times.
-        With `parent` (a child record, defaults 8) `heading` is its enclosing record's text, selected as headings are."""
+        For a child record (`parent`), select excerpts of its enclosing record from `heading` within the request budget."""
         selected = parent
 
         def fits(window: Window) -> bool:
