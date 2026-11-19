@@ -133,6 +133,7 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `suggestSchema` | `suggestion:<operationId>` | workflow-first on `studio` | template and base revision, or a typed failure |
 | `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal (or a question's answer) and base revision, or a typed failure |
 | `answerSchemaChat` | `chat:<operationId>` | workflow-first on `studio` | a question's answer or `instruction`, or a typed failure |
+| `proposeResultCorrections` | `correct:<operationId>` | workflow-first on `studio` | proposed corrections of one result snapshot, or a typed failure |
 | `collectGarbage` | 10-minute schedule on `gc` | — | sweep summary |
 | kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` on the lane fixed at admission | manifest summary |
 | kei `extractDurableV1` | `kei-durable:<extractionId>:<attemptId>` | enqueued by the reconciler on `kei-extract`, priority 1 (interactive) or 10 (batch) | the attempt's acknowledgement |
@@ -332,6 +333,12 @@ user action carries a client-minted ID (*Client IDs*).
   again across its windows, as above. The page keeps an instruction for
   generation. These are not model operations: a reload neither lists nor
   reopens them.
+- **Chat corrections of results (`proposeResultCorrections`).** `result_chat`
+  takes an `operation_id` and pins the snapshot and Decision Version in the
+  input (ADR 0035). The values and the pinned source are read outside any
+  step; one `proposeCorrections` step asks the model. Nothing is saved: the
+  researcher saves the proposal through the correction path. Like `chat:`
+  workflows, a reload neither lists nor reopens them; Stop cancels one.
 - **Chat history.** `edit_schema` and `schema_chat` also take `history`, the
   conversation before the message as JSON. The workflow input records it beside
   the instruction (chat text, like the instruction itself, never document text

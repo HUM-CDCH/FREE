@@ -17,10 +17,18 @@ const EMPTY_NODES: SchemaNode[] = []
 export const NO_ACTION_REPLY = 'If you need help, please use the chat box below.'
 /** The reply to a request to extract before there is a template to extract with. */
 export const NO_TEMPLATE_REPLY = 'There is no template yet: generate one first, then extract.'
+/** The reply to a request to change results before there is a template, so before any result. */
+export const NO_TEMPLATE_RESULTS_REPLY = 'There are no results yet: generate a template and extract, then say which values to change.'
 
-/** A message asked Studio to make the template (again), or agreed to what the chat offered beside it (`offer`): the
- *  request, until the page carries it out (ADR 0034). */
-export type HeardRequest = { request: number; action: 'generate' | 'confirm'; offer: ChatOffer | null }
+/** A message asked Studio to make the template (again), agreed to what the chat offered beside it (`offer`), or asked
+ *  to change particular results (`correct`, with what was `said`): the request, until the page carries it out (ADR 0034,
+ *  ADR 0035). */
+export type HeardRequest = {
+  request: number
+  action: 'generate' | 'confirm' | 'correct'
+  offer: ChatOffer | null
+  said?: { message: string; history: ChatHistory }
+}
 
 /** A conversation entry: a message, a guided step the researcher answered (its title and the choice made), or the
  *  Source Document the researcher turned to before what follows was said. */
@@ -170,8 +178,8 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
   const extractRequests = useRef(0)
   const [heard, setHeard] = useState<HeardRequest | null>(null)
   const heardRequests = useRef(0)
-  const hear = useCallback((action: HeardRequest['action'], offer: ChatOffer | null | undefined) =>
-    setHeard({ request: heardRequests.current += 1, action, offer: offer ?? null }), [])
+  const hear = useCallback((action: HeardRequest['action'], offer: ChatOffer | null | undefined, said?: HeardRequest['said']) =>
+    setHeard({ request: heardRequests.current += 1, action, offer: offer ?? null, ...(said ? { said } : {}) }), [])
   const clearHeard = useCallback(() => setHeard(null), [])
   const appendMessage = useCallback(
     (message: string) => keep(show([{ role: 'assistant', text: message }])),
@@ -309,6 +317,10 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
           // Studio, not the model, offers what may run: the step below asks which documents.
           say('Choose what to extract below.')
           setExtractRequest(extractRequests.current += 1)
+        } else if (response.action === 'correct') {
+          // The page proposes the changes to the result it shows; the message goes with the conversation before it.
+          keepSent()
+          hear('correct', offer, { message: userMsg, history })
         } else {
           // What the template made again should hold joins the instructions it is generated with.
           keepSent()
@@ -414,6 +426,9 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
       if (askAbortRef.current !== controller) return
       // Only a no: shown with the reply, never kept for generation.
       if (reply.kind === 'none') keep(show([{ role: 'user', text }, { role: 'assistant', text: NO_ACTION_REPLY }]))
+      // Before the first template there are no results to change: said, and nothing else.
+      else if (reply.kind === 'requested' && reply.action === 'correct')
+        keep(show([{ role: 'user', text }, { role: 'assistant', text: NO_TEMPLATE_RESULTS_REPLY }]))
       // A request is the page's: there is nothing to extract with yet, so that one leads to generating the template.
       else if (reply.kind === 'requested') {
         keep(show(reply.action === 'extract' ? [{ role: 'user', text }, { role: 'assistant', text: NO_TEMPLATE_REPLY }] : [{ role: 'user', text }]))

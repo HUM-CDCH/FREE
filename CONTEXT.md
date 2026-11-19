@@ -118,7 +118,9 @@ _Avoid_: extraction, output, response
 A researcher's choice to approve, edit, or reject a schema suggestion or
 extraction result. For an Extraction it is a revisioned correction of one saved
 value, bound to that value's stable identity and producing type, and saved in a
-numbered Decision Version of its Project.
+numbered Decision Version of its Project. The chat may propose edits and
+rejections of values the researcher names, checked against their fields; only
+the researcher's Save makes them decisions (ADR 0035).
 _Avoid_: status, vote, review draft
 
 **Value Disagreement**:
@@ -173,7 +175,7 @@ A Researcher Account's choice of Model Connection and model for a related family
 _Avoid_: task route, model setting, project model
 
 **Schema Suggestion Route**:
-The Capability Route used for Schema Suggestion, including the edit proposals of the schema chat and, unless it is NuExtract, reading what each chat message asks for and answering its questions (ADR 0034). It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
+The Capability Route used for Schema Suggestion, including the edit proposals of the schema chat and, unless it is NuExtract, reading what each chat message asks for, answering its questions and proposing its corrections to results (ADR 0034, ADR 0035). It uses the *NuExtract protocol* — NuExtract's own template generation, driven through its chat template — exactly when its connection is vLLM and its model is NuExtract; nothing stores or selects the protocol. Left unset, it follows the Interaction Route. It does not run Extraction, which runs in the Parsing Service.
 _Avoid_: extraction route, extraction model, ext route
 
 **Extraction Model Choice**:
@@ -197,7 +199,7 @@ A Researcher Account's choice of the Parsing Service's OCR model (text recogniti
 _Avoid_: OCR setting, parser model
 
 **Interaction Route**:
-The Capability Route an unset Schema Suggestion Route follows. Conversational Extraction Schema editing (the schema chat's "Describe a change to the schema…") is a Schema Suggestion request; the Interaction Route's own work is reading what each schema chat message asks for and answering its questions when the Schema Suggestion Route is NuExtract, which only generates templates (ADR 0023, ADR 0034). The Model Configuration page calls it the *Assistant model*.
+The Capability Route an unset Schema Suggestion Route follows. Conversational Extraction Schema editing (the schema chat's "Describe a change to the schema…") is a Schema Suggestion request; the Interaction Route's own work is reading what each schema chat message asks for, answering its questions and proposing its corrections to results when the Schema Suggestion Route is NuExtract, which only generates templates (ADR 0023, ADR 0034, ADR 0035). The Model Configuration page calls it the *Assistant model*.
 _Avoid_: chat model, chat route
 
 **Model Attribution**:
