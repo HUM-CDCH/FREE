@@ -55,6 +55,44 @@ async function describeRecord(page: Page, text: string) {
 
 const revisionCount = () => stack!.schemaRevisions().then((revisions) => revisions.length)
 
+test('suggested note provenance survives saving, editing and reloading @deterministic', async ({ page }) => {
+  test.setTimeout(120_000)
+  stack = await prepareInteractiveDocument(page, { hasKey: false })
+  await stack.open()
+  await openRailView(page, 'Template')
+  const suggestion = 'The title suggested by the model.'
+  const edited = 'Copy the complete printed title.'
+  stack.model.reply({ text: JSON.stringify({
+    template: { _description: 'One interactive record.', title: 'string' },
+    fieldDescriptions: [{ path: ['title'], description: suggestion }],
+  }) })
+  await regenerate(page, 'Suggest the title')
+  await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
+
+  const savedField = async () => {
+    const revision = (await stack!.schemaRevisions()).at(-1)!
+    const response = await page.request.get(e2eStudioPath(
+      `/api/schema-revisions/${revision.schemaRevisionId}?projectContextId=${stack!.projectContextId}&extractionSchemaId=${stack!.extractionSchemaId}`,
+    ))
+    expect(response.ok()).toBe(true)
+    return schemaRevisionResponseSchema.parse(await response.json()).revision.schemaNodes[0]
+  }
+  expect(await savedField()).toMatchObject({ description: suggestion, descriptionSource: 'suggested' })
+
+  await page.reload()
+  await openRailView(page, 'Template')
+  const title = page.getByRole('listitem', { name: 'title', exact: true })
+  await expect(title.getByText(suggestion, { exact: true })).toBeVisible()
+  await title.hover()
+  await title.getByRole('button', { name: 'Add note to title', exact: true }).click()
+  await page.getByRole('textbox', { name: 'Field notes' }).fill(edited)
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect.poll(revisionCount, { timeout: 20_000 }).toBe(3)
+  const field = await savedField()
+  expect(field.description).toBe(edited)
+  expect(field).not.toHaveProperty('descriptionSource')
+})
+
 test('a scalar note edited through template chat is reviewed, saved and retained after reload @deterministic', async ({ page }) => {
   test.setTimeout(120_000)
   stack = await prepareInteractiveDocument(page, { hasKey: false })
@@ -71,6 +109,7 @@ test('a scalar note edited through template chat is reviewed, saved and retained
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(title.getByText(oldNote, { exact: true })).toBeVisible()
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
+  stack.model.reply({ text: '{"intent":"edit"}' })
   stack.model.reply({ text: JSON.stringify({
     template: { _description: 'One interactive record.', title: 'string', year: 'integer' },
     fieldDescriptions: [{ path: ['title'], description: newNote }],
@@ -105,7 +144,7 @@ test('a scalar note edited through template chat is reviewed, saved and retained
   await expect(title.getByText(oldNote, { exact: true })).toHaveCount(0)
   await expect(apply).toHaveCount(0)
   expect(await stack.schemaRevisions()).toEqual(revisions)
-  expect(stack.model.calls()).toHaveLength(1)
+  expect(stack.model.calls()).toHaveLength(2)
 })
 
 test('a reload mid-suggestSchema finds the running generation and saves it onto its base @deterministic', async ({ page }) => {

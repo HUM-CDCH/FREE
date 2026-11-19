@@ -467,7 +467,7 @@ function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
   const base = {
     id: node.id,
     name: edit.name,
-    ...(description && { description }),
+    ...(description && { description, ...(node.descriptionSource && { descriptionSource: node.descriptionSource }) }),
     ...(node.evidencePolicy && { evidencePolicy: node.evidencePolicy }),
   }
 

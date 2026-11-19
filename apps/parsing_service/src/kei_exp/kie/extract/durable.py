@@ -34,6 +34,15 @@ def field_meaning(node):
     return digest(meaning)
 
 
+def _guidance_node(node: dict) -> dict:
+    projected = dict(node)
+    if projected.pop("descriptionSource", None) == "suggested":
+        projected.pop("description", None)
+    if "children" in projected:
+        projected["children"] = [_guidance_node(child) for child in projected["children"]]
+    return projected
+
+
 def adapt_value(source, target, value):
     """Presentation renames use stable child identities, including array objects."""
     if field_meaning(source) != field_meaning(target):
@@ -321,7 +330,9 @@ class CapturePlanner:
                 nodes[node["id"]] = node
                 visit(node.get("children", []))
         visit(self.selection["schemaTree"]["schemaNodes"])
-        projected = [{**candidate, "value": adapt_value(candidate["node"], nodes[candidate["fieldId"]], candidate["value"])} for candidate in examples]
+        projected = [{**candidate, "node": _guidance_node(candidate["node"]),
+                      "value": adapt_value(candidate["node"], nodes[candidate["fieldId"]], candidate["value"])}
+                     for candidate in examples]
         return ("\nResearcher correction examples (patterns only). Extract facts and Evidence solely from the target source; "
                 "these examples never supply target facts or anchors.\n" + canonical(projected))
 
