@@ -52,6 +52,16 @@ def test_durable_attempts_run_on_the_kei_extract_lane_studio_names():
     assert (config.PRIORITY_INTERACTIVE, config.PRIORITY_BATCH) == (1, 10)
 
 
+def test_the_lanes_a_reader_waits_on_poll_ten_times_a_second(monkeypatch):
+    intervals = {}
+    monkeypatch.setattr(config.DBOS, "register_queue",
+                        lambda name, **policy: intervals.update({name: policy["polling_interval_sec"]}))
+    config.register_queues()
+    assert intervals == {"kei-convert-large": 1.0, "kei-convert-small": 0.1, "kei-extract": 0.1, "kei-gc": 1.0}
+    config.register_queues(polling_interval_sec=0.5)
+    assert set(intervals.values()) == {0.5}
+
+
 @pytest.mark.parametrize("value, chunks", [(None, 1), ("4", 4), ("1", 1), ("64", 64)])
 def test_the_chunk_setting(value, chunks):
     assert config.catalog_chunks({} if value is None else {"KEI_CATALOG_CHUNKS": value}) == chunks

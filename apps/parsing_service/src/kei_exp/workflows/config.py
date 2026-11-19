@@ -19,6 +19,10 @@ CONVERT_LARGE, CONVERT_SMALL, EXTRACT, GC = "kei-convert-large", "kei-convert-sm
 # workflows, so a cancelled workflow whose native step still runs keeps its lane's slot until the step returns; a
 # global limit alone is counted from PENDING rows, which a cancel changes at once (M0R 4, spec *Physical capacity*).
 QUEUES: dict[str, int] = {CONVERT_LARGE: 1, CONVERT_SMALL: 1, EXTRACT: 2, GC: 1}
+# Seconds between a lane's dequeue attempts. A reader waits on a small document's conversion and on every extraction:
+# at dbos's default of 1 s each of those hand-offs held about 0.5 s, at 0.1 s about 0.05 s, for about 17 more polls a
+# second while idle (spec *Queues*). The other two lanes keep the default.
+POLLING_SEC: dict[str, float] = {CONVERT_LARGE: 1.0, CONVERT_SMALL: 0.1, EXTRACT: 0.1, GC: 1.0}
 PRIORITY_INTERACTIVE, PRIORITY_BATCH = 1, 10  # kei-extract (durable attempts); dbos 3.1.0 orders by priority with no queue flag
 # The chat endpoints served with `--scheduling-policy priority` (compose.gpu.yaml): only a call to one of these carries
 # its page priority (`durable.CapturePlanner.complete`); another provider may refuse a field it does not know.
@@ -58,8 +62,8 @@ def dbos_config(database_url: str, slot: str, *, log_level: str = "INFO") -> DBO
             **({"enable_otlp": True, "otlp_traces_endpoints": [TRACES_ENDPOINT]} if TRACES_ENDPOINT else {})}
 
 
-def register_queues(*, polling_interval_sec: float = 1.0) -> dict[str, Queue]:
-    """The four lanes; called after DBOS.launch()."""
+def register_queues(*, polling_interval_sec: float | None = None) -> dict[str, Queue]:
+    """The four lanes; called after DBOS.launch(). An interval given here replaces every lane's own (tests)."""
     return {name: DBOS.register_queue(name, global_concurrency=limit, worker_concurrency=limit,
-                                      polling_interval_sec=polling_interval_sec)
+                                      polling_interval_sec=polling_interval_sec or POLLING_SEC[name])
             for name, limit in QUEUES.items()}

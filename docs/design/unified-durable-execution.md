@@ -535,8 +535,8 @@ normally are cleaned on the usual schedule.
 | App | Queue | Policy | Workflows |
 |---|---|---|---|
 | kei | `kei-convert-large` | global 1, worker 1; FIFO | `convert` of documents over `SMALL_DOCUMENT_PAGES` |
-| kei | `kei-convert-small` | global 1, worker 1; FIFO | `convert` of the rest |
-| kei | `kei-extract` | global 2, worker 2; priority interactive 1, batch 10; FIFO ties | `extractDurableV1` |
+| kei | `kei-convert-small` | global 1, worker 1; FIFO; polls every 100 ms | `convert` of the rest |
+| kei | `kei-extract` | global 2, worker 2; priority interactive 1, batch 10; FIFO ties; polls every 100 ms | `extractDurableV1` |
 | kei | `kei-gc` | global 1, worker 1 | `deleteRuns`, `deleteDurableHistoryV1` |
 | studio | `studio` | unrestricted; polls every 100 ms; dedup per ingestion project/content | `ingestSource`, `reprocessSource`, `suggestSchema`, `proposeSchemaEdit`, `reconcileDurableExtractions` |
 | studio | `suggest` | global 1 | `suggestSchemaBatch` |
@@ -562,6 +562,14 @@ queue.
     one round (*Parallel Catalog chunks*).
   - **Cleanup** has its own queue, so it never takes a conversion or
     extraction slot.
+- **kei polling.** `kei-convert-small` and `kei-extract` poll every 100 ms;
+  the other two kei lanes keep DBOS's default of 1 s. Measured on the same
+  host with one worker (216 paired uploads): each hand-off waits about 0.05 s
+  instead of 0.5 s, results and token counts do not change, and six small
+  conversions in a row finish in 15 s instead of 19 s. The page reads results
+  every 1.5 s, so from the click the first field arrives either at the same
+  read or one read earlier. Idle, the worker makes about 17 more polls a
+  second, four reads each: +0.05 worker cores, +0.01 database cores.
 - **Lane is not fairness.** Two large books run one after the other, and two
   small documents too. DBOS partitions would share per account in random
   order, apply priority only within an account and still need a worker limit,
