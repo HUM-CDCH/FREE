@@ -23,7 +23,7 @@ import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { respondToSchemaEdit } from './_schema_chat.js'
 import { withFieldDescriptions } from './_schema_edit_output.js'
 import { chatHistoryText } from './_schema.js'
-import { chatHistorySchema, type ChatHistory } from '../shared/schemaChat.contract.js'
+import { CHAT_OFFER_LIMIT, chatHistorySchema, type ChatHistory } from '../shared/schemaChat.contract.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 
 type SchemaEditOptions = {
@@ -38,6 +38,8 @@ type SchemaEditOptions = {
   respond?: typeof respondToSchemaEdit
   /** The chat before this message, oldest first, which the model reads with it. */
   history?: ChatHistory
+  /** What the chat offered beside the message: its step's title and question (ADR 0034). */
+  offer?: string | null
 }
 
 export { parseSchemaNodes } from 'extraction/schema'
@@ -97,6 +99,15 @@ export function formChatHistory(form: FormData): ChatHistory {
   const history = chatHistorySchema.safeParse(parsed)
   if (!history.success) throw new ApiError(422, 'invalid_request', 'history must be a JSON list of chat messages.')
   return history.data
+}
+
+/** The form's `offer`: what the chat offered beside the message (its step's title and question); null when absent. */
+export function formChatOffer(form: FormData): string | null {
+  const value = form.get('offer')
+  if (value === null) return null
+  if (typeof value !== 'string' || value.length > CHAT_OFFER_LIMIT)
+    throw new ApiError(422, 'invalid_request', `offer must be text of at most ${CHAT_OFFER_LIMIT} characters.`)
+  return value.trim() || null
 }
 
 /** A generation's base, when the form names one: both fields or neither (422 otherwise). */
@@ -167,9 +178,10 @@ export async function proposeSchemaEdit(
   try {
     if (options.answerable) {
       const reply = await (options.respond ?? respondToSchemaEdit)(
-        options.caller, input, { message: instruction, context: schemaChatContext(definition), history: options.history ?? [] })
+        options.caller, input, { message: instruction, context: schemaChatContext(definition), history: options.history ?? [], offer: options.offer ?? null })
       if ('answer' in reply) return { status: 'answered', answer: reply.answer }
-      if ('action' in reply) return reply.action === 'none' ? { status: 'declined' } : { status: 'requested', action: reply.action }
+      if ('action' in reply)
+        return reply.action === 'none' ? { status: 'declined' } : { status: 'requested', action: reply.action, focus: reply.focus }
       template = reply.template
       fieldDescriptions = reply.fieldDescriptions
     } else {

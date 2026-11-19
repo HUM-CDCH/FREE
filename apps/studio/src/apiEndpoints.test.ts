@@ -113,6 +113,7 @@ describe('Studio API endpoints', () => {
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({
       template: { title: 'verbatim-string' },
+      fieldDescriptions: [],
       raw: '{"title":"verbatim-string"}',
       pages: null,
       sourceCoverage: null,

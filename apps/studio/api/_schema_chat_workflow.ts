@@ -20,6 +20,8 @@ export type SchemaChatInput = Readonly<{
   message: string
   /** The chat before the message, oldest first. */
   history: ChatHistory
+  /** What the chat offered beside the message (ADR 0034); absent from runs started before it. */
+  offer?: string | null
   temperature: number | null
 }>
 export type SchemaChatAnswered = { reply: SchemaChatReply }
@@ -60,9 +62,10 @@ export async function answerFromWindows(
 }
 
 /**
- * `answerSchemaChat(input)`: a chat message before the first schema. One step asks whether it is a question and answers
- * it (`answerIfQuestion`); a long source's question is answered again across its windows. An instruction is the
- * page's to keep for generation, and a message that only declines (`none`) the page's to answer: nothing is saved here.
+ * `answerSchemaChat(input)`: a chat message before the first schema. One step reads what it asks for and answers a
+ * question (`answerIfQuestion`, its name from before the message was classified); a long source's question is answered
+ * again across its windows. An instruction is the page's to keep for generation, a message that only declines (`none`)
+ * the page's to answer, and a request (`requested`) the page's to carry out: nothing is saved here.
  */
 export async function answerSchemaChatWorkflow(
   input: SchemaChatInput,
@@ -79,9 +82,11 @@ export async function answerSchemaChatWorkflow(
   const question = { message: input.message, context: null, history: input.history }
   try {
     const answer = await modelStep(ports.steps, 'answerIfQuestion', (signal) =>
-      ports.answer(caller, source, { message: input.message, history: input.history }, { ...(input.temperature === null ? {} : { temperature: input.temperature }), signal }))
+      ports.answer(caller, source, { message: input.message, history: input.history, offer: input.offer ?? null },
+        { ...(input.temperature === null ? {} : { temperature: input.temperature }), signal }))
     if (answer === null) return { ok: true, reply: { kind: 'instruction' } }
-    if (typeof answer !== 'string') return { ok: true, reply: { kind: 'none' } }
+    if (typeof answer !== 'string')
+      return { ok: true, reply: answer.action === 'none' ? { kind: 'none' } : { kind: 'requested', action: answer.action, focus: answer.focus } }
     return {
       ok: true,
       reply: {

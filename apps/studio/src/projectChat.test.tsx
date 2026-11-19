@@ -163,13 +163,14 @@ describe('useSchemaChat kept with its project', () => {
       { kind: 'message', role: 'user', text: 'How many senders?' },
       { kind: 'message', role: 'assistant', text: 'It has 3 senders.' },
     ]))
-    // The model reads which document each part was about, the current one last; a step is a click, not said.
+    // The model reads which document each part was about, the current one last, and each step answered (ADR 0034).
     expect(requestSchemaEdit.mock.calls[0]![4]).toEqual([
       { role: 'user', text: 'Focus on dates' },
       { role: 'assistant', text: 'Recorded as an instruction for template generation.' },
       { role: 'note', text: 'The researcher turned to the Source Document “a.pdf”.' },
       { role: 'user', text: 'Add a sender' },
       { role: 'assistant', text: 'Added.' },
+      { role: 'note', text: 'The researcher chose “▶ Run extraction” at the step “Run extraction”.' },
       { role: 'note', text: 'The researcher turned to the Source Document “b.pdf”.' },
     ])
   })

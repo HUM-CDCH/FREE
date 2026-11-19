@@ -10,6 +10,8 @@ export const MODEL_OPERATION_WORKFLOW_ID = new RegExp(`^(suggestion|edit):(${CAN
 export const CHAT_OPERATION_WORKFLOW_ID = new RegExp(`^chat:(${CANONICAL_UUID_PATTERN})$`)
 
 const failureSchema = z.object({ code: z.string(), message: z.string() }).strict()
+/** A generated template's scalar field note (`FieldNote`), by its exact field-name path. */
+export const fieldNoteSchema = z.object({ path: z.array(z.string().min(1)).min(1), description: z.string().min(1) }).strict()
 const common = {
   workflowId: z.string(),
   operationId: canonicalUuidSchema,
@@ -26,6 +28,8 @@ export const modelOperationSchema = z.discriminatedUnion('kind', [
     ...common,
     baseSchemaRevisionId: canonicalUuidSchema.nullable(),
     template: z.record(z.string(), z.unknown()).nullable(),
+    /** The template's scalar field notes; absent while unfinished or when not recorded. */
+    fieldDescriptions: z.array(fieldNoteSchema).optional(),
     /** What the generation's model call read of the source; null while unfinished or when not recorded. */
     sourceCoverage: sourceCoverageSchema.nullable(),
   }).strict(),

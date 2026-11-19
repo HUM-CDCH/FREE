@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import type { SchemaNode } from 'extraction/schema'
 import { deleteModelOperation, requestSchemaChat, requestSchemaEdit } from './api'
 import type { ChatHistory } from '../shared/schemaChat.contract'
+import { offerText, type ChatOffer } from './chatGuide'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { deriveSchemaProposal } from '../shared/schemaChanges'
 import { useSchemaInstructions, type SchemaInstructions } from './useSchemaInstructions'
@@ -14,6 +15,12 @@ import { PROJECT_CHAT_TEXT_LIMIT, type ProjectChatEntry } from '../shared/projec
 const EMPTY_NODES: SchemaNode[] = []
 /** The reply when the researcher turns down what was offered and asks for nothing else (no action). */
 export const NO_ACTION_REPLY = 'If you need help, please use the chat box below.'
+/** The reply to a request to extract before there is a template to extract with. */
+export const NO_TEMPLATE_REPLY = 'There is no template yet: generate one first, then extract.'
+
+/** A message asked Studio to make the template (again), or agreed to what the chat offered beside it (`offer`): the
+ *  request, until the page carries it out (ADR 0034). */
+export type HeardRequest = { request: number; action: 'generate' | 'confirm'; offer: ChatOffer | null }
 
 /** A conversation entry: a message, a guided step the researcher answered (its title and the choice made), or the
  *  Source Document the researcher turned to before what follows was said. */
@@ -36,11 +43,13 @@ function chatEntry(message: ChatMsg): ProjectChatEntry {
     default: return { kind: 'message', role: message.role, text: clamp(message.text) }
   }
 }
-/** What the model reads of the conversation: messages, and a note for each document turned to; steps are clicks. */
+/** What the model reads of the conversation: messages, and a note for each step answered and each document turned to,
+ *  so a message can follow on from a choice made in a step. */
 const historyOf = (messages: readonly ChatMsg[]): ChatHistory => messages.flatMap((message): ChatHistory =>
-  message.role === 'step' || message.role === 'instruction' ? []
-    : message.role === 'document' ? [{ role: 'note', text: `The researcher turned to the Source Document “${message.name}”.` }]
-      : [message])
+  message.role === 'instruction' ? []
+    : message.role === 'step' ? [{ role: 'note', text: `The researcher chose “${message.choice}” at the step “${message.title}”.` }]
+      : message.role === 'document' ? [{ role: 'note', text: `The researcher turned to the Source Document “${message.name}”.` }]
+        : [message])
 
 export type SchemaChat = {
   readonly instructions: SchemaInstructions
@@ -61,11 +70,12 @@ export type SchemaChat = {
   setDrawerOpen(open: boolean | null): void
   /** Groups to expand so a proposal's changes show; `seq` changes with every request. */
   readonly revealed: { seq: number; ids: ReadonlySet<string> }
-  /** Sends an edit request after the first schema: answered, or a proposal to review. */
-  send(text: string): Promise<void>
-  /** Sends the instructions draft, or `message` from a step, before the first schema: a question is answered, anything
-   *  else kept. */
-  ask(message?: string): Promise<void>
+  /** Sends an edit request after the first schema: answered, a proposal to review, or a request for the page. `offer`
+   *  is the step the chat shows beside it, which a "yes" agrees to. */
+  send(text: string, offer?: ChatOffer | null): Promise<void>
+  /** Sends the instructions draft, or `message` from a step, before the first schema: a question is answered, a request
+   *  is the page's, anything else kept. */
+  ask(message?: string, offer?: ChatOffer | null): Promise<void>
   /** Stops waiting for `ask`'s reply: the message goes back to the composer, unsent. */
   stopAsking(): void
   /** Stops a running edit request: the message is taken back from the conversation into the composer. */
@@ -77,6 +87,9 @@ export type SchemaChat = {
   /** A message asked for the extraction to run: its request, until the researcher chooses what to extract. */
   readonly extractRequest: number | null
   clearExtractRequest(): void
+  /** A message asked to make the template (again) or agreed to the step beside it: the page carries it out. */
+  readonly heard: HeardRequest | null
+  clearHeard(): void
   /** Stops a running request and drops the proposal; with `clearConversation` also the conversation and instructions. */
   reset(clearConversation?: boolean): void
   /** Clears the conversation where it is kept, then here: every message, instruction, step and document turn. Rejects,
@@ -155,6 +168,11 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
   // Each request its own number, so a new one is a new step (its ticks start afresh).
   const [extractRequest, setExtractRequest] = useState<number | null>(null)
   const extractRequests = useRef(0)
+  const [heard, setHeard] = useState<HeardRequest | null>(null)
+  const heardRequests = useRef(0)
+  const hear = useCallback((action: HeardRequest['action'], offer: ChatOffer | null | undefined) =>
+    setHeard({ request: heardRequests.current += 1, action, offer: offer ?? null }), [])
+  const clearHeard = useCallback(() => setHeard(null), [])
   const appendMessage = useCallback(
     (message: string) => keep(show([{ role: 'assistant', text: message }])),
     [keep, show],
@@ -203,6 +221,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
       setLoading(false)
       resetProposal()
       setExtractRequest(null)
+      setHeard(null)
       setInput('')
       if (clearConversation) {
         resetInstructions()
@@ -232,7 +251,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     reset()
   }, [reset, replacementVersion])
 
-  async function send(text: string) {
+  async function send(text: string, offer?: ChatOffer | null) {
     if (!text.trim() || loading || pending) return
     setDrawerOpen(true)
     const userMsg = text.trim()
@@ -270,6 +289,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
         controller.signal,
         operationId,
         history,
+        offer ? offerText(offer.card) : null,
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -285,9 +305,16 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
       } else if (response.status === 'declined') {
         say(NO_ACTION_REPLY)
       } else if (response.status === 'requested') {
-        // Studio, not the model, offers what may run: the step below asks which documents.
-        say('Choose what to extract below.')
-        setExtractRequest(extractRequests.current += 1)
+        if (response.action === 'extract') {
+          // Studio, not the model, offers what may run: the step below asks which documents.
+          say('Choose what to extract below.')
+          setExtractRequest(extractRequests.current += 1)
+        } else {
+          // What the template made again should hold joins the instructions it is generated with.
+          keepSent()
+          if (response.focus) instructions.add(response.focus)
+          hear(response.action, offer)
+        }
       } else if (response.status === 'refused' || response.status === 'failed') {
         say(`${response.status === 'refused' ? 'Request refused' : 'Request failed'}: ${response.message}`)
       } else {
@@ -359,7 +386,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
 
   // A message before the first schema asks the model whether it is a question: a question is answered from the document,
   // a message that only declines is answered with NO_ACTION_REPLY, anything else is kept as an instruction for generation. Without a source to read it is kept as one directly.
-  async function ask(message?: string) {
+  async function ask(message?: string, offer?: ChatOffer | null) {
     const fromDraft = message === undefined
     const text = (message ?? instructions.draft).trim()
     const projectContextId = schema.operationScope()?.projectContextId
@@ -382,10 +409,17 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
         controller.signal,
         operationId,
         boundedHistory(instructions.history),
+        offer ? offerText(offer.card) : null,
       )
       if (askAbortRef.current !== controller) return
       // Only a no: shown with the reply, never kept for generation.
       if (reply.kind === 'none') keep(show([{ role: 'user', text }, { role: 'assistant', text: NO_ACTION_REPLY }]))
+      // A request is the page's: there is nothing to extract with yet, so that one leads to generating the template.
+      else if (reply.kind === 'requested') {
+        keep(show(reply.action === 'extract' ? [{ role: 'user', text }, { role: 'assistant', text: NO_TEMPLATE_REPLY }] : [{ role: 'user', text }]))
+        if (reply.focus) instructions.add(reply.focus)
+        hear(reply.action === 'extract' ? 'generate' : reply.action, offer)
+      }
       else instructions.add(text, reply.kind === 'answer' ? reply.answer : undefined)
     } catch (err) {
       if (askAbortRef.current !== controller) return
@@ -427,6 +461,8 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     appendStep,
     extractRequest,
     clearExtractRequest: () => setExtractRequest(null),
+    heard,
+    clearHeard,
     reset,
   }
 }

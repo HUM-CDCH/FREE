@@ -18,9 +18,11 @@ Place the actual requested field names directly inside "template". Never return 
 
 When a field can only take one of a small closed set of values, give that field a literal array of the allowed values instead of a type label, for example "status": ["open", "closed", "unknown"]. Write each allowed value exactly as the source writes it, in the source's language.
 
+Define every field for the researcher who will read the schema and for the model that will extract it: one short sentence saying what the field holds and how to recognise it in this source. A group (a nested object or a repeating object) carries its definition as its own first member "_description" inside the template. A scalar field's type label cannot hold a definition, so return scalar definitions in a "fieldDescriptions" array BESIDE "template": one {"path":[...],"description":"..."} entry per scalar field (single values, closed sets of allowed values and lists of scalar values), where "path" lists the exact field names from the root to the field, without array indexes. Do not put definitions inside "template" or turn scalar fields into objects to hold them.
+
 Required JSON envelope:
-{"template":{"_description":"A sentence defining one complete source record."}}
-Write a source-specific record definition in "_description" and add the actual requested extraction fields as its siblings inside "template". The example shows only the required metadata; it does not replace the requested fields. "_description" contains a sentence, never a type label.`
+{"template":{"_description":"A sentence defining one complete source record.","items":[{"_description":"A sentence defining one item.","name":"string"}]},"fieldDescriptions":[{"path":["items","name"],"description":"A sentence defining the field."}]}
+Write a source-specific record definition in "_description" and add the actual requested extraction fields as its siblings inside "template". The example shows only the required shape; it does not replace the requested fields. "_description" contains a sentence, never a type label.`
 }
 
 /** The schema chat before the message a request answers, oldest first; empty when there is none. */
@@ -34,23 +36,6 @@ export function chatHistoryText(history: ChatHistory): string {
   return `Conversation so far, oldest first (the researcher's latest message may refer to it).${notes}
 ${history.map(({ role, text }) => `${speaker[role]}: ${text.trim()}`).join('\n')}`
 }
-
-/** What lets a chat's Schema Suggestion request answer a question instead of returning a schema. */
-export function schemaAnswerClause(message: string): string {
-  return `The researcher's chat message was:
-${message.trim()}
-
-If that message asks a question (about the source document or the extraction schema) instead of asking for the schema to be generated or changed, do not return a schema. Answer the question from the source document and return only {"answer":"<your answer>"}. Answer in the language of the question, concisely, and say so when the document does not contain the answer.
-${EXTRACT_CLAUSE}
-${NO_ACTION_CLAUSE}`
-}
-
-/** What lets a chat message ask for the extraction to run: Studio, not the model, then offers what may run. */
-export const EXTRACT_CLAUSE = `If that message instead asks to run the extraction with the schema as it is (to extract, get or generate the values or results from this document or from other documents, rather than to change the schema), do not return a schema or an answer and return only {"action":"extract"}.`
-
-/** What lets a chat message only decline what was offered: Studio then points to the chat box, and nothing is kept,
- *  changed or run. */
-export const NO_ACTION_CLAUSE = `If that message only declines or sets aside what was offered (such as "no", "not now", "no thanks" or "nothing") and asks for nothing else, do not return a schema or an answer and return only {"action":"none"}.`
 
 /** The longest schema-suggestion input sent whole; past it, a source is excerpted. */
 export const EXCERPT_THRESHOLD = 48_000

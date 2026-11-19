@@ -75,9 +75,15 @@ notes unchanged; `clear: true` or an empty description string clears one.
 A clear entry cannot also supply a description. These entries become the ordinary per-field proposal
 the researcher reviews and applies, including description-only edits. Invalid,
 duplicate, ambiguous or unknown note targets fail the proposal without saving
-any changes. This edit-only envelope uses the selected Schema Suggestion Route
-and adds no inference call; initial suggestions and extraction templates keep
-their existing form. In the document workspace the chat
+any changes. The envelope uses the selected Schema Suggestion Route and adds no
+inference call. A Schema Suggestion (single or batch, each window and each
+combination) returns the same sidecar with one definition per scalar field, and
+asks for each group's definition in its `_description`; those definitions are
+saved as the fields' ordinary notes, which the researcher reads and edits like
+any other and which extraction receives as they stand. A suggestion's malformed
+or unmatched note is dropped rather than failing it, and a reply without the
+sidecar (as a NuExtract template-generation reply may be) simply has no notes. Extraction
+templates keep their existing form. In the document workspace the chat
 is docked under every rail tab and offers the next step (Generate schema, a
 proposal, the Record Scope, Run extraction, Results) as a card that Studio
 works out from the workspace's state; actions happen only through those cards

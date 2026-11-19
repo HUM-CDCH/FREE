@@ -402,6 +402,8 @@ function RightRail({
         schema={schema}
         sourceDocumentName={sourceDocumentName}
         onGenerate={onGenerateInstructions}
+        // A message asking for the template again opens the dialog that asks first, as the workflow line's Regenerate does.
+        onRegenerate={onGenerateInstructions && schemaReady && !readOnly ? () => setRegenerating(schemaSnap.replacementVersion) : undefined}
         recordScope={recordScope}
         run={run && { ...run, unavailableReason: runUnavailableReason }}
         control={control && (() => {

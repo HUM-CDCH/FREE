@@ -700,6 +700,20 @@ describe('generation lifecycle', () => {
     expect(setup.controller.snapshot().sourceCoverage).toEqual(EXCERPTED)
   })
 
+  it('a generation and a restored generation save their declared field notes as the fields\' notes', async () => {
+    const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
+
+    await setup.controller.generate(async (_signal, _declareCoverage, declareFieldDescriptions) => {
+      declareFieldDescriptions([{ path: ['place'], description: 'The find place as printed.' }])
+      return { _description: 'One generated record.', place: 'string' }
+    })
+    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'place', description: 'The find place as printed.' })
+
+    await setup.controller.restoreGeneration({ _description: 'One restored record.', restored: 'string' }, 'rev-2', null,
+      [{ path: ['restored'], description: 'The restored value.' }])
+    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'restored', description: 'The restored value.' })
+  })
+
   it('restoreGeneration saves onto a clean base and drops on a conflict without an error', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
 

@@ -1,5 +1,5 @@
 import pluralize from 'pluralize'
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import type { Change, ReplayOutcome } from '../shared/schemaChanges'
 import { Pill } from './ui'
@@ -66,6 +66,9 @@ const ACTIONS_IN_FLOW = '@max-[240px]:static @max-[240px]:basis-full @max-[240px
 const CLEAR_OF_ACTIONS = 'pr-[140px] @max-[296px]:pr-0'
 const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_140px)] @max-[296px]:max-w-full @max-[296px]:basis-full @min-[240px]:@max-[296px]:min-h-7 @min-[240px]:@max-[296px]:leading-7'
 const NOTE_INDENT = 'pl-[46px]'
+/** A closed note: one line in the pills' flow, after them, ellipsized (its full text is its title). It keeps at least
+ *  96px beside them, else wraps to its own line below them; it stays clear of the actions like the pills. */
+const NOTE_INLINE = 'ml-1 min-w-24 flex-1 basis-0 cursor-pointer truncate text-left text-secondary leading-snug text-ink-muted outline-none hover:text-ink'
 
 function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
   if (outcome === 'rejected') return (
@@ -177,10 +180,12 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
 }
 
 /** One schema field's row (§6): grip, disclosure, then the name with its type and values pills (wrapping under the name
- *  when the line is too narrow) and proposal badges; the actions overlay the right edge on hover and focus-within. A
- *  note renders below in full. The panel owns recursion, drag targets and edit forms. */
+ *  when the line is too narrow), its note on one line, and proposal badges; the actions overlay the right edge on hover
+ *  and focus-within. A click on the note opens it in full below, where a further click edits it (reading is not editing:
+ *  it opens while editing is disabled too). The panel owns recursion, drag targets and edit forms. */
 export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onMove, onDelete, onMouseEnter, onMouseLeave }: FieldRowProps) {
   const dragOrigin = useRef({ x: 0, y: 0 })
+  const [noteOpen, setNoteOpen] = useState(false)
   const diffStatus = change?.kind ?? (impliedRemoved ? 'removed' : null)
   const isDiff = diffStatus !== null
   const diffBg = diffStatus === 'added' ? 'bg-green-soft' : diffStatus === 'removed' ? 'bg-danger-soft' : diffStatus === 'modified' ? 'bg-stale-soft' : ''
@@ -250,6 +255,12 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
               <Pill outline size="compact">{valuesWords}</Pill>
             </button>
           ))}
+          {node.description && !isDiff && !noteOpen && (
+            <button type="button" className={NOTE_INLINE} title={node.description} aria-expanded={false}
+              onClick={() => setNoteOpen(true)}>
+              {node.description}
+            </button>
+          )}
           <ChangeBadge change={change} outcome={outcome} />
           {intoGroup && !isDiff && (
             <span className="min-w-0 max-w-full truncate rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white" title={`into ${node.name}`}>into {node.name}</span>
@@ -284,8 +295,11 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
           )}
         </div>
       )}
-      {node.description && !isDiff && (readOnly ? (
-        <p className={`pb-1 ${NOTE_INDENT} text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere]`}>{node.description}</p>
+      {node.description && !isDiff && noteOpen && (readOnly ? (
+        <button type="button" aria-expanded onClick={() => setNoteOpen(false)}
+          className={`block w-full cursor-pointer pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere] outline-none hover:text-ink`}>
+          {node.description}
+        </button>
       ) : (
         <button type="button" onClick={onAddNote} disabled={editDisabled}
           className={`inline-flex min-h-6 w-full cursor-text items-center pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere] outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted`}>

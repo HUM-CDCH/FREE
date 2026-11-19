@@ -5,7 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RailChat, { type RailChatProps } from './RailChat'
-import { useSchemaChat } from './useSchemaChat'
+import { useSchemaChat, type HeardRequest } from './useSchemaChat'
 import { createSchemaEditorController, type SchemaEditorController } from './currentSchemaRevision'
 
 afterEach(cleanup)
@@ -120,6 +120,24 @@ describe('RailChat', () => {
     expect(onShowView).toHaveBeenCalledWith('results')
     fireEvent.click(within(screen.getByRole('region', { name: 'Results ready' })).getByRole('button', { name: /Continue/ }))
     expect(screen.queryByRole('region', { name: 'Results ready' })).not.toBeInTheDocument()
+  })
+
+  it('brings Generate template back when a message asks for a template before the first one', () => {
+    const schema = createSchemaEditorController(testSchemaPersistence())
+    const props = { schema, sourceDocumentName: 'letters.pdf', latest: null, onShowView: vi.fn(), onGenerate: vi.fn() }
+    const clearHeard = vi.fn()
+    function Heard({ heard }: { heard: HeardRequest | null }) {
+      const chat = useSchemaChat({ schema })
+      return <RailChat {...props} chat={{ ...chat, heard, clearHeard }} />
+    }
+    const view = render(<Heard heard={null} />)
+    fireEvent.keyDown(screen.getByRole('region', { name: 'Generate template' }), { key: 'Escape' })
+    expect(screen.queryByRole('region', { name: 'Generate template' })).not.toBeInTheDocument()
+    view.rerender(<Heard heard={{ request: 1, action: 'generate', offer: null }} />)
+    expect(screen.getByRole('region', { name: 'Generate template' })).toBeVisible()
+    expect(clearHeard).toHaveBeenCalledOnce()
+    // Generating is still the researcher's choice.
+    expect(props.onGenerate).not.toHaveBeenCalled()
   })
 
   it('shows each instruction where it was said, between the replies around it', () => {
