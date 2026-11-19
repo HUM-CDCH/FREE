@@ -278,7 +278,9 @@ export default function AppFrame({
   // rail click — a deep link, browser back/forward, or the Project Context
   // page's own document list.
   useEffect(() => {
-    if (route.kind !== 'document' || !workspace) return
+    if (route.kind !== 'document' || !workspace || opening ||
+      workspace.projectContextId !== route.projectContextId ||
+      workspace.sourceDocumentId !== route.sourceDocumentId) return
     if (
       tabs.activeSourceDocumentIdFor(route.projectContextId) ===
       route.sourceDocumentId
@@ -288,7 +290,7 @@ export default function AppFrame({
     // `tabs` itself is a fresh object every render; its individual functions
     // are the stable (useCallback) identities this effect actually depends on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route, workspace, tabs.activeSourceDocumentIdFor, tabs.open])
+  }, [route, workspace, opening, tabs.activeSourceDocumentIdFor, tabs.open])
 
   useEffect(() => () => {
     if (!resizeControllerRef.current) return

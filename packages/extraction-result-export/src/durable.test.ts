@@ -156,15 +156,33 @@ test("the Evidence sheet keeps one row per field with its decision, reviewed val
     { ...saved(0, catalogue, "Fundkatalog"), recordId: "document" },
   ];
   const table = buildDurableEvidenceTable(values);
-  assert.deepEqual(table.columns, ["Record", "Field", "Extracted value", "Decision", "Reviewed value", "Evidence", "Evidence anchors", "Schema revision", "Note"]);
+  assert.deepEqual(table.columns, ["Record", "Field", "Extracted value", "Decision",
+    "Reviewed value", "Evidence",
+    "Evidence anchors", "Schema revision", "Note",
+    "Extracted evidence anchors", "Correction evidence occurrences"]);
   assert.deepEqual(table.rows.map((row) => [row.Record, row.Field, row["Extracted value"], row.Decision, row["Reviewed value"], row.Evidence, row["Evidence anchors"], row.Note]), [
-    [1, "title", "Model", "Edited", "Corrected", "Evidence linked", "a_p1_s1", null],
+    [1, "title", "Model", "Edited", "Corrected", "No correction Evidence linked", null, null],
     [1, "year", 1901, "Rejected", null, "Evidence still being checked", null, null],
     [1, "finds", '[{"name":"Nadel","count":2}]', "To check", null, "No Evidence linked", null, "An earlier correction does not fit this value; it stays saved and is not applied."],
     [1, "gilded", null, "No value", null, "No Evidence linked", null, null],
     ["Document", "catalogue", "Fundkatalog", "To check", null, "No Evidence linked", null, null],
   ]);
   assert.equal(table.rows.every((row) => row["Schema revision"] === "revision-1"), true);
+  assert.equal(table.rows[0]["Extracted evidence anchors"], "a_p1_s1");
+});
+
+test("an edit exports its own Evidence and occurrences separately from the model's anchors", () => {
+  const evidence = [{ anchorId: "a_p1_s1", occurrenceIds: ["o_p1_s1"] },
+    { anchorId: "a_p2_s0", occurrenceIds: ["o_p2_s0", "o_p2_s1"] }];
+  const edited = saved(0, title, "Scope", {
+    links: [{ evidenceAnchorId: "a_p1_s0" }],
+    correction: { decision: { action: "EDITED", value: "Synthetic document.", evidence } },
+  });
+  const [row] = buildDurableEvidenceTable([edited]).rows;
+  assert.equal(row.Evidence, "Correction Evidence linked");
+  assert.equal(row["Evidence anchors"], "a_p1_s1, a_p2_s0");
+  assert.equal(row["Extracted evidence anchors"], "a_p1_s0");
+  assert.deepEqual(JSON.parse(String(row["Correction evidence occurrences"])), evidence);
 });
 
 const disputed = (node: SchemaNode = title): DurableExportValue => saved(0,node,null,{

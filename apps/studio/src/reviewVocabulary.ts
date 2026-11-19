@@ -120,8 +120,14 @@ export const passesFilter = (row: RailRow, filter: ValueFilter) =>
 /** An uncertain passage: the extracted value is not printed word for word in its linked Evidence.
  *  This describes the extracted value, so none after an edit or a rejection. The code keeps the older
  *  name (`doubt`, `doubtful`); the researcher reads "Not an exact match, please double check". */
-export function evidenceCheck(link: { verbatim?: boolean }, action?: ReviewAction): string | null {
+export function evidenceCheck(link: Pick<EvidenceLink, 'verbatim' | 'grounding' | 'location'>,
+  action?: ReviewAction, value?: unknown, sourceText?: string): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
+  const text = link.location?.raw ?? link.grounding?.raw ?? sourceText ?? ''
+  if (typeof value === 'boolean') {
+    const words = text.toLowerCase().match(/[\p{L}\p{N}_]+/gu)
+    if (words?.includes(String(value))) return null
+  }
   if (link.verbatim === false) return 'Not an exact match, please double check'
   return null
 }

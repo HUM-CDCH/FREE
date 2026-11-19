@@ -4,6 +4,8 @@ A block's text is its primary spans in order, joined by separators that belong t
 normalised view (NFKC, case folded, whitespace collapsed, soft hyphens dropped, a line-end hyphen joined) that keeps
 a map to raw offsets, so every match comes back as spans of canonical segment text and never covers a separator.
 """
+import pytest
+
 from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract.locate import BlockText, _bounded, forms, locate, nearly, printed
 
@@ -93,6 +95,16 @@ def test_a_value_is_found_as_its_type_prints_it_and_only_as_a_whole():
     # Exponent-sized values are printed and matched in full, never rounded to six places.
     assert found(0.00001234567, "Tiefe 0.000012") == [] and found(1e-7, "Tiefe 0.") == []
     assert found(0.00001234567, "Tiefe 0.00001234567") == ["0.00001234567"]
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_boolean_literals(value):
+    word = str(value).lower()
+    assert found(value, f"Active: {word}") == [word]
+    assert found(value, f"Active: {word.upper()}") == [word.upper()]
+    assert found(value, f"Active: {not value}") == []
+    assert found(value, f"Active: {word}hood") == []
+    assert found(value, "Active: yes; inactive: 0") == []
 
 
 def test_a_narrow_space_after_an_ordinal_leaves_it_whole_and_a_spaced_decimal_keeps_its_fraction():

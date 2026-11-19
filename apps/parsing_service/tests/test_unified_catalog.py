@@ -1282,11 +1282,24 @@ def test_a_value_quoted_from_a_neighbouring_record_is_rejected():
     assert rejected["reason"] == "quote_not_in_source"
 
 
-def test_a_yes_no_value_has_a_supporting_passage_never_a_literal_span():
+def test_boolean_support():
     source = evidence("1. Adorf. Material: Gold. Gilded.")
     result, _ = extract(source)
     (link,) = [link for link in result["evidence"] if link["path"] == ["records", 0, "gilded"]]
     assert link["support"] == "supporting" and link["verbatim"] is False and link["raw"] == "Gilded"
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_boolean_evidence(value):
+    word = str(value).lower()
+    source = evidence(f"1. Adorf. Gilded: {word}.")
+    def printed_boolean(record, user, schema):
+        return {**fields(record, user, schema), "gilded": candidate(value, f"Gilded: {word}")}
+    model = Model(source, entry=printed_boolean)
+    result, _ = extract(source, model)
+    (link,) = [link for link in result["evidence"] if link["path"] == ["records", 0, "gilded"]]
+    assert result["records"][0]["gilded"] is value
+    assert link["support"] == "literal" and link["verbatim"] is True and link["raw"] == word
 
 
 @pytest.mark.parametrize(('printed', 'value'), [('Alpha*', 'Alpha'), ('A*B', 'A*B')])

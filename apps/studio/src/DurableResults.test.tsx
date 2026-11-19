@@ -1236,6 +1236,8 @@ it('keys a value\'s correction Evidence as its own mark, named by the value and 
   expect(own.key).toBe('v1#correction')
   expect(own.link.evidenceAnchorId).toBe('a_p1_s1')
   expect(marks().describe.get(own.key)).toMatchObject({name:'skelet'})
+  expect(marks().describe.get('v1')).toMatchObject({name:'skelet (extracted)',
+    value:JSON.stringify({art:'Human',dele:[{nr:'1',note:'Tooth'}]}),word:null})
   expect(ownsMark(marks().selected!,own.key)).toBe(true)
 })
 
@@ -1304,7 +1306,6 @@ it('scrolls once per value link in one-by-one: the follow for another linked val
   act(()=>{selection.select('b',true,'extraction')})
   expect(onEvidence).toHaveBeenCalledTimes(2)
   expect(onEvidence).toHaveBeenLastCalledWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
-  // The follow follows model links only.
   act(()=>{selection.select('c',true,'extraction')})
   expect(onEvidence).toHaveBeenCalledTimes(3)
   expect(onEvidence).toHaveBeenLastCalledWith('own-anchor',['o1'])
