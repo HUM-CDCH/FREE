@@ -3,6 +3,7 @@ import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import { schemaChatReplySchema, type ChatHistory, type SchemaChatReply } from '../shared/schemaChat.contract'
+import { resultCorrectionProposalSchema, type ResultCorrectionProposal } from '../shared/resultCorrection.contract'
 import {
   extractionRequestSchema,
   extractionAttemptSchema,
@@ -206,6 +207,25 @@ export async function requestSchemaChat(
   // The operation ID makes the POST repeatable.
   form.append('operation_id', operationId)
   return postModelForm('/schema_chat', form, (data) => schemaChatReplySchema.parse(data), signal)
+}
+
+/** A chat message that corrects particular values of a result (ADR 0035): the changes proposed for one snapshot, the
+ *  one named or else the latest. Nothing is saved. */
+export async function requestResultCorrections(
+  target: { extractionId: string; snapshotVersion: number | null },
+  message: string,
+  signal: AbortSignal | undefined,
+  operationId: string,
+  history: ChatHistory = [],
+): Promise<ResultCorrectionProposal> {
+  const form = new FormData()
+  form.append('extraction_id', target.extractionId)
+  if (target.snapshotVersion !== null) form.append('snapshot_version', String(target.snapshotVersion))
+  form.append('message', message)
+  if (history.length) form.append('history', JSON.stringify(history))
+  // The operation ID makes the POST repeatable.
+  form.append('operation_id', operationId)
+  return postModelForm('/result_chat', form, (data) => resultCorrectionProposalSchema.parse(data), signal)
 }
 
 /** Thrown when a JSON endpoint (an Extraction, or a model listing) answers with an HTTP error status. */

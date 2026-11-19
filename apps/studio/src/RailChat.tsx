@@ -5,8 +5,9 @@ import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
 import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { confirmedOption, extractStep, nextStep, type ChatOffer, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard,
-  type StepOption } from './chatGuide'
+import { confirmedOption, correctionStep, extractStep, nextStep, type ChatOffer, type GuideInput, type ProjectGuideInput, type StepAction,
+  type StepCard, type StepOption } from './chatGuide'
+import { correctionLine, NO_RESULTS_REPLY, type ResultCorrections } from './useResultCorrections'
 import { ChatTranscript } from './SchemaChatParts'
 import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
@@ -45,6 +46,8 @@ export type RailChatProps = {
     /** Adds PDFs to the project, where the workspace can: the second trial's upload. */
     addDocuments?: (files: readonly File[]) => void
   } | null
+  /** The chat's corrections of the result Results shows (ADR 0035), where the workspace has one to correct. */
+  corrections?: ResultCorrections | null
   /** Pause, Resume, Retry and Stop for the latest Extraction, where the workspace offers them. */
   control?: (Exclude<GuideInput['control'], null> & { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void }) | null
   latest: GuideInput['latest']
@@ -65,7 +68,7 @@ export type RailChatProps = {
  * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
  * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, onRegenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, onRegenerate, recordScope, run = null, corrections = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -136,8 +139,12 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     dismissed,
     project: project ? { ...project.guide, moreDocuments: moreKey ? more.value : undefined } : null,
   }
+  // Changes a message proposed to the results wait for the researcher first, as the latest message's answer (ADR 0035).
+  const proposed = corrections?.pending ?? null
+  const correcting = proposed && correctionStep(proposed.request, proposed.proposal.corrections.map(correctionLine), corrections?.busy === 'saving')
   // A message that asked to extract is answered by its own step until the researcher chooses; else the next step.
-  const next = chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
+  const next = correcting && !dismissed.has(correcting.key) ? correcting
+    : chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
   // Finish answering the researcher before asking for scope; an edit may produce a proposal to review first.
   const step = next?.key === 'scope' && (chat.loading || chat.asking !== null) ? null : next
   // The documents ticked in the step's picker: its own initial ones until the researcher changes them.
@@ -188,6 +195,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       chat.clearExtractRequest()
       if (option.action === 'dismiss') return
     }
+    // Proposed changes set aside unsaid are discarded; with something said instead they wait, so a "yes" can save them.
+    if (card.key.startsWith('correct:') && option.action === 'dismiss' && !said) corrections?.discard()
     const act: Record<StepAction, () => void> = {
       generate: () => onGenerate?.(instructions.text),
       'stop-generation': () => schema.cancelGeneration(),
@@ -216,6 +225,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       'more-documents': () => setMore('adding'),
       upload: () => fileInput?.click(),
       'skip-more': () => setMore('done'),
+      'save-corrections': () => void corrections?.save(),
+      'discard-corrections': () => corrections?.discard(),
       batch: () => project?.start('batch', ids),
       approve: () => project?.approve(),
       'open-document': () => option.target && project?.open(option.target),
@@ -257,7 +268,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const ask = () => { if (!instructions.draft.trim()) return; const offered = offer(step); reveal(); setAside(); void chat.ask(undefined, offered) }
   const send = () => { if (!chat.input.trim()) return; const offered = offer(step); reveal(); setAside(); void chat.send(chat.input, offered) }
 
-  const blocked = !!pending || chat.loading
+  const blocked = !!pending || chat.loading || !!corrections?.busy
   // What is typed in place of a step goes where the composer's message would.
   const canSay = preSchema ? chat.asking === null : editable && !blocked
 
@@ -277,6 +288,19 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       if (preSchema) return
       if (onRegenerate) onRegenerate()
       else appendMessage(NO_REGENERATE_REPLY)
+      return
+    }
+    // A change to particular results is proposed for the result Results shows, where there is one (ADR 0035).
+    if (request.action === 'correct') {
+      if (corrections?.available && request.said) void corrections.propose(request.said.message, request.said.history)
+      else appendMessage(NO_RESULTS_REPLY)
+      return
+    }
+    // A "yes" beside proposed changes saves them, while they are still the ones it was said beside.
+    if (request.offer && correcting && request.offer.card.key === correcting.key) {
+      const save = correcting.options.find(({ tone, disabled }) => tone === 'positive' && !disabled)
+      if (save) choose(correcting, save)
+      else appendMessage(NOTHING_TO_CONFIRM_REPLY)
       return
     }
     const confirmed = request.offer && confirmedOption(guide, request.offer.card)
@@ -356,10 +380,17 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   )
 
   // The instructions and questions show where they were said, in the transcript; a reply still coming follows it.
-  const pendingAsk = (chat.asking !== null || chat.askError) ? (
+  const pendingAsk = (chat.asking !== null || chat.askError || corrections?.busy === 'proposing') ? (
     <>
       {chat.asking !== null && <PendingAsk asking={chat.asking} messageClass={chatMessageClass} />}
       {chat.askError && <p className="text-compact text-danger [overflow-wrap:anywhere]" role="alert">{chat.askError}</p>}
+      {corrections?.busy === 'proposing' && (
+        <p role="status" className="flex items-center gap-2 text-compact text-ink-muted">
+          <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
+          Reading the results for the changes…
+          <button type="button" onClick={corrections.stop} className="cursor-pointer rounded-md px-1 text-ink-muted outline-none hover:text-danger">Stop</button>
+        </p>
+      )}
     </>
   ) : undefined
 

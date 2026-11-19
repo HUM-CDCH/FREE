@@ -1,7 +1,8 @@
 # 0034: The chat reads what a message asks for first
 
 Date: 2026-11-18. Status: accepted; amends [0023](0023-schema-chat-answers-questions.md) and
-[0027](0027-the-chat-hears-a-request-to-extract.md).
+[0027](0027-the-chat-hears-a-request-to-extract.md); amended by [0035](0035-the-chat-proposes-corrections-to-results.md),
+which adds a seventh intent, `correct`, for changes to particular results.
 
 ## Context
 

@@ -33,6 +33,8 @@ export type StepAction =
   | 'more-documents'
   | 'upload'
   | 'skip-more'
+  | 'save-corrections'
+  | 'discard-corrections'
   | 'dismiss'
 
 export type StepOption = {
@@ -293,6 +295,27 @@ export function extractStep(input: GuideInput, request: number): StepCard {
     error: project?.error ?? undefined,
     picker,
     options: [...options, notYet],
+  }
+}
+
+/**
+ * The changes a chat message proposed to the results (ADR 0035), each value's as it is and as it would be, until the
+ * researcher saves or discards them. `lines` are the changes as `correctionLine` gives them.
+ */
+export function correctionStep(request: number, lines: readonly (readonly [string, string])[], saving: boolean): StepCard {
+  const count = lines.length
+  return {
+    key: `correct:${request}`,
+    title: 'Change results',
+    question: count === 1 ? 'Save this change to the results?' : `Save these ${count} changes to the results?`,
+    detail: lines,
+    busy: saving,
+    options: [
+      { action: 'save-corrections', label: count === 1 ? 'Save the change' : `Save ${count} changes`, tone: 'positive', disabled: saving,
+        description: 'Saved as your corrections of these values, as editing them in Results does; they guide later extractions only once you include them.' },
+      { action: 'discard-corrections', label: 'Discard', tone: 'secondary', disabled: saving },
+      notYet,
+    ],
   }
 }
 

@@ -7,6 +7,7 @@ describe('chatIntentOf', () => {
     await expect(chatIntentOf('```json\n{"intent":" Generate ","focus":" the dates "}\n```')).resolves.toEqual({ intent: 'generate', focus: 'the dates' })
     await expect(chatIntentOf('{"intent":"edit","focus":"add a date"}')).resolves.toEqual({ intent: 'edit', focus: null })
     await expect(chatIntentOf('{"intent":"generate","focus":""}')).resolves.toEqual({ intent: 'generate', focus: null })
+    await expect(chatIntentOf('{"intent":"correct","focus":"record 3"}')).resolves.toEqual({ intent: 'correct', focus: null })
   })
 
   it('reads nothing from a reply that names no known intent', async () => {
@@ -23,7 +24,7 @@ describe('chatIntentPrompt', () => {
       history: [{ role: 'user', text: 'How long is grave 8?' }, { role: 'assistant', text: '1.72 metres.' }],
       offer: 'Run extraction: Run the extraction on register.pdf?',
     })
-    for (const intent of ['question', 'generate', 'edit', 'extract', 'confirm', 'none']) expect(prompt).toContain(`- "${intent}":`)
+    for (const intent of ['question', 'generate', 'edit', 'correct', 'extract', 'confirm', 'none']) expect(prompt).toContain(`- "${intent}":`)
     expect(prompt).toContain('Studio shows them as the "template"')
     expect(prompt).toContain('Researcher: How long is grave 8?\nAssistant: 1.72 metres.')
     expect(prompt).toContain('Studio has just offered: Run extraction: Run the extraction on register.pdf?')

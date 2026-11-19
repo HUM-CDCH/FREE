@@ -4,7 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import type { SchemaRevision } from '../shared/schemaRevision.contract'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract'
 import { createSchemaEditorController, durableSchemaPersistence, type SchemaEditorController } from './currentSchemaRevision'
-import { NO_ACTION_REPLY, NO_TEMPLATE_REPLY, useSchemaChat } from './useSchemaChat'
+import { NO_ACTION_REPLY, NO_TEMPLATE_REPLY, NO_TEMPLATE_RESULTS_REPLY, useSchemaChat } from './useSchemaChat'
 import type { ChatOffer } from './chatGuide'
 
 const { requestSchemaEdit, requestSchemaChat, deleteModelOperation, listModelOperations } = vi.hoisted(() => ({
@@ -126,6 +126,28 @@ it('a yes is the page\'s to carry out beside the step it was sent with, and the 
   expect(hook.result.current.proposalReview.pending).toBeNull()
   expect(hook.result.current.heard).toMatchObject({ action: 'confirm', offer })
   act(() => hook.result.current.clearHeard())
+  expect(hook.result.current.heard).toBeNull()
+})
+
+it('a change to particular results is the page\'s, with the message and the conversation before it (ADR 0035)', async () => {
+  requestSchemaEdit.mockResolvedValueOnce({ status: 'requested', action: 'correct', focus: null })
+  const { hook } = setup()
+  act(() => hook.result.current.appendMessage('Saved the results.'))
+  await act(() => hook.result.current.send('The year of record 3 is 1854'))
+  expect(hook.result.current.proposalReview.pending).toBeNull()
+  expect(hook.result.current.heard).toMatchObject({
+    action: 'correct', offer: null,
+    said: { message: 'The year of record 3 is 1854', history: [{ role: 'assistant', text: 'Saved the results.' }] },
+  })
+  expect(hook.result.current.messages.at(-1)).toEqual({ role: 'user', text: 'The year of record 3 is 1854' })
+})
+
+it('before the first schema, a change to results says there are none yet and is carried no further', async () => {
+  requestSchemaChat.mockResolvedValueOnce({ kind: 'requested', action: 'correct', focus: null })
+  const { hook } = setup('representation-1')
+  await act(() => hook.result.current.ask('the year of record 3 is 1854'))
+  expect(hook.result.current.instructions.items).toEqual([])
+  expect(hook.result.current.messages.slice(-2)).toEqual([{ role: 'user', text: 'the year of record 3 is 1854' }, { role: 'assistant', text: NO_TEMPLATE_RESULTS_REPLY }])
   expect(hook.result.current.heard).toBeNull()
 })
 

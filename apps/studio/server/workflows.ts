@@ -18,6 +18,8 @@ import { registerReprocessWorkflow, REPROCESS_SOURCE, type ReprocessWorkflowPort
 import { proposeSchemaEdit } from '../api/_schema_edit.js'
 import { answerFromWindow, answerSchemaChat, combineWindowAnswers, respondToSchemaEdit } from '../api/_schema_chat.js'
 import { ANSWER_SCHEMA_CHAT, registerSchemaChatWorkflow } from '../api/_schema_chat_workflow.js'
+import { proposeResultCorrections } from '../api/_result_correction.js'
+import { PROPOSE_RESULT_CORRECTIONS, readResultToCorrect, registerResultCorrectionWorkflow } from '../api/_result_correction_workflow.js'
 import { PROPOSE_SCHEMA_EDIT, registerSchemaEditWorkflow } from '../api/_schema_edit_workflow.js'
 import { registerSchemaGenerationWorkflow, SUGGEST_SCHEMA } from '../api/_schema_generation_workflow.js'
 import { sourceInboxRoot } from '../api/_source_inbox.js'
@@ -31,7 +33,7 @@ import { registerDurableExtractionReconciler } from './durable-extraction-workfl
  *  under one build must be recoverable by another. */
 export const STUDIO_WORKFLOW_NAMES: readonly string[] = [
   SUGGEST_SCHEMA_BATCH, INGEST_SOURCE, REPROCESS_SOURCE, SUGGEST_SCHEMA, PROPOSE_SCHEMA_EDIT, ANSWER_SCHEMA_CHAT,
-  COLLECT_GARBAGE, DURABLE_RECONCILE,
+  PROPOSE_RESULT_CORRECTIONS, COLLECT_GARBAGE, DURABLE_RECONCILE,
 ]
 
 /** Both source conversion workflows use the same kei handoff, inbox, package store and owner-scoped store. */
@@ -96,6 +98,7 @@ export function registerStudioWorkflows(options: { garbagePorts?: () => GarbageP
       combineAnswers: combineWindowAnswers,
     }
   })
+  registerResultCorrectionWorkflow(() => ({ steps: dbosSteps, readResult: readResultToCorrect, propose: proposeResultCorrections }))
   collectGarbage = registerGarbageWorkflow(options.garbagePorts ?? (() => garbagePorts()))
   reconcileExtractions = registerDurableExtractionReconciler()
 }

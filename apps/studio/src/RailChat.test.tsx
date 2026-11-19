@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testi
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import RailChat, { type RailChatProps } from './RailChat'
 import { useSchemaChat, type HeardRequest } from './useSchemaChat'
+import { NO_RESULTS_REPLY, type ResultCorrections } from './useResultCorrections'
 import { createSchemaEditorController, type SchemaEditorController } from './currentSchemaRevision'
 
 afterEach(cleanup)
@@ -348,5 +349,58 @@ describe('the second trial', () => {
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: project() })
     fireEvent.click(within(screen.getByRole('region', { name: 'Try more documents?' })).getByRole('button', { name: /No, go on to approval/ }))
     expect(screen.getByRole('region', { name: 'Approve template' })).toBeInTheDocument()
+  })
+})
+
+describe('changes to the results (ADR 0035)', () => {
+  const PROPOSAL = {
+    extractionId: 'extraction-1', snapshotVersion: 3, reply: null, dropped: [],
+    corrections: [
+      { valueId: 'v-year', label: 'Record 3 · year', action: 'EDITED' as const, current: 1845, value: 1854, expectedRevision: 0, reason: null },
+      { valueId: 'v-name', label: 'Record 3 · name', action: 'REJECTED' as const, current: 'Ane', expectedRevision: 1, reason: null },
+    ],
+  }
+  function corrections(overrides: Partial<ResultCorrections> = {}): ResultCorrections {
+    return { pending: null, busy: null, available: true, propose: vi.fn(async () => {}), save: vi.fn(async () => {}),
+      discard: vi.fn(), stop: vi.fn(), ...overrides }
+  }
+  const schema = schemaWithFields()
+  const props = { schema, sourceDocumentName: 'letters.pdf', latest: null, onShowView: vi.fn(), recordScope: { value: 'document' as const, onChange: vi.fn() } }
+  function Heard({ heard, results }: { heard: HeardRequest | null; results: ResultCorrections | null }) {
+    const chat = useSchemaChat({ schema })
+    return <RailChat {...props} corrections={results} chat={{ ...chat, heard, clearHeard: vi.fn() }} />
+  }
+  const said = { message: 'The year of record 3 is 1854', history: [{ role: 'user' as const, text: 'Run it' }] }
+
+  it('proposes the changes a message asked for on the result shown, and says when there is none', () => {
+    const results = corrections()
+    const view = render(<Heard heard={null} results={results} />)
+    view.rerender(<Heard heard={{ request: 1, action: 'correct', offer: null, said }} results={results} />)
+    expect(results.propose).toHaveBeenCalledExactlyOnceWith(said.message, said.history)
+    view.rerender(<Heard heard={{ request: 2, action: 'correct', offer: null, said }} results={null} />)
+    expect(screen.getByText(NO_RESULTS_REPLY)).toBeInTheDocument()
+  })
+
+  it('shows each proposed change as it is and as it would be, and saves or discards them', () => {
+    const results = corrections({ pending: { request: 1, proposal: PROPOSAL } })
+    render(<Heard heard={null} results={results} />)
+    const step = screen.getByRole('region', { name: 'Change results' })
+    expect(within(step).getByText('Save these 2 changes to the results?')).toBeVisible()
+    expect(within(step).getByText('1845 → 1854')).toBeVisible()
+    expect(within(step).getByText('“Ane” → rejected')).toBeVisible()
+    fireEvent.click(within(step).getByRole('button', { name: /Save 2 changes/ }))
+    expect(results.save).toHaveBeenCalledOnce()
+    fireEvent.click(within(step).getByRole('button', { name: /Discard/ }))
+    expect(results.discard).toHaveBeenCalledOnce()
+    fireEvent.keyDown(step, { key: 'Escape' })
+    expect(results.discard).toHaveBeenCalledTimes(2)
+  })
+
+  it('saves the changes on a "yes" said beside them', () => {
+    const results = corrections({ pending: { request: 4, proposal: PROPOSAL } })
+    const view = render(<Heard heard={null} results={results} />)
+    const card = { key: 'correct:4', title: 'Change results', options: [] }
+    view.rerender(<Heard heard={{ request: 1, action: 'confirm', offer: { card, picked: [] } }} results={results} />)
+    expect(results.save).toHaveBeenCalledOnce()
   })
 })

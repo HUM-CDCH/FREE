@@ -1,10 +1,11 @@
 import { z } from 'zod'
 
 /**
- * What a chat message asks Studio to do rather than answer or change (ADR 0034): make the template (again), run the
- * extraction, or go ahead with what the chat's step offers. The page decides what each does in the state it is in.
+ * What a chat message asks Studio to do rather than answer or change the template (ADR 0034): make the template (again),
+ * run the extraction, go ahead with what the chat's step offers, or correct particular extracted values (ADR 0035). The
+ * page decides what each does in the state it is in.
  */
-export const chatRequestActionSchema = z.enum(['generate', 'extract', 'confirm'])
+export const chatRequestActionSchema = z.enum(['generate', 'extract', 'confirm', 'correct'])
 export type ChatRequestAction = z.infer<typeof chatRequestActionSchema>
 /** The longest description of what the chat offers beside a message: its step's title and question. */
 export const CHAT_OFFER_LIMIT = 2_000

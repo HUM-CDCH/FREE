@@ -29,6 +29,7 @@ const RUN = 'Run extraction: Run the extraction on register.pdf?'
 const TEMPLATE_READY = 'Template ready: Look at the template before going on?'
 const PILOT = 'Try template on a few documents: Check the results on a few before extracting all 12 documents?'
 const APPROVE = 'Approve template: Every trial document is reviewed. Approve the template for the whole project?'
+const RESULTS_READY = 'Results ready: Look at the results of register.pdf before going on?'
 
 type Case = ChatMessageToClassify & { expected: ChatIntent; focus?: RegExp }
 const say = (message: string, expected: ChatIntent, more: Partial<Case> = {}): Case => ({ message, history: [], expected, ...more })
@@ -49,6 +50,12 @@ const CASES: readonly Case[] = [
   say('把 length_m 改成整数', 'edit'),
   say('yes, but first add a burial date field', 'edit', { offer: RUN }),
   say('Add a site name field, then run it', 'edit'),
+  say('Years should always be written with four digits', 'edit', { offer: RESULTS_READY }),
+  say('The year of record 3 should be 1854, not 1845', 'correct'),
+  say('grave 8 is 1.80 m long', 'correct', { offer: RESULTS_READY }),
+  say('第二条记录的名字错了，应该是 Anne Hansen', 'correct'),
+  say('删掉第五条的性别', 'correct'),
+  say('that title is wrong, fix it', 'correct', { offer: RESULTS_READY }),
   say('Run the extraction', 'extract'),
   say('generate the results', 'extract'),
   say('帮我把所有文档都提取一下', 'extract'),
