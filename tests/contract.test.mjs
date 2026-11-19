@@ -185,8 +185,8 @@ test('extraction: a durable Extraction is admitted and completes', { timeout: 30
       sourceRepresentationRevisionId: state.sourceRepresentationRevisionId,
       schemaRevisionId: state.schemaRevisionId,
       strategy: 'ARTICLE',
-      // The method the account saved just above: no Extraction Model Choice, service-default settings.
-      method: { models: null, settings: { article: null } },
+      // With no saved choice, admission pins the shared Article defaults.
+      method: { models: null, settings: { article: { grounding_overflow: 'windows' } } },
     }),
   })
   assert.equal(extraction.status, 201, JSON.stringify(extraction.body))

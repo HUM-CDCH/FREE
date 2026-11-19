@@ -162,7 +162,7 @@ describe('garbage collection across Studio processes', () => {
       await ageFile(join(root, `${fresh.artifactReference}.zip`), 3600_000)
       await ageFile(join(root, `${entry!.descriptor.artifactReference}.zip`), 25 * 3600_000)
       await launchStudioDbos({
-        databaseUrl: url, ...names, keiSchema: schemas.keiSchema,
+        databaseUrl: url, keiDatabaseUrl: url, ...names, keiSchema: schemas.keiSchema,
         register: () => registerStudioWorkflows({ garbagePorts: () => garbagePorts({
           packages, inbox: { root: inbox, list: listStagedSources, remove: removeStagedSource },
         }) }),

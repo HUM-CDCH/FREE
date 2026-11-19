@@ -41,6 +41,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   const ownersStore = ingestionStoreFor(packageStore)
   await launchStudioDbos({
     databaseUrl: required(env, 'DATABASE_URL'),
+    keiDatabaseUrl: required(env, 'DATABASE_URL'),
     schema: required(env, 'FREE_TEST_DBOS_SCHEMA'),
     keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'),
     executorId: required(env, 'FREE_TEST_EXECUTOR'),

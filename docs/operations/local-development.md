@@ -59,7 +59,7 @@ Open **https://localhost:8443/free**. Signing in runs the OIDC authorization
 code flow against the local `mock-oidc` service (see below); the local
 Researcher Account is created on first sign-in. Migrations replay in the
 Studio container's entrypoint before the dev server starts; the entrypoint
-then creates the Parsing Service's database role, DBOS launches with the dev
+then prepares the Parsing Service worker login and Studio's two database roles. DBOS launches with the dev
 server, and the worker starts once Studio is healthy and migrates its own
 schema.
 

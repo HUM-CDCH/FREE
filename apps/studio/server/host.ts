@@ -7,6 +7,7 @@ import { providerRuntime as productionProviderRuntime } from '../api/_provider.j
 import { createStudioApp } from './app.js'
 import {
   createRequestPeerVerifier,
+  studioDatabaseUrls,
   type StudioServerConfig,
 } from './config.js'
 import { launchStudioDbos, shutdownStudioDbos } from './dbos.js'
@@ -50,12 +51,6 @@ export function productionClientRoot(): string {
   return resolve(import.meta.dirname, '../client')
 }
 
-function requiredDatabaseUrl(): string {
-  const databaseUrl = process.env.DATABASE_URL
-  if (!databaseUrl) throw new Error("DATABASE_URL must name Studio's database.")
-  return databaseUrl
-}
-
 function closeServer(server: ServerType): Promise<void> {
   const { promise, resolve: resolveClose, reject } =
     Promise.withResolvers<void>()
@@ -79,7 +74,7 @@ export async function startStudioServer(
   const dbos = dependencies.dbos ?? {
     launch: () =>
       launchStudioDbos({
-        databaseUrl: requiredDatabaseUrl(),
+        ...studioDatabaseUrls(),
         register: registerStudioWorkflows,
         schedule: applyStudioSchedules,
       }),

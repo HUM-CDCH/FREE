@@ -8,7 +8,7 @@ import { DBOSClient } from '@dbos-inc/dbos-sdk'
 import pg from 'pg'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { ensureKeiRole } from 'db/kei-role'
-import { ensureStudioRole } from 'db/studio-role'
+import { ensureStudioQueueRole, ensureStudioRole } from 'db/studio-role'
 import { accountMethod } from 'extraction/extraction-method'
 import { spawnKeiStandIn, type KeiStandInProcess } from 'extraction/kei-stand-in-client'
 import { migrate, provisionDatabase } from '../../../packages/db/src/postgres-fixture.js'
@@ -24,12 +24,13 @@ import { disposableDatabaseUrl, testSchemas } from '../test/support/postgres.js'
  */
 const suffix = randomBytes(4).toString('hex')
 // One runtime role per DBOS schema, as in production: the upgraded schema's and a fresh schema's.
-const roles = { studio: `free_test_studio_${suffix}`, fresh: `free_test_fresh_${suffix}`, kei: `free_test_kei_${suffix}` }
-const passwords = { studio: randomBytes(24).toString('hex'), fresh: randomBytes(24).toString('hex'), kei: randomBytes(24).toString('hex') }
+const roles = { studio: `free_test_studio_${suffix}`, fresh: `free_test_fresh_${suffix}`, kei: `free_test_kei_${suffix}`, queue: `free_test_queue_${suffix}` }
+const passwords = { studio: randomBytes(24).toString('hex'), fresh: randomBytes(24).toString('hex'), kei: randomBytes(24).toString('hex'), queue: randomBytes(24).toString('hex') }
 const upgraded = testSchemas()
 const fresh = testSchemas()
 const keiSchema = upgraded.keiSchema
 const scratch = mkdtempSync(join(tmpdir(), 'free-runtime-role-'))
+const expiredConversion = `kei-convert:ingest:${randomUUID()}:${randomUUID()}`
 const CONTRACTS = new URL('../../parsing_service/tests/fixtures/contracts/', import.meta.url)
 
 let target: Awaited<ReturnType<typeof provisionDatabase>>
@@ -69,14 +70,17 @@ beforeAll(async () => {
   const history = { DATABASE_URL: target.url, FREE_TEST_DBOS_SCHEMA: upgraded.schema, FREE_TEST_KEI_SCHEMA: keiSchema,
     FREE_TEST_EXECUTOR: upgraded.executorId, FREE_CRASH_MARKER: join(scratch, 'upgrade-marker'),
     FREE_TEST_LIFECYCLE_FILE: join(scratch, 'upgrade-steps.txt') }
-  expect((await runWorkflowChild('lifecycle', history)).signal).toBe('SIGKILL')
+  const killed = await runWorkflowChild('lifecycle', history)
+  expect(killed.signal, killed.output).toBe('SIGKILL')
   expect(await ownersOf(upgraded.schema)).toEqual(['postgres'])
 
+  const queueUrl = urlAs(roles.queue, passwords.queue)
   // What `db:roles` does at every Studio start, twice: a restart prepares the same roles again.
   for (let start = 0; start < 2; start++) {
     await ensureKeiRole(admin, { role: roles.kei, schema: keiSchema, password: passwords.kei })
-    await ensureStudioRole(admin, { role: roles.studio, schema: upgraded.schema, keiRole: roles.kei, keiSchema, password: passwords.studio })
-    await ensureStudioRole(admin, { role: roles.fresh, schema: fresh.schema, keiRole: roles.kei, keiSchema, password: passwords.fresh })
+    await ensureStudioQueueRole(admin, { role: roles.queue, keiRole: roles.kei, keiSchema, password: passwords.queue })
+    await ensureStudioRole(admin, { role: roles.studio, schema: upgraded.schema, password: passwords.studio })
+    await ensureStudioRole(admin, { role: roles.fresh, schema: fresh.schema, password: passwords.fresh })
   }
 
   // kei migrates kei_dbos once Studio is healthy, so its tables are created after the preparation. This stand-in is
@@ -92,7 +96,7 @@ beforeAll(async () => {
 
   // The upgraded Studio, now the runtime role, recovers the workflow the earlier one left pending.
   runtimeUrl = urlAs(roles.studio, passwords.studio)
-  const recovered = await runWorkflowChild('lifecycle', { ...history, DATABASE_URL: runtimeUrl })
+  const recovered = await runWorkflowChild('lifecycle', { ...history, DATABASE_URL: runtimeUrl, FREE_KEI_QUEUE_DATABASE_URL: queueUrl })
   expect(recovered.code, recovered.output).toBe(0)
 
   // Studio itself: the domain pool binds DATABASE_URL at import, so the runtime URL is set first.
@@ -107,7 +111,7 @@ beforeAll(async () => {
     try { await shutdownStudioDbos() } finally { await db.close(); await pool.end() }
   }
   await launchStudioDbos({
-    databaseUrl: runtimeUrl, ...upgraded,
+    databaseUrl: runtimeUrl, keiDatabaseUrl: queueUrl, ...upgraded,
     register: () => registerStudioWorkflows({ garbagePorts: () => garbagePorts({
       packages: createCanonicalPackageStore(join(scratch, 'packages')),
       inbox: { root: join(scratch, 'inbox'), list: listStagedSources, remove: removeStagedSource },
@@ -126,7 +130,7 @@ afterAll(async () => {
   const cluster = new pg.Client({ connectionString: maintenance.toString() })
   await cluster.connect()
   try {
-    for (const role of [roles.studio, roles.fresh, roles.kei])
+    for (const role of Object.values(roles))
       await cluster.query(`DROP ROLE IF EXISTS ${role}`).catch((error: unknown) => failures.push(error))
   } finally {
     await cluster.end()
@@ -152,7 +156,8 @@ describe('Studio on its restricted runtime role', () => {
 
   it('migrates a fresh DBOS schema, enqueues and recovers a killed workflow as that role', async () => {
     const file = join(scratch, 'fresh-steps.txt')
-    const env = { DATABASE_URL: urlAs(roles.fresh, passwords.fresh), FREE_TEST_DBOS_SCHEMA: fresh.schema, FREE_TEST_KEI_SCHEMA: keiSchema,
+    const env = { DATABASE_URL: urlAs(roles.fresh, passwords.fresh), FREE_KEI_QUEUE_DATABASE_URL: urlAs(roles.queue, passwords.queue),
+      FREE_TEST_DBOS_SCHEMA: fresh.schema, FREE_TEST_KEI_SCHEMA: keiSchema,
       FREE_TEST_EXECUTOR: fresh.executorId, FREE_CRASH_MARKER: join(scratch, 'fresh-marker'), FREE_TEST_LIFECYCLE_FILE: file }
     const killed = await runWorkflowChild('lifecycle', env)
     expect(killed.signal, killed.output).toBe('SIGKILL')
@@ -162,7 +167,7 @@ describe('Studio on its restricted runtime role', () => {
     expect(await ownersOf(fresh.schema)).toEqual([roles.fresh])
   })
 
-  it('submits, lists, cancels and deletes kei workflows in the tables kei created after the preparation', async () => {
+  it('completes a conversion and submits, lists, cancels and deletes kei workflows through the queue role', async () => {
     const { studioDbos } = await import('./dbos.js')
     const { createKeiHandoff, keiConvertWorkflowId } = await import('extraction/kei-handoff')
     const handoff = createKeiHandoff(studioDbos().kei)
@@ -176,8 +181,17 @@ describe('Studio on its restricted runtime role', () => {
     expect((await studioDbos().kei.listWorkflows({ workflowIDs: [workflowId] }))[0]?.status).toBe('PENDING')
     await handoff.cancel(workflowId)
     expect((await studioDbos().kei.listWorkflows({ workflowIDs: [workflowId] }))[0]?.status).toBe('CANCELLED')
+    await standIn!.answer(workflowId, { convert: 'auto' })
     await studioDbos().kei.deleteWorkflow(workflowId)
     expect(await studioDbos().kei.listWorkflows({ workflowIDs: [workflowId] })).toEqual([])
+
+    await standIn!.policy({ convert: 'auto' })
+    await handoff.submitConversion({ workflowId: expiredConversion, lane: enqueue.queue_name, pageCount: 3, request,
+      owner: 'runtime-role@example.test', attributes: { projectContextId: randomUUID() } })
+    await eventually(async () => (await studioDbos().kei.getWorkflow(expiredConversion))?.status === 'SUCCESS' || undefined,
+      'kei completes the conversion')
+    const old = Date.now() - 48 * 3_600_000
+    await admin.query(`UPDATE ${keiSchema}.workflow_status SET completed_at = $2 WHERE workflow_uuid = $1`, [expiredConversion, old])
   })
 
   it('writes the domain, admits and reviews an Extraction, deletes its Project and sweeps garbage as that role', async () => {
@@ -248,6 +262,12 @@ describe('Studio on its restricted runtime role', () => {
     // gc:now through its own DBOS client, as an operator runs it inside the Studio container.
     const create = ((options: Parameters<typeof DBOSClient.create>[0]) =>
       DBOSClient.create({ ...options, systemDatabaseSchemaName: upgraded.schema })) as typeof DBOSClient.create
-    expect((await collectGarbageNow(runtimeUrl, create)).summary.failedPhases).toEqual([])
+    const { summary } = await collectGarbageNow(runtimeUrl, create)
+    expect(summary.failedPhases).toEqual([])
+    expect(summary.keiRequest?.conversions).toContain(expiredConversion)
+    await eventually(async () => (await standIn!.deleteRunsRequests()).some(({ request }) => request.conversions.includes(expiredConversion)) || undefined,
+      'kei receives the cleanup request')
+    await eventually(async () => !(await studioDbos().kei.getWorkflow(expiredConversion)) || undefined,
+      'kei deletes the expired conversion')
   })
 })

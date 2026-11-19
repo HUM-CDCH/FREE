@@ -70,9 +70,10 @@ services:
       # reverse proxy.
       FREE_STUDIO_PROXY_ADDRESS: "${FREE_PROXY_SUBNET_PREFIX:-172.30.0}.0/24"
       # Studio's entrypoint migrates and prepares the roles as postgres, then
-      # starts Studio as the restricted free_studio role with neither of these.
+      # starts Studio with separate application and kei queue logins.
       FREE_ADMIN_DATABASE_URL: "postgresql://postgres:${FREE_POSTGRES_PASSWORD:-postgres}@db:5432/free"
       DATABASE_URL: "postgresql://free_studio:${FREE_STUDIO_POSTGRES_PASSWORD:-studio-development}@db:5432/free"
+      FREE_KEI_QUEUE_DATABASE_URL: "postgresql://free_kei_queue:${FREE_KEI_QUEUE_POSTGRES_PASSWORD:-kei-queue-development}@db:5432/free"
       FREE_KEI_POSTGRES_PASSWORD: "${FREE_KEI_POSTGRES_PASSWORD:-kei-development}"
       # `pnpm dev` generates and persists this per machine. Without it the dev
       # server mints a session secret per boot, so every restart silently

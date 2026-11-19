@@ -235,6 +235,7 @@ export async function startRealService(logFile: string,
     HF_HUB_DISABLE_TELEMETRY: '1',
   }
   delete env.DATABASE_URL
+  delete env.FREE_KEI_QUEUE_DATABASE_URL
   delete env.KEI_DATABASE_URL
   delete env.KEI_SYSTEM_DATABASE_URL
   const workerArgs = conversionBarrier
