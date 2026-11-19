@@ -347,10 +347,17 @@ def test_empty_final_publication_saves_completion_proof_without_inventing_values
 
 
 def test_capture_freezes_guidance_before_provider_and_pause_refuses_new_units():
-    node={"id":"field","name":"title","type":"string"}
+    from kei_exp.kie.extract.durable import field_meaning
+
+    node = {"id": "field", "name": "details", "type": "object",
+            "description": "Generated group note.", "descriptionSource": "suggested", "children": [
+                {"id": "title", "name": "title", "type": "string", "description": "Researcher note."},
+                {"id": "site", "name": "site", "type": "string",
+                 "description": "Generated child note.", "descriptionSource": "suggested"},
+            ]}
     lease=MemoryLease({"recordDescription":"document","schemaNodes":[node]})
-    candidate={"id":"correction","fieldId":"field","meaning":digest({"type":"string"}),
-               "value":"corrected without Evidence","grounded":False,"node":node}
+    candidate={"id":"correction","fieldId":"field","meaning":field_meaning(node),
+               "value":{"title":"corrected without Evidence","site":None},"grounded":False,"node":node}
     lease.candidates=[{"id":"revision","candidate":candidate}]
     chat=CountingChat(lambda *_:{"title":"target"});chat.max_tokens=10
     args=dict(stage="record",record=0,system="Read target only",user="source",schema={"type":"object"})
@@ -358,6 +365,9 @@ def test_capture_freezes_guidance_before_provider_and_pause_refuses_new_units():
         CapturePlanner(lease,{"fields":Counter()}).complete(chat,**args)
     unit=next(iter(lease.units.values()));captured=deepcopy(unit["input"])
     assert captured["request"]["examples"]==[candidate]
+    system = captured["request"]["body"]["system"]
+    assert "Researcher note." in system and "corrected without Evidence" in system
+    assert "Generated group note." not in system and "Generated child note." not in system
     lease.candidates=[]
     with pytest.raises(NeedsCall):
         CapturePlanner(lease,{"fields":Counter()}).complete(chat,**args)

@@ -22,6 +22,7 @@ import {
   type SchemaNode,
   enumerateFieldPaths,
   mkId,
+  parseSchemaDefinition,
   schemaDefinitionToTemplate,
   type SchemaDefinition,
 } from 'extraction/schema'
@@ -103,8 +104,23 @@ type FieldEditing = {
   newValue?: string
 }
 
+function editedDescription(node: SchemaNode, text: string | undefined): Pick<SchemaNode, 'description' | 'descriptionSource'> {
+  const description = text?.trim()
+  if (!description) return {}
+  return description === node.description?.trim()
+    ? { description: node.description, ...(node.descriptionSource && { descriptionSource: node.descriptionSource }) }
+    : { description }
+}
+
+function withEditedDescription(node: SchemaNode, text: string | undefined, original = node): SchemaNode {
+  const next = { ...node }
+  delete next.description
+  delete next.descriptionSource
+  return { ...next, ...editedDescription(original, text) }
+}
+
 function editedField(node: SchemaNode, name: string, editing: FieldEditing): SchemaNode {
-  const base = { id: node.id, name, ...(editing.description && { description: editing.description }), ...(node.valueSource && { valueSource: node.valueSource }), ...(node.evidencePolicy && { evidencePolicy: node.evidencePolicy }) }
+  const base = { id: node.id, name, ...editedDescription(node, editing.description), ...(node.valueSource && { valueSource: node.valueSource }), ...(node.evidencePolicy && { evidencePolicy: node.evidencePolicy }) }
   if (editing.type === 'object') {
     return { ...base, type: 'object', children: node.children ?? [] }
   }
@@ -514,8 +530,17 @@ function SchemaPanel({
     if (!base) return
     begin('json', JSON.stringify(base, null, 2), value => {
       const parsed = JSON.parse(value)
-      const visit = (nodes: Array<Record<string, unknown>>): Array<Record<string, unknown>> => nodes.map(node => ({ ...node, id: node.id ?? mkId(), ...(Array.isArray(node.children) ? { children: visit(node.children) } : {}) }))
-      return { ...parsed, schemaNodes: visit(parsed.schemaNodes) } as SchemaDefinition
+      const withIds = (nodes: Array<Record<string, unknown>>): Array<Record<string, unknown>> => nodes.map(node => ({
+        ...node, id: node.id ?? mkId(), ...(Array.isArray(node.children) ? { children: withIds(node.children) } : {}),
+      }))
+      const definition = parseSchemaDefinition({ ...parsed, schemaNodes: withIds(parsed.schemaNodes) })
+      const previous = new Map(enumerateFieldPaths(base.schemaNodes).map(({ id, node }) => [id, node]))
+      const reconcile = (nodes: SchemaNode[]): SchemaNode[] => nodes.map(node => {
+        const original = previous.get(node.id)
+        const next = original?.descriptionSource ? withEditedDescription(node, node.description, original) : node
+        return next.children ? { ...next, children: reconcile(next.children) } : next
+      })
+      return { ...definition, schemaNodes: reconcile(definition.schemaNodes) }
     })
   }
   const importDisabled = editorReadOnly || snap.useBlockedReason !== null || !schema.operationScope()?.projectContextId
@@ -671,12 +696,7 @@ function SchemaPanel({
       const edit = JSON.parse(value) as FieldEditing
       if (focus === 'notes') return {
         ...base,
-        schemaNodes: updateSchemaNode(base.schemaNodes, node.id, current => {
-          const next = { ...current }
-          if (edit.description) next.description = edit.description
-          else delete next.description
-          return next
-        }),
+        schemaNodes: updateSchemaNode(base.schemaNodes, node.id, current => withEditedDescription(current, edit.description)),
       }
       if (edit.newValue?.trim()) throw new Error('Add the pending allowed value or clear it before saving.')
       if (edit.type === 'string' && edit.allowedValues?.length === 1) throw new Error('Need at least 2 allowed values.')

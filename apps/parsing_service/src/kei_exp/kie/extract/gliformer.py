@@ -31,7 +31,7 @@ def native_schema(schema: Schema) -> dict:
             if node.type in ("string", "verbatim-string"):
                 fields.append(node.name)
             elif node.type == "array" and node.item_type is None:
-                children[node.name] = group(node.children or [], node.description or node.name)
+                children[node.name] = group(node.children or [], node.instruction_description or node.name)
             else:
                 raise ValueError(f"GLiFormer requires strings or arrays of objects; {node.name!r} is {node.type}")
         if not fields and not children:

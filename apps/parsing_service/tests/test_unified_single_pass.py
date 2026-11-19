@@ -39,6 +39,18 @@ def test_a_single_pass_links_values_located_in_their_record_without_asking_a_ver
     assert single["execution"]["prompt_version"] == unified.PROMPT_VERSION
 
 
+def test_catalog_entry_context_excludes_suggested_notes():
+    schema = {**catalog.SCHEMA, "schemaNodes": [
+        {**node, "description": "Generated material note.", "descriptionSource": "suggested"}
+        if node["name"] == "material" else
+        {**node, "description": "Researcher site note."} if node["name"] == "site" else node
+        for node in catalog.SCHEMA["schemaNodes"]
+    ]}
+    _, chat = extract(evidence("1. Hill. Material: gold."), schema=schema)
+    assert "Generated material note." not in repr(chat.calls)
+    assert "- site: Researcher site note." in entry_system(chat)
+
+
 def test_a_value_whose_quote_is_missing_or_found_nowhere_stays_in_the_record_without_evidence():
     """A scalar, or a leaf of an item code located by another value; an item with no located value stays a proposal."""
     source = evidence("1. Hill. Material: gold. Find: bead (2) Find: cup (1) Find: lid (3)")

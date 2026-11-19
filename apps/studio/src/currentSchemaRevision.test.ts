@@ -707,11 +707,11 @@ describe('generation lifecycle', () => {
       declareFieldDescriptions([{ path: ['place'], description: 'The find place as printed.' }])
       return { _description: 'One generated record.', place: 'string' }
     })
-    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'place', description: 'The find place as printed.' })
+    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'place', description: 'The find place as printed.', descriptionSource: 'suggested' })
 
     await setup.controller.restoreGeneration({ _description: 'One restored record.', restored: 'string' }, 'rev-2', null,
       [{ path: ['restored'], description: 'The restored value.' }])
-    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'restored', description: 'The restored value.' })
+    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'restored', description: 'The restored value.', descriptionSource: 'suggested' })
   })
 
   it('restoreGeneration saves onto a clean base and drops on a conflict without an error', async () => {
