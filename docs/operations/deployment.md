@@ -178,6 +178,8 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   selector. The migration removes retired generic/recipe account preferences and the `extraction.catalogRecipe`
   column; live unified preferences and Article settings stay. Old generic/recipe Extractions cannot resume and
   should be run again. Drain in-flight Catalog work before deploying. This decision does not claim held-out accuracy.
+  Unified Catalog defaults 12 replaced 11 with a data-only migration that moves the stored Catalog method pins to
+  12 and leaves saved results as they are. It refuses to run while an Extraction is queued or running: drain first.
 - `FREE_ADMIN_DATABASE_URL`'s role must own database `free` or hold `CREATE`
   on it, and be able to create roles; Compose uses `postgres`. The entrypoint
   refuses to prepare a `free_studio` or `kei` that is a superuser or owns

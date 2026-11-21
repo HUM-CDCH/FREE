@@ -149,7 +149,8 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
   await client.query('INSERT INTO public."batchSchemaSuggestion" (id,"projectContextId","selectionKey",coverage) VALUES ($1,$2,$3,$4)',
     [suggestionId, pins.projectContextId, randomBytes(32).toString('hex'), JSON.stringify(coverage)])
 
-  assert.deepEqual((await migrate(target.url)).applied, ['20261116T0040_retire_legacy_contracts', '20261116T0847_unified_catalog'])
+  assert.deepEqual((await migrate(target.url)).applied,
+    ['20261116T0040_retire_legacy_contracts', '20261116T0847_unified_catalog', '20261121T1855_unified_defaults_12'])
 
   const count = async (sql: string, ids: string[]) => (await client.query(sql, [ids])).rows[0].n
   assert.equal(await count('SELECT count(*)::int AS n FROM public.extraction WHERE id = ANY($1)', retired), 0)
@@ -165,7 +166,10 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
   assert.equal(await count('SELECT count(*)::int AS n FROM extraction_runtime.correction WHERE "extractionId" = ANY($1)', [article, ...current]), 4)
   assert.deepEqual((await client.query('SELECT "requestedSettings" AS s FROM public."batchExtraction" WHERE id=$1', [articleBatch])).rows[0].s,
     { article: { context: 'full' } })
-  assert.deepEqual((await client.query('SELECT id,"requestedSettings" FROM public.extraction WHERE id = ANY($1) ORDER BY id', [current])).rows, before)
+  // The retirement keeps these pins as they were; the chain's last migration then moves the Catalog ones to defaults 12.
+  assert.deepEqual((await client.query('SELECT id,"requestedSettings" FROM public.extraction WHERE id = ANY($1) ORDER BY id', [current])).rows,
+    before.map(row => row.requestedSettings.unified
+      ? { ...row, requestedSettings: { unified: { ...row.requestedSettings.unified, defaults: 12 } } } : row))
   const preference = async (account: string) => (await client.query(
     'SELECT document FROM public."modelConfiguration" WHERE "researcherAccountId"=$1', [account])).rows[0].document
   assert.deepEqual(await preference(pins.accountId),

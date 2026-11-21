@@ -114,6 +114,15 @@ FREE's normative product and safety contract is:
    If incompatible stored shapes remain, the migration fails and rolls back
    the cleanup. Resolve incompatible development data or use the guarded
    local `pnpm db:reset` before retrying. Production is never reset.
+   When Unified Catalog defaults 12 replaced defaults 11, a data migration
+   moved the stored method pins of existing Catalog Extractions to 12: the
+   requested settings of Extractions and Batch Extractions, each Producing
+   Input Selection's method and resolved options, and each resolved
+   configuration with its digest. It also requires drained Extractions.
+   Results, corrections, saved snapshots, plans and call captures are
+   unchanged, so the execution record of a saved result still names defaults
+   11. Resume and Retry use the existing Producing Input Selection under
+   defaults 12.
 9. **Proxy parity.** Production runs behind the host-managed nginx or the
    bundled nginx container; local uses containerized nginx. All render the
    same version-controlled proxy fragment for `/free` routing, forwarded

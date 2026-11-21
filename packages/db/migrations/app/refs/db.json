@@ -6,6 +6,7 @@
     "extraction-runtime.claude-code-extraction",
     "extraction-runtime.codex-extraction",
     "extraction-runtime.value-disagreement",
-    "retired-contracts.require-current-data"
+    "retired-contracts.require-current-data",
+    "unified-catalog.defaults-12"
   ]
 }
