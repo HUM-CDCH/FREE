@@ -147,6 +147,11 @@ NEAR = 40
 # 13-record catalogue whose records all inherit one field (15 November 2026, Qwen3.8-27B-NVFP4, the frozen values of
 # two field models): 2 calls and 3,790 tokens against 26 calls and 19,842 with one call per record; the 6 wrong
 # values stayed rejected and the 4 correct ones the single calls rejected were linked, also with 4 or 7 records a call.
+# That reading answers with the value alone: a candidate it equals keeps the place code located for the entry's quote,
+# so no second quote is generated or located. Measured on three documents of 13, 81 and 7 records (21 November 2026,
+# Qwen3.8-27B-NVFP4 on a shared GPU, the frozen replies of two field models, before the sentence on judged candidates
+# left `VERIFY_RECORD`): the readings' output fell from 293 to 84, 2,328 to 926 (3,861 to 1,390) and 307 to 109
+# tokens, 4 to 77 s a document; two documents kept every link, the third went from 264 to 270 (308 to 307).
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 # Only `DEFAULTS_VERSION` is admitted; the notes above record how its choices were reached. A change of behaviour
 # replaces it under a new number, never beside it: the number is the execution's provenance, not a switch. Behaviour
@@ -483,10 +488,14 @@ class _Found:
     verified: bool = False
 
 
+def _value(node: Node) -> dict:
+    """A scalar field's value schema, null included: a candidate's value, and an independent reading's whole answer."""
+    return json_schema([node])["properties"][node.name]
+
+
 def _leaf(node: Node) -> dict:
-    return {"type": ["object", "null"], "properties": {
-        "value": json_schema([node])["properties"][node.name], "quote": {"type": "string"}},
-        "required": ["value", "quote"], "additionalProperties": False}
+    return {"type": ["object", "null"], "properties": {"value": _value(node), "quote": {"type": "string"}},
+            "required": ["value", "quote"], "additionalProperties": False}
 
 
 def candidates_schema(nodes: list[Node]) -> dict:
@@ -761,10 +770,8 @@ SINGLE_PASS = ("\nGive each value complete: a descriptive field's whole passage 
                "text of other fields.")
 VERIFY_RECORD = (
     "Read the source independently of any shown candidate value, for one record. A record is: {description}\n{notes}\n"
-    "Candidates are of two kinds. One shown with only its field path is a field to read again: return {{\"value\", "
-    "\"quote\"}} with its value for THIS RECORD and an exact source quote, or null if the source does not give it. "
-    "One shown with a value and quote is to be judged: answer supported, unsupported or unclear; its value must "
-    "belong to this subject or list item in the RECORD. Read each field's meaning, not just a matching word. "
+    "Each candidate is shown with only its field path, a field to read again: return its value for THIS RECORD, or "
+    "null if the source does not give it. Read each field's meaning, not just a matching word. "
     "CONTEXT contains surrounding source, including other records: only an applicable shared heading or an "
     "explicitly shared table qualification may supply a value from it. When CONTEXT names the enclosing record, a "
     "scalar may inherit what is stated for that whole record or a group containing this child, never what belongs "
@@ -776,9 +783,9 @@ VERIFY_RECORD = (
 # One reading per record of a field the records under one admitted heading may inherit from it (`_Run._shared`).
 VERIFY_RECORDS = (
     "Read the source independently for each marked record. A record is: {description}\n{notes}\n"
-    "FIELD names one field to read again. For each record label return {{\"value\", \"quote\"}} with that field's "
-    "value for THAT RECORD and an exact source quote, or null if the source does not give it. Read every record on "
-    "its own, and the field's meaning, not just a matching word. "
+    "FIELD names one field to read again. For each record label return that field's value for THAT RECORD, or null "
+    "if the source does not give it. Read every record on its own, and the field's meaning, not just a matching "
+    "word. "
     "CONTEXT contains surrounding source, including other records: only an applicable shared heading or an "
     "explicitly shared table qualification may supply a value from outside a record's own text; another record's "
     "text never supplies it. Follow headings in source order: a later statement replaces an earlier value only "
@@ -787,7 +794,8 @@ VERIFY_RECORDS = (
     "relationship; do not transfer properties from related entities unless the source supports that attribution. "
     "Return only the requested JSON object. Do not infer missing values.")
 # shortcut: a fixed number of records per shared reading, sized so that their replies stay well inside the
-# verification reserve (2048 tokens; a reading measured 21 to 44); count the replies if readings grow longer.
+# verification reserve (2048 tokens; a reading measured 21 to 44 when it also quoted its source); count the replies if
+# readings grow longer.
 SHARED = 16
 _ALONE = object()  # no shared reading: the record's own verification call reads it
 
@@ -1015,7 +1023,7 @@ class _Run:
                        for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
         replies = self._record_evidence(entry, replies, out, view)
-        self._verify(number, replies, out, owned=units, parent=parent, context=heading, settled=verify)
+        self._verify(number, replies, out, owned=units, parent=parent, settled=verify)
         order = {segment: index for index, segment in enumerate(self.texts)}
         in_source = lambda unit: (order[unit.segment], unit.start, unit.end)
         view = _view(sorted({*(unit for window, _ in replies for unit in window.heading), *units}, key=in_source),
@@ -1064,12 +1072,13 @@ class _Run:
         return [(replace(window, heading=heading), answer) for window, answer in replies]
 
     def _shared(self, number: int, path: tuple, out: _Work) -> Any:
-        """This record's independent reading of `path` from the one call the records under its heading share, or
-        `_ALONE`. The request shows the source from that heading to the last of up to `SHARED` records once, each
-        record under its label and everything else as context, so a heading between them that supersedes it is
-        still seen, and it holds no candidate value. It is composed from discovery alone: whichever record asks
-        first asks for all, a durable round captures it once, and no record waits on another's entry call. A request
-        over the budget or without a valid reply is asked again in halves; a record left alone reads alone."""
+        """This record's independent reading of `path`, the field's value alone or null, from the one call the records
+        under its heading share, or `_ALONE`. The request shows the source from that heading to the last of up to
+        `SHARED` records once, each record under its label and everything else as context, so a heading between them
+        that supersedes it is still seen, and it holds no candidate value. It is composed from discovery alone:
+        whichever record asks first asks for all, a durable round captures it once, and no record waits on another's
+        entry call. A request over the budget or without a valid reply is asked again in halves; a record left alone
+        reads alone."""
         if number not in self.groups:
             return _ALONE
         earliest, members = self.groups[number]
@@ -1109,7 +1118,7 @@ class _Run:
                         for owner, units in blocks) + \
                         f"\n\n### FIELD\n{'.'.join(str(step) for step in _field_path(path))}" \
                         "\n\nReturn the JSON object now."
-                    schema = {"type": "object", "properties": dict.fromkeys(labels, _leaf(node)),
+                    schema = {"type": "object", "properties": dict.fromkeys(labels, _value(node)),
                               "required": labels, "additionalProperties": False}
                     calls: list = []
                     issues: list = []
@@ -1118,9 +1127,8 @@ class _Run:
                             "verification", chunk[0], system, user, schema, calls, issues,
                             out.unit and f"heading:{earliest.segment}:{earliest.start}", out.page) \
                             if self.budget.fits("verification", system, user, schema) else None
-                        if answer is not None and not all(answer[label] is None or isinstance(answer[label], dict)
-                                                          and "value" in answer[label] for label in labels):
-                            answer = None
+                        if answer is not None and any(isinstance(answer[label], (dict, list)) for label in labels):
+                            answer = None  # a reading is the field's value alone, or null
                         self._readings[key] = (answer, calls, issues)
                     except BaseException as waiting:  # noqa: BLE001 - asking again this round would be another call
                         self._readings[key] = waiting
@@ -1137,12 +1145,12 @@ class _Run:
         return _ALONE
 
     def _verify(self, number: int, replies: list[tuple[Window, dict | None]], out: _Work, *,
-                owned: list[Unit], parent: bool = False, context: tuple[Unit, ...] = (),
-                settled: bool = True) -> None:
+                owned: list[Unit], parent: bool = False, settled: bool = True) -> None:
         """Code accepts a value it located in the record (linked `lexical`). A field with a scalar located outside it
         (inherited from a heading) is read again, independently and never shown its candidate, in counted requests per
-        window that are halved on failure; `settled` says discovery is complete, so the records sharing a heading,
-        which share that reading, are known (`_shared`)."""
+        window that are halved on failure; the reading answers with the value alone, and a candidate it equals is
+        accepted where code located the entry's quote. `settled` says discovery is complete, so the records sharing a
+        heading, which share that reading, are known (`_shared`)."""
         # A lexical match outside the record is never accepted without that reading.
         outside = lambda found: any(not any(own.segment == span.segment_id and own.start <= span.start
                                             and span.end <= own.end for own in owned) for span in found.spans)
@@ -1194,40 +1202,20 @@ class _Run:
                         f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}"
                         for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
                     schema = {"type": "object", "properties": {
-                        label: _leaf(nodes[found.path]) for label, found in zip(labels, group, strict=True)},
+                        label: _value(nodes[found.path]) for label, found in zip(labels, group, strict=True)},
                               "required": labels, "additionalProperties": False}
                     fits = self.budget.fits("verification", system, user, schema)
                     answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
                                              out.unit, out.page) if fits else None
-                if answer is not None and all(label in answer and (
-                        answer[label] is None or isinstance(answer[label], dict) and "value" in answer[label])
-                        for label in labels):
+                if answer is not None and all(label in answer and not isinstance(answer[label], (dict, list))
+                                              for label in labels):
                     for label, found in zip(labels, group, strict=True):
-                        value = answer[label]
-                        # Shared readings see the whole owned record; siblings and unadmitted context cannot ground it.
-                        view = _view(owned if id(found) in shared else
-                                     [*window.before, *window.primary, *window.after], self.texts)
-                        checker = _Checker(view, (0, len(view.text)), index, self.nodes, self.tables, repair=False,
-                            context=_view(list(context), self.texts) if context else None)
-                        if value is None or value["value"] is None:
-                            # A null quoting the candidate's own printed value contradicts itself: left for review.
-                            quote = value and value.get("quote")
-                            unclear = isinstance(quote, str) and quote.strip() and found.spans and any(
-                                all(any(s.segment_id == q.segment_id and q.start <= s.start and s.end <= q.end
-                                        for q in spans) for s in found.spans)
-                                for spans in checker._places(quote))
-                            found.kind, found.reason = ("proposed", "verification_unclear") if unclear else \
-                                ("rejected", "verification_rejected")
-                            continue
-                        corrected = checker._scalar(found.path, nodes[found.path], value, None, None)
-                        if typed_value(value["value"], nodes[found.path]) != found.value:
-                            found.kind, found.reason = "rejected", "verification_rejected"
-                        elif corrected.kind == "candidate":
-                            found.spans, found.alternatives, found.support = corrected.spans, corrected.alternatives, corrected.support
-                            found.kind, found.reason = "accepted", None
-                            found.verified = True
+                        # The reading is the value alone. Its own candidate, when equal, keeps the spans, alternatives
+                        # and support code located for the entry's quote; a null or another value rejects it.
+                        if typed_value(answer[label], nodes[found.path]) == found.value:
+                            found.kind, found.reason, found.verified = "accepted", None, True
                         else:
-                            found.kind, found.reason = "proposed", "verification_unresolved"
+                            found.kind, found.reason = "rejected", "verification_rejected"
                 elif len(group) > 1:
                     pending[0:0] = [group[:len(group) // 2], group[len(group) // 2:]]
                 elif not fits:  # one value whose check never fits this budget: final, left for review

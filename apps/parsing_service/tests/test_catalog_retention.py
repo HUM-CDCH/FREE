@@ -32,8 +32,7 @@ def retained(result, tree=SCHEMA):
     return [value for publication in lease.publications.values() for value in publication["values"]]
 
 
-@pytest.mark.parametrize('reply', [candidate(None, 'Kreis Reference: 42'),
-                                   candidate('An invented value', 'Kreis Reference: 42')])
+@pytest.mark.parametrize('reply', [None, 'An invented value'])
 def test_an_inherited_scalar_whose_independent_reading_disagrees_is_rejected(reply):
     """Not Pro's doubtful verdict, kept for review: a reading that answers otherwise refuses the inherited value."""
     result = inherited(reply)
@@ -45,7 +44,7 @@ def test_an_inherited_scalar_whose_independent_reading_disagrees_is_rejected(rep
 
 
 def test_an_accepted_value_and_its_evidence_take_priority_over_proposals():
-    result = inherited(candidate('42', 'Kreis Reference: 42'))
+    result = inherited('42')
     result['proposed'].append({'path': ['records', 0, 'reference'], 'value': 'wrong'})
     value, = retained(result)
     assert value['modelValue'] == '42' and value['grounding'] == 'grounded' and value['evidence']
@@ -82,8 +81,8 @@ def test_recipe_proposals_keep_their_existing_contract():
     assert value['modelValue'] is None and value['processing'] == 'absent'
 
 
-@pytest.mark.parametrize('reply', [{}, {'quote': 'Kreis Reference: 42'}])
-def test_a_missing_verifier_value_is_not_an_explicit_null(reply):
+@pytest.mark.parametrize('reply', [{}, candidate('42', 'Kreis Reference: 42')], ids=['empty', 'retired-quoted-shape'])
+def test_a_reading_that_is_not_the_value_alone_is_neither_agreement_nor_an_explicit_null(reply):
     result = inherited(reply)
     assert [(proposal['value'], proposal['reason']) for proposal in result['proposed']] == [('42', 'verification_unresolved')]
     value, = retained(result)

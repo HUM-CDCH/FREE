@@ -253,23 +253,27 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   the record's owned ranges, not a list item's identifying anchor cell. A missing or unlocated quote stays a proposal
   without Evidence. Links keep record attribution context alongside value spans. A scalar located outside the
   record's owned ranges (inherited from a heading) requires an independent reading without the candidate value,
-  using intervening source to expose superseded headings; only an equal, source-located reading receives Evidence
-  (`verification`), and the check never substitutes a different value. Only the record's own text or its admitted
-  context can supply the supporting quote: intervening records are shown to judge supersession, not to supply
-  inherited values. Records that share their earliest admitted heading are read in one call per field, up to 16
-  records at a time: the source from that heading to the last of them is shown once, each record under its own
-  label, and each record's reading is still judged alone. With multiple inherited fields, sharing can require more
-  calls than the individual check, which batches those fields per record. A child, a record whose context does not
-  all precede it, and a shared reply that is not valid keep one call per record. Which records share a heading is
-  known once discovery is complete: a durable run that reads entries earlier keeps such a value as a
-  `verification_pending` proposal until then. A value whose own check cannot fit the verification budget (the source
-  from its heading to the record is too long) stays a `verification_over_budget` proposal: final, so the record is
-  saved and processing completes, with a `verification_over_budget` issue; only a failed or invalid reply stays
-  undecided. Disagreeing accepted values go to arbitration with their source.
+  using intervening source to expose superseded headings. That reading returns the field's value alone, or null,
+  with no quote: only a candidate it equals receives Evidence (`verification`), at the place code located for the
+  entry's own quote; a null or a different value rejects the candidate, and the check never substitutes a different
+  value. Only the record's own text or its admitted context can supply that quote: intervening records are shown
+  to judge supersession, not to supply inherited values. Records that share their earliest admitted heading are
+  read in one call per field, up to 16 records at a time: the source from that heading to the last of them is shown
+  once, each record under its own label, and each record's reading is still judged alone. With multiple inherited
+  fields, sharing can require more calls than the individual check, which batches those fields per record. A child,
+  a record whose context does not all precede it, and a shared reply that is not valid keep one call per record.
+  Which records share a heading is known once discovery is complete: a durable run that reads entries earlier keeps
+  such a value as a `verification_pending` proposal until then. A value whose own check cannot fit the verification
+  budget (the source from its heading to the record is too long) stays a `verification_over_budget` proposal:
+  final, so the record is saved and processing completes, with a `verification_over_budget` issue; only a failed or
+  invalid reply (one that is not the value alone included) stays undecided, a `verification_unresolved` proposal.
+  Disagreeing accepted values go to arbitration with their source.
   Known limits: a heading value reaches this check only when the entry model quotes the heading, although the
   entry prompt says CONTEXT is not part of the record; a model that obeys strictly leaves the field null. A list
-  item's value quoted from a sibling item's text is still located, and linked, by rule. The verification reserve
-  (2048 tokens) can cut off a long inherited value's reading, which then stays an unresolved proposal.
+  item's value quoted from a sibling item's text is still located, and linked, by rule. The independent reading
+  names no source: when it agrees, nothing tells a value it took from another record's text from one it read at
+  the admitted heading. The verification reserve (2048 tokens) can cut off a long inherited value's reading, which
+  then stays an unresolved proposal.
   There is no verification switch: Studio's Pro mode (every value judged again) is retired, unmeasured on this
   version, and a request naming `verification` is refused. Studio admits defaults 11 for every new Catalog. The
   [pipeline map](docs/extraction-experiments.md#pipeline-map) traces each method's calls.
