@@ -213,7 +213,7 @@ test('protocol expansion preserves existing public rows and exposes only fenced 
       VALUES ($1,$2,1,$3,$4,$5,'{}','{}',$4)`,[selected,id,history.revisions.catalog,'a'.repeat(64),{recordDescription:'record',schemaNodes:[flagNode]}])
     await owner.query(`INSERT INTO extraction_runtime.attempt (id,"extractionId","selectionId",fence,"workflowId") VALUES ($1,$2,$3,1,$4)`,[active,id,selected,`test:${active}`])
     const lease=await invoke('claim',[id,active,randomUUID()])
-    const configuration={models:{fields:provider,reasoning:provider},options:policy.unified?{unified:{defaults: 11}}:{},planner:1,protocols:{calls:1,source:'records'}}
+    const configuration={models:{fields:provider,reasoning:provider},options:policy.unified?{unified:{defaults: 12}}:{},planner:1,protocols:{calls:1,source:'records'}}
     await invoke('resolve_selection',[id,active,lease.epoch,configuration])
     const savedPlan=await invoke('publish_plan',[id,active,lease.epoch,randomUUID(),'record',
       {plannerVersion:1,selectionId:selected,sourceGeneration:'g1',units:[{key:'policy'}],coverage:{}}])

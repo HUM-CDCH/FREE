@@ -85,23 +85,23 @@ test('a Catalog Extraction pins the unified method', () => {
   const account = (catalog: unknown) => ({ extractionModels: {}, extractionSettings: { catalog } })
   const saved: ExtractionSettings = { catalog: { unified: { overlap: 0, headings: false } } }
   const method = activeMethod({ fields: 'nuextract' }, saved, 'CATALOG')
-  assert.deepEqual(method.settings, { unified: { defaults: 11, overlap: 0, headings: false } })
+  assert.deepEqual(method.settings, { unified: { defaults: 12, overlap: 0, headings: false } })
   assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', method.models, method.settings)), {
-    strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 11, overlap: 0, headings: false },
+    strategy: 'catalog', models: { fields: 'nuextract' }, unified: { defaults: 12, overlap: 0, headings: false },
   })
   assert.deepEqual(activeSettings(saved, 'ARTICLE'), { article: REFERENCE_ARTICLE })
-  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { headings: false, defaults: 11 } } }, 'CATALOG'),
-    { models: null, settings: { unified: { defaults: 11, headings: false } } })
-  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 11 } } }, 'ARTICLE'), null)
-  assert.deepEqual(storedSettings({ unified: { defaults: 11 } }, 'CATALOG'), { unified: { defaults: 11 } })
+  assert.deepEqual(canonicalIntent({ models: null, settings: { unified: { headings: false, defaults: 12 } } }, 'CATALOG'),
+    { models: null, settings: { unified: { defaults: 12, headings: false } } })
+  assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 12 } } }, 'ARTICLE'), null)
+  assert.deepEqual(storedSettings({ unified: { defaults: 12 } }, 'CATALOG'), { unified: { defaults: 12 } })
   const applied = canonicalExtractionSettings({ catalog: { unified: { overlap: 2 } } })
-  assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG').settings, { unified: { defaults: 11, overlap: 2 } })
+  assert.deepEqual(accountMethod(account(applied.catalog), 'CATALOG').settings, { unified: { defaults: 12, overlap: 2 } })
   // The retired verification switch is refused wherever it is read: saved preference, submitted or admitted method.
   for (const verification of [true, false]) {
     assert.throws(() => accountMethod(account({ unified: { verification, overlap: 0 } }), 'CATALOG'),
       (error: unknown) => error instanceof ExtractionError && error.code === 'invalid_model_config')
-    assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 11, verification } } }, 'CATALOG'), null)
-    assert.throws(() => storedSettings({ unified: { defaults: 11, verification } }, 'CATALOG'), ExtractionError)
+    assert.equal(canonicalIntent({ models: null, settings: { unified: { defaults: 12, verification } } }, 'CATALOG'), null)
+    assert.throws(() => storedSettings({ unified: { defaults: 12, verification } }, 'CATALOG'), ExtractionError)
   }
   assert.deepEqual(canonicalExtractionSettings({ catalog: { unified: {} } }), {})
   assert.equal(extractionSettingsSchema.safeParse({ catalog: { unified: { input_tokens: 100 } } }).success, false)
@@ -110,7 +110,7 @@ test('a Catalog Extraction pins the unified method', () => {
 test('heading candidate overrides survive saved settings and pinned methods', () => {
   const settings: ExtractionSettings = { catalog: { unified: { candidates: 8, headings: true } } }
   assert.deepEqual(canonicalExtractionSettings(settings), settings)
-  const pinned = { unified: { defaults: 11 as const, candidates: 8, headings: true } }
+  const pinned = { unified: { defaults: 12 as const, candidates: 8, headings: true } }
   assert.deepEqual(storedSettings(pinned, 'CATALOG'), pinned)
   assert.deepEqual(keiMethodOptions(extractionMethod('CATALOG', null, pinned)), {
     strategy: 'catalog', ...pinned,
@@ -120,7 +120,7 @@ test('heading candidate overrides survive saved settings and pinned methods', ()
 
 
 test('Catalog always pins unified defaults and refuses retired methods and preferences', () => {
-  assert.deepEqual(activeMethod(null, {}, 'CATALOG'), { models: null, settings: { unified: { defaults: 11 } } })
+  assert.deepEqual(activeMethod(null, {}, 'CATALOG'), { models: null, settings: { unified: { defaults: 12 } } })
   assert.deepEqual(accountMethod(null, 'CATALOG'), activeMethod(null, {}, 'CATALOG'))
   for (const settings of [{ generic: null }, { recipe: null }]) {
     assert.equal(canonicalIntent({ models: null, settings }, 'CATALOG'), null)

@@ -74,13 +74,13 @@ describe('Batch start methods', () => {
   const selection = { projectContextId, schemaRevisionId, sourceDocumentIds: sourceDocumentIds.slice(0, 1) }
 
   it("requires the saved method of the strategy's own settings, never a recipe's", () => {
-    for (const [strategy, settings] of [['ARTICLE', { article: REFERENCE_ARTICLE }], ['CATALOG', { unified: { defaults: 11 } }]] as const) {
+    for (const [strategy, settings] of [['ARTICLE', { article: REFERENCE_ARTICLE }], ['CATALOG', { unified: { defaults: 12 } }]] as const) {
       const request = { strategy, method: { models: { fields: 'instruct' }, settings } }
       expect(batchExtractionRequestSchema.safeParse({ ...selection, ...request }).success).toBe(true)
     }
     for (const request of [
       { strategy: 'ARTICLE' },
-      { strategy: 'ARTICLE', method: { models: null, settings: { unified: { defaults: 11 } } } },
+      { strategy: 'ARTICLE', method: { models: null, settings: { unified: { defaults: 12 } } } },
       { strategy: 'ARTICLE', method: { models: null, settings: { recipe: null } } },
       { strategy: 'CATALOG', method: { models: null, settings: { recipe: null } } },
     ]) {

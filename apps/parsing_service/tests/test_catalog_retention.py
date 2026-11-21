@@ -52,7 +52,7 @@ def test_an_accepted_value_and_its_evidence_take_priority_over_proposals():
 
 @pytest.mark.parametrize(('proposals', 'expected'), [(['42', '42'], '42'), (['42', '43'], None), ([42], None)])
 def test_only_one_distinct_typed_proposal_can_fill_an_absent_scalar(proposals, expected):
-    result = {'strategy': 'catalog', 'options': {'unified': {'defaults': 11}}, 'records': [{'reference': None}],
+    result = {'strategy': 'catalog', 'options': {'unified': {'defaults': 12}}, 'records': [{'reference': None}],
               'proposed': [{'path': ['records', 0, 'reference'], 'value': value} for value in proposals]}
     value, = retained(result)
     assert value['modelValue'] == expected and value['grounding'] == 'ungrounded' and not value['evidence']
@@ -62,7 +62,7 @@ def test_proposals_follow_object_fields_without_inventing_list_identity():
     tree = {'recordDescription': 'An entry', 'schemaNodes': [
         {'id': 'group', 'name': 'details', 'type': 'object', 'children': SCHEMA['schemaNodes']},
         {'id': 'items', 'name': 'items', 'type': 'array', 'children': SCHEMA['schemaNodes']}]}
-    result = {'strategy': 'catalog', 'options': {'unified': {'defaults': 11}},
+    result = {'strategy': 'catalog', 'options': {'unified': {'defaults': 12}},
               'records': [{'details': None, 'items': [{'reference': None}]}], 'proposed': [
                   {'path': ['records', 0, 'details', 'reference'], 'value': '42'},
                   {'path': ['records', 0, 'items', 0, 'reference'], 'value': '43'},

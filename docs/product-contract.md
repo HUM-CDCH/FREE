@@ -71,7 +71,7 @@ FREE's normative product and safety contract is:
    service defaults. Article records the shared Studio and Parsing Service
    default explicitly: the whole source, large checks in windows. Null Article
    settings and retired Article keys are refused. Unified Catalog accepts only
-   defaults 11, with no verification switch (Pro mode is retired). Saved settings never edit an
+   defaults 12, with no verification switch (Pro mode is retired). Saved settings never edit an
    Extraction Schema and never hold a key. A Project Context uses its owner's configuration. The
    Model Configuration page supports Ollama, OpenAI, Anthropic, Google, vLLM
    and OpenAI-compatible connections. A researcher's API keys stay in their

@@ -22,7 +22,7 @@ describe('method summaries', () => {
 
 
 it('shows the heading candidate ceiling with defaults 7 and with saved overrides', () => {
-  expect(unifiedLines({ defaults: 11 })).toContainEqual({ label: 'Heading excerpts measured', value: 'service default (32 excerpts)' })
-  expect(unifiedLines({ defaults: 11, candidates: 1 })).toContainEqual({ label: 'Heading excerpts measured', value: '1 excerpt' })
-  expect(settingsHeadline({ unified: { defaults: 11 } })).toBe('Unified Catalog, defaults version 11')
+  expect(unifiedLines({ defaults: 12 })).toContainEqual({ label: 'Heading excerpts measured', value: 'service default (32 excerpts)' })
+  expect(unifiedLines({ defaults: 12, candidates: 1 })).toContainEqual({ label: 'Heading excerpts measured', value: '1 excerpt' })
+  expect(settingsHeadline({ unified: { defaults: 12 } })).toBe('Unified Catalog, defaults version 12')
 })

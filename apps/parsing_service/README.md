@@ -238,10 +238,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   page end without a hyphen joins nothing. Complete structured replies are budgeted before admission; oversized
   batches split without truncating source evidence. Unanswered claims and malformed context replies remain
   incomplete; NONE is a completed rejection.
-  Every Catalog uses unified (result version 3). An omitted Catalog settings object uses defaults version 11.
+  Every Catalog uses unified (result version 3). An omitted Catalog settings object uses defaults version 12.
   `options.unified = {defaults, input_tokens?, output_tokens?, overlap?, candidates?, headings?}` runs the unified
   Catalog: result version 3, no recipe and no character limits (a request naming either is refused). Only defaults
-  version 11 is accepted; the number is recorded as the execution's provenance, never read as a switch.
+  version 12 is accepted; the number is recorded as the execution's provenance, never read as a switch.
   Discovery reads records across physical pages within counted token budgets, discovers peer records according to
   the schema, identifies shared table qualifications, and pipelines children discovery for settled records. A child
   owns its lines and reads its enclosing record's remaining text as context. Durable runs save entries once their
@@ -275,7 +275,7 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   the admitted heading. The verification reserve (2048 tokens) can cut off a long inherited value's reading, which
   then stays an unresolved proposal.
   There is no verification switch: Studio's Pro mode (every value judged again) is retired, unmeasured on this
-  version, and a request naming `verification` is refused. Studio admits defaults 11 for every new Catalog. The
+  version, and a request naming `verification` is refused. Studio admits defaults 12 for every new Catalog. The
   [pipeline map](docs/extraction-experiments.md#pipeline-map) traces each method's calls.
 
 Limitations:

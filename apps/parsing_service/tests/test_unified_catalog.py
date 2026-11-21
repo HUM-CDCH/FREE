@@ -139,7 +139,7 @@ def title(source: str) -> dict:
 
 def request(schema=SCHEMA, start_page: int | None = None, **settings) -> run.ExtractRequest:
     return run.ExtractRequest.model_validate({"schema": schema, "options": {
-        "strategy": "catalog", "unified": {"defaults": 11, **settings},
+        "strategy": "catalog", "unified": {"defaults": 12, **settings},
         **({"start_page": start_page} if start_page is not None else {})}})
 
 
@@ -1708,12 +1708,12 @@ def test_an_already_bounded_or_prompt_only_entry_is_not_recovered(monkeypatch, m
 def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
     with pytest.raises(ValueError, match="record_chars"):
         run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
-            "strategy": "catalog", "record_chars": 24_000, "unified": {"defaults": 11}}})
+            "strategy": "catalog", "record_chars": 24_000, "unified": {"defaults": 12}}})
     with pytest.raises(ValueError, match="recipe"):
         run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
-            "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}, "unified": {"defaults": 11}}})
+            "strategy": "catalog", "catalog": {"recipe": "numbered-catalogue-de@1"}, "unified": {"defaults": 12}}})
     assert request(overlap=0).options.dumped() == {"strategy": "catalog", "models": None,
-                                                   "unified": {"defaults": 11, "overlap": 0}}
+                                                   "unified": {"defaults": 12, "overlap": 0}}
     for retired in (5, 10):  # only the current version is admitted; earlier ones are refused, never run
         with pytest.raises(ValueError, match="defaults"):
             request(defaults=retired)
@@ -1724,10 +1724,10 @@ def test_unified_options_refuse_legacy_limits_and_record_no_character_limits():
 def test_a_start_page_is_a_strict_one_based_integer_that_the_artifact_never_records():
     """The start page orders the work (service README, start_page); the artifact and its fingerprint are those of the
     request without it."""
-    with_page = run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 11}, "start_page": 6})
+    with_page = run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 12}, "start_page": 6})
     assert with_page.start_page == 6
     assert "start_page" not in with_page.dumped()
-    assert with_page.dumped() == run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 11}}).dumped()
+    assert with_page.dumped() == run.Options.model_validate({"strategy": "catalog", "unified": {"defaults": 12}}).dumped()
     assert run.Options.model_validate({"strategy": "article", "start_page": 400}).start_page == 400  # beyond the document: an order from its end
     for refused in (0, -1, "6", 6.0, True):  # strict, as UnifiedOptions is: a page is an integer, never coerced
         with pytest.raises(ValidationError):
@@ -1805,7 +1805,7 @@ def test_the_version_3_contract_fixture_is_what_the_service_produces(tmp_path, m
     assert produced["complete"] is True and len(produced["records"]) == 2
     assert "extraction_id" not in produced["execution"] and not (run_dir / "extractions").exists()
     fixture = {"source": {"run_id": source.run_id, "generation": source.generation},
-               "request": {"schema": scoped, "options": {"strategy": "catalog", "unified": {"defaults": 11}}},
+               "request": {"schema": scoped, "options": {"strategy": "catalog", "unified": {"defaults": 12}}},
                "manifest": json.loads((run_dir / "result" / "result.json").read_text(encoding="utf-8")),
                "pages": [json.loads((run_dir / "result" / "pages" / "1.json").read_text(encoding="utf-8"))],
                "artifact": produced}

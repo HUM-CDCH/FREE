@@ -192,7 +192,7 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
             "C1": {"type": ["string", "null"], "x-free-type": "string"}}
         return {"C1": reading}
     chat = as_router(CountingChat(answer))
-    options = unified.UnifiedOptions(defaults=11)
+    options = unified.UnifiedOptions(defaults=12)
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
     effective = unified._execution(source, schema, options, chat, counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective)
@@ -219,7 +219,7 @@ def test_new_catalog_defaults_run_attachment_through_the_real_entry_path():
         if system.startswith("Read the source independently"):
             return {"C1": "Moor"}
         return model(system, user, reply_schema)
-    result, _ = extract(source, answer, schema=schema, defaults=11)
+    result, _ = extract(source, answer, schema=schema, defaults=12)
     assert result["records"] == [{"region": "Moor"}]
     assert result["evidence"][0]["context"] == result["discovery"]["entries"][0]["ranges"]
     assert result["evidence"][0]["linked_by"] == "verification"
@@ -230,7 +230,7 @@ def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="r
         {"id": "r", "name": field, "type": "string"}]})
     chat = as_router(CountingChat(answer))
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
-    effective = unified._execution(source, schema, unified.UnifiedOptions(defaults=11, headings=headings),
+    effective = unified._execution(source, schema, unified.UnifiedOptions(defaults=12, headings=headings),
                                    chat, counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]),
                          {p.id: p.text for p in source.passages}, effective, entries=entries)
@@ -263,13 +263,13 @@ def test_other_records_cannot_supply_inherited_evidence_even_if_the_verifier_agr
 
 
 def tight_runner(text, reads, answer, input_tokens, **entries):
-    """A defaults 11 runner over `text` whose verification input budget is `input_tokens` (WordCounter words)."""
+    """A defaults 12 runner over `text` whose verification input budget is `input_tokens` (WordCounter words)."""
     schema = Schema.model_validate({"recordDescription": "One numbered entry", "schemaNodes": [
         {"id": "r", "name": "region", "type": "string"}]})
     chat = as_router(CountingChat(answer))
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
     effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(
-        defaults=11, input_tokens=input_tokens), chat, counters)["effective"]
+        defaults=12, input_tokens=input_tokens), chat, counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective,
                           **entries)
     runner._read = lambda stage, number, *args, **kwargs: reads[number]
@@ -311,7 +311,7 @@ def test_an_invalid_reading_of_a_records_inherited_fields_is_asked_again_in_halv
         return {} if len(asked) == 1 else {"C1": "Moor"}
     chat = as_router(CountingChat(answer))
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
-    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=11), chat,
+    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=12), chat,
                                    counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective)
     read = {"region": candidate("Moor", "Kreis Moor"), "district": candidate("Moor", "Kreis Moor")}
@@ -512,7 +512,7 @@ def test_a_catalog_counts_the_reading_its_records_share_once():
         if system.startswith(SHARED):
             return dict.fromkeys(reply_schema["properties"], "Moor")
         return model(system, user, reply_schema)
-    result, _ = extract(source, answer, schema=schema, defaults=11)
+    result, _ = extract(source, answer, schema=schema, defaults=12)
     assert result["records"] == [{"region": "Moor"}] * 2
     assert [link["linked_by"] for link in result["evidence"]] == ["verification"] * 2
     assert [call["record"] for call in result["calls"] if call["stage"] == "verification"] == [0]
@@ -586,7 +586,7 @@ def test_small_heading_group_call_count_depends_on_inherited_fields(monkeypatch,
     # One member per call reaches the unchanged individual fallback, which batches the record's fields.
     for size in (1, 16):
         monkeypatch.setattr(unified, "SHARED", size)
-        result, _ = extract(source, answer, schema=schema, defaults=11)
+        result, _ = extract(source, answer, schema=schema, defaults=12)
         assert result["records"] == [dict.fromkeys(values, "Moor")] * 2
         assert len(result["evidence"]) == fields * 2
         assert all(link["linked_by"] == "verification" for link in result["evidence"])
@@ -634,7 +634,7 @@ def test_one_planning_round_captures_the_shared_reading_of_every_inherited_field
         raise stop
     chat = as_router(CountingChat(answer))
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
-    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=11), chat,
+    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=12), chat,
                                    counters)["effective"]
     heading = {"segment": "p1_s0", "start": 0, "end": len("Group North")}
     units = [Unit("p1_s0", text.index(line), text.index(line) + len(line)) for line in ("1. First.", "2. Second.")]
@@ -693,7 +693,7 @@ def test_durable_planning_asks_every_inherited_fields_shared_reading_in_the_same
             if system.startswith(SHARED):
                 return dict.fromkeys(reply_schema["properties"], "Moor")
             return model(system, user, reply_schema)
-        chat, asked = CountingChat(answer), request(schema, defaults=11)
+        chat, asked = CountingChat(answer), request(schema, defaults=12)
         lease = MemoryLease(asked.schema_.model_dump(by_alias=True, exclude_none=True))
         for count in range(1, 40):
             counter = Counter()
@@ -725,7 +725,7 @@ def test_a_catalog_whose_later_checks_cannot_fit_completes_processing_and_keeps_
         if system.startswith(SHARED):
             return dict.fromkeys(reply_schema["properties"], "Moor")
         return model(system, user, reply_schema)
-    result, _ = extract(source, answer, schema=schema, defaults=11, input_tokens=1024)
+    result, _ = extract(source, answer, schema=schema, defaults=12, input_tokens=1024)
     # The source from the heading to each of the last 4 records is longer than any check of theirs can show.
     over = [issue["path"][1] for issue in result["issues"] if issue["code"] == "verification_over_budget"]
     assert result["records"] == [{"region": "Moor"}] * 16 and over == [12, 13, 14, 15]

@@ -66,7 +66,7 @@ from kei_exp.kie.passages import Evidence
 from kei_exp.pagefile import PageTable
 
 EXTRACTION_VERSION = 3
-PROMPT_VERSION = 11  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
+PROMPT_VERSION = 12  # 3: compact discovery places; 4: discovery WINDOW labels name their layout kinds;
 # 5: entry, verification and document input retain the horizontal whitespace delimiting empty table cells.
 # 6 (defaults 5): verification may correct a scalar, with its complete source quote.
 # 7 (defaults 6): the entry call shows the requested value structure and asks for complete values.
@@ -75,6 +75,8 @@ PROMPT_VERSION = 11  # 3: compact discovery places; 4: discovery WINDOW labels n
 # 10 (defaults 8): a child record's entry and verification calls read it beside its enclosing record's text
 # (`CHILD`; the child verification prompt went with the verification switch).
 # 11 (defaults 9): schema-defined peer records versus containers/indices, and complete text expressions.
+# 12 (defaults 12): the independent readings of an inherited value (`VERIFY_RECORD` and `VERIFY_RECORDS`, which
+# defaults 11 added under version 11) answer with the value alone; `VERIFY_RECORD` describes no judged candidates.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -147,8 +149,9 @@ NEAR = 40
 # 13-record catalogue whose records all inherit one field (15 November 2026, Qwen3.8-27B-NVFP4, the frozen values of
 # two field models): 2 calls and 3,790 tokens against 26 calls and 19,842 with one call per record; the 6 wrong
 # values stayed rejected and the 4 correct ones the single calls rejected were linked, also with 4 or 7 records a call.
-# That reading answers with the value alone: a candidate it equals keeps the place code located for the entry's quote,
-# so no second quote is generated or located. Measured on three documents of 13, 81 and 7 records (21 November 2026,
+# 12: version 11 whose independent reading answers with the value alone, where 11's also quoted its source and code
+# located that quote: a candidate the reading equals keeps the place code located for the entry's quote, so no second
+# quote is generated or located. Measured on three documents of 13, 81 and 7 records (21 November 2026,
 # Qwen3.8-27B-NVFP4 on a shared GPU, the frozen replies of two field models, before the sentence on judged candidates
 # left `VERIFY_RECORD`): the readings' output fell from 293 to 84, 2,328 to 926 (3,861 to 1,390) and 307 to 109
 # tokens, 4 to 77 s a document; two documents kept every link, the third went from 264 to 270 (308 to 307).
@@ -158,7 +161,7 @@ _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitratio
 # every admitted run has (budget windows, pipelined entries and children, nearby boundaries, one reading per value,
 # complete text values, record evidence) is code, not a default. The verification switch (Studio's Pro mode, which
 # also judged every value a record states) is retired, unmeasured on this version; version 5's corrections with it.
-DEFAULTS_VERSION = 11
+DEFAULTS_VERSION = 12
 DEFAULTS = {DEFAULTS_VERSION: {"reserves": _RESERVES, "overlap": 3, "headings": True, "splits": 6,
                                "entry_reply": "context"}}
 
@@ -167,7 +170,7 @@ class UnifiedOptions(BaseModel):
     """`options.unified`: the versioned defaults the method was admitted under and the overrides of its controls,
     absent where the defaults apply. Budgets change how primary text is partitioned, never how much of it is read."""
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)  # as Studio's schema: "yes" is no boolean
-    defaults: Literal[11]  # DEFAULTS_VERSION
+    defaults: Literal[12]  # DEFAULTS_VERSION
     input_tokens: int | None = Field(default=None, ge=512, le=1_048_576)
     output_tokens: int | None = Field(default=None, ge=64, le=65_536)
     overlap: int | None = Field(default=None, ge=0, le=4)
