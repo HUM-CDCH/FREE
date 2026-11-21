@@ -9,7 +9,6 @@ release: the revisions are that release's, so the next one fetches its own.
 from __future__ import annotations
 
 import shutil
-import tempfile
 from collections.abc import Callable
 from importlib.metadata import version
 from pathlib import Path
@@ -18,6 +17,14 @@ from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.settings import settings
 from docling.models.stages.table_structure.table_structure_model import TableStructureModel
 from docling.models.utils.hf_model_download import download_hf_model
+from filelock import FileLock
+
+_LAYOUT_FILES = ("config.json", "preprocessor_config.json", "model.safetensors")
+_TABLE_FILES = tuple(
+    f"{TableStructureModel._model_path}/{mode}/{name}"
+    for mode in ("accurate", "fast")
+    for name in ("tm_config.json", f"tableformer_{mode}.safetensors")
+)
 
 
 def local(options: PdfPipelineOptions) -> Path | None:
@@ -28,25 +35,35 @@ def local(options: PdfPipelineOptions) -> Path | None:
     root = settings.cache_dir / "models" / version("docling")
     layout = options.layout_options
     spec = layout.model_spec.get_engine_config(layout.engine_options.engine_type)
-    _keep(root / spec.repo_id.replace("/", "--"), lambda: download_hf_model(spec.repo_id, revision=spec.revision))
+    _keep(root / spec.repo_id.replace("/", "--"), _LAYOUT_FILES,
+          lambda: download_hf_model(spec.repo_id, revision=spec.revision))
     if options.do_table_structure:
-        _keep(root / TableStructureModel._model_repo_folder, TableStructureModel.download_models)
+        _keep(root / TableStructureModel._model_repo_folder, _TABLE_FILES, TableStructureModel.download_models)
     return root
 
 
-def _keep(folder: Path, fetch: Callable[[], Path]) -> None:
-    """A copy at `folder` of the model `fetch` returns, unless it is there. Published by rename: Docling takes an
-    existing folder as complete, so a fetch stopped halfway must leave none."""
-    if folder.exists():
+def _keep(folder: Path, required: tuple[str, ...], fetch: Callable[[], Path]) -> None:
+    """Publish a usable snapshot once, even across concurrent or interrupted conversions."""
+    def complete(path: Path) -> bool:
+        return all((path / name).is_file() for name in required)
+
+    if complete(folder):
         return
     folder.parent.mkdir(parents=True, exist_ok=True)
-    staging = Path(tempfile.mkdtemp(dir=folder.parent, prefix=".fetch-"))
-    try:
-        shutil.copytree(fetch(), staging, dirs_exist_ok=True)
+    with FileLock(folder.with_suffix(".lock")):
+        if complete(folder):
+            return
+        staging = folder.with_suffix(".partial")
+        if staging.exists():
+            shutil.rmtree(staging)  # a previous writer died holding this model's lock
+        source = fetch()
+        if folder.exists():
+            shutil.rmtree(folder)  # repair an incomplete copy published by an earlier worker
         try:
+            shutil.copytree(source, staging)
+            if not complete(staging):
+                raise FileNotFoundError(f"Incomplete Docling snapshot for {folder.name} at {source}")
             staging.rename(folder)
-        except OSError:  # the API or another conversion published it first
-            if not folder.exists():
-                raise
-    finally:
-        shutil.rmtree(staging, ignore_errors=True)
+        finally:
+            if staging.exists():
+                shutil.rmtree(staging)
