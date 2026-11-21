@@ -20,6 +20,7 @@ def assembly(monkeypatch):
         self.assemble_model = PageAssembleModel(options=PageAssembleOptions())
         self.reading_order_model = SimpleNamespace(ro_model=SimpleNamespace(predict_merges=lambda **_: {}))
     monkeypatch.setattr(StandardPdfPipeline, '__init__', initialize)
+    monkeypatch.setattr('kei_exp.weights.local', lambda _options: None)
     return PageBoundPipeline(PdfPipelineOptions()).assemble_model
 
 
