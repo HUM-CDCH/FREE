@@ -77,7 +77,13 @@ caches and image layers). The first GPU start downloads the Surya OCR weights,
 `KEI_NUEXTRACT_MODEL` (default `numind/NuExtract3-FP8`, about 7 GB) and
 `KEI_EXTRACT_MODEL` (default `Qwen/Qwen3.8-27B-FP8`, about 31 GB) into the
 shared Hugging Face cache, which persists in a named volume. Allow enough disk
-space, network access, and startup time for these downloads.
+space, network access, and startup time for these downloads. With or without a
+GPU, the first native conversion and the first default scan layout together
+use about 0.8 GB of Docling weights in the Hugging Face cache, plus another
+0.8 GB for the worker's local copy on the same volume. Later conversions use
+that copy offline. Each Docling release used by the worker keeps its own copy,
+so budget another 0.8 GB per release for those models, even if the weights are
+unchanged. Selecting additional layout models increases both caches.
 
 Obtain a PEM certificate (a full chain) and its matching PEM private key from
 the institution or VPN that owns the private hostname. FREE does not request a

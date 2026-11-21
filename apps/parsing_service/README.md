@@ -311,7 +311,9 @@ checks (`cancel.py`), the durable Extraction workflows (`durable_extract.py`,
 the slot lock (`slot.py`) and the `kei-worker` CLI (`cli.py`); `failures.py`
 classifies what a step raised into a retry or a portable failure code. The OCR
 runner lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in
-`transcription/` and the layout cut in `cut.py`. `models.py` holds lightweight
+`transcription/` and the layout cut in `cut.py`; `weights.py` keeps Docling's
+weights where both read them without asking the Hugging Face hub. `models.py`
+holds lightweight
 OCR records for the API; `transcription/specs.py` owns their Docling
 specifications. `kie/runner.py` orchestrates ingest and OCR;
 `kie/ingest_cache.py` owns ingest generation reuse, recovery and publication;
