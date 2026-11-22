@@ -187,8 +187,9 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
         seen.append(user)
         assert user.index("Jail North") < user.index("Jail South") < user.index("### RECORD")
         assert 'replaces an earlier value only when it changes the same field' in system
+        assert "is to be judged" in system  # kept as measured: see the note on `VERIFY_RECORD`
         assert ' = "North"' not in user  # the independent reading cannot copy the candidate
-        assert "quote" not in system and reply_schema["properties"] == {  # it answers with the value alone
+        assert "source quote" not in system and reply_schema["properties"] == {  # it answers with the value alone
             "C1": {"type": ["string", "null"], "x-free-type": "string"}}
         return {"C1": reading}
     chat = as_router(CountingChat(answer))
@@ -652,7 +653,7 @@ def test_one_planning_round_captures_the_shared_reading_of_every_inherited_field
 
 def test_a_group_halves_its_shared_reading_and_leaves_the_records_no_check_can_fit_final():
     from collections import Counter
-    text = "Group North\n" + "\n".join(f"{n}. {' '.join(['word'] * 64)}." for n in range(1, 17))
+    text = "Group North\n" + "\n".join(f"{n}. {' '.join(['word'] * 60)}." for n in range(1, 17))
     lines = text.split("\n")
     heading = {"segment": "p1_s0", "start": 0, "end": len(lines[0])}
     units = [Unit("p1_s0", text.index(line), text.index(line) + len(line)) for line in lines[1:]]

@@ -76,7 +76,7 @@ PROMPT_VERSION = 12  # 3: compact discovery places; 4: discovery WINDOW labels n
 # (`CHILD`; the child verification prompt went with the verification switch).
 # 11 (defaults 9): schema-defined peer records versus containers/indices, and complete text expressions.
 # 12 (defaults 12): the independent readings of an inherited value (`VERIFY_RECORD` and `VERIFY_RECORDS`, which
-# defaults 11 added under version 11) answer with the value alone; `VERIFY_RECORD` describes no judged candidates.
+# defaults 11 added under version 11) answer with the value alone; no other word of either prompt changed.
 RECORD_VERSION = 1  # the execution record's layout
 # The entry records' layout and checks, versioned apart from the execution record.
 # 2: a value printed in the table row whose cell the quote names is literal there.
@@ -152,9 +152,9 @@ NEAR = 40
 # 12: version 11 whose independent reading answers with the value alone, where 11's also quoted its source and code
 # located that quote: a candidate the reading equals keeps the place code located for the entry's quote, so no second
 # quote is generated or located. Measured on three documents of 13, 81 and 7 records (21 November 2026,
-# Qwen3.8-27B-NVFP4 on a shared GPU, the frozen replies of two field models, before the sentence on judged candidates
-# left `VERIFY_RECORD`): the readings' output fell from 293 to 84, 2,328 to 926 (3,861 to 1,390) and 307 to 109
-# tokens, 4 to 77 s a document; two documents kept every link, the third went from 264 to 270 (308 to 307).
+# Qwen3.8-27B-NVFP4 on a shared GPU, the frozen replies of two field models): the readings' output fell from 293 to
+# 84, 2,328 to 926 (3,861 to 1,390) and 307 to 109 tokens, 4 to 77 s a document; two documents kept every link, the
+# third went from 264 to 270 (308 to 307).
 _RESERVES = {"discovery": 4096, "entry": 4096, "verification": 2048, "arbitration": 512, "document": 2048}
 # Only `DEFAULTS_VERSION` is admitted; the notes above record how its choices were reached. A change of behaviour
 # replaces it under a new number, never beside it: the number is the execution's provenance, not a switch. Behaviour
@@ -771,10 +771,15 @@ ENTRY = ("You extract structured data from one record of a source document. A re
 # Ask the entry call for complete values so a quote in the record can support a value without a second reading.
 SINGLE_PASS = ("\nGive each value complete: a descriptive field's whole passage across paragraphs or pages, without "
                "text of other fields.")
+# No request shows a candidate "to be judged" any more (the retired verification switch did), yet that sentence stays:
+# the value-only readings were measured with it, and without it one catalogue with child records lost right links
+# (21 November 2026, Qwen3.8-27B-NVFP4, the values of two field models: 115 against 118, and 101 against 106).
 VERIFY_RECORD = (
     "Read the source independently of any shown candidate value, for one record. A record is: {description}\n{notes}\n"
-    "Each candidate is shown with only its field path, a field to read again: return its value for THIS RECORD, or "
-    "null if the source does not give it. Read each field's meaning, not just a matching word. "
+    "Candidates are of two kinds. One shown with only its field path is a field to read again: return its value for "
+    "THIS RECORD, or null if the source does not give it. One shown with a value and quote is to be judged: answer "
+    "supported, unsupported or unclear; its value must belong to this subject or list item in the RECORD. Read each "
+    "field's meaning, not just a matching word. "
     "CONTEXT contains surrounding source, including other records: only an applicable shared heading or an "
     "explicitly shared table qualification may supply a value from it. When CONTEXT names the enclosing record, a "
     "scalar may inherit what is stated for that whole record or a group containing this child, never what belongs "
