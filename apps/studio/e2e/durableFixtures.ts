@@ -1,4 +1,4 @@
-import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
+import { REFERENCE_ARTICLE, UNIFIED_CATALOG_DEFAULTS_VERSION } from 'extraction/extraction-method'
 import { createHash,randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { canonicalPackageStore,pool,withPoolClientTransaction } from 'db'
@@ -11,7 +11,10 @@ import type { InteractiveDocument } from './interactiveStack.js'
 
 /** Saved producer data in the guarded browser database, independent of processing. */
 export async function savedExtraction(fixture:InteractiveDocument,nodes:SchemaNode[],modelValues:unknown[],status:'QUEUED'|'RUNNING'|'PAUSED'|'FAILED'|'STOPPED'|'COMPLETED'='PAUSED',options:{provisional?:boolean;records?:unknown[][];schemaRevisionId?:string;extractionId?:string;intent?:'RUN'|'PAUSE'|'STOP';modelEvidence?:Readonly<Record<string,DurableValue['evidence']>>;empty?:boolean;disagreement?:Readonly<Record<string,NonNullable<DurableValue['disagreement']>>>;coverage?:Record<string,unknown>}={}) {
-  const strategy=options.records?'CATALOG':'ARTICLE',settings=options.records?{generic:null}:{article: REFERENCE_ARTICLE}
+  const strategy = options.records ? 'CATALOG' : 'ARTICLE'
+  const settings = options.records
+    ? { unified: { defaults: UNIFIED_CATALOG_DEFAULTS_VERSION } }
+    : { article: REFERENCE_ARTICLE }
   const id=options.extractionId??randomUUID(),schemaRevisionId=options.schemaRevisionId??randomUUID(),tree={recordDescription:'One interactive record.',schemaNodes:nodes}
   await withPoolClientTransaction(async(_transaction,client)=> {
     if(!options.schemaRevisionId)await client.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
