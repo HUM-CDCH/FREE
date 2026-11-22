@@ -7,12 +7,7 @@ import { listStagedSources, removeStagedSource } from '../../../api/_source_inbo
 import { databaseClockMs, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
 import { applyStudioSchedules, registerStudioWorkflows } from '../../../server/workflows.js'
 import { backdateWorkflow, orphanPayloadRows } from '../garbage.js'
-
-function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (!value) throw new Error(`The GC history scenario needs ${name}.`)
-  return value
-}
+import { requiredScenarioValue } from '../scenarioEnvironment.js'
 
 async function until(predicate: () => boolean, what: string): Promise<void> {
   const deadline = Date.now() + 15_000
@@ -24,18 +19,19 @@ async function until(predicate: () => boolean, what: string): Promise<void> {
 
 /** A cancelled-in-process GC history survives 60 days of age, then disappears on a new Studio boot. */
 export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.ProcessEnv }): Promise<void> {
-  const url = required(env, 'DATABASE_URL')
-  const schema = required(env, 'FREE_TEST_DBOS_SCHEMA')
-  const root = required(env, 'FREE_TEST_INBOX')
-  const observations = required(env, 'GC_OBSERVATIONS')
-  const entered = required(env, 'GC_ENTERED')
-  const release = required(env, 'GC_LATCH')
-  const packages = createCanonicalPackageStore(required(env, 'FREE_TEST_PACKAGE_ROOT'))
+  const required = requiredScenarioValue(env, 'GC history')
+  const url = required('DATABASE_URL')
+  const schema = required('FREE_TEST_DBOS_SCHEMA')
+  const root = required('FREE_TEST_INBOX')
+  const observations = required('GC_OBSERVATIONS')
+  const entered = required('GC_ENTERED')
+  const release = required('GC_LATCH')
+  const packages = createCanonicalPackageStore(required('FREE_TEST_PACKAGE_ROOT'))
   let holdFirstClock = firstRun
   await launchStudioDbos({
     databaseUrl: url, keiDatabaseUrl: url, schema,
-    keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'),
-    executorId: required(env, 'FREE_TEST_EXECUTOR'),
+    keiSchema: required('FREE_TEST_KEI_SCHEMA'),
+    executorId: required('FREE_TEST_EXECUTOR'),
     register: () => registerStudioWorkflows({ garbagePorts: () => garbagePorts({
       packages, inbox: { root, list: listStagedSources, remove: removeStagedSource },
       clock: async () => {

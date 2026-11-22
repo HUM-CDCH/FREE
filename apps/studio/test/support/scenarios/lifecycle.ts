@@ -2,6 +2,7 @@ import { appendFileSync } from 'node:fs'
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import { launchStudioDbos, shutdownStudioDbos, STUDIO_QUEUE, studioDbos } from '../../../server/dbos.js'
 import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
+import { requiredScenarioValue } from '../scenarioEnvironment.js'
 
 const WORKFLOW_NAME = 'lifecycleProbe'
 const WORKFLOW_ID = 'lifecycle-probe'
@@ -22,22 +23,18 @@ async function probe(file: string): Promise<void> {
   await DBOS.runStep(async () => appendFileSync(file, 'c\n'), { name: 'c' })
 }
 
-function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (!value) throw new Error(`The lifecycle scenario needs ${name}.`)
-  return value
-}
-
 /** First run: enqueue the probe and die in step b. Second run: recovery finishes it; wait, then shut down. */
 export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.ProcessEnv }): Promise<void> {
+  const required = requiredScenarioValue(env, 'lifecycle')
   crashInStepB = firstRun
-  const file = required(env, 'FREE_TEST_LIFECYCLE_FILE')
+  const file = required('FREE_TEST_LIFECYCLE_FILE')
+  const databaseUrl = required('DATABASE_URL')
   await launchStudioDbos({
-    databaseUrl: required(env, 'DATABASE_URL'),
-    keiDatabaseUrl: env.FREE_KEI_QUEUE_DATABASE_URL ?? required(env, 'DATABASE_URL'),
-    schema: required(env, 'FREE_TEST_DBOS_SCHEMA'),
-    keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'),
-    executorId: required(env, 'FREE_TEST_EXECUTOR'),
+    databaseUrl,
+    keiDatabaseUrl: env.FREE_KEI_QUEUE_DATABASE_URL ?? databaseUrl,
+    schema: required('FREE_TEST_DBOS_SCHEMA'),
+    keiSchema: required('FREE_TEST_KEI_SCHEMA'),
+    executorId: required('FREE_TEST_EXECUTOR'),
     register: () => {
       DBOS.registerWorkflow(probe, { name: WORKFLOW_NAME })
     },

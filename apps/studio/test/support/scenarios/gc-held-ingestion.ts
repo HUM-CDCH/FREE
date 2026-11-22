@@ -14,30 +14,22 @@ import { applyStudioSchedules, registerStudioWorkflows } from '../../../server/w
 import { ageFile } from '../garbage.js'
 import { uploadRequest } from '../ingestion.js'
 import type { GarbageSummary } from '../../../api/_garbage_workflow.js'
-
-function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (!value) throw new Error(`The held-ingestion GC scenario needs ${name}.`)
-  return value
-}
+import { requiredScenarioValue, scenarioDbosOptions } from '../scenarioEnvironment.js'
 
 /** Recover an ingestion twice: its aged staged PDF remains while kei holds conversion, then disappears on success. */
 export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.ProcessEnv }): Promise<void> {
-  const project = required(env, 'FREE_TEST_PROJECT')
-  const observations = required(env, 'GC_OBSERVATIONS')
-  const inbox = required(env, 'FREE_SOURCE_INBOX')
+  const required = requiredScenarioValue(env, 'held-ingestion GC')
+  const project = required('FREE_TEST_PROJECT')
+  const observations = required('GC_OBSERVATIONS')
+  const inbox = required('FREE_SOURCE_INBOX')
   await launchStudioDbos({
-    databaseUrl: required(env, 'DATABASE_URL'),
-    keiDatabaseUrl: required(env, 'DATABASE_URL'),
-    schema: required(env, 'FREE_TEST_DBOS_SCHEMA'),
-    keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'),
-    executorId: required(env, 'FREE_TEST_EXECUTOR'),
+    ...scenarioDbosOptions(required),
     register: registerStudioWorkflows,
     schedule: applyStudioSchedules,
   })
   if (firstRun) {
-    const pdf = new Uint8Array(await readFile(required(env, 'FREE_TEST_PDF')))
-    const ingest = createSourceDocumentIngestion(createResearcherProjectStore(required(env, 'FREE_TEST_ACCOUNT')))
+    const pdf = new Uint8Array(await readFile(required('FREE_TEST_PDF')))
+    const ingest = createSourceDocumentIngestion(createResearcherProjectStore(required('FREE_TEST_ACCOUNT')))
     const responses = await Promise.all([ingest(uploadRequest(project, pdf)), ingest(uploadRequest(project, pdf))])
     // Both are admitted into one attempt (the second joins the first) while kei holds its conversion.
     if (responses.some((response) => response.status !== 202))
@@ -56,7 +48,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   if (!existsSync(observations)) {
     const loserRelative = uploadSourcePath(project, randomUUID())
     const loser = join(inbox, loserRelative)
-    await stageSource(inbox, loserRelative, new Uint8Array(await readFile(required(env, 'FREE_TEST_PDF'))))
+    await stageSource(inbox, loserRelative, new Uint8Array(await readFile(required('FREE_TEST_PDF'))))
     const childId = keiConvertWorkflowId(attempt.workflowID)
     const deadline = Date.now() + 60_000
     for (;;) {

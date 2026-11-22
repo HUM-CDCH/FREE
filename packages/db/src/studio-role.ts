@@ -1,5 +1,5 @@
 import type { ClientBase } from 'pg'
-import { ensureLoginRole, IDENTIFIER, KEI_ROLE, KEI_SCHEMA } from './kei-role.js'
+import { ensureLoginRole, IDENTIFIER, KEI_ROLE, KEI_SCHEMA, withRoleTransaction } from './kei-role.js'
 
 export const STUDIO_ROLE = 'free_studio'
 export const STUDIO_QUEUE_ROLE = 'free_kei_queue'
@@ -20,8 +20,7 @@ export async function ensureStudioRole(
   const schema = options.schema ?? STUDIO_SCHEMA
   if (![role, schema].every((name) => IDENTIFIER.test(name)))
     throw new Error('The Studio role and schema must be plain lowercase identifiers.')
-  await client.query('BEGIN')
-  try {
+  await withRoleTransaction(client, async () => {
     await ensureLoginRole(client, role, options.password, 'The password in DATABASE_URL', schema)
 
     // The domain tables, and the durable coordination tables Studio's repository writes directly. The
@@ -64,12 +63,7 @@ export async function ensureStudioRole(
       [schema, role],
     )
     for (const { statement } of foreign.rows) await client.query(statement)
-
-    await client.query('COMMIT')
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  }
+  })
 }
 
 /** Prepare the separate login used by Studio to submit, read, cancel and delete kei workflows. */
@@ -82,8 +76,7 @@ export async function ensureStudioQueueRole(
   const schema = options.keiSchema ?? KEI_SCHEMA
   if (![role, keiRole, schema].every((name) => IDENTIFIER.test(name)) || role === keiRole)
     throw new Error('The queue and worker need distinct database roles and plain lowercase identifiers.')
-  await client.query('BEGIN')
-  try {
+  await withRoleTransaction(client, async () => {
     await ensureLoginRole(client, role, options.password, 'The password in FREE_KEI_QUEUE_DATABASE_URL', null)
     // kei owns and migrates its schema after Studio is healthy. Apply the same permissions to existing and future tables.
     await client.query(`GRANT USAGE ON SCHEMA ${schema} TO ${role}`)
@@ -92,9 +85,5 @@ export async function ensureStudioQueueRole(
     const defaults = `ALTER DEFAULT PRIVILEGES FOR ROLE ${keiRole} IN SCHEMA ${schema} GRANT`
     await client.query(`${defaults} SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${role}`)
     await client.query(`${defaults} USAGE, SELECT ON SEQUENCES TO ${role}`)
-    await client.query('COMMIT')
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  }
+  })
 }

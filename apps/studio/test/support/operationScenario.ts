@@ -15,12 +15,7 @@ import { createPostGenerateSchema } from '../../api/generate_schema.js'
 import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../server/dbos.js'
 import { awaitWorkflowOutcome } from '../../server/workflowOutcome.js'
 import { suggestionResearcherStore } from './suggestionWorkflow.js'
-
-export function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (!value) throw new Error(`The operation scenario needs ${name}.`)
-  return value
-}
+import { requiredScenarioValue, scenarioDbosOptions } from './scenarioEnvironment.js'
 
 export type OperationScenario = Readonly<{
   /** `generation`: suggestion:<op> through POST /api/generate_schema; `edit`: edit:<op> through POST /api/edit_schema
@@ -41,7 +36,8 @@ export async function runOperationScenario(
   { firstRun, env }: { firstRun: boolean; env: NodeJS.ProcessEnv },
   { kind, kill }: OperationScenario,
 ): Promise<void> {
-  const packages = createCanonicalPackageStore(required(env, 'FREE_TEST_PACKAGE_ROOT'))
+  const required = requiredScenarioValue(env, 'operation')
+  const packages = createCanonicalPackageStore(required('FREE_TEST_PACKAGE_ROOT'))
   const keys = createModelKeyCache()
   let waits = 0
   const wait = keys.wait.bind(keys)
@@ -51,8 +47,8 @@ export async function runOperationScenario(
   }
   const keyWaitMs = Number(env.FREE_TEST_KEY_WAIT_MS ?? 60_000)
   if (firstRun || env.FREE_TEST_RESEND !== '0') {
-    keys.put(required(env, 'FREE_TEST_ACCOUNT'), required(env, 'FREE_TEST_CONNECTION'),
-      { provider: 'openai-compatible', baseUrl: required(env, 'FREE_TEST_MODEL_BASE') }, required(env, 'FREE_TEST_KEY'))
+    keys.put(required('FREE_TEST_ACCOUNT'), required('FREE_TEST_CONNECTION'),
+      { provider: 'openai-compatible', baseUrl: required('FREE_TEST_MODEL_BASE') }, required('FREE_TEST_KEY'))
   }
   const die = () => process.kill(process.pid, 'SIGKILL')
   const steps: WorkflowSteps = {
@@ -79,29 +75,25 @@ export async function runOperationScenario(
     respond: (caller, input, question) => respondToSchemaEdit(caller, input, question, dependencies),
   }
   await launchStudioDbos({
-    databaseUrl: required(env, 'DATABASE_URL'),
-    keiDatabaseUrl: required(env, 'DATABASE_URL'),
-    schema: required(env, 'FREE_TEST_DBOS_SCHEMA'),
-    keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'),
-    executorId: required(env, 'FREE_TEST_EXECUTOR'),
+    ...scenarioDbosOptions(required),
     register: () => {
       registerSchemaGenerationWorkflow(() => generation)
       registerSchemaEditWorkflow(() => edit)
     },
   })
-  const operationId = required(env, 'FREE_TEST_OPERATION')
+  const operationId = required('FREE_TEST_OPERATION')
   const workflowId = `${kind === 'generation' ? 'suggestion' : 'edit'}:${operationId}`
   if (firstRun) {
     const form = new FormData()
-    form.append('project_context_id', required(env, 'FREE_TEST_PROJECT'))
-    form.append('source_representation_revision_id', required(env, 'FREE_TEST_REVISION'))
+    form.append('project_context_id', required('FREE_TEST_PROJECT'))
+    form.append('source_representation_revision_id', required('FREE_TEST_REVISION'))
     form.append('operation_id', operationId)
     form.append('instruction', kind === 'generation' ? 'Catalog entries' : 'Rename title to heading')
     if (kind === 'edit') {
-      form.append('extraction_schema_id', required(env, 'FREE_TEST_SCHEMA'))
-      form.append('schema_revision_id', required(env, 'FREE_TEST_BASE_REVISION'))
+      form.append('extraction_schema_id', required('FREE_TEST_SCHEMA'))
+      form.append('schema_revision_id', required('FREE_TEST_BASE_REVISION'))
     }
-    const store = suggestionResearcherStore(required(env, 'FREE_TEST_ACCOUNT'))
+    const store = suggestionResearcherStore(required('FREE_TEST_ACCOUNT'))
     const admission = () => studioDbos().admission
     // The first run never gets past this: it dies inside the workflow.
     const response = kind === 'generation'
@@ -112,6 +104,6 @@ export async function runOperationScenario(
   if (!(await studioDbos().admission.getWorkflow(workflowId))) throw new Error('The recovered workflow is missing.')
   const outcome = await awaitWorkflowOutcome(studioDbos().admission, workflowId, { timeoutMs: 60_000 })
   await shutdownStudioDbos()
-  writeFileSync(required(env, 'FREE_TEST_OUTPUT'), JSON.stringify(outcome))
-  writeFileSync(required(env, 'FREE_TEST_WAIT_COUNT'), String(waits))
+  writeFileSync(required('FREE_TEST_OUTPUT'), JSON.stringify(outcome))
+  writeFileSync(required('FREE_TEST_WAIT_COUNT'), String(waits))
 }

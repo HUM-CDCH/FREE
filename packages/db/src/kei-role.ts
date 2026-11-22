@@ -150,6 +150,18 @@ export async function ensureLoginRole(
     throw new Error(`Refusing to restrict ${role}: ${refusals.slice(0, 5).join('; ')}${refusals.length > 5 ? '; and more' : ''}.`)
 }
 
+/** Each role is prepared atomically on the administrator's existing connection. */
+export async function withRoleTransaction(client: ClientBase, prepare: () => Promise<void>): Promise<void> {
+  await client.query('BEGIN')
+  try {
+    await prepare()
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  }
+}
+
 /**
  * kei parses untrusted PDFs, so its role owns its own DBOS schema and nothing else: it cannot read or rewrite
  * Studio's tables in `public` or Studio's workflow inputs in `dbos`. Idempotent; runs as the database owner after
@@ -163,8 +175,7 @@ export async function ensureKeiRole(
   const schema = options.schema ?? KEI_SCHEMA
   if (!IDENTIFIER.test(role) || !IDENTIFIER.test(schema))
     throw new Error('The kei role and schema must be plain lowercase identifiers.')
-  await client.query('BEGIN')
-  try {
+  await withRoleTransaction(client, async () => {
     // PostgreSQL grants every role USAGE on `public` (and CREATE before PostgreSQL 15); Studio's runtime role gets its
     // own grant (ensureStudioRole).
     await client.query('REVOKE ALL ON SCHEMA public FROM PUBLIC')
@@ -177,9 +188,5 @@ export async function ensureKeiRole(
       for (const routine of EXTRACTION_RUNTIME_ROUTINES)
         await client.query(`GRANT EXECUTE ON FUNCTION extraction_runtime.${routine} TO ${role}`)
     }
-    await client.query('COMMIT')
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  }
+  })
 }

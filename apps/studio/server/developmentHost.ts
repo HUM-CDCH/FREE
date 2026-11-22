@@ -18,19 +18,9 @@ const RESTART_MODULE =
 const DBOS_OWNER = Symbol.for('free.studio.dbos.developmentHost')
 const developmentProcess = globalThis as { [DBOS_OWNER]?: object }
 
-// server/dbos.ts and server/workflows.ts as the SSR loader returns them. They
-// are typed here, not imported: a native import would be a second module
-// instance beside the SSR-loaded one, with launch state of its own.
-type StudioDbosModule = {
-  launchStudioDbos(options: {
-    databaseUrl: string
-    keiDatabaseUrl: string
-    register: () => void
-    schedule?: () => Promise<void>
-  }): Promise<unknown>
-  shutdownStudioDbos(): Promise<void>
-}
-type StudioWorkflowsModule = { registerStudioWorkflows(): void; applyStudioSchedules(): Promise<void> }
+// Vite owns these runtime instances. Type-only imports keep the SSR contracts in sync.
+type StudioDbosModule = typeof import('./dbos.js')
+type StudioWorkflowsModule = typeof import('./workflows.js')
 
 export type DevelopmentHost<T> = {
   composition(): Promise<T>

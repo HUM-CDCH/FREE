@@ -303,17 +303,12 @@ describe('Vite Hono integration', () => {
     expect(development.loaded('/server/dbos.ts')).toBe(1)
     expect(development.loaded('/server/workflows.ts')).toBe(1)
     expect(dbos.launchStudioDbos).toHaveBeenCalledOnce()
-    const [launch] = dbos.launchStudioDbos.mock.calls[0]!
-    expect(launch).toEqual({
+    expect(dbos.launchStudioDbos).toHaveBeenCalledWith({
       databaseUrl: DEVELOPMENT_DATABASE_URL,
       keiDatabaseUrl: DEVELOPMENT_QUEUE_URL,
-      register: expect.any(Function),
-      schedule: expect.any(Function),
+      register: development.workflows.registerStudioWorkflows,
+      schedule: development.workflows.applyStudioSchedules,
     })
-    expect(launch.register).toBe(
-      development.workflows.registerStudioWorkflows,
-    )
-    expect(launch.schedule).toBe(development.workflows.applyStudioSchedules)
     expect(order).toEqual(['dbos launched', 'composed'])
   })
 
