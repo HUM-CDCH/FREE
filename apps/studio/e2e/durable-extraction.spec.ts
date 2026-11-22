@@ -460,7 +460,7 @@ test('record attribution context never steals a precise value click, including a
       await expect(page.getByRole('region',{name:'Review year',exact:true})).toBeVisible()
       await view.getByRole('button',{name:'name: Book',exact:true}).click()
       await expect(page.getByRole('region',{name:'Review name',exact:true})).toBeVisible()
-      await expect(view.getByTitle('Attribution context')).toHaveText('Year: ')
+      await expect(view.getByTitle('Attribution context')).toHaveText(['Name: ', 'Year: '])
       await year.click()
       await expect(page.getByRole('region',{name:'Review year',exact:true})).toBeVisible()
       await expect(view.getByRole('button')).toHaveCount(2)

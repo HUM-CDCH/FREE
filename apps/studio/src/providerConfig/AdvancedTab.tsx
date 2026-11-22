@@ -333,7 +333,7 @@ function UnifiedCatalogView({ draft, saved, editor, focusIssue }: Pick<Props, 'd
           <h4 className="text-[12px] font-semibold text-ink">Effective settings</h4>
           <p className="text-[10.5px] text-ink-faint">Records and fields come from the template; models from the Models tab. Document-level fields remain unverified.</p>
           <p className="text-[11px] text-ink-muted">Values found inside a record keep their source links. Shared headings are checked separately; uncertain matches stay ungrounded.</p>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-[11.5px]">
+          <dl className="grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-x-3 gap-y-0.5 text-[11.5px] sm:grid-cols-[auto_1fr]">
             {unifiedLines(method).map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="min-w-0 text-ink [overflow-wrap:anywhere]">{line.value}</dd>])}
           </dl>
           <p className="text-[11.5px] text-ink-muted">Each Extraction records the budgets it resolved from the served models before any call; a later change never alters it.</p>

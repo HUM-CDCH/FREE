@@ -8,6 +8,7 @@ import {
 import { createGetExtractionSchemas } from '../api/extraction_schemas.js'
 import { createGetProjectContexts } from '../api/project_contexts.js'
 import { createSchemaRevisionHandlers } from '../api/schema_revisions.js'
+import type { BatchExtraction } from '../shared/batchExtraction.contract.js'
 import { gotoAuthenticated } from './auth.js'
 import { emulateBrowserZoom200 } from './accessibility.js'
 
@@ -49,7 +50,7 @@ type StudioStore = Pick<
   | 'initializeSchemaRevision'
   | 'appendSchemaRevision'
 >
-function batchDto(batch: BatchExtractionSnapshot) {
+function batchDto(batch: BatchExtractionSnapshot): BatchExtraction {
   return {
     batchExtractionId: batch.batchExtractionId,
     projectContextId: batch.projectContextId,
@@ -60,6 +61,7 @@ function batchDto(batch: BatchExtractionSnapshot) {
     strategy: batch.strategy,
     executionStatus: batch.executionStatus,
     createdAt: batch.createdAt.toISOString(),
+    trial: batch.trial,
     members: batch.members.map((member) => ({
       sourceDocumentId: member.sourceDocumentId,
       sourceRepresentationRevisionId:
