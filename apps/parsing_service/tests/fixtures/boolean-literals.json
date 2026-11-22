@@ -1,0 +1,15 @@
+[
+  {"text":"Active: TRUE","value":true,"literal":true},
+  {"text":"Active: FalSe","value":false,"literal":true},
+  {"text":"Active: no","value":true,"literal":false},
+  {"text":"Active: false","value":true,"literal":false},
+  {"text":"falsehood","value":false,"literal":false},
+  {"text":"_true","value":true,"literal":true},
+  {"text":"true\u0301","value":true,"literal":false},
+  {"text":"true\u20dd","value":true,"literal":false},
+  {"text":"tr\u00adue","value":true,"literal":true},
+  {"text":"\uff34\uff32\uff35\uff25","value":true,"literal":true},
+  {"text":"fal-\nse","value":false,"literal":true},
+  {"text":"fal-\nSe","value":false,"literal":false},
+  {"text":"fal\u017fe","value":false,"literal":true}
+]

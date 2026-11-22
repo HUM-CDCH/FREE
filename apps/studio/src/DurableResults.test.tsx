@@ -1243,7 +1243,8 @@ it('keys a value\'s correction Evidence as its own mark, named by the value and 
 
 it('offers an edited value\'s parts to pick, linked only where the model read the same; its correction Evidence lights with a part',async()=>{
   const {onEvidence,marks}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Animal',dele:[{nr:'1',note:'Tooth'}]},included:true,
-    evidence:[{anchorId:'a_p1_s1',occurrenceIds:['o1']}]}})
+    evidence:[{anchorId:skeletNote.evidenceAnchorId,occurrenceIds:['o1']}]}})
+  expect(onEvidence).toHaveBeenLastCalledWith(skeletNote.evidenceAnchorId,['o1'])
   // The edited art has no link; its model link stays the whole value's mark.
   expect(screen.getByRole('button',{name:'skelet › art: Animal'})).toHaveAttribute('title','Source not found')
   expect(marks().savedLinks!.find(saved=>saved.link===skeletArt)!.key).toBe('v1')
@@ -1253,6 +1254,8 @@ it('offers an edited value\'s parts to pick, linked only where the model read th
   expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s2_r1_c1',undefined,skeletNote)
   expect(marks().selected).toBe(tooth)
   expect(ownsMark(tooth,'v1#correction')&&marks().savedLinks!.some(saved=>saved.key==='v1#correction')).toBe(true)
+  fireEvent.click(screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'}))
+  expect(onEvidence).toHaveBeenLastCalledWith(skeletNote.evidenceAnchorId,['o1'])
 })
 
 /** a and b link to their own anchors; c has only its correction's Evidence. */

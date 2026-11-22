@@ -4,6 +4,9 @@ A block's text is its primary spans in order, joined by separators that belong t
 normalised view (NFKC, case folded, whitespace collapsed, soft hyphens dropped, a line-end hyphen joined) that keeps
 a map to raw offsets, so every match comes back as spans of canonical segment text and never covers a separator.
 """
+import json
+from pathlib import Path
+
 import pytest
 
 from kei_exp.kie.blocks import Span
@@ -95,6 +98,11 @@ def test_a_value_is_found_as_its_type_prints_it_and_only_as_a_whole():
     # Exponent-sized values are printed and matched in full, never rounded to six places.
     assert found(0.00001234567, "Tiefe 0.000012") == [] and found(1e-7, "Tiefe 0.") == []
     assert found(0.00001234567, "Tiefe 0.00001234567") == ["0.00001234567"]
+
+
+@pytest.mark.parametrize("case", json.loads((Path(__file__).parent / "fixtures/boolean-literals.json").read_text()))
+def test_boolean_literals_match_studio(case):
+    assert bool(found(case["value"], case["text"])) is case["literal"]
 
 
 @pytest.mark.parametrize("value", [True, False])

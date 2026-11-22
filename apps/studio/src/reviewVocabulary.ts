@@ -113,9 +113,12 @@ export function evidenceCheck(link: Pick<EvidenceLink, 'verbatim' | 'grounding' 
   action?: ReviewAction, value?: unknown, sourceText?: string): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
   const text = link.location?.raw ?? link.grounding?.raw ?? sourceText ?? ''
-  if (typeof value === 'boolean') {
-    const words = text.toLowerCase().match(/[\p{L}\p{N}_]+/gu)
-    if (words?.includes(String(value))) return null
+  if (typeof value === 'boolean' && link.verbatim === false) {
+    // Match Catalog's normalized source words, including PDF hyphenation and combining marks.
+    const printed = text.replaceAll('\u00ad', '').normalize('NFKC')
+      .replace(/-[^\S\n]*\n\s*(?=\p{Ll})/gu, '')
+    const words = printed.match(/[\p{L}\p{M}\p{N}]+/gu) ?? []
+    if (words.some(word => (value ? /^true$/iu : /^false$/iu).test(word))) return null
   }
   if (link.verbatim === false) return 'Not an exact match, please double check'
   return null

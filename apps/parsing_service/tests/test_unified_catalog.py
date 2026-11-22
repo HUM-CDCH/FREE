@@ -1282,6 +1282,13 @@ def test_a_value_quoted_from_a_neighbouring_record_is_rejected():
     assert rejected["reason"] == "quote_not_in_source"
 
 
+def test_boolean_support_stays_in_its_quoted_cell():
+    table = table_passage([["1. Adorf", "Gilded", "Restored: true"]])
+    result, _ = extract(replace(evidence(table.text), passages=(table,)))
+    (link,) = [link for link in result["evidence"] if link["path"] == ["records", 0, "gilded"]]
+    assert (link["cell"], link["raw"], link["support"], link["verbatim"]) == ("r0_c1", "Gilded", "supporting", False)
+
+
 def test_boolean_support():
     source = evidence("1. Adorf. Material: Gold. Gilded.")
     result, _ = extract(source)

@@ -1,6 +1,7 @@
 import { passesFilter, rowText } from './reviewVocabulary'
 import { expect, it } from 'vitest'
-import type { DurablePage } from 'extraction/durable-types'
+import type { ParsedDocument } from 'extraction/parsed-document'
+import type { DurablePage, EvidenceLink } from 'extraction/durable-types'
 import { durableRailModel, durableRailRow, markValueId, ownsMark, partKey, valueParts, type RetainedValue } from './durableRailModel'
 import { reviewQueue } from './reviewQueue'
 
@@ -60,8 +61,23 @@ it('uses only the correction Evidence to locate an edited value',()=> {
     correction:{revision:1,decision:{action:'EDITED',value:true,evidence,included:true}},
   })
   const row=durableRailRow(saved,null)
-  expect(row.link).toEqual({resultPath:saved.path,evidenceAnchorId:'corrected'})
+  expect(row.link).toEqual({resultPath:saved.path,evidenceAnchorId:'corrected',occurrenceIds:['chosen']})
   expect(row.chip).toEqual({text:'linked',style:'link'})
+  const document = {evidence_index:{anchors:[{anchor_id:'corrected',kind:'text',producer_observations:[
+    {occurrence_id:'earlier',page_number:1},{occurrence_id:'chosen',page_number:2},
+  ]}]},content_stream:[]} as unknown as ParsedDocument
+  expect(durableRailRow(saved,document).chip?.text).toBe('p.2')
+})
+
+it('checks a composite row using the leaf its Evidence links to', () => {
+  const path = ['records', 0, 'rows']
+  const saved = value({path, modelValue:[{active:true}],
+    node:{id:'rows', name:'rows', type:'array', children:[{id:'active', name:'active', type:'boolean'}]},
+    links:[{resultPath:[...path, 0, 'active'], evidenceAnchorId:'a', verbatim:false,
+      grounding:{linkedBy:'lexical', support:'supporting', precision:'segment', alternatives:[], itemSpans:null,
+        textSpans:[{segment:'p1_s0', start:0, end:12}], raw:'Active: true'} satisfies NonNullable<EvidenceLink['grounding']>}]})
+  expect(durableRailRow(saved,null,valueParts(saved)[0]).doubt).toBeNull()
+  expect(durableRailModel({values:[saved]} as DurablePage,null).counts.doubtful).toBe(0)
 })
 
 it('non-verbatim Evidence determines the uncertain filter, count and queue',()=> {
