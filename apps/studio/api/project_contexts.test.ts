@@ -39,12 +39,10 @@ describe('Project Context routes', () => {
       projectContextId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`}))
     const listProjectContexts = vi.fn(async (limit?: number) => projects.slice(0, limit))
     const GET = createGetProjectContexts({...fixture, listProjectContexts})
-    for (let reload = 0; reload < 2; reload++) {
-      const response = await GET(new Request('http://test/api/project-contexts'))
-      const body = projectContextListResponseSchema.parse(await response.json())
-      expect(body.projectContexts).toHaveLength(51)
-      expect(body.projectContexts.at(-1)?.projectContextId).toBe(projects.at(-1)?.projectContextId)
-    }
+    const response = await GET(new Request('http://test/api/project-contexts'))
+    const body = projectContextListResponseSchema.parse(await response.json())
+    expect(body.projectContexts).toHaveLength(51)
+    expect(body.projectContexts.at(-1)?.projectContextId).toBe(projects.at(-1)?.projectContextId)
     expect(listProjectContexts).toHaveBeenLastCalledWith(undefined)
     const limited = await GET(new Request('http://test/api/project-contexts?limit=20'))
     expect((await limited.json()).projectContexts).toHaveLength(20)

@@ -3,17 +3,6 @@ import type { SchemaNode } from 'extraction/schema'
 
 /** A researcher's decision on a value, as the rail shows it. */
 export type ReviewAction = 'APPROVED' | 'EDITED' | 'REJECTED'
-/** The saved durable correction a row carries, in the rail's shape (durableRailModel). */
-export type RowDecision = Readonly<{
-  resultPath: readonly (string | number)[]
-  evidenceAnchorId: string | null
-  reviewedOccurrenceIds: readonly string[]
-  action: ReviewAction
-  reviewedValue: unknown
-  /** The correction's own Evidence: the passages selected from its source. */
-  reviewedEvidence?: readonly Readonly<{ evidenceAnchorId: string; reviewedOccurrenceIds: readonly string[] }>[] | null
-}>
-
 /** A row's state: the researcher's decision on a saved value, or why another value is
  *  not reviewable. */
 export type RowKind =
@@ -34,7 +23,7 @@ export type RailRow = {
   kind: RowKind
   link: EvidenceLink | null
   /** The decision a To check, approved, edited or rejected row carries. */
-  decision: RowDecision | null
+  decision: Readonly<{ action: ReviewAction }> | null
   chip: { text: string; style: ChipStyle } | null
   /** A not reviewable value's label and detail. */
   evidence: { label: string; detail: string } | null

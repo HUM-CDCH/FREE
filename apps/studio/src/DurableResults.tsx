@@ -20,7 +20,7 @@ import ResultsMenu, { type MenuItem } from './ResultsMenu'
 import { RunDiagnostics } from './RunDiagnostics'
 import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { quietRevision, resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
-import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, statusLine, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
+import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, statusLine, valueEvidenceLink, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
 import { provisionalMarks } from './provisionalMarks'
 import { recordBlocks, type RecordBlock } from './recordBlocks'
 import type { MarkInfo } from './useEvidenceOverlays'
@@ -383,7 +383,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const [part,setPart]=useState<string|null>(null)
   const chosenPart=part&&reviewParts.some(each=>each.key===part)?part:null
   const activeLink=chosenPart?reviewParts.find(each=>each.key===chosenPart)?.link??null
-    :review?durableRailRow(review.value,document).link:null
+    :review?valueEvidenceLink(review.value):null
   const showEvidence=useCallback((value:Value,link:EvidenceLink)=> {
     const own: {anchorId:string;occurrenceIds:string[]}[] = value.correction?.decision.action==='EDITED'
       ? value.correction.decision.evidence??[] : []
@@ -400,9 +400,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // A request pending this commit may select another value: the follow waits for it rather than scroll back to this one.
   const requestTaken=Boolean(request&&request.extractionId===id&&page&&railOpen)
   const followRef=useRef({showEvidence,requestTaken,activeLink,
-    reviewValue:review?.value,reviewId:review?.value.id})
+    reviewValue:review?.value})
   useEffect(()=>{followRef.current={showEvidence,requestTaken,activeLink,
-    reviewValue:review?.value,reviewId:review?.value.id}})
+    reviewValue:review?.value}})
   // A chosen value shows in its record, whichever way the researcher last toggled it.
   const reveal=(record:string)=>setToggledRecords(previous=>{if(previous.get(record)!==false)return previous;const next=new Map(previous);next.delete(record);return next})
   const selectValue=useCallback((key:string,fromMark=false)=> {
@@ -429,7 +429,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     selectValue(key)
     // A value the page lacks may be the open review's, read on its own.
     const value=page?.values.find(each=>each.id===key)??(review?.value.id===key&&review.version===page?.snapshotVersion?review.value:undefined)
-    const link=value?durableRailRow(value,document).link:null
+    const link=value?valueEvidenceLink(value):null
     if(focus&&value&&link&&(!document||followKeyFor(value,page!.snapshotVersion,link)!==followKey))return
     if(value&&link)followRef.current.showEvidence(value,link)
   },[page,selectValue,focus,document,followKeyFor,followKey,review])
@@ -504,9 +504,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   },[model,page,selection,review,document,blocks,id,chosenPart,fieldOrder,previews,displayed])
   useEffect(()=>()=>{selection.publish({marks:null,dim:null});selection.hover(null)},[selection])
   useEffect(()=>{
-    const {reviewId,showEvidence,reviewValue,requestTaken,activeLink:link}=followRef.current
+    const {showEvidence,reviewValue,requestTaken,activeLink:link}=followRef.current
     selection.publish({dim:followKey?link:null})
-    const fromMark=selectionFromMark.current===reviewId
+    const fromMark=selectionFromMark.current===reviewValue?.id
     selectionFromMark.current=null
     if(followKey&&link&&reviewValue&&!fromMark&&!requestTaken)showEvidence(reviewValue,link)
   },[followKey,selection])
@@ -623,7 +623,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const pick:PartPick|undefined=review&&reviewParts.length?{valueId:review.value.id,selected:chosenPart,
     parts:new Map(reviewParts.map(each=>[each.key,each])),onPick:key=> {
       setPart(key)
-      const link=key===null?durableRailRow(review.value,document).link
+      const link=key===null?valueEvidenceLink(review.value)
         :reviewParts.find(each=>each.key===key)?.link
       if(!focus&&link)showEvidence(review.value,link)
     }}:undefined

@@ -53,7 +53,6 @@ function typeShape(node: SchemaNode): unknown {
 
 /** Words for a producing type, used to tell apart columns of one name produced under different types. */
 export function typeWords(node: SchemaNode): string {
-  if (node.type === "object") return "object";
   if (node.type === "array") return node.children ? "list of objects" : `list of ${node.itemType}`;
   return node.type;
 }

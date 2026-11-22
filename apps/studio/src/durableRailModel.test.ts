@@ -62,7 +62,6 @@ it('uses only the correction Evidence to locate an edited value',()=> {
   const row=durableRailRow(saved,null)
   expect(row.link).toEqual({resultPath:saved.path,evidenceAnchorId:'corrected'})
   expect(row.chip).toEqual({text:'linked',style:'link'})
-  expect(row.decision).toMatchObject({evidenceAnchorId:'corrected',reviewedOccurrenceIds:['chosen']})
 })
 
 it('non-verbatim Evidence determines the uncertain filter, count and queue',()=> {
@@ -131,7 +130,6 @@ it('names each scalar part of a composite value with its own link, and keys it b
   // A part's row is that part's Evidence; the decision stays the whole value's.
   expect(durableRailRow(saved,null,parts[0]).chip?.text).toBe('no source')
   expect(durableRailRow(saved,null,parts[2]).link).toBe(cell)
-  expect(durableRailRow(saved,null,parts[0]).decision?.evidenceAnchorId).toBe('a_p1_s2_r1_c1')
   expect(valueParts(value())).toEqual([])
 })
 
