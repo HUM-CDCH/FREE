@@ -8,6 +8,7 @@ from kei_exp.pagefile import PageTable
 from kei_exp.transcription.tables import table_of_html
 from kei_exp.transcription.types import html_to_text
 from kei_exp.kie.passages import Passage
+from kei_exp.kie.extract.assembly import grounding_accounting
 from kei_exp.kie.extract.grounding import verify
 from tests.helpers.chat import FakeChat
 from tests.test_extract_stages import SCHEMA, FixedCounter
@@ -156,3 +157,21 @@ def test_a_cell_quoted_with_text_it_does_not_print_also_offers_its_table():
     links, calls, issues = verify([passage(html)], {'site': '7-8'}, SCHEMA, FakeChat(choose), record=0,
                                   counter=FixedCounter(), quoted=True)
     assert len(calls) == 2 and not issues and [(link.segment, link.precision) for link in links] == [('p3_s4', 'segment')]
+
+
+def test_a_table_check_whose_caption_fallback_exceeds_the_budget_stays_incomplete():
+    class CaptionLimit(FixedCounter):
+        def request_tokens(self, system, user, schema):
+            # The precise cell fits. The second request also offers its parent table, E1.
+            if 'E1' in schema['properties']['C1']['enum']:
+                return self.context_tokens
+            return super().request_tokens(system, user, schema)
+
+    item = passage(HTML.replace('<table>', '<table><caption>Site identifier: 7-8</caption>'))
+    links, calls, issues = verify([item], {'site': '7-8'}, SCHEMA, FakeChat(lambda *_: {'C1': 'NONE'}),
+                                  record=0, counter=CaptionLimit())
+    path = ('records', 0, 'site')
+    assert not links and len(calls) == 1
+    assert [(issue.code, issue.path) for issue in issues] == [('grounding_exceeds_budget', path)]
+    accounting = grounding_accounting({path}, set(), issues)
+    assert (accounting['unsupported'], accounting['not_completed']) == (0, 1)

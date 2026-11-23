@@ -11,13 +11,13 @@ SCHEMA = {"recordDescription": "A numbered entry", "schemaNodes": [
     {"id": "ref", "name": "reference", "type": "string"}]}
 
 
-def inherited(reading):
-    """A reference printed in the heading above its record, so its value is read again independently: `reading`."""
+def inherited(reply):
+    """A reference printed in the heading above its record, so its value is read again independently."""
     source = evidence('Kreis Reference: 42\n1. Adorf.')
     model = Model(source, entry=lambda *_: {'reference': candidate('42', 'Kreis Reference: 42')})
 
     def answer(system, user, schema):
-        return {'C1': reading} if system.startswith('Read the source independently') else model(system, user, schema)
+        return reply if system.startswith('Read the source independently') else model(system, user, schema)
     result, _ = extract(source, answer, schema=SCHEMA)
     return result
 
@@ -35,7 +35,7 @@ def retained(result, tree=SCHEMA):
 @pytest.mark.parametrize('reply', [None, 'An invented value'])
 def test_an_inherited_scalar_whose_independent_reading_disagrees_is_rejected(reply):
     """Not Pro's doubtful verdict, kept for review: a reading that answers otherwise refuses the inherited value."""
-    result = inherited(reply)
+    result = inherited({'C1': reply})
     assert result['records'][0]['reference'] is None and not result['proposed']
     assert [(row['value'], row['reason']) for row in result['rejected']] == [('42', 'verification_rejected')]
     value, = retained(result)
@@ -44,7 +44,7 @@ def test_an_inherited_scalar_whose_independent_reading_disagrees_is_rejected(rep
 
 
 def test_an_accepted_value_and_its_evidence_take_priority_over_proposals():
-    result = inherited('42')
+    result = inherited({'C1': '42'})
     result['proposed'].append({'path': ['records', 0, 'reference'], 'value': 'wrong'})
     value, = retained(result)
     assert value['modelValue'] == '42' and value['grounding'] == 'grounded' and value['evidence']
@@ -74,8 +74,10 @@ def test_proposals_follow_object_fields_without_inventing_list_identity():
     assert values['items']['modelValue'] == [{'reference': None}]
 
 
-def test_a_reading_that_is_not_the_value_alone_is_neither_agreement_nor_an_explicit_null():
-    result = inherited(candidate('42', 'Kreis Reference: 42'))  # the retired {value, quote} reply shape
+@pytest.mark.parametrize('reply', [{}, {'C1': {}}, {'C1': candidate('42', 'Kreis Reference: 42')}],
+                         ids=['missing-label', 'empty-reading', 'retired-quoted-shape'])
+def test_a_reading_that_is_not_the_value_alone_is_neither_agreement_nor_an_explicit_null(reply):
+    result = inherited(reply)
     assert [(proposal['value'], proposal['reason']) for proposal in result['proposed']] == [('42', 'verification_unresolved')]
     value, = retained(result)
     assert value['modelValue'] == '42' and value['grounding'] == 'ungrounded' and not value['evidence']

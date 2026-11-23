@@ -173,6 +173,18 @@ describe('answerSchemaChat', () => {
     expect(generateTextMock).toHaveBeenCalledTimes(3)
   })
 
+  it('hands a request back to Studio: a template asked for with what it should hold, a run, a yes or a no', async () => {
+    replies(intent('generate', 'the dates'))
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'give me a template of the dates', history: [] }, {}, general))
+      .resolves.toEqual({ action: 'generate', focus: 'the dates' })
+    replies(intent('extract'))
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Extract it', history: [] }, {}, general))
+      .resolves.toEqual({ action: 'extract', focus: null })
+    replies(intent('none'))
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'no thanks', history: [] }, {}, general)).resolves.toEqual({ action: 'none' })
+    expect(generateTextMock).toHaveBeenCalledTimes(3)
+  })
+
   it('keeps every message as an instruction when nothing can answer it', async () => {
     await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'How many burials?', history: [] }, {}, nuextractAlone)).resolves.toBeNull()
     expect(generateTextMock).not.toHaveBeenCalled()

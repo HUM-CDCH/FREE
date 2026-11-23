@@ -10,7 +10,8 @@ from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract.article import DOCUMENT_LABEL, RootUnanswered
 from kei_exp.kie.extract.calls import complete
 from kei_exp.kie.extract.grounding import verify
-from kei_exp.kie.extract.stages import DOCUMENT, record_request
+from kei_exp.kie.extract.stages import DOCUMENT, extract_record, record_request
+from kei_exp.kie.extract.schema import Schema
 from kei_exp.kie.extract.tokens import BudgetUnavailable
 from kei_exp.kie.passages import text_of
 from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
@@ -71,8 +72,7 @@ def test_article_model_context_uses_only_saved_instruction_notes(note, expected)
         seen.append((system, user, output))
         return {"details": {"site": "Hill"}}
 
-    extract_record(passages(["Find at Hill."]), schema, CountingChat(fields), budget=1000,
-                   counter=WordCounter(), document=True)
+    extract_record(passages(["Find at Hill."]), schema, CountingChat(fields), counter=WordCounter())
     assert len(seen) == 1
     system, user, output = seen[0]
     assert [line for line in system.splitlines() if line.startswith("- details.site:")] == (

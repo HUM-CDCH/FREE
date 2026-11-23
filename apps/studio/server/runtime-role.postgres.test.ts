@@ -96,7 +96,7 @@ beforeAll(async () => {
 
   // The upgraded Studio, now the runtime role, recovers the workflow the earlier one left pending.
   runtimeUrl = urlAs(roles.studio, passwords.studio)
-  const recovered = await runWorkflowChild('lifecycle', { ...history, DATABASE_URL: runtimeUrl })
+  const recovered = await runWorkflowChild('lifecycle', { ...history, DATABASE_URL: runtimeUrl, FREE_KEI_QUEUE_DATABASE_URL: queueUrl })
   expect(recovered.code, recovered.output).toBe(0)
 
   // Studio itself: the domain pool binds DATABASE_URL at import, so the runtime URL is set first.
@@ -156,7 +156,7 @@ describe('Studio on its restricted runtime role', () => {
 
   it('migrates a fresh DBOS schema, enqueues and recovers a killed workflow as that role', async () => {
     const file = join(scratch, 'fresh-steps.txt')
-    const env = { DATABASE_URL: urlAs(roles.fresh, passwords.fresh),
+    const env = { DATABASE_URL: urlAs(roles.fresh, passwords.fresh), FREE_KEI_QUEUE_DATABASE_URL: urlAs(roles.queue, passwords.queue),
       FREE_TEST_DBOS_SCHEMA: fresh.schema, FREE_TEST_KEI_SCHEMA: keiSchema,
       FREE_TEST_EXECUTOR: fresh.executorId, FREE_CRASH_MARKER: join(scratch, 'fresh-marker'), FREE_TEST_LIFECYCLE_FILE: file }
     const killed = await runWorkflowChild('lifecycle', env)

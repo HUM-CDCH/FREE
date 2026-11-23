@@ -2,7 +2,7 @@ import { appendFileSync } from 'node:fs'
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import { launchStudioDbos, shutdownStudioDbos, STUDIO_QUEUE, studioDbos } from '../../../server/dbos.js'
 import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
-import { requiredScenarioValue, scenarioDbosOptions } from '../scenarioEnvironment.js'
+import { requiredScenarioValue } from '../scenarioEnvironment.js'
 
 const WORKFLOW_NAME = 'lifecycleProbe'
 const WORKFLOW_ID = 'lifecycle-probe'
@@ -28,8 +28,13 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   const required = requiredScenarioValue(env, 'lifecycle')
   crashInStepB = firstRun
   const file = required('FREE_TEST_LIFECYCLE_FILE')
+  const databaseUrl = required('DATABASE_URL')
   await launchStudioDbos({
-    ...scenarioDbosOptions(required),
+    databaseUrl,
+    keiDatabaseUrl: env.FREE_KEI_QUEUE_DATABASE_URL ?? databaseUrl,
+    schema: required('FREE_TEST_DBOS_SCHEMA'),
+    keiSchema: required('FREE_TEST_KEI_SCHEMA'),
+    executorId: required('FREE_TEST_EXECUTOR'),
     register: () => {
       DBOS.registerWorkflow(probe, { name: WORKFLOW_NAME })
     },

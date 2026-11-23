@@ -242,10 +242,12 @@ def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="r
     return runner
 
 
-def test_a_heading_quote_outside_admitted_context_is_never_read_again(monkeypatch):
+@pytest.mark.parametrize("context", [False, True], ids=["no-admitted-heading", "admitted-heading"])
+def test_other_records_cannot_supply_inherited_evidence_even_if_the_verifier_agrees(monkeypatch, context):
     text = "Group North\n1. Owner lives in North.\n2. Second."
     start = text.index("2.")
-    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}], "context": []}
+    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
+             "context": [{"segment": "p1_s0", "start": 0, "end": 11}] if context else []}
     window = Window((Unit("p1_s0", start, len(text)),))
     seen = []
     def answer(system, user, schema):
@@ -258,7 +260,10 @@ def test_a_heading_quote_outside_admitted_context_is_never_read_again(monkeypatc
     assert work.record == {"region": "North"}
     # Without an admitted heading the quote is located nowhere it may be: nothing reads it again, a proposal for
     # review without Evidence.
-    assert not seen and found.kind == "proposed"
+    assert len(seen) == context and found.kind == ("accepted" if context else "proposed")
+    assert all("Owner lives in North" in user for user in seen)  # intervening text is for judging supersession only
+    if context:  # linked at the admitted heading the entry quoted, never where the other record prints the value
+        assert [(span.start, span.end) for span in found.spans] == [(6, 11)] and not found.alternatives
 
 
 def tight_runner(text, reads, answer, input_tokens, **entries):
@@ -438,11 +443,12 @@ def test_records_under_one_heading_share_one_reading_that_sees_a_heading_between
     assert all(len(calls) == 1 and not issues for work in works for calls, issues in work.shared.values())
 
 
-def test_a_shared_reading_is_accepted_only_when_it_equals_the_candidate(monkeypatch):
+@pytest.mark.parametrize("reading,kind", [("North", "accepted"), ("South", "rejected"), (None, "rejected")])
+def test_a_shared_reading_is_accepted_only_when_it_equals_the_candidate(monkeypatch, reading, kind):
     north = candidate("North", "Group North")
     runner, entries = heading_group(monkeypatch, "Group North\n1. Owner lives in North.\n2. Second.", [north] * 2,
-                                    lambda *_: {"R1": "North", "R2": None})
-    assert runner.entry(1, entries[1]).found[0].kind == "rejected"
+                                    lambda *_: {"R1": "North", "R2": reading})
+    assert runner.entry(1, entries[1]).found[0].kind == kind
     assert runner.entry(0, entries[0]).found[0].kind == "accepted"
 
 
