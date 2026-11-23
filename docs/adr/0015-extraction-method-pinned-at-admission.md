@@ -53,12 +53,13 @@ admitted with.
 - A start can be refused because the settings changed after its summary was
   shown. Applying in the same page updates open start views, so only a change
   made elsewhere produces this refusal.
-- Extraction details show the requested method beside the options and protocol
-  versions the Parsing Service reported for that run.
+- Extraction details distinguish stored method settings and resolved model
+  choices from the historical execution records preserved by the Parsing Service.
 - Equal settings do not promise identical output across runtime revisions.
-- A later narrowing of the method contract would leave stored methods it no
-  longer parses. Reading them shows "Not recorded", while running on one fails
-  only that Extraction.
+- A later narrowing of the method contract can leave stored methods that fail
+  validation (`invalid_extraction_method`). "Effective method: Not recorded"
+  means the resolved configuration is absent; it does not indicate whether a
+  stored method is supported.
 - Direct API clients must now send the `method` intent with every start.
 
 ## Amendment (0017, 2026-10-05)
@@ -117,3 +118,9 @@ not rewritten: snapshots, plans and call captures still name defaults 11, and a 
 queued and running Extractions before deployment; Resume and Retry then run the existing selection under defaults
 12. The 2026-11-16 retirement deleted pins that had no current equivalent; these pins have one, because defaults 12
 accepts every defaults 11 request.
+
+History distinguishes stored selection settings from recorded execution plans. It shows every saved execution
+record for that selection, including both versions when a run resumed after an upgrade. A plan can precede its
+first model call. A snapshot's own execution record, when present, describes its publication; retained values can
+come from earlier executions and keep their lineage. History never infers a missing execution record from the
+migrated method pin or another snapshot.
