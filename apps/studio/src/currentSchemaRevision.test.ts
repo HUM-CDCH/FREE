@@ -58,6 +58,7 @@ function setupDurable(options: {
   initial?: AcknowledgedSchemaRevision | null
   debounceMs?: number
   normalizeAcknowledgement?: (definition: SchemaDefinition) => SchemaDefinition
+  historical?: SchemaRevision
 } = {}) {
   const edits: SchemaDefinition[] = []
   const events: string[] = []
@@ -106,7 +107,7 @@ function setupDurable(options: {
       return { ...revision(1, sent.schemaNodes[0]!.name), recordScope: headScope }
     },
     listRevisions: async () => [...history],
-    getRevision: async () => revision(1, 'historical'),
+    getRevision: async () => options.historical ?? revision(1, 'historical'),
   })
 
 
@@ -700,6 +701,41 @@ describe('generation lifecycle', () => {
     expect(setup.controller.snapshot().sourceCoverage).toEqual(EXCERPTED)
   })
 
+  it.each(['generate', 'restoreGeneration'] as const)('%s preserves researcher notes only at the same path with the same text', async (method) => {
+    const initial = revision(1, 'entry')
+    initial.schemaNodes = [
+      { id: 'group', name: 'items', type: 'array', description: ' One item. ', children: [
+        { ...node('name'), description: 'Printed name.' },
+        { ...node('place'), description: 'Place as printed.', descriptionSource: 'suggested' },
+        { ...node('year'), description: 'Printed year.' },
+      ] },
+    ]
+    const setup = setupDurable({ initial, debounceMs: 0 })
+    const template = { _description: 'One entry.', items: [{ _description: 'One item.', name: 'string', place: 'string', year: 'integer' }], 'items.name': 'string' }
+    const notes = [
+      { path: ['items', 'name'], description: ' Printed name. ' },
+      { path: ['items', 'place'], description: 'Place as printed.' },
+      { path: ['items', 'year'], description: 'Year of publication.' },
+      { path: ['items.name'], description: 'Printed name.' },
+    ]
+    if (method === 'generate') {
+      await setup.controller.generate(async (_signal, _coverage, declareNotes) => {
+        declareNotes(notes)
+        return template
+      })
+    } else {
+      expect(await setup.controller.restoreGeneration(template, 'rev-1', null, notes)).toBe(true)
+    }
+    const [group, dotted] = setup.appends[0].definition.schemaNodes
+    expect([group, ...group.children!, dotted].map(({ description, descriptionSource }) => [description, descriptionSource])).toEqual([
+      ['One item.', undefined],
+      ['Printed name.', undefined],
+      ['Place as printed.', 'suggested'],
+      ['Year of publication.', 'suggested'],
+      ['Printed name.', 'suggested'],
+    ])
+  })
+
   it('a generation and a restored generation save their declared field notes as the fields\' notes', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
 
@@ -707,11 +743,11 @@ describe('generation lifecycle', () => {
       declareFieldDescriptions([{ path: ['place'], description: 'The find place as printed.' }])
       return { _description: 'One generated record.', place: 'string' }
     })
-    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'place', description: 'The find place as printed.' })
+    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'place', description: 'The find place as printed.', descriptionSource: 'suggested' })
 
     await setup.controller.restoreGeneration({ _description: 'One restored record.', restored: 'string' }, 'rev-2', null,
       [{ path: ['restored'], description: 'The restored value.' }])
-    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'restored', description: 'The restored value.' })
+    expect(setup.controller.snapshot().draft!.schemaNodes[0]).toMatchObject({ name: 'restored', description: 'The restored value.', descriptionSource: 'suggested' })
   })
 
   it('restoreGeneration saves onto a clean base and drops on a conflict without an error', async () => {
@@ -905,6 +941,20 @@ describe('create Current Template Revision from history', () => {
       'historical',
     )
   })
+})
+
+it('creates a revision from history that differs from the current one only in a note\'s provenance', async () => {
+  const noted = (revisionNumber: number, source?: 'suggested'): SchemaRevision => ({
+    ...revision(revisionNumber, 'historical'),
+    schemaNodes: [{ ...node('historical'), description: 'Note.', ...(source && { descriptionSource: source }) }],
+  })
+  const setup = setupDurable({ initial: noted(2), historical: noted(1, 'suggested'), debounceMs: 0 })
+
+  await setup.controller.createCurrentRevisionFromHistory('rev-1')
+
+  expect(setup.appends.map(({ definition }) => definition.schemaNodes[0])).toEqual([
+    { ...node('historical'), description: 'Note.', descriptionSource: 'suggested' },
+  ])
 })
 
 describe('durable persistence adapter', () => {

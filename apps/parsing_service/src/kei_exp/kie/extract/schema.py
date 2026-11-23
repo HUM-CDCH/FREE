@@ -28,12 +28,17 @@ class Node(BaseModel):
     id: str = Field(min_length=1)
     name: str = Field(min_length=1)
     description: str | None = Field(default=None, min_length=1)
+    description_source: Literal["suggested"] | None = Field(default=None, alias="descriptionSource")
     value_source: Literal["document", "source-filename"] | None = Field(default=None, alias="valueSource")
     evidence_policy: EvidencePolicy | None = Field(default=None, alias="evidencePolicy")
     type: Literal["verbatim-string", "string", "date", "number", "integer", "boolean", "object", "array"]
     allowed_values: list[str] | None = Field(default=None, alias="allowedValues")
     item_type: Scalar | None = Field(default=None, alias="itemType")
     children: list[Node] | None = None
+
+    @property
+    def instruction_description(self) -> str | None:
+        return None if self.description_source == "suggested" else self.description
 
     @field_validator("evidence_policy")
     @classmethod
@@ -152,7 +157,7 @@ def notes(nodes: Sequence[Node], prefix: str = "") -> list[str]:
     lines: list[str] = []
     for node in nodes:
         path = f"{prefix}{node.name}"
-        description = node.description or ""
+        description = node.instruction_description or ""
         if node.allowed_values is not None:
             description += f" Allowed labels: {', '.join(repr(value) for value in node.allowed_values)}; null if unsupported."
         if description:
@@ -175,7 +180,8 @@ def describe(nodes: Sequence[Node], path: Sequence[str | int]) -> str:
         names.append(found.name)
         current = found.children or []
     dotted = ".".join(names) or ".".join(str(step) for step in path)
-    return f"{dotted}: {found.description}" if found is not None and found.description else dotted
+    description = found.instruction_description if found is not None else None
+    return f"{dotted}: {description}" if description else dotted
 
 
 def evidence_policy(nodes: Sequence[Node], path: Sequence[str | int]) -> EvidencePolicy:

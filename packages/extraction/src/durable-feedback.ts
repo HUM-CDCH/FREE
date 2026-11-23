@@ -33,9 +33,11 @@ export function correctionSourceContext(document: ParsedDocument, markdown: stri
 }
 
 /** Names are presentation. Identity and meaning/type/constraints determine
- * compatibility; reinterpreting a field deliberately changes this digest. */
+ * compatibility; reinterpreting a field deliberately changes this digest. A suggested note never reaches
+ * extraction, so it counts as no note. */
 export function fieldMeaning(node: SchemaNode): string {
-  const { id: _id, name: _name, children, ...meaning } = node
+  const { id: _id, name: _name, children, descriptionSource, ...meaning } = node
+  if(descriptionSource==='suggested') delete meaning.description
   if(children) Object.assign(meaning,{children:children.map(child=>[child.id,fieldMeaning(child)]).sort((a,b)=>Buffer.compare(Buffer.from(String(a[0])),Buffer.from(String(b[0]))))})
   return createHash('sha256').update(stableJson(meaning)).digest('hex')
 }

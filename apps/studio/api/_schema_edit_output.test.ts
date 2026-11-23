@@ -61,10 +61,20 @@ describe('schema edit output', () => {
     expect(nodes[0]!.description).toBe('Remove this rule.')
   })
 
+  it('sets and clears a group note by the group\'s own path', () => {
+    const nodes: SchemaNode[] = [
+      { id: 'items', name: 'items', type: 'array', description: 'Old rule.', children: [{ id: 'name', name: 'name', type: 'string' }] },
+      { id: 'grave', name: 'grave', type: 'object', description: 'Remove this rule.', children: [{ id: 'plot', name: 'plot', type: 'string' }] },
+    ]
+    expect(withFieldDescriptions(nodes, [
+      { path: ['items'], description: 'One listed item.' }, { path: ['grave'], clear: true },
+    ]).map(({ description }) => description)).toEqual(['One listed item.', ''])
+  })
+
   it.each(['Replacement', '', null])('rejects a clear operation combined with description %j', (description) => {
     const nodes: SchemaNode[] = [{ id: 'title', name: 'title', type: 'string', description: 'Keep this rule.' }]
     expect(() => withFieldDescriptions(nodes, [{ path: ['title'], clear: true, description }]))
-      .toThrow('invalid scalar field notes')
+      .toThrow('invalid field notes')
     expect(nodes[0]!.description).toBe('Keep this rule.')
   })
 
@@ -73,6 +83,6 @@ describe('schema edit output', () => {
       { id: 'one', name: 'same', type: 'string' },
       { id: 'two', name: 'same', type: 'string' },
     ]
-    expect(() => withFieldDescriptions(nodes, [{ path: ['same'], description: 'Ambiguous.' }])).toThrow('invalid scalar field notes')
+    expect(() => withFieldDescriptions(nodes, [{ path: ['same'], description: 'Ambiguous.' }])).toThrow('invalid field notes')
   })
 })

@@ -31,7 +31,7 @@ export type SuggestedSchema = {
 export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly instruction: string
-  /** A suggestion's sidecar sets scalar notes; an edit's may also clear them (`withFieldDescriptions`). */
+  /** A suggestion's sidecar sets scalar notes; an edit's sets or clears any field's (`withFieldDescriptions`). */
   readonly edit?: true
   /** The Markdown is one window of the source (see `schemaSourceWindows`): send it as it is, never excerpted. */
   readonly window?: boolean
@@ -88,7 +88,7 @@ export async function suggestOnRoute(
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
   const generated = await executeSchemaSuggestion(resolved, {
     instructions: edit
-      ? 'Revise the researcher\'s extraction schema. Return only one JSON object, with no Markdown or commentary: the complete compact schema in "template" and scalar field note edits in "fieldDescriptions", with no extracted values.'
+      ? 'Revise the researcher\'s extraction schema. Return only one JSON object, with no Markdown or commentary: the complete compact schema in "template" and field note edits in "fieldDescriptions", with no extracted values.'
       : 'Propose a compact extraction schema grounded in the supplied source document. ' +
         'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
     guidance: edit ? schemaEditPrompt(instruction) : schemaPrompt(instruction),
