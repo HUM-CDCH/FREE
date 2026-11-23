@@ -24,7 +24,6 @@ export const NO_TEMPLATE_RESULTS_REPLY = 'There are no results yet: generate a t
  *  to change particular results (`correct`, with what was `said`): the request, until the page carries it out (ADR 0034,
  *  ADR 0035). */
 export type HeardRequest = {
-  request: number
   action: 'generate' | 'confirm' | 'correct'
   offer: ChatOffer | null
   said?: { message: string; history: ChatHistory }
@@ -95,7 +94,8 @@ export type SchemaChat = {
   /** A message asked for the extraction to run: its request, until the researcher chooses what to extract. */
   readonly extractRequest: number | null
   clearExtractRequest(): void
-  /** A message asked to make the template (again) or agreed to the step beside it: the page carries it out. */
+  /** A message asked to make the template (again), agreed to the step beside it or asked to change particular results:
+   *  the page carries it out. */
   readonly heard: HeardRequest | null
   clearHeard(): void
   /** Stops a running request and drops the proposal; with `clearConversation` also the conversation and instructions. */
@@ -177,9 +177,8 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
   const [extractRequest, setExtractRequest] = useState<number | null>(null)
   const extractRequests = useRef(0)
   const [heard, setHeard] = useState<HeardRequest | null>(null)
-  const heardRequests = useRef(0)
   const hear = useCallback((action: HeardRequest['action'], offer: ChatOffer | null | undefined, said?: HeardRequest['said']) =>
-    setHeard({ request: heardRequests.current += 1, action, offer: offer ?? null, ...(said ? { said } : {}) }), [])
+    setHeard({ action, offer: offer ?? null, ...(said ? { said } : {}) }), [])
   const clearHeard = useCallback(() => setHeard(null), [])
   const appendMessage = useCallback(
     (message: string) => keep(show([{ role: 'assistant', text: message }])),
@@ -396,8 +395,10 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     instructions.setDraft(typed ? `${asking}\n${typed}` : asking)
   }
 
-  // A message before the first schema asks the model whether it is a question: a question is answered from the document,
-  // a message that only declines is answered with NO_ACTION_REPLY, anything else is kept as an instruction for generation. Without a source to read it is kept as one directly.
+  // A message before the first schema asks the model what it is: a question is answered from the document, a message
+  // that only declines is answered with NO_ACTION_REPLY, a request to change results is told there are none yet, any
+  // other request (to generate or extract, or a "yes" to the step beside it) is the page's to carry out, and anything
+  // else is kept as an instruction for generation. Without a source to read it is kept as one directly.
   async function ask(message?: string, offer?: ChatOffer | null) {
     const fromDraft = message === undefined
     const text = (message ?? instructions.draft).trim()

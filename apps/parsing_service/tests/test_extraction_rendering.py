@@ -9,8 +9,7 @@ from kei_exp.kie.extract import assembly, run
 from kei_exp.kie.extract.method import ArticleOptions
 from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.rendering import structured_source
-from kei_exp.kie.extract.stages import extract_document, extract_record
-from kei_exp.kie.extract.tokens import BudgetUnavailable
+from kei_exp.kie.extract.stages import extract_record
 from kei_exp.pagefile import PageTable, TableCell
 from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
@@ -117,10 +116,8 @@ def test_structural_overhead_is_admitted_or_refused_without_sending_a_clipped_ta
             return 8192 if "<cell " in user else 100
 
     chat = CountingChat(lambda *_: {})
-    _, calls, issues = extract_record(source, SCHEMA, chat, budget=1, record=0,
+    _, calls, issues = extract_record(source, SCHEMA, chat, record=0,
                                       counter=RenderingCounter(), structured=True)
     assert not chat.calls
     assert not calls[0].ok and calls[0].counted_input_tokens == 8192
     assert issues[0].code == "call_failed"
-    with pytest.raises(BudgetUnavailable, match="requires a token counter"):
-        extract_document(evidence(source), SCHEMA, chat, budget=1, structured=True)

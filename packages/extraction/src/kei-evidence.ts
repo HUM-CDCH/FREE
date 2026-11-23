@@ -36,7 +36,7 @@ export const evidenceSchema = linkSchema.extend({
   { path: ['location'], message: 'location spans must be non-empty ranges in the link\'s segment' })
 /** Version 3 evidence (`kie/extract/unified.py` `_link`): a located value, its literal span or the passage that
  *  supports a yes/no, a label or a derived value, and the occurrence of the list item it belongs to. `verification`:
- *  a separate verification accepted it; `lexical`: a single-pass method (defaults 6) where only code located it. */
+ *  an independent reading accepted the inherited value; `lexical`: code alone located it in its record's text. */
 export const unifiedEvidenceSchema = linkSchema.extend({
   linked_by: z.enum(['verification', 'lexical']),
   support: z.enum(['literal', 'supporting']),

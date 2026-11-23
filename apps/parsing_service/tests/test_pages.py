@@ -24,8 +24,6 @@ from kei_exp.transcription import surya
 from kei_exp.transcription.types import ConversionError, Execution, RunParams
 from tests.helpers.fake import FakeTranscriber, registered
 
-SPREAD_PT = (1190.52, 841.92)  # the fixture's PDF page, in points
-
 
 def single_page(width_px: int, height_px: int, dpi: float = 600.0) -> IngestPage:
     """An ingest page standing alone on its spread, placed to fill a page of its own size at `dpi`."""

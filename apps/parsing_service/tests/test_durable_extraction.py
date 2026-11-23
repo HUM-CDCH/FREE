@@ -18,7 +18,6 @@ from kei_exp.kie.extract.retained import publish_final, publish_values
 from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, evidence, passages
 from tests.test_unified_catalog import Model, evidence as unified_evidence, request as unified_request
-from tests.helpers import catalogue
 
 
 class Counter(WordCounter):
@@ -447,7 +446,7 @@ def test_article_reply_allocation_protects_its_floor_and_selects_guidance(oversi
     def plan():
         return extract_record(passages(["target source"]),Schema.model_validate(tree),
             Router(fields=chat,reasoning=chat,runtime=CapturePlanner(lease,{"fields":counter})),
-            budget=48000,counter=counter,document=True)
+            counter=counter)
     with pytest.raises(NeedsCall):
         plan()
     captured=deepcopy(next(iter(lease.units.values()))["input"])
@@ -482,7 +481,7 @@ def test_article_guidance_preserves_bounded_root_input_sized_reply_floor(bounded
     with pytest.raises(NeedsCall):
         document_root(passages(["source "*7000]),Schema.model_validate(tree),
             Router(fields=chat,reasoning=chat,runtime=CapturePlanner(lease,{"fields":counter})),
-            counters={"fields":counter},record_chars=48000,
+            counters={"fields":counter},
             method=ArticleOptions(context="bounded" if bounded else "full",context_tokens=16000))
     request=next(iter(lease.units.values()))["input"]["request"]
     assert request["examples"]==([] if bounded else [candidate])
@@ -560,7 +559,7 @@ def test_an_article_record_call_is_planned_with_the_page_it_is_read_for():
     chat=OpenAIChat(model="fake/extractor")
     with pytest.raises(NeedsCall):
         extract_record(passages(["Published in 2020."]),Schema.model_validate(tree),Router(chat,chat,planner),
-                       budget=48000,record=0,counter=Counter(),document=True,page=12)
+                       record=0,counter=Counter(),page=12)
     assert list(planner.priorities.values())==[1]
 
 
@@ -586,7 +585,7 @@ def test_whitespace_loop_gets_one_captured_recovery_with_unchanged_inputs(monkey
         router = Router(chat, chat, planner)
         if stage == "record":
             return extract_record(passages(["Published in 2020."]), Schema.model_validate(tree),
-                                  router, budget=48000, record=0, counter=counter, document=True)
+                                  router, record=0, counter=counter)
         attempts, issues = [], []
         budget = unified._Budget(router, {"fields": counter}, {"entry": {"output_tokens": 4096}})
         answer = budget.ask("entry", 0, "Read a year", "Published in 2020.",

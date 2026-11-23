@@ -33,7 +33,7 @@ export const batchExtractionRequestSchema = z
       .min(1)
       .max(BATCH_EXTRACTION_SELECTION_LIMIT)
       .refine((ids) => new Set(ids).size === ids.length),
-    /** The saved method the start view showed. A batch has no recipe: Article or generic Catalog settings. */
+    /** The saved method the start view showed: Article or unified Catalog settings. */
     method: extractionMethodIntentSchema,
   })
   .strict()
@@ -43,7 +43,7 @@ export const batchExtractionRequestSchema = z
   })
   .superRefine(methodRuleIssues)
 
-/** A batch has no recipe, so its settings are the Article ones or the generic Catalog ones. */
+/** A batch's settings are its strategy's: the Article ones or the unified Catalog ones. */
 export function batchMethodFitsStrategy(request: {
   strategy: z.output<typeof extractionStrategySchema>
   method: z.output<typeof extractionMethodIntentSchema>

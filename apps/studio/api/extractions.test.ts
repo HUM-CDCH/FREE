@@ -175,7 +175,7 @@ describe('/api/extractions transport', () => {
     const method = { models: null, settings: { unified: { defaults: 12, overlap: 0 } } }
     const catalog = { ...fresh, strategy: 'CATALOG', method }
     expect((await handlerFor(module)(request(catalog))).status).toBe(201)
-    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ method }))
+    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ kind: 'fresh', strategy: 'CATALOG', method }))
     expect((await handlerFor(module)(request({ ...catalog, catalogRecipe: 'numbered-catalogue-de@1' }))).status).toBe(422)
   })
 
@@ -186,17 +186,6 @@ describe('/api/extractions transport', () => {
     expect((await handlerFor(module)(request(missing))).status).toBe(422)
     expect((await handlerFor(module)(request({ ...fresh, method: { models: null, settings: { unified: { defaults: 12 } } } }))).status).toBe(422)
     expect(module.runSingle).not.toHaveBeenCalled()
-  })
-
-  it('passes the Catalog recipe chosen for an Extraction to runSingle', async () => {
-    const module = extractionModule()
-    await handlerFor(module)(request({
-      ...fresh, strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 12 } } },
-    }))
-    expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({
-      kind: 'fresh', strategy: 'CATALOG',
-      method: { models: null, settings: { unified: { defaults: 12 } } },
-    }))
   })
 
   it('runs a fresh Extraction on the submitted Extraction Model Choice and echoes the admitted choice', async () => {

@@ -147,13 +147,13 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         count(*) FILTER (WHERE o.id IS NULL)::int AS pending FROM extraction_runtime.capture c
         LEFT JOIN extraction_runtime.checkpoint o ON o.id=c.id WHERE c."extractionId"=$1`, [id])).rows[0]
       // The Catalog records the current selection reads, once discovery has found them, and those with a model call
-      // still unanswered: the rail lists each as queued, reading or read while the run goes on. A pipelined unified
-      // Catalog (defaults 3) lists the records of the windows its attempt has read so far, each final, before
+      // still unanswered: the rail lists each as queued, reading or read while the run goes on. Pipelined, the unified
+      // Catalog lists the records of the windows its attempt has read so far, each final, before
       // discovery ends: `recordsFinal` says whether the list is whole. Each keeps the source text it owns (`ranges`),
       // which the source shows as its closed block.
       type Listed = {units:{ordinal:number;scope:unknown}[]}
       const plan = (await client.query(`SELECT manifest FROM extraction_runtime.plan WHERE "extractionId"=$1
-        AND stage IN ('unified-records','generic-records','recipe-records') AND manifest->>'selectionId'=$2
+        AND stage='unified-records' AND manifest->>'selectionId'=$2
         ORDER BY generation DESC LIMIT 1`, [id, head.selectionId])).rows[0]?.manifest as Listed | undefined
       const partial = plan || !head.attemptId ? undefined : (await client.query(`SELECT manifest FROM extraction_runtime.plan
         WHERE "extractionId"=$1 AND stage LIKE $2 AND manifest->>'selectionId'=$3

@@ -1,5 +1,5 @@
 import type { DurablePage } from 'extraction/durable-types'
-import { blockForAnchor, tableForAnchor, type ParsedDocument } from 'extraction/parsed-document'
+import { anchorText, type ParsedDocument } from 'extraction/parsed-document'
 import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceLink } from 'extraction/durable-types'
 import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
@@ -106,12 +106,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
   const action = value.correction?.decision?.action
   const link: ReviewEvidenceLink | null = part ? part.link : valueEvidenceLink(value)
   const anchor = document?.evidence_index.anchors.find(each => each.anchor_id === link?.evidenceAnchorId)
-  const block = document && anchor?.kind === 'text' ? blockForAnchor(document, anchor) : null
-
-  let text = block && 'text' in block ? block.text : undefined
-  if (block?.kind === 'list') text = block.items.join('\n')
-  if (document && anchor?.kind === 'table_cell') text =
-    tableForAnchor(document, anchor)?.cells.find(cell => cell.cell_id === anchor.cell_id)?.text
+  const text = document && anchor ? anchorText(document, anchor) : undefined
 
   const selectedIds = link?.occurrenceIds
   const observation = selectedIds
@@ -132,9 +127,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
     value: reviewedValue(value), extracted: value.modelValue,
-    kind, link, decision: value.processing === 'saved' ? {
-      action: action && action !== 'PENDING' ? action : 'APPROVED',
-    } : null,
+    kind, link,
     // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'different readings' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'
       : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · not exact' : ''}`,
@@ -151,7 +144,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
 /** A field of a record still being read: a placeholder, never a value. */
 const placeholder = (ordinal: number, name: string): RailRow => ({
   key: `reading:${ordinal}:${name}`, resultPath: ['records', ordinal, name], name, value: null, extracted: null, kind: 'reading',
-  link: null, decision: null, chip: null, evidence: null, doubt: null, changed: false, page: null,
+  link: null, chip: null, evidence: null, doubt: null, changed: false, page: null,
 })
 
 export function durableRailModel(page: DurablePage, document: ParsedDocument | null, progress: RunProgress | null = null,

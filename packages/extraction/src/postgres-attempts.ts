@@ -8,7 +8,7 @@
 import type { DatabaseOrm } from 'db'
 import { z } from 'zod'
 import { durableHeadSchema, durableStatus, durableValueSchema, type DurableHead } from './durable-contract.js'
-import { modelChoice, recordedSettings } from './extraction-method.js'
+import { modelChoice, storedSettings } from './extraction-method.js'
 import type {
   DocumentExtractionsSnapshot,
   ExtractionAttemptSnapshot,
@@ -142,7 +142,7 @@ export async function attemptSnapshot(orm: DatabaseOrm, attempt: DerivedAttempt)
     schemaRevisionNumber: schema.revisionNumber,
     strategy: row.strategy as ExtractionStrategy,
     requestedModels: modelChoice(row.requestedModels),
-    requestedSettings: recordedSettings(row.requestedSettings, row.strategy as ExtractionStrategy),
+    requestedSettings: storedSettings(row.requestedSettings, row.strategy as ExtractionStrategy),
     batchExtractionId: row.batchExtractionId,
     createdAt: row.createdAt,
     executionStatus: durableStatus(attempt.head),

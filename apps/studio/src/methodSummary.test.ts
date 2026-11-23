@@ -3,8 +3,7 @@ import { REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import { methodLines, modelsLine, settingsHeadline, unifiedLines } from './methodSummary'
 
 describe('method summaries', () => {
-  it('say what was requested, service defaults, or that nothing was recorded', () => {
-    // Recorded without Article settings: the whole source it ran, the service defaults of its time.
+  it('say what was requested, marking the service defaults', () => {
     expect(settingsHeadline({ article: REFERENCE_ARTICLE })).toBe('Service defaults · Full source · Plain text · Source-label verification · Large checks in windows')
     expect(settingsHeadline({ article: { ...REFERENCE_ARTICLE, context: 'bounded', grounding: 'spans' } }))
       .toBe('Bounded source units (12,288 tokens) · Plain text · Source-span verification · Large checks in windows')
@@ -21,7 +20,7 @@ describe('method summaries', () => {
 })
 
 
-it('shows the heading candidate ceiling with defaults 7 and with saved overrides', () => {
+it('shows the heading candidate ceiling as the service default and with saved overrides', () => {
   expect(unifiedLines({ defaults: 12 })).toContainEqual({ label: 'Heading excerpts measured', value: 'service default (32 excerpts)' })
   expect(unifiedLines({ defaults: 12, candidates: 1 })).toContainEqual({ label: 'Heading excerpts measured', value: '1 excerpt' })
   expect(settingsHeadline({ unified: { defaults: 12 } })).toBe('Unified Catalog, defaults version 12')

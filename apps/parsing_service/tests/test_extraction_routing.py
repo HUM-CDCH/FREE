@@ -3,31 +3,28 @@ from dataclasses import replace
 
 import pytest
 
-from kei_exp.kie.extract import article, run
 from kei_exp.kie.extract.contexts import Context
-from kei_exp.kie.extract.method import ArticleOptions
-from kei_exp.kie.extract.models import Router
 from kei_exp.kie.extract.grounding import spans
 from kei_exp.kie.extract.routing import rank_units, value_origins, verify_routed
-from tests.helpers.extraction import CountingChat, WordCounter, keeps_every_reading, resolving
-from tests.test_extract_stages import SCHEMA, evidence, passages
+from tests.helpers.extraction import CountingChat, WordCounter
+from tests.test_extract_stages import SCHEMA, passages
 from tests.test_extraction_rendering import table_passage
 
 
 def test_single_reply_preserves_duplicate_array_positions_and_rejects_untraceable_values():
     fields = {"finds": ["same", "same"], "blank": None, "flag": False}
-    origins = value_origins([fields], fields, {}, [])
+    origins = value_origins([fields], fields)
     assert [item["sources"] for item in origins] == [
         [{"unit": 0, "path": ["finds", 0]}], [{"unit": 0, "path": ["finds", 1]}]]
     with pytest.raises(ValueError, match="no extraction origin"):
-        value_origins([fields], {"year": 1800}, {}, [])
+        value_origins([fields], {"year": 1800})
 
 
 def fixture():
     source = passages(["Hill background", "Other subject: year 1827", "Hill: eighteen twenty-seven"])
     contexts = [Context((p,)) for p in source]
     fields = {"site": "Hill", "year": 1827}
-    origins = value_origins([fields], fields, {"site": "Hill"}, [source[0].id])
+    origins = value_origins([fields], fields)
     return source, contexts, fields, origins
 
 
@@ -102,7 +99,7 @@ def test_routing_preserves_table_header_and_qualifier_context_and_skips_policy_p
     heading = replace(passages(["Measurements in water"], page=2)[0], label="SectionHeader")
     context = Context((table,), heading=heading)
     fields = {"year": 37, "site": "A"}
-    origins = value_origins([fields], fields, {}, [])
+    origins = value_origins([fields], fields)
     proofs = []
     chat = CountingChat(lambda s, u, schema: {claim: {"label": "E5", "attribution": True}
                                             for claim in schema["properties"]})

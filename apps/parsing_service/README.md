@@ -115,7 +115,7 @@ run would lose its result.
 | `KEI_EXTRACT_URL`, `KEI_EXTRACT_MODEL` | Extraction's instruction model server and the model it serves |
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
-| `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
+| `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 |
 | `KEI_CATALOG_CHUNKS` | Worker only: how many Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
@@ -403,9 +403,7 @@ The account must be able to create databases. The guard runs before connecting;
 tests never fall back to a runtime database URL. Tests create fresh databases
 per case, launch a DBOS worker in the test process on each (the recovery and
 service tiers spawn `kei-worker` processes instead), and remove only those
-databases in cleanup. The opt-in database outage test also needs
-`PARSING_TEST_POSTGRES_CONTAINER`, naming an isolated container labelled
-`free.test=parsing`; it skips without it.
+databases in cleanup.
 
 Most PDF inputs are generated within the test temporary directory. The golden
 and replay cases run over the committed synthetic eight-page A4 text PDF

@@ -127,5 +127,5 @@ def test_article_preflight_counts_the_fields_request_with_its_rendering(monkeypa
     report = study.preflight({"providers": providers, "sources": [{"id": "source", "run": "."}]},
                             [{"id": "cell", "source": "source", "request": request}])
     assert routes[0]["model"] == "fields"
-    assert measured == [record_request(structured_source(canonical.passages), SCHEMA, None, None, document=True)]
+    assert measured == [record_request(structured_source(canonical.passages), SCHEMA)]
     assert report[0]["value_units"] == 1

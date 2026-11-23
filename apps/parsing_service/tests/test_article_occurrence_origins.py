@@ -20,7 +20,7 @@ def test_disjoint_equal_items_keep_only_their_actual_reading_and_position():
     item_sources = {}
     root, conflicts, _, _ = assemble_document(readings, item_sources=item_sources)
     origins = {tuple(each["path"]): each["sources"] for each in
-               value_origins(readings, root, {}, [], item_sources=item_sources)}
+               value_origins(readings, root, item_sources=item_sources)}
     assert root == {"fees": [10, 10, 10], "title": "Book", "year": None} and conflicts
     assert origins == {
         ("fees", 0): [{"unit": 0, "path": ["fees", 0]}],
@@ -39,7 +39,7 @@ def test_overlap_joins_only_its_contributing_occurrences_and_preserves_nested_po
     item_sources = {}
     root, _, _, joined = assemble_document(readings, lambda *_: True, item_sources=item_sources)
     origins = {tuple(each["path"]): each["sources"] for each in
-               value_origins(readings, root, {}, [], item_sources=item_sources)}
+               value_origins(readings, root, item_sources=item_sources)}
     assert root["site"]["finds"] == [item, item]
     assert joined == [{"path": ["site", "finds"], "contexts": [0, 1], "index": 0}]
     for index in (0, 1):
@@ -53,13 +53,13 @@ def test_overlap_joins_only_its_contributing_occurrences_and_preserves_nested_po
 def test_an_empty_occurrence_map_never_falls_back_to_value_equality():
     readings, root = [{"fees": [10]}, {"fees": [10]}], {"fees": [10]}
     with pytest.raises(ValueError, match="need item_sources"):
-        value_origins(readings, root, {}, [])
-    assert value_origins(readings, root, {}, [], strict=False, item_sources={}) == [
+        value_origins(readings, root)
+    assert value_origins(readings, root, strict=False, item_sources={}) == [
         {"path": ["fees", 0], "kind": "value", "sources": []}]
     with pytest.raises(ValueError, match="no extraction origin"):
-        value_origins(readings, root, {}, [], item_sources={})
+        value_origins(readings, root, item_sources={})
     item_sources = {("fees", 0): [{"unit": 0, "path": ["fees", 0]}]}
-    assert value_origins(readings, {"fees": [20]}, {}, [], strict=False, item_sources=item_sources)[0]["sources"] == []
+    assert value_origins(readings, {"fees": [20]}, strict=False, item_sources=item_sources)[0]["sources"] == []
 
 
 def occurrence_input(monkeypatch, grounding):

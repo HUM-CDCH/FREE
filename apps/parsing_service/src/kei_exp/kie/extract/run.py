@@ -118,7 +118,7 @@ class ExtractRequest(BaseModel):
         if extraction_models.routes(self.options)["fields"] == "gliformer":
             from kei_exp.kie.extract.gliformer import native_schema
             settings = self.options.unified
-            if settings is None or self.record_scope != "records":
+            if settings is None:
                 raise ValueError("GLiFormer fields require unified Catalog extraction")
             if settings.headings is True:
                 raise ValueError("GLiFormer pure extraction does not use heading context; leave it Auto or off")

@@ -276,23 +276,21 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   // stands now (ADR 0034): before the first template, Generate template comes back here; after it, the Regenerate
   // dialog opens; a "yes" goes ahead with the step's lead option.
   const { heard, clearHeard, appendMessage } = chat
-  const [shownGenerate, setShownGenerate] = useState<number | null>(null)
-  if (heard?.action === 'generate' && preSchema && heard.request !== shownGenerate) {
-    setShownGenerate(heard.request)
-    setDismissed((current) => new Set([...current].filter((key) => !key.startsWith('generate:'))))
-  }
+  // The Generate template step, if it was set aside, comes back.
+  const showGenerate = () => setDismissed((current) => new Set([...current].filter((key) => !key.startsWith('generate:'))))
   // Read with the workspace as it stands when the request arrives, not as it stood when the message was sent.
   const carryOut = useEffectEvent((request: NonNullable<typeof heard>) => {
     clearHeard()
     if (request.action === 'generate') {
-      if (preSchema) return
-      if (onRegenerate) onRegenerate()
+      if (preSchema) showGenerate()
+      else if (onRegenerate) onRegenerate()
       else appendMessage(NO_REGENERATE_REPLY)
       return
     }
-    // A change to particular results is proposed for the result Results shows, where there is one (ADR 0035).
+    // A change to particular results is proposed for the result Results shows, where there is one (ADR 0035); the
+    // proposal itself says when there is none.
     if (request.action === 'correct') {
-      if (corrections?.available && request.said) void corrections.propose(request.said.message, request.said.history)
+      if (corrections && request.said) void corrections.propose(request.said.message, request.said.history)
       else appendMessage(NO_RESULTS_REPLY)
       return
     }
@@ -329,7 +327,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const generate = !step && preSchema && (
     <SetAsideStepView title="Generate template" summary={instructions.count > 0 ? plural(instructions.count, 'instruction') : 'no instructions'}
       expandLabel="Show the Generate template step"
-      onExpand={() => setDismissed((current) => new Set([...current].filter((key) => !key.startsWith('generate:'))))}
+      onExpand={showGenerate}
       actions={[{ label: 'Generate', name: `Generate template${instructions.countLabel}`, disabled: chat.asking !== null,
         run: () => onGenerate?.(instructions.text) }]} />
   )

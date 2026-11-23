@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 Role = Literal["fields", "reasoning"]
 ROLES: tuple[Role, ...] = ("fields", "reasoning")
 ROLE: dict[str, Role] = {"document": "fields", "record": "fields", "entry": "fields",
-                         "discovery": "reasoning", "inventory": "reasoning", "grounding": "reasoning", "arbitration": "reasoning",
+                         "discovery": "reasoning", "grounding": "reasoning", "arbitration": "reasoning",
                          "verification": "reasoning"}
 
 

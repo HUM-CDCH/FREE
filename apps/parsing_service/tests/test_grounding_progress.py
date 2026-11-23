@@ -105,7 +105,7 @@ def test_independent_quote_batches_are_ready_together_and_a_late_reply_is_shown_
         "quote": source[0].text, "attribution": True} for claim, rule in reply["properties"].items()})
     shown = []
     plan = planned(lease, chat, lambda router, counter: grounding.quoted(source, fields, schema, router, record=0,
-        counter=counter, projected=True, on_batch=lambda links: shown.extend(link.path for link in links)))
+        counter=counter, on_batch=lambda links: shown.extend(link.path for link in links)))
     planner, execute = plan()
     with pytest.raises(NeedsCall):
         execute()
@@ -122,8 +122,7 @@ def test_independent_quote_batches_are_ready_together_and_a_late_reply_is_shown_
     assert len(chat.calls) == 1
     assert all(unit["input"] == original[key]["input"] for key, unit in lease.units.items())
     pending, result = finished(lease, chat, plan)
-    direct = grounding.quoted(source, fields, schema, CountingChat(chat.script), record=0, counter=Counter(),
-                              projected=True)
+    direct = grounding.quoted(source, fields, schema, CountingChat(chat.script), record=0, counter=Counter())
     assert pending == [1] and dumped(result) == dumped(direct)  # the replay reads every reply, in batch order
     assert [link.path[-1] for link in result[0]] == [f"field{i}" for i in range(8)]
 
@@ -142,7 +141,7 @@ def test_a_pause_inside_a_round_keeps_its_captured_batch_and_captures_the_rest_o
                 lease.intent = "PAUSE"
             return super().request_tokens(system, user, schema)
     plan = planned(lease, chat, lambda router, counter: grounding.quoted(source, fields, schema, router, record=0,
-        counter=Pausing(), projected=True))
+        counter=Pausing()))
     planner, execute = plan()
     with pytest.raises(Boundary):  # no further call may start: the round ends at once, as before
         execute()
@@ -153,7 +152,7 @@ def test_a_pause_inside_a_round_keeps_its_captured_batch_and_captures_the_rest_o
     assert pending == [2]  # the batch captured before the pause, unchanged, beside the one the pause refused
     assert next(iter(lease.units.values()))["input"] == first["input"]
     assert dumped(result) == dumped(grounding.quoted(source, fields, schema, CountingChat(attested), record=0,
-                                                     counter=Counter(), projected=True))
+                                                     counter=Counter()))
 
 
 def precise_then_fallback(_system, _user, reply):
@@ -180,7 +179,7 @@ def test_the_fallback_round_waits_for_every_precise_reply_and_the_replay_is_the_
         proofs.clear()
         planner = CapturePlanner(lease, {"fields": Counter(), "reasoning": Counter()})
         return planner, lambda: grounding.quoted(source, fields, schema, Router(chat, chat, planner), record=0,
-            counter=Counter(), projected=True, proofs=proofs,
+            counter=Counter(), proofs=proofs,
             on_batch=lambda links: shown.append([link.path[-1] for link in links]))
     planner, execute = plan()
     with pytest.raises(NeedsCall):
@@ -195,7 +194,7 @@ def test_the_fallback_round_waits_for_every_precise_reply_and_the_replay_is_the_
     pending, result = finished(lease, chat, plan)
     assert pending == [1, 1]  # the first batch; then the fallback batch [C2, C6], once both replies are in
     direct_chat, direct_proofs = CountingChat(precise_then_fallback), []
-    direct = grounding.quoted(source, fields, schema, direct_chat, record=0, counter=Counter(), projected=True,
+    direct = grounding.quoted(source, fields, schema, direct_chat, record=0, counter=Counter(),
                               proofs=direct_proofs)
     assert dumped(result) == dumped(direct) and proofs == direct_proofs
     assert [link.path[-1] for link in result[0]] == [f"field{i}" for i in (0, 2, 3, 4, 6, 7, 1, 5)]
@@ -214,7 +213,7 @@ def test_a_failed_or_malformed_batch_is_read_beside_its_pending_peers_as_in_a_di
     chat = CountingChat(script)
     shown = []
     plan = planned(lease, chat, lambda router, counter: grounding.quoted(source, fields, schema, router, record=0,
-        counter=counter, projected=True, on_batch=lambda links: shown.append([link.path[-1] for link in links])))
+        counter=counter, on_batch=lambda links: shown.append([link.path[-1] for link in links])))
     planner, execute = plan()
     with pytest.raises(NeedsCall):
         execute()
@@ -229,7 +228,7 @@ def test_a_failed_or_malformed_batch_is_read_beside_its_pending_peers_as_in_a_di
     pending, result = finished(lease, chat, plan)
     assert pending == [] and shown == [[], ["field4", "field5", "field6", "field7"]]
     assert dumped(result) == dumped(grounding.quoted(source, fields, schema, CountingChat(script), record=0,
-                                                     counter=Counter(), projected=True))
+                                                     counter=Counter()))
     failed = isinstance(reply, Reply)
     assert result[1][0].ok is not failed and len(result[1]) == 2
     assert [issue.code for issue in result[2]] == ["call_failed" if failed else "missing_claim"] * 4
@@ -239,15 +238,16 @@ def test_routed_units_of_a_round_are_captured_together_and_the_next_round_waits_
     source = passages(["Hill background", "Other subject: year 1827", "Hill: eighteen twenty-seven"])
     contexts = [Context((passage,)) for passage in source]
     fields = {"site": "Hill", "year": 1827}
-    origins = value_origins([fields], fields, {"site": "Hill"}, [source[0].id])
+    origins = [{"path": ["site"], "kind": "value", "sources": [{"unit": 0, "path": ["site"]}]},
+               {"path": ["year"], "kind": "value", "sources": [{"unit": 1, "path": ["year"]}]}]
 
     def reason(_system, user, reply):
         supported = ("(site)" in user and "Hill background" in user) or ("(year)" in user and "eighteen" in user)
         return {claim: {"label": "E1" if supported else "NONE", "attribution": supported}
                 for claim in reply["properties"]}
-    # The year was read in the second unit: the first round checks the site in its unit and the year in another.
+    # The site was read in the first unit and the year in the second: the first round checks each in its own unit.
     routed = lambda chat, counter: verify_routed(contexts, fields, SCHEMA, chat, origins=origins,
-        value_contexts=[contexts[1]], record=3, counter=counter, verifier=spans, record_context="Hill")
+        value_contexts=contexts, record=3, counter=counter, verifier=spans, record_context="Hill")
     lease = MemoryLease(SCHEMA.model_dump(by_alias=True, exclude_none=True))
     chat = CountingChat(reason)
     plan = planned(lease, chat, routed)
@@ -275,7 +275,7 @@ def test_windows_of_a_refused_unit_replay_as_the_direct_run():
     source = passages(["Hill background " + "filler " * 300, "filler " * 300, "Other: year 1827 " + "filler " * 300])
     contexts = [Context(tuple(source))]
     fields = {"site": "Hill", "year": 1827}
-    origins = value_origins([fields], fields, {"site": "Hill"}, [source[0].id])
+    origins = value_origins([fields], fields)
 
     def reason(_system, user, reply):
         evidence, names = user.split("### Evidence")[1], dict(re.findall(r"^(C\d+) \((\w+)\)", user, re.MULTILINE))
@@ -354,7 +354,7 @@ def test_the_worker_starts_a_rounds_independent_batches_together_within_its_per_
     chat = CountingChat(attested)
     delay = 0.2
     status, pending, before_wait, elapsed = scheduled(monkeypatch, lease, chat, lambda router, counter:
-        grounding.quoted(source, fields, schema, router, record=0, counter=counter, projected=True),
+        grounding.quoted(source, fields, schema, router, record=0, counter=counter),
         chunks=chunks, delay=delay)
     print(f"\nchunks={chunks}: the first round yielded {pending[0]} calls, {before_wait} started before the first "
           f"wait; {len(pending)} planning rounds, {len(lease.units)} calls of {delay}s, {elapsed:.2f}s in all")

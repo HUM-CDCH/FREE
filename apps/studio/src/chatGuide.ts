@@ -2,6 +2,7 @@ import type { RecordScope } from 'extraction/schema'
 import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, currentBatch, reviewableMember, type BatchExtraction,
   type BatchExtractionMember, type LatestExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionExecutionStatus } from '../shared/extraction.contract'
+import { CHAT_OFFER_LIMIT } from '../shared/schemaChat.contract'
 import type { SchemaEditorSnapshot } from './currentSchemaRevision'
 import { REVISED_PILOT, guidedWorkflow } from './projectContexts/guidedWorkflow'
 import { batchStoppable } from './stopBatchExtraction'
@@ -198,8 +199,9 @@ function controlStep(input: GuideInput): StepCard | null {
 
 /**
  * The step the chat offers next, worked out from the workspace's state alone: generate a schema, review a proposal,
- * choose Article or Catalog, run the extraction, follow it, then review its values. The model never chooses a step;
- * a message is answered or proposes a schema change (ADR 0023), and every action goes through a step's options.
+ * choose Article or Catalog, run the extraction, follow it, then review its values. The model never chooses a step: a
+ * message is answered, proposes a schema change (ADR 0023) or asks for what a step or dialog offers (ADR 0034), and
+ * every action is still the researcher's, chosen from a step's options or with a "yes" said beside the step.
  */
 export function nextStep(input: GuideInput): StepCard | null {
   const step = currentStep(input)
@@ -212,7 +214,7 @@ export type ChatOffer = { card: StepCard; picked: readonly string[] }
 /** What the chat offers as the model reads it beside a message: the step's title and its question (or notice). */
 export const offerText = (card: StepCard) => {
   const question = card.question ?? card.notice
-  return `${card.title}${question ? `: ${question}` : ''}`.slice(0, 2_000)
+  return `${card.title}${question ? `: ${question}` : ''}`.slice(0, CHAT_OFFER_LIMIT)
 }
 
 /** Stops that sending a message sets aside for good (RailChat's setAside): their options only open a view or go on, so

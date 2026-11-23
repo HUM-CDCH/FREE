@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { METHOD_MESSAGES, REFERENCE_ARTICLE } from 'extraction/extraction-method'
 import {
-  ARTICLE_CONTROL_SECTIONS, effectiveSummary, orderedArticle, orderedCatalog, settingsDelta,
+  ARTICLE_SECTIONS, effectiveSummary, orderedArticle, orderedCatalog, settingsDelta,
   STARTING_POINTS, unavailableReason, withStartingPoint,
 } from './advancedSettings'
 
 describe('current Article controls', () => {
   it('offers the live controls and keeps their validation', () => {
-    expect(ARTICLE_CONTROL_SECTIONS.flatMap(section => section.keys)).toEqual([
+    expect(ARTICLE_SECTIONS.flatMap(section => section.keys)).toEqual([
       'context', 'context_tokens', 'grouping', 'overlap_passages', 'rendering',
       'grounding', 'grounding_overflow', 'evidence_policy',
     ])

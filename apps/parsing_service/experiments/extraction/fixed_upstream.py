@@ -94,10 +94,9 @@ def prepare(parent: Path, source_id: str, verification: Path) -> dict:
     contexts = restore_contexts(expected["contexts"], evidence.passages)
     router = Router(**chats)
     document, conflicts, calls, issues = document_values(evidence, contexts, schema, router,
-        budget=24_000, counter=counters["fields"],
-        structured=method.rendering == "structured")
+        counter=counters["fields"], structured=method.rendering == "structured")
     extracted = document_root(evidence.passages, schema, router, counters=counters,
-        record_chars=24_000, method=method, contexts=contexts)
+        method=method, contexts=contexts)
     calls += extracted.calls
     issues += extracted.issues
     records = [merge(fields, document, evidence.source_name, schema) for _, fields in extracted.slices]

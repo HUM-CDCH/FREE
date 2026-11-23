@@ -52,7 +52,7 @@ def preflight(study: dict, cells: list[dict], *, output: Path | None = None) -> 
         counts = []
         for context in contexts:
             rendered = structured_source(context.passages) if method.rendering == "structured" else text_of(context.passages)
-            system, user, schema = record_request(rendered, cell["request"].schema_, None, None, document=True)
+            system, user, schema = record_request(rendered, cell["request"].schema_)
             counts.append(limited.request_tokens(system, user, schema))
         report.append({"cell": cell["id"], "value_units": len(contexts), "value_input_counts": counts,
                        "context_tokens": limited.context_tokens,
