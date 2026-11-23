@@ -194,9 +194,9 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   `free_studio` and `kei` may own only their respective DBOS schemas and the
   objects in them; `free_kei_queue` must own no objects. An owner keeps its
   object's DDL whatever is revoked. At every start, the entrypoint revokes
-  each role's grants in `free` outside its own schema and grants only what it
-  needs again. Studio does not start, and the error names the objects, while
-  any role still holds a grant another role made, can
+  grants outside each role's own schema, preserving `CONNECT` and `TEMPORARY`
+  on the database, then grants the privileges each role needs. Studio refuses to start and names the objects if
+  a role still holds a grant another role made, can
   create schemas in `free` or objects in `free` outside its own schema
   (`PUBLIC` included), or reaches FREE's tables or `extraction_runtime`
   routines through `PUBLIC`. Neither the revocation nor the refusal looks at
@@ -735,15 +735,15 @@ them.
 
 ## Back up and restore
 
-Stop `studio`, `parsing_service` and `parsing_worker` first, so nothing writes while the backup
-runs. The backup set is:
+Stop `studio`, `parsing_service`, `parsing_worker` and, if running, `eval_watcher`
+before taking the backup. Back up these items together:
 
 - `pg_dump -Fc free`, for example
-  `docker compose … exec -T db pg_dump -U postgres -Fc free > free.dump` (all
-  four schemas: `public`, `dbos`, `kei_dbos` and `extraction_runtime`; it
+  `docker compose … exec -T db pg_dump -U postgres -Fc free > free.dump`. This backs up all schemas, including
+  `public`, `dbos`, `kei_dbos`, `extraction_runtime` and `prisma_contract`. It
   includes workflow history — interactive results for up to about a day,
   background inputs for up to about 30 days, and each durable Extraction's
-  results and progress until it is deleted);
+  results and progress until it is deleted.
 - the `source-inbox`, `parsing-runs` and `studio-data` volumes;
 - the CLI homes: `studio-config` (the Codex login under `codex/`) and
   `studio-claude`;
