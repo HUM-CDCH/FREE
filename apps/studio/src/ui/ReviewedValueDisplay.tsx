@@ -10,7 +10,7 @@ import { ApprovedGlyph, DoubtGlyph, UndoGlyph } from './icons'
 export type PartPick = { valueId: string; selected: string | null; parts: ReadonlyMap<string, ValuePart>; onPick: (key: string | null) => void; review?: PartsReview }
 
 const stateOf = (pick: PartPick, part: ValuePart | undefined): PartState | null =>
-  part?.reviewable && pick.review ? partState(part, pick.review.wholeApproved) : null
+  part?.reviewable && pick.review ? partState(part, pick.review.wholeApproved, pick.review.document) : null
 // Never colour alone: a glyph or a dashed border, and the state in the accessible name.
 const stateClass: Record<PartState, string> = {
   'to-check': 'bg-stale-soft text-stale-ink', approved: 'bg-green-soft text-ink',

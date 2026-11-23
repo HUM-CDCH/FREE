@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { parseBatchSuggestionDefinition, parseSchemaDefinition, type SchemaNode } from './schema.js'
+import { parseBatchSuggestionDefinition, parseSchemaDefinition, templateToSchemaDefinition, type SchemaNode } from './schema.js'
 
 const definition = (schemaNodes: SchemaNode[]) => ({ recordDescription: 'One record.', schemaNodes })
 const scalar = (name: string): SchemaNode => ({ id: name, name, type: 'string' })
@@ -32,4 +32,27 @@ test('batch suggestions still reject repeated sibling names at every depth', () 
 test('batch suggestions keep the ordinary shape checks', () => {
   assert.throws(() => parseBatchSuggestionDefinition(definition([{ ...scalar('title'), name: '  ' }])))
   assert.throws(() => parseBatchSuggestionDefinition({ recordDescription: '', schemaNodes: [scalar('title')] }))
+})
+
+test('a suggested template takes its notes onto the scalar fields their exact paths name, and ignores the rest', () => {
+  const parsed = templateToSchemaDefinition(
+    { _description: 'One entry.', title: 'string', status: ['open', 'closed'], refs: ['string'], items: [{ _description: 'One item.', name: 'string' }] },
+    [
+      { path: ['title'], description: ' The entry heading. ' },
+      { path: ['status'], description: 'Whether the entry is open.' },
+      { path: ['refs'], description: 'Each cited work.' },
+      { path: ['items', 'name'], description: 'The item name.' },
+      { path: ['items'], description: 'A group keeps its own _description.' },
+      { path: ['missing'], description: 'No such field.' },
+      { path: ['name'], description: 'Not the nested name.' },
+    ],
+  )
+  const notes = (nodes: readonly SchemaNode[]): unknown[] =>
+    nodes.map((node) => node.children ? [node.name, node.description, notes(node.children)] : [node.name, node.description])
+  assert.deepEqual(notes(parsed.schemaNodes), [
+    ['title', 'The entry heading.'],
+    ['status', 'Whether the entry is open.'],
+    ['refs', 'Each cited work.'],
+    ['items', 'One item.', [['name', 'The item name.']]],
+  ])
 })

@@ -16,6 +16,7 @@ import RailChat, { type RailChatProps } from './RailChat'
 import RegenerateDialog from './RegenerateDialog'
 import { continuation, PAUSE_DESCRIPTION } from './extractionControl'
 import { useSchemaChat, type ChatScope } from './useSchemaChat'
+import { useResultCorrections } from './useResultCorrections'
 import type { CurrentResultSchema } from './resultSchema'
 import { useDurableReading, type DurableReader } from './durableReader'
 import type { SavedReviewCut } from './durableReviewLinks'
@@ -222,6 +223,17 @@ function RightRail({
     ? countTemplateFields(nodesToTemplate(schemaSnap.draft!.schemaNodes))
     : 0
   const shown = inspection.attempt ?? extraction.attempt
+  // The chat corrects the result Results shows, at the snapshot it shows, unless it is shown read-only (ADR 0035).
+  const shownExtractionId = shown?.extractionId ?? null
+  const shownSnapshot = inspection.cut?.snapshotVersion ?? null
+  const correctionTarget = useMemo(() => shownExtractionId && !inspection.readOnly
+    ? { extractionId: shownExtractionId, snapshotVersion: shownSnapshot } : null, [shownExtractionId, shownSnapshot, inspection.readOnly])
+  const shownReader = inspection.reader
+  const corrections = useResultCorrections({
+    target: correctionTarget,
+    say: chat.appendMessage,
+    onSaved: useCallback(() => { void shownReader?.refresh() }, [shownReader]),
+  })
   // History lists the document's Extractions even when none is shown, e.g. all read an earlier source text.
   const historyAvailable = Boolean(shown || documentHistory)
   const activeView: RailView = (!showDeveloperUi && view === 'evidence') || (!historyAvailable && view === 'history') ? 'chat' : view
@@ -402,8 +414,11 @@ function RightRail({
         schema={schema}
         sourceDocumentName={sourceDocumentName}
         onGenerate={onGenerateInstructions}
+        // A message asking for the template again opens the dialog that asks first, as the workflow line's Regenerate does.
+        onRegenerate={onGenerateInstructions && schemaReady && !readOnly ? () => setRegenerating(schemaSnap.replacementVersion) : undefined}
         recordScope={recordScope}
         run={run && { ...run, unavailableReason: runUnavailableReason }}
+        corrections={corrections}
         control={control && (() => {
           const { blocked, description } = continuation(latestReading?.state)
           return { ...control, continueBlocked: blocked, continueDescription: description, pauseDescription: PAUSE_DESCRIPTION }

@@ -20,7 +20,15 @@ export interface DurableExportValue {
   readonly links?: readonly { readonly evidenceAnchorId: string }[];
   readonly disagreement?: DurableValue["disagreement"];
   readonly correction?: {
-    readonly decision: { readonly action: "APPROVED" | "EDITED" | "REJECTED" | "PENDING"; readonly value?: unknown; readonly choices?: readonly unknown[] };
+    readonly decision: {
+      readonly action: "APPROVED" | "EDITED" | "REJECTED" | "PENDING";
+      readonly value?: unknown;
+      readonly choices?: readonly unknown[];
+      readonly evidence?: readonly {
+        readonly anchorId: string;
+        readonly occurrenceIds: readonly string[];
+      }[];
+    };
   } | null;
   /** A saved correction that no longer fits this value's producing type: shown, never applied. */
   readonly historicalCorrection?: unknown;
@@ -45,7 +53,6 @@ function typeShape(node: SchemaNode): unknown {
 
 /** Words for a producing type, used to tell apart columns of one name produced under different types. */
 export function typeWords(node: SchemaNode): string {
-  if (node.type === "object") return "object";
   if (node.type === "array") return node.children ? "list of objects" : `list of ${node.itemType}`;
   return node.type;
 }
@@ -212,8 +219,15 @@ const decisionWords = (value: DurableExportValue): string => {
   }
 };
 
-const evidenceWords = (value: DurableExportValue): string =>
-  value.disagreement ? "Not checked" : value.links?.length ? "Evidence linked" : value.grounding === "provisional" ? "Evidence still being checked" : "No Evidence linked";
+const evidenceWords = (value: DurableExportValue): string => {
+  if (value.correction?.decision.action === "EDITED") {
+    return value.correction.decision.evidence?.length
+      ? "Correction Evidence linked" : "No correction Evidence linked";
+  }
+  if (value.disagreement) return "Not checked";
+  if (value.links?.length) return "Evidence linked";
+  return value.grounding === "provisional" ? "Evidence still being checked" : "No Evidence linked";
+};
 
 /** Generated review and attribution columns move aside for genuine schema fields. */
 export function unusedColumn(base: string, columns: readonly string[]): string {
@@ -239,9 +253,16 @@ export function buildDurableDisagreementsTable(values: readonly DurableExportVal
 export function buildDurableEvidenceTable(values: readonly DurableExportValue[], registry: FieldRegistry = createFieldRegistry(values)): Table {
   const ordinals = new Map(durableRecords(values, registry).map((record) => [record.recordId, record.ordinal]));
   return {
-    columns: ["Record", "Field", "Extracted value", "Decision", "Reviewed value", "Evidence", "Evidence anchors", "Schema revision", "Note"],
+    columns: ["Record", "Field", "Extracted value", "Decision", "Reviewed value", "Evidence",
+      "Evidence anchors", "Schema revision", "Note",
+      "Extracted evidence anchors", "Correction evidence occurrences"],
     rows: values.map((value) => {
       const ordinal = value.node.valueSource ? null : ordinals.get(value.recordId) ?? null;
+      const extractedAnchors = value.links?.map(link => link.evidenceAnchorId).join(", ") || null;
+      const decision = value.correction?.decision;
+      const correctionEvidence = decision?.evidence ?? [];
+      const anchors = decision?.action === "EDITED"
+        ? correctionEvidence.map(evidence => evidence.anchorId).join(", ") || null : extractedAnchors;
       return {
         Record: ordinal === null ? DOCUMENT_RECORD : ordinal + 1,
         Field: registry.column(value.node).name,
@@ -249,9 +270,12 @@ export function buildDurableEvidenceTable(values: readonly DurableExportValue[],
         Decision: decisionWords(value),
         "Reviewed value": scalarCell(reviewedValue(value, null)),
         Evidence: evidenceWords(value),
-        "Evidence anchors": value.links?.length ? value.links.map((link) => link.evidenceAnchorId).join(", ") : null,
+        "Evidence anchors": anchors,
         "Schema revision": value.schemaRevisionId,
         Note: value.historicalCorrection ? "An earlier correction does not fit this value; it stays saved and is not applied." : null,
+        "Extracted evidence anchors": extractedAnchors,
+        "Correction evidence occurrences": correctionEvidence.length
+          ? JSON.stringify(correctionEvidence) : null,
       };
     }),
   };

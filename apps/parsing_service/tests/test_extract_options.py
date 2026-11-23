@@ -6,7 +6,7 @@ from kei_exp.kie.extract.method import REFERENCE
 
 
 def test_catalog_defaults_to_unified_and_records_it():
-    assert Options().dumped() == {"strategy": "catalog", "models": None, "unified": {"defaults": 11}}
+    assert Options().dumped() == {"strategy": "catalog", "models": None, "unified": {"defaults": 12}}
 
 
 def test_dumped_article_options_are_exactly_the_recorded_ones():
@@ -24,6 +24,6 @@ def test_retired_options_are_refused(retired):
 
 def test_strategy_settings_cannot_leak():
     with pytest.raises(ValidationError):
-        Options(strategy="article", unified={"defaults": 11})
+        Options(strategy="article", unified={"defaults": 12})
     with pytest.raises(ValidationError):
         Options(strategy="catalog", article={})

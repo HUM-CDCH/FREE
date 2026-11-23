@@ -35,7 +35,7 @@ def test_a_real_model_finds_the_entries_and_accounts_for_every_character(tmp_pat
         pytest.skip("the deployment routing needs KEI_NUEXTRACT_URL")
     run_dir = catalogue.write("continuations", tmp_path)
     request = run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {
-        "strategy": "catalog", "unified": {"defaults": 11}, **({"models": models} if models else {})}})
+        "strategy": "catalog", "unified": {"defaults": 12}, **({"models": models} if models else {})}})
     result = run.extract(run_dir, request, chats_for(request.options))
     assert result["extraction_version"] == 3
     assert_links_resolve(result)

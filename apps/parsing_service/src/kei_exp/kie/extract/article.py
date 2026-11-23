@@ -2,10 +2,9 @@
 
 `extract` is the Article implementation: the document's one root read in each of its value contexts (the complete
 source by default, bounded parts with `options.article.context` or when the whole source does not fit one call),
-assembled across them by `contexts.assemble_document`, resolved by `resolution.resolve`, verified in every source
-context, and the artifact assembled in `assembly.py`, as the version 1 Catalog's is (`document_root`). No identity
-is inventoried. Bounded contexts are sized against the document-value request. Every model call goes through `calls.complete`; the shared
-value prompts live in `stages.py` and grounding in `grounding.py`.
+assembled by `contexts.assemble_document` and resolved by `resolution.resolve`. Article checks evidence in the
+relevant source contexts and publishes an artifact through `assembly.py`. Bounded contexts fit the document-value
+request. Model calls go through `calls.complete`. Value prompts live in `stages.py` and grounding in `grounding.py`.
 """
 from __future__ import annotations
 

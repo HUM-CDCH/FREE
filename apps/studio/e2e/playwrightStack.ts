@@ -170,6 +170,8 @@ export function configurePlaywrightStack(
   process.env[environmentNames.oidcPort] = String(oidcPort)
   process.env[environmentNames.postgresPort] = String(postgresPort)
   process.env.DATABASE_URL = databaseUrl
+  // This isolated Playwright database uses one fixture login. The runtime-role PostgreSQL suite verifies separate logins.
+  process.env.FREE_KEI_QUEUE_DATABASE_URL = databaseUrl
   process.env.EXTRACTION_TEST_DATABASE_URL = databaseUrl
 
   return {

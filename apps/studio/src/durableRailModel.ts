@@ -1,5 +1,5 @@
 import type { DurablePage } from 'extraction/durable-types'
-import type { ParsedDocument } from 'extraction/parsed-document'
+import type { ParsedDocument, ParsedLogicalTable } from 'extraction/parsed-document'
 import type { SchemaNode } from 'extraction/schema'
 import { tableCellReview } from 'extraction/table-cell-review'
 import type { EvidenceLink } from 'extraction/durable-types'
@@ -7,7 +7,7 @@ import { originPages, partName, reviewedValue } from 'extraction/value-disagreem
 import { linkOrigin } from './linkOrigin'
 import type { DurableState } from './durableExtractionApi'
 import type { StatusLine } from './ResultsHeader'
-import { evidenceCheck, supportNote, type RailModel, type RailRecord, type RailRow, type ReviewPriority } from './reviewVocabulary'
+import { evidenceCheck, supportNote, type RailModel, type RailRecord, type RailRow, type ReviewAction, type ReviewPriority } from './reviewVocabulary'
 
 export type RetainedValue = DurablePage['values'][number]
 
@@ -47,6 +47,27 @@ function byKey<Item>(items: readonly Item[], key: (item: Item) => string) {
 const linksByPath = indexed((links: RetainedValue['links']) => byKey(links, link => JSON.stringify(link.resultPath)))
 const anchorsById = indexed((document: ParsedDocument) => byKey(document.evidence_index.anchors, anchor => anchor.anchor_id))
 const judgmentsByPath = indexed((check: NonNullable<RetainedValue['check']>) => byKey(check.judgments, judgment => JSON.stringify(judgment.path)))
+
+const blocksById = indexed((document: ParsedDocument) => byKey(document.content_stream, block => block.block_id))
+const tablesById = indexed((document: ParsedDocument) => byKey(document.tables, table => table.table_id))
+const cellsById = indexed((table: ParsedLogicalTable) => byKey(table.cells, cell => cell.cell_id))
+
+/** Older links can omit the source text. Look up only the cited passage when checking a printed boolean. */
+export function reviewLinkDoubt(link: EvidenceLink, value: unknown, document: ParsedDocument | null, action?: ReviewAction) {
+  if (action === 'EDITED' || action === 'REJECTED') return null
+  let text: string | undefined
+  if (document && typeof value === 'boolean' && link.verbatim === false && link.location?.raw == null && link.grounding?.raw == null) {
+    const anchor = anchorsById(document).get(link.evidenceAnchorId)?.[0]
+    if (anchor?.kind === 'text') {
+      const block = blocksById(document).get(anchor.block_id)?.[0]
+      text = block?.kind === 'list' ? block.items.join('\n') : block && 'text' in block ? block.text : undefined
+    } else if (anchor?.kind === 'table_cell') {
+      const table = tablesById(document).get(anchor.logical_table_id)?.[0]
+      if (table) text = cellsById(table).get(anchor.cell_id)?.[0]?.text
+    }
+  }
+  return evidenceCheck(link, undefined, value, text)
+}
 
 /** The parts of an object or list value as shown (an edit or the chosen readings, else the model's), in schema order; a
  *  scalar value has none. A part keeps the model's link to its path only where the model read the same there. In an
@@ -115,31 +136,61 @@ export function reviewPriority(check: RetainedValue['check'], path?: readonly (s
   return judged.every(each => each.status === 'ok') ? 'supported' : 'to-verify'
 }
 
-/** With `part`, the row uses that scalar's Evidence and retains its owning value's edit and rejection controls. */
+/** Correction links carry the occurrences selected by the researcher. Model links retain their producer precision. */
+export type ReviewEvidenceLink = EvidenceLink & {readonly occurrenceIds?: readonly string[]}
+
+/** The whole value's Evidence: an edit uses only its own correction Evidence. */
+export function valueEvidenceLink(value: RetainedValue): ReviewEvidenceLink | null {
+  const decision = value.correction?.decision
+  if (decision?.action !== 'EDITED') return value.links[0] ?? null
+  const evidence = decision.evidence?.[0]
+  return evidence ? {resultPath: value.path, evidenceAnchorId: evidence.anchorId, occurrenceIds: evidence.occurrenceIds} : null
+}
+
+function linkedModelValue(value: RetainedValue, link: EvidenceLink): unknown {
+  if (!value.path.every((key, index) => link.resultPath[index] === key)) return undefined
+  let leaf = value.modelValue
+  for (const key of link.resultPath.slice(value.path.length)) {
+    if (leaf === null || typeof leaf !== 'object' || !Object.hasOwn(leaf, key)) return undefined
+    leaf = (leaf as Record<string | number, unknown>)[key]
+  }
+  return leaf
+}
+
+/** Identity and producing types come from the fixed saved page; edits use their correction Evidence.
+ * Display paths never identify a correction or transfer a decision. With `part`, the row's Evidence
+ * is that part's own link (or none), page and chip; the decision stays the whole value's. */
 export function durableRailRow(value: RetainedValue, document: ParsedDocument | null, part?: ValuePart): RailRow {
-  const correction = value.correction?.decision
-  const action = correction?.action
-  const link = part ? part.link : value.links[0] ?? null
+  const action = value.correction?.decision?.action
+  const link: ReviewEvidenceLink | null = part ? part.link : valueEvidenceLink(value)
   const anchor = document && link ? anchorsById(document).get(link.evidenceAnchorId)?.[0] : undefined
-  const page = anchor?.producer_observations[0]?.page_number ?? null
-  const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),path:entry.path,alternatives:entry.alternatives.map(a=>({value:a.value,pages:originPages(a.segments)}))}))
+  const selectedIds = link?.occurrenceIds
+  const observation = selectedIds
+    ? anchor?.producer_observations.find(each => selectedIds.includes(each.occurrence_id))
+    : anchor?.producer_observations[0]
+  const page = observation?.page_number ?? null
+  const disagreement=value.disagreement?.map(entry=>({
+    part:partName(value.node,entry.path),path:entry.path,
+    alternatives:entry.alternatives.map(alternative=>({
+      value:alternative.value,pages:originPages(alternative.segments),
+    })),
+  }))
   const kind = value.processing !== 'saved' ? value.processing === 'absent' ? 'missing' : 'not-reviewable'
     : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
-  const doubt = link ? evidenceCheck(link, action === 'PENDING' ? undefined : action) : null
+  const checkedAction = action === 'PENDING' ? undefined : action
+  const doubt = link ? reviewLinkDoubt(link, part ? part.value : linkedModelValue(value, link), document, checkedAction) : null
   const origin = link ? linkOrigin(link) : null
   const priority = reviewPriority(value.check, part?.path)
   // A linked value's chip also says its support check; one without a link already reads "no source".
   const support = link ? supportNote({ priority, kind }) : null
   const composite = !part && (value.node.type === 'object' || value.node.type === 'array')
   const reason = value.processing !== 'saved' ? null : disagreement ? 'Different readings in the source'
-    : composite ? null : !link ? 'Source not found' : link.verbatim === false ? 'Not an exact match' : null
+    : composite ? null : !link ? 'Source not found' : doubt ? 'Not an exact match' : null
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
     value: reviewedValue(value), extracted: value.modelValue,
     kind, link, decision: value.processing === 'saved' ? {
-      resultPath: value.path, evidenceAnchorId: value.links[0]?.evidenceAnchorId ?? null, reviewedOccurrenceIds: [],
       action: action && action !== 'PENDING' ? action : 'APPROVED',
-      reviewedValue: action === 'EDITED' ? correction.value : null,
     } : null,
     // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'different readings' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'

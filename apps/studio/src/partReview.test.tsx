@@ -21,7 +21,7 @@ const value = [{ baseline: 52, week12: 41 }, { baseline: 50, week12: null }]
 afterEach(cleanup)
 
 it('uses individual approval and Evidence, and keeps old whole approvals neutral at cell level', () => {
-  expect([exact, inexact, unlinked, empty].map(partFlag))
+  expect([exact, inexact, unlinked, empty].map(each => partFlag(each)))
     .toEqual([null, 'Not an exact match, please double check', 'Source not found', null])
   expect(partState(inexact)).toBe('to-check')
   expect(partState({ ...inexact, approved: true }, true)).toBe('approved')

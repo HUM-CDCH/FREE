@@ -8,7 +8,7 @@ function checkCue(row: RailRow): { rank: number; text: string } | null {
   if (!row.link && row.reason && !row.disagreement && (row.value === null || typeof row.value !== 'object')) {
     return { rank: 0, text: row.reason }
   }
-  if (row.link?.verbatim === false || row.doubt) return { rank: 1, text: 'Not an exact match' }
+  if (row.doubt) return { rank: 1, text: 'Not an exact match' }
   if (row.disagreement) return { rank: 2, text: 'Different readings in the source' }
   if (row.reason) return { rank: 2, text: row.reason }
   if (row.priority === 'unsupported') return { rank: 2, text: 'Source may not support this value' }

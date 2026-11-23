@@ -33,6 +33,8 @@ export type StepAction =
   | 'more-documents'
   | 'upload'
   | 'skip-more'
+  | 'save-corrections'
+  | 'discard-corrections'
   | 'dismiss'
 
 export type StepOption = {
@@ -204,6 +206,32 @@ export function nextStep(input: GuideInput): StepCard | null {
   return step && !input.dismissed.has(step.key) ? step : null
 }
 
+/** The step shown beside a message the researcher sends, and the documents ticked in it then (ADR 0034). */
+export type ChatOffer = { card: StepCard; picked: readonly string[] }
+
+/** What the chat offers as the model reads it beside a message: the step's title and its question (or notice). */
+export const offerText = (card: StepCard) => {
+  const question = card.question ?? card.notice
+  return `${card.title}${question ? `: ${question}` : ''}`.slice(0, 2_000)
+}
+
+/** Stops that sending a message sets aside for good (RailChat's setAside): their options only open a view or go on, so
+ *  the step as it was stands for them. */
+const SET_ASIDE_STOPS = ['template-ready:', 'results-ready:']
+
+/**
+ * What a message that agreed to the step it was sent beside (`card`, as it was then) goes ahead with: the step's lead
+ * option as the step stands now, read again from the workspace's state; the step as it was for a stop that sending set
+ * aside. Null when the step has moved on or offers nothing to go ahead with.
+ */
+export function confirmedOption(input: GuideInput, card: StepCard): { card: StepCard; option: StepOption } | null {
+  const extract = /^extract:(\d+)$/.exec(card.key)
+  const now = extract ? extractStep(input, Number(extract[1])) : currentStep(input)
+  const step = now?.key === card.key ? now : SET_ASIDE_STOPS.some((prefix) => card.key.startsWith(prefix)) ? card : null
+  const option = step?.options.find(({ tone, disabled }) => tone === 'positive' && !disabled)
+  return step && option ? { card: step, option } : null
+}
+
 function currentStep(input: GuideInput): StepCard | null {
   // An older Extraction or revision shown read-only takes no schema step; a run is still the host's to allow. The
   // open document's own run goes on before anything else; then the project's workflow leads, then this document.
@@ -267,6 +295,27 @@ export function extractStep(input: GuideInput, request: number): StepCard {
     error: project?.error ?? undefined,
     picker,
     options: [...options, notYet],
+  }
+}
+
+/**
+ * The changes a chat message proposed to the results (ADR 0035), each value's as it is and as it would be, until the
+ * researcher saves or discards them. `lines` are the changes as `correctionLine` gives them.
+ */
+export function correctionStep(request: number, lines: readonly (readonly [string, string])[], saving: boolean): StepCard {
+  const count = lines.length
+  return {
+    key: `correct:${request}`,
+    title: 'Change results',
+    question: count === 1 ? 'Save this change to the results?' : `Save these ${count} changes to the results?`,
+    detail: lines,
+    busy: saving,
+    options: [
+      { action: 'save-corrections', label: count === 1 ? 'Save the change' : `Save ${count} changes`, tone: 'positive', disabled: saving,
+        description: 'Saved as your corrections of these values, as editing them in Results does; they guide later extractions only once you include them.' },
+      { action: 'discard-corrections', label: 'Discard', tone: 'secondary', disabled: saving },
+      notYet,
+    ],
   }
 }
 

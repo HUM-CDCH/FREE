@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { chatRequestActionSchema } from './schemaChat.contract.js'
 import {
   isAllowedValues,
   NON_STRING_SCALAR_FIELD_TYPES,
@@ -72,9 +73,10 @@ export const schemaEditResponseSchema = z.discriminatedUnion('status', [
   proposedSchemaEditSchema,
   /** The chat message asked a question instead of a change: its answer, and no proposal. */
   z.object({ status: z.literal('answered'), answer: z.string() }).strict(),
-  /** The chat message asked for the extraction to run instead of a change: Studio offers what it allows, and nothing
-   *  is proposed or run here. */
-  z.object({ status: z.literal('requested'), action: z.literal('extract') }).strict(),
+  /** The chat message asked Studio to make the template again, run the extraction or go ahead with what the chat
+   *  offered, instead of a change (ADR 0034): Studio does what its state allows, and nothing is proposed or run here.
+   *  `focus` is what a template asked for should hold; outputs from before it have none. */
+  z.object({ status: z.literal('requested'), action: chatRequestActionSchema, focus: z.string().nullable().optional() }).strict(),
   /** The chat message only declined what was offered and asked for nothing else: nothing is proposed or run. */
   z.object({ status: z.literal('declined') }).strict(),
   z.object({ status: z.literal('refused'), message: z.string() }).strict(),

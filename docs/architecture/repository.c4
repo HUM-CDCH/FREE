@@ -1,0 +1,125 @@
+model {
+  repository = system 'Repository support' {
+    description 'Build, verification, research and documentation around the product runtime. These components are source areas, not extra product services.'
+    link https://github.com/HUM-CDCH/FREE/tree/dev 'Repository'
+
+    launcher = component 'Compose launcher' {
+      description 'Local and production startup, overlays, GPU detection, shared models, certificates and process shutdown.'
+      technology 'Node.js'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/scripts 'Launcher, install and CI scripts'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/docs/operations/local-development.md 'Local development runbook'
+    }
+    delivery = component 'Deployment and startup' {
+      description 'Root Compose overlays, Dockerfiles, nginx templates and entrypoint: authored migrations and restricted worker grants before Studio readiness.'
+      technology 'Docker Compose, nginx'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/compose.yaml 'Base services and volumes'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/docker 'Proxy templates and entrypoint'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/docs/operations/deployment.md 'Production runbook'
+    }
+    workspace = component 'Workspace and build configuration' {
+      description 'pnpm workspace packages, lockfiles, Node and Python dependencies, TypeScript and Vite builds, lint and browser test configuration.'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/package.json 'Workspace commands'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/pnpm-workspace.yaml 'Workspace boundary'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/package.json 'Studio dependencies and builds'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/pyproject.toml 'Python dependencies and entrypoints'
+    }
+    verification = component 'Verification tiers and fixtures' {
+      description 'Colocated unit tests; guarded PostgreSQL checks; Playwright browser, durable and recovery tests; service, live-model, safety and Compose system checks.'
+      technology 'node:test, Vitest, pytest, Playwright'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/tests 'Root safety and system checks'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/test 'Studio integration fixtures and checks'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/e2e 'Browser scenarios'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/tests 'Service tests and contract fixtures'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/docs/operations/local-development.md#verification 'Tier prerequisites'
+    }
+    ci = component 'GitHub verification' {
+      description 'verify runs test:ci for pull requests into and pushes to main, and merge groups; skips Python through FREE_SKIP_PYTHON.'
+      technology 'GitHub Actions'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/.github/workflows/verify.yml 'Workflow triggers and checks'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/scripts/test-ci.mjs 'CI tier selection'
+    }
+    studies = component 'Extraction experiments' {
+      description 'Registered inputs and comparisons, captured-call replays, grounding and selection studies, costs and reports. Serving code never imports experiments.'
+      technology 'Python'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/experiments/extraction 'Study runners and protocols'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/docs/extraction-experiments.md#research-boundary 'Research boundary'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/evaluate_table_cells.py 'Table-cell evaluation'
+    }
+    synthetic = component 'Synthetic PDF benchmark' {
+      description 'Generate synthetic PDFs and gold truth, seal inputs, parse, run strategies, score results and compare paired workloads.'
+      technology 'Python'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/experiments/synthetic_pdf/README.md 'Reproducible benchmark commands'
+    }
+    evaluation = container 'Developer evaluation watcher' {
+      #optional
+      description 'The eval Compose profile polls projects with gold spreadsheets, runs the fixed three-round evaluation and records EvaluationRound rows for the read-only Studio panel.'
+      technology 'Python'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/experiments/extraction/eval_watcher.py 'Watcher source'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/docs/extraction-experiments.md#iterative-evaluation-against-a-golden-workbook 'Evaluation protocol'
+    }
+    evaluation_files = datastore 'Local research artifacts' {
+      description 'Ignored experiment receipts and captured calls under artifacts; eval-out volume for the developer watcher. Not the canonical product result store.'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/experiments/synthetic_pdf/README.md 'Artifact sealing and replay'
+    }
+    documentation = component 'Contracts, decisions and architecture' {
+      description 'Root product and domain contracts, ADRs, design specifications, operations, module READMEs, contribution rules and this LikeC4 model.'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/docs/product-contract.md 'Normative product contract'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/CONTEXT.md 'Domain vocabulary'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/docs 'Architecture, ADRs, design and operations'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/CONTRIBUTING.md 'Contribution and worktree lifecycle'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/CODING_STANDARDS.md 'Code review standards'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/LICENSE 'Public repository license'
+    }
+  }
+
+  repository.launcher -> studio.configuration 'Validate Studio settings'
+  repository.launcher -> repository.delivery 'Select and start Compose overlays'
+  repository.workspace -> studio 'Build client and server'
+  repository.workspace -> parsing_service 'Install and package Python service'
+  repository.delivery -> studio.handlers 'Migrate and start Studio'
+  repository.delivery -> parsing_service 'Build and start API and worker'
+  repository.delivery -> project_db 'Apply authored migrations and worker grants'
+  repository.ci -> repository.verification 'Run the Node CI tiers'
+  repository.ci -> repository.workspace 'Install frozen dependencies and build'
+  repository.verification -> studio 'Check client, server and workflow behavior'
+  repository.verification -> parsing_service 'Check processing and cross-language contracts'
+  repository.verification -> studio.extraction_module 'Check durable control and recovery'
+  repository.verification -> studio.export 'Check export values and spreadsheet safety'
+  repository.studies -> parsing_service.parser.extraction 'Call the production strategies through the research entrypoint'
+  repository.studies -> parsing_service.models 'Run registered model calls'
+  repository.studies -> repository.evaluation_files 'Retain study receipts and call captures'
+  repository.synthetic -> parsing_service.parser.ingest 'Parse synthetic source PDFs'
+  repository.synthetic -> parsing_service.parser.extraction 'Run methods on sealed inputs'
+  repository.synthetic -> repository.evaluation_files 'Seal generated truth and benchmark results'
+  repository.evaluation -> project_db 'Read gold rows and write EvaluationRound rows'
+  repository.evaluation -> parsing_service.task_cache 'Read canonical parses'
+  repository.evaluation -> repository.studies 'Run the fixed evaluation pipeline'
+  repository.evaluation -> repository.evaluation_files 'Write round artifacts'
+  studio.ui.workspace -> studio.browser_http 'Read developer evaluation rounds when enabled'
+}
+
+views {
+  view index {
+    title 'FREE repository'
+    description 'Start with the product runtime, then open a component or repository-support view. Select an element for links to its source and detailed contracts.'
+    include researcher, studio, parsing_service, project_db, repository
+    include studio with { navigateTo studio_server }
+    include parsing_service with { navigateTo parsing_components }
+    include repository with { navigateTo repository_map }
+    autoLayout LeftRight
+  }
+  view repository_map of repository {
+    title 'Repository / Delivery and verification'
+    include repository.launcher, repository.delivery, repository.workspace, repository.verification,
+      repository.ci, repository.documentation, studio, parsing_service, project_db
+    autoLayout LeftRight
+  }
+  view research_tooling {
+    title 'Repository / Research and evaluation'
+    description 'Optional developer tooling and offline studies; researcher Extractions use the durable production path.'
+    include repository.studies, repository.synthetic, repository.evaluation, repository.evaluation_files,
+      repository.documentation, parsing_service.parser.ingest, parsing_service.parser.extraction,
+      parsing_service.models, parsing_service.task_cache, project_db
+    autoLayout LeftRight
+  }
+}

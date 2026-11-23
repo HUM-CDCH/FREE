@@ -103,12 +103,13 @@ db (postgres:17), database free
   extraction_runtime  durable Extraction coordination; Studio-owned, the kei
                       role has USAGE and EXECUTE on named routines only
   dbos                Studio's DBOS system schema               Studio role
-  kei_dbos            kei's DBOS system schema                  kei role only
+  kei_dbos            kei-owned DBOS schema                     Studio queue login for workflow handoff
 
 studio           web server and DBOS in one process: every Studio workflow and
                  schedule on queues studio, suggest and gc, plus clients for
                  Studio admission and kei handoff. The entrypoint runs the
-                 database migrations and the idempotent kei role/schema setup.
+                 database migrations and prepares the worker, Studio runtime and
+                 queue roles. Studio's queue login has access only to kei_dbos.
 parsing_service  read-only HTTP API (manifests, pages, model listings); no
                  database
 parsing_worker   kei DBOS worker: convert on kei-convert-large/-small, durable
@@ -133,6 +134,7 @@ service is added. `submitToKei` retries until kei has migrated `kei_dbos`.
 | `suggestSchema` | `suggestion:<operationId>` | workflow-first on `studio` | template and base revision, or a typed failure |
 | `proposeSchemaEdit` | `edit:<operationId>` | workflow-first on `studio` | proposal (or a question's answer) and base revision, or a typed failure |
 | `answerSchemaChat` | `chat:<operationId>` | workflow-first on `studio` | a question's answer or `instruction`, or a typed failure |
+| `proposeResultCorrections` | `correct:<operationId>` | workflow-first on `studio` | proposed corrections of one result snapshot, or a typed failure |
 | `collectGarbage` | 10-minute schedule on `gc` | — | sweep summary |
 | kei `convert` | `kei-convert:<parent workflow ID>` | enqueued by `submitToKei` on the lane fixed at admission | manifest summary |
 | kei `extractDurableV1` | `kei-durable:<extractionId>:<attemptId>` | enqueued by the reconciler on `kei-extract`, priority 1 (interactive) or 10 (batch) | the attempt's acknowledgement |
@@ -332,6 +334,12 @@ user action carries a client-minted ID (*Client IDs*).
   again across its windows, as above. The page keeps an instruction for
   generation. These are not model operations: a reload neither lists nor
   reopens them.
+- **Chat corrections of results (`proposeResultCorrections`).** `result_chat`
+  takes an `operation_id` and pins the snapshot and Decision Version in the
+  input (ADR 0035). The values and the pinned source are read outside any
+  step; one `proposeCorrections` step asks the model. Nothing is saved: the
+  researcher saves the proposal through the correction path. Like `chat:`
+  workflows, a reload neither lists nor reopens them; Stop cancels one.
 - **Chat history.** `edit_schema` and `schema_chat` also take `history`, the
   conversation before the message as JSON. The workflow input records it beside
   the instruction (chat text, like the instruction itself, never document text

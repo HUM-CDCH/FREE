@@ -35,7 +35,7 @@ afterEach(async () => {
 beforeAll(async () => {
   standIn = await spawnKeiStandIn({ databaseUrl: url, schema: schemas.keiSchema })
   kei = await DBOSClient.create({ systemDatabaseUrl: url, systemDatabaseSchemaName: schemas.keiSchema, applicationName: KEI_APPLICATION })
-  await launchStudioDbos({ databaseUrl: url, ...schemas, register: () => {
+  await launchStudioDbos({ databaseUrl: url, keiDatabaseUrl: url, ...schemas, register: () => {
     DBOS.registerWorkflow(async () => new Promise<void>((resolve) => { held.set(DBOS.workflowID!, resolve) }), { name: 'scopeHeld' })
   } })
 })

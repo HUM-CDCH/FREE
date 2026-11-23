@@ -1100,6 +1100,30 @@ test.describe('rail navigation', () => {
     ).toHaveAttribute('aria-current', 'page')
   })
 
+  test('keeps distinct tab names during history navigation with a delayed reopen', async ({ page }) => {
+    const studio = await stubStudio(page)
+    const first = `/projects/${ELMBROOKE}/documents/${BERETNING}`
+    const second = `/projects/${ELMBROOKE}/documents/${FUNDLISTE}`
+
+    await gotoAuthenticated(page, first)
+    await expect(page.getByRole('tab', { name: /^Beretning_Elmbrooke_8_13.pdf/ })).toBeVisible()
+
+    const release = studio.hold(`source-documents/${FUNDLISTE}/reopen`)
+    await page.evaluate(path => {
+      history.pushState(null, '', path)
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    }, second)
+
+    await expect.poll(() => studio.requests.some(path =>
+      path.includes(`source-documents/${FUNDLISTE}/reopen`))).toBe(true)
+    await expect(page.getByRole('tab')).toHaveCount(1)
+    release()
+    await expect(page.getByRole('tab', { name: /^Fundliste_Elmbrooke.pdf/ })).toBeVisible()
+    await expect(page.getByRole('tab', { name: /^Beretning_Elmbrooke_8_13.pdf/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Close Fundliste_Elmbrooke.pdf' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Close Beretning_Elmbrooke_8_13.pdf' })).toBeVisible()
+  })
+
   test('a superseded reopen is aborted and never paints over the winning route', async ({
     page,
   }) => {

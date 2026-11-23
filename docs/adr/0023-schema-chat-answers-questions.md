@@ -1,7 +1,8 @@
 # 0023: The schema chat answers questions
 
 Date: 2026-10-27. Status: accepted; amends [0012](0012-one-durable-execution-layer.md) and
-[0022](0022-schema-edits-run-through-schema-suggestion.md).
+[0022](0022-schema-edits-run-through-schema-suggestion.md); amended by
+[0034](0034-the-chat-reads-what-a-message-asks-first.md), which reads a message's intent in a request of its own.
 
 ## Context
 

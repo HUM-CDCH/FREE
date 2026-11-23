@@ -12,7 +12,7 @@ const id = (digit: string) =>
 
 /** The saved method a start view submits when the account keeps every service default, per settings slot. */
 const ARTICLE_DEFAULTS = { models: null, settings: { article: REFERENCE_ARTICLE } } as const
-const CATALOG_DEFAULTS = { models: null, settings: { unified: { defaults: 11 } } } as const
+const CATALOG_DEFAULTS = { models: null, settings: { unified: { defaults: 12 } } } as const
 
 const completed = {
   extractionId: id('1'),

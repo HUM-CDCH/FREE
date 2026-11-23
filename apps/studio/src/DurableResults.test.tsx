@@ -294,7 +294,7 @@ it('follows the reader from Pausing to Paused, then no longer at the run\'s pace
   } finally {vi.useRealTimers()}
 })
 
-it('shows requested and effective methods with their producing selections, and names unresolved effective methods',async()=>{
+it('shows stored methods with their input selections, and names unresolved effective methods',async()=>{
   const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
   vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'PAUSED',controlVersion:1,snapshotVersion:1,
     selection:{id:'pending',ordinal:3},pendingSelection:null,counts:{saved:0,inFlight:0}},page} as never)
@@ -309,7 +309,10 @@ it('shows requested and effective methods with their producing selections, and n
     effective:[
       {id:'second',configuration:{models:{fields:provider('resolved-second','served-second'),reasoning:provider('reasoning-second','reasoner-second')},options:{article:{context:'full'}},planner:1,protocols:{calls:1,source:'document'}}},
       {id:'first',configuration:{models:{fields:provider('resolved-first','served-first'),reasoning:provider('reasoning-first','reasoner-first')},options:{article:{context:'bounded',context_tokens:8192}},planner:1,protocols:{calls:1,source:'document'}}},
-    ],snapshots:[],finalizations:[],captures:[],
+    ],
+    plans:[{id:'first-plan',generation:1,stage:'unified-execution:0123456789abcdef',
+      manifest:{selectionId:'first',execution:{method:null,prompt_version:11}}}],
+    snapshots:[],finalizations:[],captures:[],
   }
   vi.mocked(readDurableHistorySummary).mockResolvedValue(history as never)
   vi.mocked(readDurableHistory).mockResolvedValue(history as never)
@@ -327,22 +330,78 @@ it('shows requested and effective methods with their producing selections, and n
     const selection=screen.getByText(new RegExp(`^Input selection ${ordinal} · template `)).closest('details')!
     selection.open=true;fireEvent(selection,new Event('toggle'))
   }
-  const first=within(screen.getByRole('region',{name:'Method used for input selection 1'}))
+  const plans=within(screen.getByRole('region',{name:'Recorded execution plans for input selection 1'}))
+  const plan=openDetails(plans.getByText('Recorded execution · generation 1'))
+  expect(JSON.parse(within(plan).getByText(/"execution":/).textContent!).execution).toEqual({method:null,prompt_version:11})
+  const first=within(screen.getByRole('region',{name:'Stored settings for input selection 1'}))
   expect(first.getByText(/served-first · model key resolved-first · gliformer adapter version 1/)).toBeVisible()
   expect(first.getByText(/reasoner-first · model key reasoning-first/)).toBeVisible()
   expect(first.getByText(/Planner version 1 · call protocol version 1 · source scope document/)).toBeVisible()
-  expect(first.getByText('Effective method settings').nextElementSibling).toHaveTextContent('"context_tokens": 8192')
+  expect(first.getByText('Stored resolved settings').nextElementSibling).toHaveTextContent('"context_tokens": 8192')
   expect(first.getByText(/"requested-first"/)).toBeVisible()
   expect(first.queryByText(/served-second/)).toBeNull()
   const native=first.getAllByText('Native model protocol and identity')[0]!.closest('details')!
   native.open=true;fireEvent(native,new Event('toggle'))
   expect(within(native).getByText(/"protocol": 3/)).toBeVisible()
-  const second=within(screen.getByRole('region',{name:'Method used for input selection 2'}))
+  const second=within(screen.getByRole('region',{name:'Stored settings for input selection 2'}))
   expect(second.getByText(/served-second · model key resolved-second/)).toBeVisible()
   expect(second.getByText(/"requested-second"/)).toBeVisible()
-  const pending=within(screen.getByRole('region',{name:'Method used for input selection 3'}))
+  const pending=within(screen.getByRole('region',{name:'Stored settings for input selection 3'}))
   expect(pending.getByText('Effective method: Not recorded')).toBeVisible()
   expect(pending.queryByText('Effective model choices')).toBeNull()
+})
+
+it.each([
+  {name:'a completed run migrated from defaults 11',versions:[11]},
+  {name:'a run resumed with defaults 12',versions:[11,12]},
+  {name:'a selection without an execution record',versions:[]},
+])('keeps recorded executions separate from migrated selection settings for $name',async({versions})=>{
+  const page={snapshotVersion:1,feedbackVersion:0,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0},values:[],total:0,next:null,coverage:{}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{projectId:'project',status:'COMPLETED',controlVersion:1,snapshotVersion:1,
+    selection:{id:'original',ordinal:1},pendingSelection:null,counts:{saved:0,inFlight:0}},page} as never)
+  const execution=(defaults:number)=>({version:1,method:{defaults},models:{fields:`recorded-model-${defaults}`},
+    effective:{stages:{entry:{input_tokens:8192,output_tokens:4096}}},prompt_version:defaults})
+  const history={
+    selections:[{id:'original',ordinal:1,schemaRevisionId:'schema-first',schemaTree:{},method:{models:null,settings:{unified:{defaults:12}}},resolved:{}}],
+    effective:[{id:'original',configuration:{models:{},options:{unified:{defaults:12}},planner:1,protocols:{calls:1,source:'document'}}}],
+    plans:[...versions.map(defaults=>({id:`plan-${defaults}`,generation:1,stage:`unified-execution:record-${defaults}`,
+      manifest:{selectionId:'original',execution:execution(defaults)}})),
+      {id:'discovery',generation:1,stage:'unified-discovery',manifest:{selectionId:'original',units:[]}},
+      {id:'other',generation:1,stage:'unified-execution:other',manifest:{selectionId:'another-selection',execution:execution(99)}}],
+    snapshots:[...versions.map((defaults,index)=>({id:`snapshot-${defaults}`,version:index+1,values:[],
+      coverage:{diagnostics:{execution:execution(defaults),execution_sha256:`digest-${defaults}`}}})),
+      {id:'without-execution',version:3,values:[],coverage:{}}],
+    finalizations:[],captures:[],
+  }
+  const unchanged=JSON.stringify(history)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue(history as never)
+  vi.mocked(readDurableHistory).mockResolvedValue(history as never)
+  vi.mocked(durableRequest).mockResolvedValue([])
+  render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}} historySlot={historySlot()} historyShown/>)
+  openDetails(await screen.findByText('This extraction'))
+  expect(readDurableHistory).not.toHaveBeenCalled()
+  openDetails(screen.getByText('Technical details (for audit)'))
+  openDetails(await screen.findByText('Input selection 1 · template schema-f'))
+  expect(screen.queryByRole('heading',{name:'Method used'})).toBeNull()
+  const stored=within(screen.getByRole('region',{name:'Stored settings for input selection 1'}))
+  expect(stored.getByText('Stored method').nextElementSibling).toHaveTextContent('"defaults": 12')
+  const recorded=within(screen.getByRole('region',{name:'Recorded execution plans for input selection 1'}))
+  expect(recorded.queryByText(/defaults 99/)).toBeNull()
+  expect(recorded.getByText(/A resumed extraction can have more than one recorded plan/)).toBeVisible()
+  if(!versions.length)expect(recorded.getByText('Execution record: Not recorded')).toBeVisible()
+  for(const defaults of versions) {
+    const details=openDetails(recorded.getByText(`Catalog defaults ${defaults} · generation 1`))
+    expect(JSON.parse(within(details).getByText(/"execution":/).textContent!).execution).toEqual(execution(defaults))
+    const snapshot=openDetails(screen.getByText(`Saved result snapshot ${versions.indexOf(defaults)+1} · values and lineage`))
+    const publication=openDetails(within(snapshot).getByText('Execution recorded at publication'))
+    expect(within(publication).getByText(/"execution":/)).toHaveTextContent(`"defaults": ${defaults}`)
+    expect(within(publication).getByText(/"execution":/)).toHaveTextContent(`digest-${defaults}`)
+    expect(within(publication).getByText(/Retained values can come from earlier executions/)).toBeVisible()
+  }
+  if(!versions.includes(12))expect(recorded.queryByText('Catalog defaults 12 · generation 1')).toBeNull()
+  const without=openDetails(screen.getByText('Saved result snapshot 3 · values and lineage'))
+  expect(within(without).queryByText('Execution recorded at publication')).toBeNull()
+  expect(JSON.stringify(history)).toBe(unchanged)
 })
 
 it('ignores review keys outside Results, while hidden, and on repeat',async()=>{
@@ -1352,12 +1411,15 @@ it('keys a value\'s correction Evidence as its own mark, named by the value and 
   expect(own.key).toBe('v1#correction')
   expect(own.link.evidenceAnchorId).toBe('a_p1_s1')
   expect(marks().describe.get(own.key)).toMatchObject({name:'skelet'})
+  expect(marks().describe.get('v1')).toMatchObject({name:'skelet (extracted)',
+    value:JSON.stringify({art:'Human',dele:[{nr:'1',note:'Tooth'}]}),word:null})
   expect(ownsMark(marks().selected!,own.key)).toBe(true)
 })
 
 it('offers an edited value\'s parts to pick, linked only where the model read the same; its correction Evidence lights with a part',async()=>{
   const {onEvidence,marks}=await openSkelet({revision:1,decision:{action:'EDITED',value:{art:'Animal',dele:[{nr:'1',note:'Tooth'}]},included:true,
-    evidence:[{anchorId:'a_p1_s1',occurrenceIds:['o1']}]}})
+    evidence:[{anchorId:skeletNote.evidenceAnchorId,occurrenceIds:['o1']}]}})
+  expect(onEvidence).toHaveBeenLastCalledWith(skeletNote.evidenceAnchorId,['o1'])
   // The edited art has no link; its model link stays the whole value's mark.
   expect(screen.getByRole('button',{name:'skelet › art: Animal'})).toHaveAttribute('title','Source not found')
   expect(marks().savedLinks!.find(saved=>saved.link===skeletArt)!.key).toBe('v1')
@@ -1367,6 +1429,8 @@ it('offers an edited value\'s parts to pick, linked only where the model read th
   expect(onEvidence).toHaveBeenLastCalledWith('a_p1_s2_r1_c1',undefined,skeletNote)
   expect(marks().selected).toBe(tooth)
   expect(ownsMark(tooth,'v1#correction')&&marks().savedLinks!.some(saved=>saved.key==='v1#correction')).toBe(true)
+  fireEvent.click(screen.getByRole('button',{name:'skelet › dele › #1 › note: Tooth'}))
+  expect(onEvidence).toHaveBeenLastCalledWith(skeletNote.evidenceAnchorId,['o1'])
 })
 
 /** a and b link to their own anchors; c has only its correction's Evidence. */
@@ -1420,7 +1484,6 @@ it('scrolls once per value link in one-by-one: the follow for another linked val
   act(()=>{selection.select('b',true,'extraction')})
   expect(onEvidence).toHaveBeenCalledTimes(2)
   expect(onEvidence).toHaveBeenLastCalledWith('b-anchor',undefined,expect.objectContaining({precision:'segment'}))
-  // The follow follows model links only.
   act(()=>{selection.select('c',true,'extraction')})
   expect(onEvidence).toHaveBeenCalledTimes(3)
   expect(onEvidence).toHaveBeenLastCalledWith('own-anchor',['o1'])

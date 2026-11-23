@@ -43,13 +43,14 @@ const OUTSIDE_OWN_SCHEMA = `NOT (d.dbid = (SELECT oid FROM pg_database WHERE dat
  * password reaches PostgreSQL only as a SCRAM verifier. A superuser or the preparing role itself is refused, so a
  * misnamed role can never demote the administrator. So is a role that owns anything but `ownSchema` and what is in
  * it, in this database or another, or a database itself: an owner keeps its object's DDL whatever is revoked, and
- * this changes no owner. Every privilege granted to the role in this database outside `ownSchema` is then revoked,
+ * this changes no owner. A null schema requires a role that owns no objects. Every privilege granted to the role in
+ * this database outside `ownSchema` is then revoked,
  * except CONNECT and TEMPORARY on the database, for the caller to grant its allowlist again; a role still holding one
  * afterwards, or reaching outside its schema through PUBLIC, now or by a default privilege on objects created later, is
  * refused. Runs in the caller's transaction.
  */
 export async function ensureLoginRole(
-  client: ClientBase, role: string, password: string, passwordName: string, ownSchema: string,
+  client: ClientBase, role: string, password: string, passwordName: string, ownSchema: string | null,
 ): Promise<void> {
   if (!IDENTIFIER.test(role)) throw new Error('A database role must be a plain lowercase identifier.')
   if (!/^[\x21-\x7e]+$/.test(password)) throw new Error(`${passwordName} must be printable ASCII.`)
@@ -61,7 +62,10 @@ export async function ensureLoginRole(
     [role, ownSchema],
   )).rows[0]
   if (existing?.administrative) throw new Error(`Refusing to restrict ${role}: it administers this database.`)
-  if (existing?.owns) throw new Error(`Refusing to restrict ${role}: it owns objects outside its ${ownSchema} schema.`)
+  if (existing?.owns) {
+    const reason = ownSchema ? `it owns objects outside its ${ownSchema} schema` : 'the queue role owns database objects'
+    throw new Error(`Refusing to restrict ${role}: ${reason}.`)
+  }
   const verifier = client.escapeLiteral(scramSha256Verifier(password))
   await client.query(
     `${existing ? 'ALTER' : 'CREATE'} ROLE ${role} WITH LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD ${verifier}`,
@@ -146,6 +150,18 @@ export async function ensureLoginRole(
     throw new Error(`Refusing to restrict ${role}: ${refusals.slice(0, 5).join('; ')}${refusals.length > 5 ? '; and more' : ''}.`)
 }
 
+/** Each role is prepared atomically on the administrator's existing connection. */
+export async function withRoleTransaction(client: ClientBase, prepare: () => Promise<void>): Promise<void> {
+  await client.query('BEGIN')
+  try {
+    await prepare()
+    await client.query('COMMIT')
+  } catch (error) {
+    await client.query('ROLLBACK')
+    throw error
+  }
+}
+
 /**
  * kei parses untrusted PDFs, so its role owns its own DBOS schema and nothing else: it cannot read or rewrite
  * Studio's tables in `public` or Studio's workflow inputs in `dbos`. Idempotent; runs as the database owner after
@@ -159,8 +175,7 @@ export async function ensureKeiRole(
   const schema = options.schema ?? KEI_SCHEMA
   if (!IDENTIFIER.test(role) || !IDENTIFIER.test(schema))
     throw new Error('The kei role and schema must be plain lowercase identifiers.')
-  await client.query('BEGIN')
-  try {
+  await withRoleTransaction(client, async () => {
     // PostgreSQL grants every role USAGE on `public` (and CREATE before PostgreSQL 15); Studio's runtime role gets its
     // own grant (ensureStudioRole).
     await client.query('REVOKE ALL ON SCHEMA public FROM PUBLIC')
@@ -173,9 +188,5 @@ export async function ensureKeiRole(
       for (const routine of EXTRACTION_RUNTIME_ROUTINES)
         await client.query(`GRANT EXECUTE ON FUNCTION extraction_runtime.${routine} TO ${role}`)
     }
-    await client.query('COMMIT')
-  } catch (error) {
-    await client.query('ROLLBACK')
-    throw error
-  }
+  })
 }

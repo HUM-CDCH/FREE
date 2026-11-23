@@ -565,8 +565,10 @@ export const providerTable = {
     temperatureSupported: false,
     discover: discoverClaude,
     // `persistSession: false`: the CLI would otherwise keep each prompt and reply as a transcript under its own config
-    // directory, outside Project deletion and artifact garbage collection.
-    createModel: (_connection, modelId) => claudeCode(modelId, { tools: [], settingSources: [], persistSession: false }),
+    // directory, outside Project deletion and artifact garbage collection. A Claude Code model resumes its previous
+    // call's session, which was therefore never saved, so every call runs on a model of its own (`freshPerCall`).
+    createModel: (_connection, modelId) =>
+      freshPerCall(() => claudeCode(modelId, { tools: [], settingSources: [], persistSession: false })),
   },
   'openai-compatible': {
     kind: 'openai-compatible',
@@ -613,6 +615,21 @@ function providerModel(model: LanguageModel) {
   if (typeof model === 'string' || model.specificationVersion !== 'v4')
     throw new TypeError('A model factory returned no language model of the current specification.')
   return model
+}
+
+/**
+ * A model whose every call runs on a new model from `create`, so no call carries state from another: a call never
+ * resumes an earlier call's session. The base model supplies metadata only and is never called.
+ */
+export function freshPerCall(create: () => LanguageModel): LanguageModel {
+  return wrapLanguageModel({
+    model: providerModel(create()),
+    middleware: {
+      specificationVersion: 'v4',
+      wrapGenerate: async ({ params }) => providerModel(create()).doGenerate(params),
+      wrapStream: async ({ params }) => providerModel(create()).doStream(params),
+    },
+  })
 }
 
 /**

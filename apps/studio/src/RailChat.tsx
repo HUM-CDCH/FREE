@@ -1,11 +1,13 @@
-import { useEffect, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useEffectEvent, useId, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
 import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { extractStep, nextStep, type GuideInput, type ProjectGuideInput, type StepAction, type StepCard, type StepOption } from './chatGuide'
+import { confirmedOption, correctionStep, extractStep, nextStep, type ChatOffer, type GuideInput, type ProjectGuideInput, type StepAction,
+  type StepCard, type StepOption } from './chatGuide'
+import { correctionLine, NO_RESULTS_REPLY, type ResultCorrections } from './useResultCorrections'
 import { ChatTranscript } from './SchemaChatParts'
 import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
@@ -13,6 +15,9 @@ import { CONVERSATION_EMPTY } from './SchemaPanel'
 import { PendingAsk } from './SchemaInstructions'
 import { NO_ACTION_REPLY, type SchemaChat } from './useSchemaChat'
 
+/** The reply to a "yes" beside a step with nothing to go ahead with, or one that has moved on since. */
+export const NOTHING_TO_CONFIRM_REPLY = 'There is nothing here to go ahead with: choose from the step below, or say what to do.'
+const NO_REGENERATE_REPLY = 'The template cannot be generated again here.'
 const PRE_SCHEMA_EMPTY = "Ask about the document, or say what to extract. I'll suggest a template when you're ready."
 
 export type RailChatProps = {
@@ -21,6 +26,8 @@ export type RailChatProps = {
   sourceDocumentName: string
   /** Extraction Schema generation; omitted where generation is unavailable. */
   onGenerate?: (instruction: string) => void
+  /** Asks to generate the template again once there is one (the Regenerate dialog), where the workspace can. */
+  onRegenerate?: () => void
   recordScope?: { value: RecordScope | null; onChange: (scope: RecordScope) => void; disabled?: boolean }
   /** Run extraction, where the workspace offers it. */
   run?: { start: () => void; available: boolean; unavailableReason: string | null } | null
@@ -39,6 +46,8 @@ export type RailChatProps = {
     /** Adds PDFs to the project, where the workspace can: the second trial's upload. */
     addDocuments?: (files: readonly File[]) => void
   } | null
+  /** The chat's corrections of the result Results shows (ADR 0035), where the workspace has one to correct. */
+  corrections?: ResultCorrections | null
   /** Pause, Resume, Retry and Stop for the latest Extraction, where the workspace offers them. */
   control?: (Exclude<GuideInput['control'], null> & { command: (action: 'pause' | 'resume' | 'retry' | 'stop') => void }) | null
   latest: GuideInput['latest']
@@ -59,7 +68,7 @@ export type RailChatProps = {
  * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
  * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, recordScope, run = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, onRegenerate, recordScope, run = null, corrections = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -130,8 +139,12 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     dismissed,
     project: project ? { ...project.guide, moreDocuments: moreKey ? more.value : undefined } : null,
   }
+  // Changes a message proposed to the results wait for the researcher first, as the latest message's answer (ADR 0035).
+  const proposed = corrections?.pending ?? null
+  const correcting = proposed && correctionStep(proposed.request, proposed.proposal.corrections.map(correctionLine), corrections?.busy === 'saving')
   // A message that asked to extract is answered by its own step until the researcher chooses; else the next step.
-  const next = chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
+  const next = correcting && !dismissed.has(correcting.key) ? correcting
+    : chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
   // Finish answering the researcher before asking for scope; an edit may produce a proposal to review first.
   const step = next?.key === 'scope' && (chat.loading || chat.asking !== null) ? null : next
   // The documents ticked in the step's picker: its own initial ones until the researcher changes them.
@@ -152,8 +165,11 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     run.start()
   }, [restartReady, restartFor, run])
 
-  function choose(card: StepCard, option: StepOption, text = '') {
-    const ids = option.picks && card.picker && picked ? card.picker.documents.map(({ id }) => id).filter((id) => picked.has(id)) : []
+  // The step a message is sent beside, with its ticks, which a "yes" goes ahead with (ADR 0034).
+  const offer = (card: StepCard | null): ChatOffer | null => card && { card, picked: picked ? [...picked] : [] }
+
+  function choose(card: StepCard, option: StepOption, text = '', ticks: ReadonlySet<string> | null = picked) {
+    const ids = option.picks && card.picker && ticks ? card.picker.documents.map(({ id }) => id).filter((id) => ticks.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
     // A choice that moves the workflow on, chosen under another view, returns to the conversation so the next step is
     // in front of the researcher; one that opens a view goes there, and a run's controls leave the view as it is.
@@ -163,7 +179,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     if (said) {
       if (!canSay) return
       reveal()
-      void (preSchema ? chat.ask(said) : chat.send(said))
+      void (preSchema ? chat.ask(said, offer(card)) : chat.send(said, offer(card)))
     } else {
       // Only a choice that does something is noted in the conversation.
       if (!UNNOTED.has(option.action)) chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
@@ -179,6 +195,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       chat.clearExtractRequest()
       if (option.action === 'dismiss') return
     }
+    // Proposed changes set aside unsaid are discarded; with something said instead they wait, so a "yes" can save them.
+    if (card.key.startsWith('correct:') && option.action === 'dismiss' && !said) corrections?.discard()
     const act: Record<StepAction, () => void> = {
       generate: () => onGenerate?.(instructions.text),
       'stop-generation': () => schema.cancelGeneration(),
@@ -207,6 +225,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       'more-documents': () => setMore('adding'),
       upload: () => fileInput?.click(),
       'skip-more': () => setMore('done'),
+      'save-corrections': () => void corrections?.save(),
+      'discard-corrections': () => corrections?.discard(),
       batch: () => project?.start('batch', ids),
       approve: () => project?.approve(),
       'open-document': () => option.target && project?.open(option.target),
@@ -215,6 +235,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     }
     act[option.action]()
   }
+
 
   // The home always shows the conversation; elsewhere the step stands in for it.
   const open = mode === 'full'
@@ -243,12 +264,53 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     if (step.key.startsWith('extract:')) chat.clearExtractRequest()
     else setDismissed((current) => new Set(current).add(step.key))
   }
-  const ask = () => { if (!instructions.draft.trim()) return; reveal(); setAside(); void chat.ask() }
-  const send = () => { if (!chat.input.trim()) return; reveal(); setAside(); void chat.send(chat.input) }
+  // The step goes with the message, as it was before sending set it aside.
+  const ask = () => { if (!instructions.draft.trim()) return; const offered = offer(step); reveal(); setAside(); void chat.ask(undefined, offered) }
+  const send = () => { if (!chat.input.trim()) return; const offered = offer(step); reveal(); setAside(); void chat.send(chat.input, offered) }
 
-  const blocked = !!pending || chat.loading
+  const blocked = !!pending || chat.loading || !!corrections?.busy
   // What is typed in place of a step goes where the composer's message would.
   const canSay = preSchema ? chat.asking === null : editable && !blocked
+
+  // A message that asked to make the template, or agreed to the step it was sent beside, is carried out as the workspace
+  // stands now (ADR 0034): before the first template, Generate template comes back here; after it, the Regenerate
+  // dialog opens; a "yes" goes ahead with the step's lead option.
+  const { heard, clearHeard, appendMessage } = chat
+  const [shownGenerate, setShownGenerate] = useState<number | null>(null)
+  if (heard?.action === 'generate' && preSchema && heard.request !== shownGenerate) {
+    setShownGenerate(heard.request)
+    setDismissed((current) => new Set([...current].filter((key) => !key.startsWith('generate:'))))
+  }
+  // Read with the workspace as it stands when the request arrives, not as it stood when the message was sent.
+  const carryOut = useEffectEvent((request: NonNullable<typeof heard>) => {
+    clearHeard()
+    if (request.action === 'generate') {
+      if (preSchema) return
+      if (onRegenerate) onRegenerate()
+      else appendMessage(NO_REGENERATE_REPLY)
+      return
+    }
+    // A change to particular results is proposed for the result Results shows, where there is one (ADR 0035).
+    if (request.action === 'correct') {
+      if (corrections?.available && request.said) void corrections.propose(request.said.message, request.said.history)
+      else appendMessage(NO_RESULTS_REPLY)
+      return
+    }
+    // A "yes" beside proposed changes saves them, while they are still the ones it was said beside.
+    if (request.offer && correcting && request.offer.card.key === correcting.key) {
+      const save = correcting.options.find(({ tone, disabled }) => tone === 'positive' && !disabled)
+      if (save) choose(correcting, save)
+      else appendMessage(NOTHING_TO_CONFIRM_REPLY)
+      return
+    }
+    const confirmed = request.offer && confirmedOption(guide, request.offer.card)
+    if (confirmed) choose(confirmed.card, confirmed.option, '', new Set(request.offer!.picked))
+    else appendMessage(NOTHING_TO_CONFIRM_REPLY)
+  })
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the chat's request, carried out once as it arrives
+    if (heard) carryOut(heard)
+  }, [heard])
   const card = (composer: ReactNode) => step && <StepCardView key={step.key} card={step} scopeDisabled={!!recordScope?.disabled} scopeBlockedReason={snap.editingBlockedReason} sayDisabled={!canSay}
     onChoose={(option) => choose(step, option)} picked={picked} onPick={(ids) => setTicked({ key: step.key, ids })}
     composer={composer} onSay={() => composerRef.current?.focus()} onFold={mode === 'step' ? () => setUnfolded(null) : undefined} />
@@ -318,10 +380,17 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   )
 
   // The instructions and questions show where they were said, in the transcript; a reply still coming follows it.
-  const pendingAsk = (chat.asking !== null || chat.askError) ? (
+  const pendingAsk = (chat.asking !== null || chat.askError || corrections?.busy === 'proposing') ? (
     <>
       {chat.asking !== null && <PendingAsk asking={chat.asking} messageClass={chatMessageClass} />}
       {chat.askError && <p className="text-compact text-danger [overflow-wrap:anywhere]" role="alert">{chat.askError}</p>}
+      {corrections?.busy === 'proposing' && (
+        <p role="status" className="flex items-center gap-2 text-compact text-ink-muted">
+          <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
+          Reading the results for the changes…
+          <button type="button" onClick={corrections.stop} className="cursor-pointer rounded-md px-1 text-ink-muted outline-none hover:text-danger">Stop</button>
+        </p>
+      )}
     </>
   ) : undefined
 

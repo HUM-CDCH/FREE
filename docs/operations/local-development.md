@@ -59,7 +59,7 @@ Open **https://localhost:8443/free**. Signing in runs the OIDC authorization
 code flow against the local `mock-oidc` service (see below); the local
 Researcher Account is created on first sign-in. Migrations replay in the
 Studio container's entrypoint before the dev server starts; the entrypoint
-then creates the Parsing Service's database role, DBOS launches with the dev
+then prepares the Parsing Service worker login and Studio's two database roles. DBOS launches with the dev
 server, and the worker starts once Studio is healthy and migrates its own
 schema.
 
@@ -275,9 +275,11 @@ launcher's secret: `export FREE_SESSION_SECRET=$(cat .dev/session-secret)`.
 - Disposable PostgreSQL integration targets must use user `postgres`, explicit
   port `5432`, a loopback host, and a database named `free_test_*`.
 - Studio's container startup replays `pnpm --filter db db:init` as
-  `postgres`, then prepares the Parsing Service's `kei` role and Studio's
-  restricted `free_studio` role (`pnpm --filter db db:roles`) and starts
-  Studio as `free_studio`; each DBOS process migrates its own schema at launch.
+  `postgres`, then prepares the Parsing Service's `kei` role, Studio's
+  restricted `free_studio` role and its separate `free_kei_queue` login
+  (`pnpm --filter db db:roles`). Studio starts as `free_studio` and uses
+  `free_kei_queue` for the Parsing Service queue; each DBOS process migrates
+  its own schema at launch.
   None of these resets data. Host-run tooling keeps using `postgres`.
 
 The Parsing Service's API, worker and model servers are private to the
@@ -306,7 +308,7 @@ deliberately according to their infrastructure and mutation boundaries:
 | `pnpm test:all` | Runs typecheck, lint, the production build (`pnpm build`), unit, safety, PostgreSQL integration, E2E, and `test:service` sequentially. The caller must provide the Docker/browser prerequisites and three fresh PostgreSQL targets (the two Studio targets must be migrated) required by `test:postgres`. |
 | `pnpm test:all:node` | Runs typecheck, lint, the production build, the Node unit tiers, safety, the `db` and `extraction` PostgreSQL integration tiers, and E2E sequentially: `test:all` without the Parsing Service tiers and `test:service`, so it needs no Python environment. The caller must provide the Docker/browser prerequisites and the two fresh, migrated Studio PostgreSQL targets (`PROJECT_STORE_POSTGRES_URL` and `EXTRACTION_TEST_DATABASE_URL`). |
 | `pnpm test:ci` | Requires `CI=true` and the fixed CI URLs `free_test_project_store` and `free_test_extraction` on PostgreSQL at `127.0.0.1:5432`. It also requires the fixed `free_test_parsing` URL unless `FREE_SKIP_PYTHON=1`; a parsing URL that is present is always validated. It requires `DATABASE_URL` to equal `EXTRACTION_TEST_DATABASE_URL`, migrates both Studio targets (a migration failure stops the run), then runs each step of `test:all:node` when `FREE_SKIP_PYTHON=1` and of `test:all` otherwise (GitHub's `verify` job). A failing step does not stop the later ones; a PASS/FAIL summary follows and the command fails if any step failed. |
-| `pnpm test:live-model` | Studio's check requires a vLLM server at `FREE_LIVE_VLLM_URL` (default `http://127.0.0.1:8002/v1`) serving `FREE_LIVE_VLLM_MODEL` (default `Qwen/Qwen3.8-27B-FP8`); its NuExtract case runs only when `FREE_LIVE_NUEXTRACT_URL` is set (`FREE_LIVE_NUEXTRACT_MODEL` defaults to `numind/NuExtract3-FP8`). The Parsing Service's checks run the real Docling conversion, which may download models into the local cache; its real-model cases run only when `FREE_REAL_EXTRACT_URL` and `FREE_REAL_EXTRACT_MODEL` (or the `KEI_*` test URLs) are set. |
+| `pnpm test:live-model` | Studio's check requires a vLLM server at `FREE_LIVE_VLLM_URL` (default `http://127.0.0.1:8002/v1`) serving `FREE_LIVE_VLLM_MODEL` (default `Qwen/Qwen3.8-27B-FP8`); its NuExtract case runs only when `FREE_LIVE_NUEXTRACT_URL` is set (`FREE_LIVE_NUEXTRACT_MODEL` defaults to `numind/NuExtract3-FP8`). The same server classifies the chat's labelled messages (`api/_chat_intent.live.test.ts`, ADR 0034), printing every misread one; it fails below `FREE_CHAT_INTENT_MIN_ACCURACY` (default `0.8`). The Parsing Service's checks run the real Docling conversion, which may download models into the local cache; its real-model cases run only when `FREE_REAL_EXTRACT_URL` and `FREE_REAL_EXTRACT_MODEL` (or the `KEI_*` test URLs) are set. |
 | `pnpm test:system` | Requires Docker and `mkcert` (or an existing local certificate pair). It builds an isolated Compose project with a disposable PostgreSQL volume and scripted external extraction-model responses, then checks authentication, upload, Schema Suggestion, durable Article admission/completion, saved values, whole-stack restart persistence, deletion and garbage collection over HTTPS. It does not assert producer Evidence or a correction write. It removes its own project and volume afterward; the development stack and its database are outside this test's scope. |
 | `pnpm typecheck` | Runs the workspace TypeScript checks without services or data mutation. |
 | `pnpm lint` | Runs ESLint over Studio without services or data mutation. |

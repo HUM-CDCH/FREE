@@ -1,0 +1,200 @@
+model {
+  extend studio.ui {
+    workspace = component 'Research Workspace' {
+      description 'Project Context navigation, Source Ingestion, reprocessing, Batch Schema Suggestion and Batch Extraction.'
+      technology 'React, XState'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/src/projectContexts 'Workspace source'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/sourceIngestionMachine.ts 'Source Ingestion state machine'
+    }
+    documents = component 'Source Document and Evidence viewer' {
+      description 'PDF and canonical Markdown, page navigation and Evidence overlays pinned to the open Source Representation.'
+      technology 'React, PDF.js'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/DocumentMarkdown.tsx 'Canonical document viewer'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/useEvidenceOverlays.ts 'Evidence navigation'
+    }
+    schemas = component 'Extraction Schema editor' {
+      description 'Field tree, revision save coordination, Schema Suggestion and conversational edit proposals.'
+      technology 'React'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/SchemaPanel.tsx 'Schema editor'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/README.md#schema-suggestion-and-editing 'Suggestion and revision contract'
+    }
+    review = component 'Extraction control and review' {
+      description 'Durable input edits, progress, saved-value pages, Value Disagreements, corrections, named finalizations and export.'
+      technology 'React, XState'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/DurableResults.tsx 'Results and review'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/durableReviewMachine.ts 'Review state machine'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/durableExtractionApi.ts 'Durable HTTP client'
+    }
+    settings = component 'Model Configuration page' {
+      description 'Account Model Connections, Capability Routes, Extraction and Ingestion Model Choices and Extraction Method Settings.'
+      technology 'React'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/src/providerConfig 'Model Configuration source'
+    }
+    design = component 'Shared presentation' {
+      description 'App frame, reusable controls, dialogs, progress, typography, assets and theme.'
+      technology 'React, Tailwind CSS'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/src/ui 'Shared controls'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/DESIGN.md 'Design rules'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/public 'Static assets'
+    }
+  }
+
+  extend studio {
+    contracts = component 'Shared browser and API contracts' {
+      description 'Zod wire schemas and pure helpers used by both the browser and request handlers.'
+      technology 'TypeScript, Zod'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/shared 'Wire schemas'
+    }
+    ingestion = component 'Source Ingestion workflows' {
+      description 'Admission, conversion handoff, canonical package retention and publishing a new Source Representation Revision.'
+      technology 'TypeScript, DBOS'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/api/_ingestion_workflow.ts 'Ingestion workflow'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/docs/adr/0014-server-owned-source-ingestion.md 'Source Ingestion contract'
+    }
+    suggestions = component 'Schema Suggestion and Interaction workflows' {
+      description 'Windowed suggestions, batch intersection, schema edit proposals and durable model-operation outcomes.'
+      technology 'TypeScript, DBOS, AI SDK'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/server/workflows.ts 'Workflow registration'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/api/_batch_suggestion_workflow.ts 'Batch Schema Suggestion'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/api/_model_execution.ts 'Model execution and output validation'
+    }
+    export = component 'Extraction Result export' {
+      description 'Browser-side CSV and XLSX from a fixed result snapshot and Decision Version, with typed values, Evidence and disagreement sheets.'
+      technology 'packages/extraction-result-export'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/packages/extraction-result-export 'Export package'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/durableExport.ts 'Fixed-cut export adapter'
+    }
+    configuration = component 'Studio configuration contract' {
+      description 'Pure settings validation shared by the Compose launcher and the Studio server.'
+      technology 'packages/studio-configuration'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/packages/studio-configuration 'Configuration package'
+    }
+  }
+
+  extend parsing_service.parser {
+    ingest = component 'PDF ingestion and layout' {
+      description 'Verify the staged PDF, render pages or spreads, route native and scanned regions and prepare canonical blocks.'
+      technology 'Python, Docling, PDFium'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/src/kei_exp/kie/stages 'Ingestion stages'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/docs/ingest-cuts.md 'Page and spread contract'
+    }
+    transcription = component 'Native text and OCR' {
+      description 'Preserve native text; transcribe scanned regions, textless artwork and undecodable glyphs; normalize table text.'
+      technology 'Python, Docling, Surya'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/src/kei_exp/transcription 'Transcription adapters'
+    }
+    canonical = component 'Canonical publication and reuse' {
+      description 'Publish generation-pinned manifests and page artifacts with verified hashes; reuse only a complete matching parse recipe.'
+      technology 'Python'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/src/kei_exp/result.py 'Canonical result format'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/src/kei_exp/reuse.py 'Verified reuse'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/CONTEXT.md#evidence 'Canonical Evidence vocabulary'
+    }
+    segmentation = component 'Recipe segmentation' {
+      description 'Recipe-specific record boundaries and source ranges for recipe Catalog Extraction; stored under the parse run.'
+      technology 'Python'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/src/kei_exp/kie 'Recipe and passage source'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/docs/extraction-experiments.md#the-recipe-catalog 'Recipe Catalog contract'
+    }
+    extraction = component 'Extraction strategies and grounding' {
+      description 'Article, generic Catalog, recipe Catalog and unified Catalog; capture model calls, ground values and retain typed snapshots.'
+      technology 'Python'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/src/kei_exp/kie/extract 'Strategy implementations'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/docs/extraction-experiments.md#pipeline-map 'Pipeline and model-call map'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/docs/extraction-experiments.md 'Local Mermaid pipeline and stage ownership'
+    }
+    coordination = component 'Durable worker coordination' {
+      description 'Slot fence, queues, leases, planning, per-call checkpoints, retained publication and quiescent cleanup through restricted database routines.'
+      technology 'Python, DBOS'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/src/kei_exp/workflows 'Worker and coordination source'
+      link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/tests/fixtures/contracts 'Cross-language workflow fixtures'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/README.md#runtime 'Worker runtime contract'
+    }
+  }
+
+  extend parsing_service {
+    gliformer = container 'GLiFormer fields server' {
+      #optional
+      description 'Explicit opt-in native fields model; not a chat adapter or the default extraction model.'
+      technology 'Python, FastAPI, GLiFormer'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/model_servers/gliformer/README.md 'Native model API and limitations'
+      link https://github.com/HUM-CDCH/FREE/blob/dev/compose.gliformer.yaml 'Opt-in deployment'
+    }
+  }
+  traces = container 'Phoenix traces' {
+    description 'Compose trace collector for Studio and the worker. Export is asynchronous; content capture is opt-in and headers are excluded.'
+    technology 'Phoenix, OpenTelemetry'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/server/tracing.ts 'Studio trace filtering'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/operations/deployment.md#model-call-traces-phoenix 'Tracing operations'
+  }
+
+  studio.ui.workspace -> studio.browser_http 'Manage projects, sources and batches'
+  studio.ui.schemas -> studio.browser_http 'Suggest, edit and save revisions'
+  studio.ui.documents -> studio.browser_http 'Read pinned documents and Evidence'
+  studio.ui.review -> studio.browser_http 'Control Extraction and save review decisions'
+  studio.ui.settings -> studio.browser_http 'Read, probe and save model configuration'
+  studio.ui.settings -> studio.key_store 'Keep browser-held keys'
+  studio.ui.review -> studio.ui.documents 'Locate Evidence'
+  studio.ui.review -> studio.export 'Export a fixed result and decision cut'
+  studio.ui -> studio.contracts 'Validate wire data'
+  studio.handlers -> studio.contracts 'Validate API inputs and outputs'
+  studio.handlers -> studio.configuration 'Read validated deployment settings'
+  studio.contracts -> studio.configuration 'Use shared configuration primitives'
+  studio.contracts -> studio.extraction_module 'Use schema and durable contracts'
+  studio.export -> studio.extraction_module 'Use schema, saved-value and disagreement contracts'
+  studio.extraction_module -> studio.project_store 'Use database and artifact persistence'
+  studio.durable -> studio.ingestion 'Run ingestion and reprocessing'
+  studio.durable -> studio.suggestions 'Run model operations'
+  studio.ingestion -> project_db 'Enqueue conversion and publish its owned revision'
+  studio.ingestion -> parsing_service.http_api 'Read verified conversion artifacts'
+  studio.ingestion -> package_store 'Retain the canonical package before publication'
+  studio.suggestions -> studio.provider_registry 'Resolve the owner route per attempt'
+  studio.suggestions -> studio.project_store 'Read pinned source and persist outcomes'
+  studio.handlers -> traces 'Export filtered model and workflow spans'
+  parsing_service.parser -> traces 'Export filtered model and workflow spans'
+  parsing_service.parser.coordination -> parsing_service.parser.ingest 'Run conversion steps'
+  parsing_service.parser.ingest -> parsing_service.parser.transcription 'Route native text and scanned regions'
+  parsing_service.parser.transcription -> parsing_service.models 'Call OCR when required'
+  parsing_service.parser.ingest -> parsing_service.parser.canonical 'Publish verified pages'
+  parsing_service.parser.canonical -> parsing_service.task_cache 'Retain immutable generations'
+  parsing_service.parser.coordination -> parsing_service.parser.extraction 'Plan from pinned inputs and saved calls'
+  parsing_service.parser.extraction -> parsing_service.parser.segmentation 'Read recipe record boundaries when selected'
+  parsing_service.parser.segmentation -> parsing_service.task_cache 'Read canonical passages and retain segmentation'
+  parsing_service.parser.extraction -> parsing_service.task_cache 'Read the pinned canonical generation'
+  parsing_service.parser.extraction -> parsing_service.models 'Execute fields and reasoning calls'
+  parsing_service.parser.extraction -> parsing_service.gliformer 'Use the explicitly selected fields model'
+  parsing_service.parser.coordination -> project_db 'Checkpoint calls and publish through allowlisted routines'
+  studio.provider_registry -> parsing_service.models 'Use deployment instruction or NuExtract models for schema work'
+}
+
+views {
+  view studio_client of studio.ui {
+    title 'Components / Studio client'
+    include *
+    include studio.browser_http, studio.key_store, studio.export
+    autoLayout TopBottom
+  }
+  view studio_server of studio {
+    title 'Components / Studio server and shared packages'
+    include studio.handlers, studio.authentication, studio.durable, studio.ingestion, studio.suggestions,
+      studio.provider_registry, studio.key_cache, studio.extraction_module, studio.project_store,
+      studio.garbage, studio.configuration, studio.contracts, studio.export,
+      project_db, package_store, source_inbox, parsing_service.http_api, model_connections, traces
+    autoLayout LeftRight
+  }
+  view parsing_components of parsing_service.parser {
+    title 'Components / Parsing Service worker'
+    include *
+    include parsing_service.http_api, parsing_service.models, parsing_service.gliformer,
+      parsing_service.task_cache, project_db, source_inbox, traces
+    exclude repository
+    autoLayout LeftRight
+  }
+  view shared_packages {
+    title 'Components / Shared packages and contracts'
+    description 'In-process code dependencies. Export executes in the browser; the database package executes in Studio.'
+    include studio.ui, studio.handlers, studio.contracts, studio.configuration, studio.export,
+      studio.extraction_module, studio.project_store, project_db, package_store
+    autoLayout LeftRight
+  }
+}

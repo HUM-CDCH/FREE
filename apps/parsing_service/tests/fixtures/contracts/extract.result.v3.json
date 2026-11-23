@@ -57,7 +57,7 @@
     "options": {
       "strategy": "catalog",
       "unified": {
-        "defaults": 11
+        "defaults": 12
       }
     }
   },
@@ -201,7 +201,7 @@
       "fields": "fake/extractor",
       "reasoning": "fake/extractor"
     },
-    "prompt_version": 11,
+    "prompt_version": 12,
     "document_version": 3,
     "schema": {
       "recordDescription": "One entry of a catalogue of finds.",
@@ -257,7 +257,7 @@
       "strategy": "catalog",
       "models": null,
       "unified": {
-        "defaults": 11
+        "defaults": 12
       }
     },
     "started": "2026-09-29T12:00:00+00:00",
@@ -271,7 +271,7 @@
       },
       "schema_sha256": "03fdb1e37c99bf5a615c986b72ac5f716f162857db57c16276e73e86115d4c1b",
       "method": {
-        "defaults": 11
+        "defaults": 12
       },
       "defaults": {
         "reserves": {
@@ -324,7 +324,7 @@
         "fields": "fake/extractor",
         "reasoning": "fake/extractor"
       },
-      "prompt_version": 11,
+      "prompt_version": 12,
       "discovery_version": 12,
       "entry_version": 8,
       "tokenizers": {
@@ -344,10 +344,10 @@
         }
       }
     },
-    "execution_sha256": "c5a67c2230f67c4635e181a724b69942b0c84509a8c3b3bf9403ab0b7a0a6dfc",
+    "execution_sha256": "d767edf7cdcdcde1aaf9b9ed5051ecb6ec105f95d5148adbcbd050457c7cc1d5",
     "discovery": {
       "version": 12,
-      "execution_sha256": "c5a67c2230f67c4635e181a724b69942b0c84509a8c3b3bf9403ab0b7a0a6dfc",
+      "execution_sha256": "d767edf7cdcdcde1aaf9b9ed5051ecb6ec105f95d5148adbcbd050457c7cc1d5",
       "entries": [
         {
           "id": "p1_s1@0",
@@ -468,7 +468,7 @@
         }
       ]
     },
-    "discovery_sha256": "67a2dfd1e19c4fbd034d1848716e5379059c10c961b90c13edeefda8208f805b",
+    "discovery_sha256": "3b722843e5553a866dc3d62b6a6a3676d5dfc36ea6b20b2f467f398934254cac",
     "records": [
       {
         "label": "12",
@@ -998,6 +998,6 @@
       "input": 1321,
       "output": 25
     },
-    "fingerprint": "f6a0c122583236f58811a36b5b3d7291f7bac3da7e03c2373ad5583629edd617"
+    "fingerprint": "12321bdb6cf5caa69a6e547a676feafe53b9f183ab86017f5b4923a5f39efe99"
   }
 }

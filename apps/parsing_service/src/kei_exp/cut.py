@@ -22,6 +22,7 @@ from docling.datamodel.pipeline_options import (
 from docling.document_converter import DocumentConverter, ImageFormatOption
 from PIL import Image, ImageOps
 
+from kei_exp import weights
 from kei_exp.geometry import CropTransform, PointBox
 from kei_exp.pages import PageSource, RenderablePage, check_render_size
 from kei_exp.regions import DEFAULT_LAYOUT_MODEL, LAYOUT_MODELS, CropPlan, Region
@@ -74,6 +75,7 @@ def _layout_converter(layout_model: str) -> DocumentConverter:
                                  accelerator_options=AcceleratorOptions(device=AcceleratorDevice.CPU),
                                  layout_options=LayoutObjectDetectionOptions.from_preset(
                                      layout_model, keep_empty_clusters=True))
+    options.artifacts_path = weights.local(options)  # or Docling asks the hub for the model's revision
     return DocumentConverter(format_options={InputFormat.IMAGE: ImageFormatOption(pipeline_options=options)})
 
 

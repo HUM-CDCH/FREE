@@ -577,7 +577,7 @@ export function DocumentWorkspace({
     // The tab's acknowledged head is the base: a reloaded page saves this generation only while it is still current.
     const acknowledged = schema.snapshot().save?.acknowledged ?? null
     const operationId = crypto.randomUUID() // a new user action, a new ID (spec, *Client IDs*)
-    await schema.generate(async (signal, declareSourceCoverage) => {
+    await schema.generate(async (signal, declareSourceCoverage, declareFieldDescriptions) => {
       const done = await requestSchema(
         {
           projectContextId,
@@ -591,6 +591,7 @@ export function DocumentWorkspace({
         },
       )
       declareSourceCoverage(done.sourceCoverage)
+      declareFieldDescriptions(done.fieldDescriptions)
       return done.template
     },
       // Stop cancels the workflow; leaving the page only detaches (the controller's dispose).

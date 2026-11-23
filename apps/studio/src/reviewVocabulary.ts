@@ -3,17 +3,6 @@ import type { SchemaNode } from 'extraction/schema'
 
 /** A researcher's decision on a value, as the rail shows it. */
 export type ReviewAction = 'APPROVED' | 'EDITED' | 'REJECTED'
-/** The saved durable correction a row carries, in the rail's shape (durableRailModel). */
-export type RowDecision = Readonly<{
-  resultPath: readonly (string | number)[]
-  evidenceAnchorId: string | null
-  reviewedOccurrenceIds: readonly string[]
-  action: ReviewAction
-  reviewedValue: unknown
-  /** The correction's own Evidence: the passages selected from its source. */
-  reviewedEvidence?: readonly Readonly<{ evidenceAnchorId: string; reviewedOccurrenceIds: readonly string[] }>[] | null
-}>
-
 /** A row's state: the researcher's decision on a saved value, or why another value is
  *  not reviewable. */
 export type RowKind =
@@ -38,7 +27,7 @@ export type RailRow = {
   kind: RowKind
   link: EvidenceLink | null
   /** The decision a To check, approved, edited or rejected row carries. */
-  decision: RowDecision | null
+  decision: Readonly<{ action: ReviewAction }> | null
   chip: { text: string; style: ChipStyle } | null
   /** A not reviewable value's label and detail. */
   evidence: { label: string; detail: string } | null
@@ -130,8 +119,17 @@ export const passesFilter = (row: RailRow, filter: ValueFilter) =>
 /** An uncertain passage: the extracted value is not printed word for word in its linked Evidence.
  *  This describes the extracted value, so none after an edit or a rejection. The code keeps the older
  *  name (`doubt`, `doubtful`); the researcher reads "Not an exact match, please double check". */
-export function evidenceCheck(link: { verbatim?: boolean }, action?: ReviewAction): string | null {
+export function evidenceCheck(link: Pick<EvidenceLink, 'verbatim' | 'grounding' | 'location'>,
+  action?: ReviewAction, value?: unknown, sourceText?: string): string | null {
   if (action === 'EDITED' || action === 'REJECTED') return null
+  const text = link.location?.raw ?? link.grounding?.raw ?? sourceText ?? ''
+  if (typeof value === 'boolean' && link.verbatim === false) {
+    // Match Catalog's normalized source words, including PDF hyphenation and combining marks.
+    const printed = text.replaceAll('\u00ad', '').normalize('NFKC')
+      .replace(/-[^\S\n]*\n\s*(?=\p{Ll})/gu, '')
+    const words = printed.match(/[\p{L}\p{M}\p{N}]+/gu) ?? []
+    if (words.some(word => (value ? /^true$/iu : /^false$/iu).test(word))) return null
+  }
   if (link.verbatim === false) return 'Not an exact match, please double check'
   return null
 }

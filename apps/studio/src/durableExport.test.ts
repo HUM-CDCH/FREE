@@ -98,10 +98,38 @@ describe('durable exports', () => {
     expect(extraction).toContainEqual(['Producing Schema Revision IDs', 'historical'])
     expect(extraction).toContainEqual(['Records', 2])
     const evidence = cells(book.getWorksheet('Evidence')!)
-    expect(evidence[0]).toEqual(['Record', 'Field', 'Extracted value', 'Decision', 'Reviewed value', 'Evidence', 'Evidence anchors', 'Schema revision', 'Note'])
-    expect(evidence[1]).toEqual([1, 'title', 'Grave 8', 'Edited', 'Corrected 8', 'No Evidence linked', null, 'historical', null])
-    expect(evidence[9]).toEqual([2, 'year', 1902, 'Rejected', null, 'No Evidence linked', null, 'historical', null])
-    expect(evidence[13]).toEqual(['Document', 'catalogue', 'Fundkatalog Süd', 'To check', null, 'No Evidence linked', null, 'historical', null])
+    expect(evidence[0]).toEqual(['Record', 'Field', 'Extracted value', 'Decision', 'Reviewed value',
+      'Evidence', 'Evidence anchors', 'Schema revision', 'Note',
+      'Extracted evidence anchors', 'Correction evidence occurrences'])
+    expect(evidence[1]).toEqual([1, 'title', 'Grave 8', 'Edited', 'Corrected 8',
+      'No correction Evidence linked', null, 'historical', null, null, null])
+    expect(evidence[9]).toEqual([2, 'year', 1902, 'Rejected', null,
+      'No Evidence linked', null, 'historical', null, null, null])
+    expect(evidence[13]).toEqual(['Document', 'catalogue', 'Fundkatalog Süd', 'To check', null,
+      'No Evidence linked', null, 'historical', null, null, null])
+  })
+
+  it('keeps correction Evidence in the single and batch workbooks', async () => {
+    const evidence = [{ anchorId: 'a_p1_s1', occurrenceIds: ['o_p1_s1'] }]
+    const edited = value(0, title, 'Scope', {
+      links: [{ evidenceAnchorId: 'a_p1_s0', resultPath: ['records', 0, 'title'] }],
+      correction: { decision: { action: 'EDITED', value: 'Synthetic document.', evidence } },
+    })
+    const member = { extractionId: 'extraction', sourceDocumentId: 'one',
+      sourceDocumentName: 'synthetic.pdf', sourceRevisionId: 'source' }
+    const snapshots = [{ fixed, member, values: [edited] }]
+    const batch = await durableBatchExportBlob({ batchExtractionId: 'batch' },
+      [member], snapshots, 'xlsx', root)
+    const blobs = [await durableExportBlob(fixed, [edited], 'xlsx', root), batch]
+    for (const blob of blobs) {
+      const sheet = (await workbook(blob)).getWorksheet('Evidence')!
+      const [columns, row] = cells(sheet)
+      const exported = Object.fromEntries(columns.map((column, index) => [String(column), row[index]]))
+      expect(exported).toMatchObject({ 'Reviewed value': 'Synthetic document.',
+        Evidence: 'Correction Evidence linked',
+        'Evidence anchors': 'a_p1_s1', 'Extracted evidence anchors': 'a_p1_s0',
+        'Correction evidence occurrences': JSON.stringify(evidence) })
+    }
   })
 
   it('writes a plain CSV file of the same table, with the repeated objects as the chosen rows', async () => {

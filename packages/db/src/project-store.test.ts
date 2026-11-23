@@ -1325,6 +1325,17 @@ describe('ResearcherProjectStore Project Context lifecycle', () => {
     )
   })
 
+  it('lists all owned projects without a limit, including projects beyond the twentieth', async () => {
+    const database = fakeDatabase()
+    const store = createResearcherProjectStore(RESEARCHER_A, database as never)
+    for (let index = 0; index < 49; index++) await store.createProjectContext(`Project ${index}`)
+    const projects = await store.listProjectContexts()
+    assert.equal(projects.length, 51)
+    assert.ok(projects.some(project => project.projectContextId === PROJECT))
+    assert.ok(projects.every(project => project.projectContextId !== OTHER_PROJECT))
+    assert.equal((await store.listProjectContexts(20)).length, 20)
+  })
+
   it('scopes project, document, and representation reads to one account', async () => {
     const database = fakeDatabase()
     const storeA = createResearcherProjectStore(RESEARCHER_A, database as never)

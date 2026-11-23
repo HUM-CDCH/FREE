@@ -359,6 +359,7 @@ describe('development launcher profiles', () => {
     // Studio's entrypoint creates kei's role with this password and kei's worker connects with it.
     assert.equal(environment.FREE_KEI_POSTGRES_PASSWORD, 'kei-development')
     assert.equal(environment.FREE_STUDIO_POSTGRES_PASSWORD, 'studio-development')
+    assert.equal(environment.FREE_KEI_QUEUE_POSTGRES_PASSWORD, 'kei-queue-development')
     assert.equal(environment.STUDIO_BASE_PATH, '/free')
     assert.equal(environment.STUDIO_ORIGIN, 'https://localhost:8443')
     assert.equal(environment.FREE_NGINX_BIND, '127.0.0.1')
@@ -633,6 +634,7 @@ const productionEnvironment = {
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
   FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
   FREE_STUDIO_POSTGRES_PASSWORD: 'e'.repeat(64),
+  FREE_KEI_QUEUE_POSTGRES_PASSWORD: 'f'.repeat(64),
   FREE_ENTRA_TENANT_ID: '00000000-0000-4000-8000-000000000001',
   FREE_ENTRA_CLIENT_ID: '00000000-0000-4000-8000-000000000002',
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'AB'.repeat(32),
@@ -763,6 +765,7 @@ describe('production environment validation', () => {
       'FREE_POSTGRES_PASSWORD',
       'FREE_KEI_POSTGRES_PASSWORD',
       'FREE_STUDIO_POSTGRES_PASSWORD',
+      'FREE_KEI_QUEUE_POSTGRES_PASSWORD',
     ])
       assert.ok(
         errors.some((error) => error.includes(`${name} is required`)),
@@ -835,7 +838,7 @@ describe('production environment validation', () => {
   })
 
   it('rejects weak or URL-unsafe passwords for every database role', () => {
-    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD', 'FREE_STUDIO_POSTGRES_PASSWORD']) {
+    for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD', 'FREE_STUDIO_POSTGRES_PASSWORD', 'FREE_KEI_QUEUE_POSTGRES_PASSWORD']) {
       const errors = validateProductionEnvironment(
         { ...productionEnvironment, [field]: 'p@ss word' },
         () => true,

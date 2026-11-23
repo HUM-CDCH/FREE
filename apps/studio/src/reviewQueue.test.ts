@@ -14,7 +14,7 @@ const keys = (items: ReturnType<typeof oneByOneQueue>) => items.map((item) => it
 const noEvidence = (record: number, name: string, priority?: ReviewPriority): RailRow =>
   ({ ...row(record, name), reason: 'Source not found', priority })
 const inexact = (record: number, name: string, priority?: ReviewPriority): RailRow =>
-  ({ ...row(record, name), link: { resultPath: [], evidenceAnchorId: name, verbatim: false }, priority })
+  ({ ...row(record, name, 'to-check', 'Not an exact match'), link: { resultPath: [], evidenceAnchorId: name, verbatim: false }, priority })
 
 describe('Check first across the saved snapshot', () => {
   it('starts with no Evidence, then not-exact Evidence, then other reasons, and retains document order within each group', () => {

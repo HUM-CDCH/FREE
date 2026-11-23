@@ -54,6 +54,7 @@ beforeAll(async () => {
   kei = await DBOSClient.create({ systemDatabaseUrl: url, systemDatabaseSchemaName: schemas.keiSchema, applicationName: KEI_APPLICATION })
   await launchStudioDbos({
     databaseUrl: url,
+    keiDatabaseUrl: url,
     ...schemas,
     register: () =>
       registerIngestionWorkflow(() => ({

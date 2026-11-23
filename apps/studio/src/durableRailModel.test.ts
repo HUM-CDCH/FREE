@@ -1,8 +1,10 @@
 import { passesFilter, rowText, supportNote } from './reviewVocabulary'
 import { expect, it } from 'vitest'
-import type { DurablePage } from 'extraction/durable-types'
+import type { ParsedDocument } from 'extraction/parsed-document'
+import type { DurablePage, EvidenceLink } from 'extraction/durable-types'
 import { durableRailModel, durableRailRow, markValueId, ownsMark, partKey, reviewPriority, valueParts, type RetainedValue } from './durableRailModel'
-import { oneByOneQueue } from './reviewQueue'
+import { checkReason, oneByOneQueue } from './reviewQueue'
+import { partState } from './partReview'
 
 const value=(overrides:Partial<RetainedValue>={}):RetainedValue=>({
   id:'saved-value',recordId:'source-bound-record',fieldId:'flag',path:['records',0,'flag'],
@@ -48,7 +50,62 @@ it('keeps a rule link factual and a researcher correction independent of model E
   expect(row.value).toBe(true)
   expect(row.extracted).toBe(false)
   expect(row.kind).toBe('edited')
-  expect(row.chip).toEqual({text:'linked',style:'rule'})
+  expect(row.chip).toEqual({text:'no source',style:'neutral'})
+  expect(row.link).toBeNull()
+})
+
+it('uses only the correction Evidence to locate an edited value',()=> {
+  const evidence=[{anchorId:'corrected',occurrenceIds:['chosen']}]
+  const saved=value({
+    links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'original',
+      linkedBy:'lexical',verbatim:true}],
+    correction:{revision:1,decision:{action:'EDITED',value:true,evidence,included:true}},
+  })
+  const row=durableRailRow(saved,null)
+  expect(row.link).toEqual({resultPath:saved.path,evidenceAnchorId:'corrected',occurrenceIds:['chosen']})
+  expect(row.chip).toEqual({text:'linked',style:'link'})
+  const document = {evidence_index:{anchors:[{anchor_id:'corrected',kind:'text',producer_observations:[
+    {occurrence_id:'earlier',page_number:1},{occurrence_id:'chosen',page_number:2},
+  ]}]},content_stream:[]} as unknown as ParsedDocument
+  expect(durableRailRow(saved,document).chip?.text).toBe('p.2')
+})
+
+it('checks a composite row using the leaf its Evidence links to', () => {
+  const path = ['records', 0, 'rows']
+  const saved = value({path, modelValue:[{active:true}],
+    node:{id:'rows', name:'rows', type:'array', children:[{id:'active', name:'active', type:'boolean'}]},
+    links:[{resultPath:[...path, 0, 'active'], evidenceAnchorId:'a', verbatim:false,
+      grounding:{linkedBy:'lexical', support:'supporting', precision:'segment', alternatives:[], itemSpans:null,
+        textSpans:[{segment:'p1_s0', start:0, end:12}], raw:'Active: true'} satisfies NonNullable<EvidenceLink['grounding']>}]})
+  expect(durableRailRow(saved,null,valueParts(saved)[0]).doubt).toBeNull()
+  expect(durableRailModel({values:[saved]} as DurablePage,null).counts.doubtful).toBe(0)
+})
+
+it('uses each boolean cell’s cited text for its review state, filter and queue priority', () => {
+  const path = ['records', 0, 'flags']
+  const first = [...path, 0, 'active'], second = [...path, 1, 'active']
+  const saved = value({
+    path, node: {id:'flags', name:'flags', type:'array', children:[{id:'active', name:'active', type:'boolean'}]},
+    modelValue: [{active:true}, {active:true}],
+    links: [
+      {resultPath:first, evidenceAnchorId:'a', verbatim:false},
+      {resultPath:second, evidenceAnchorId:'b', verbatim:false},
+    ],
+    check: {protocol:1, model:{}, judgments:[{path:first, status:'ok', label:0}]},
+  })
+  const document = {
+    tables: [{table_id:'t', cells:[{cell_id:'1', text:'TRUE'}, {cell_id:'2', text:'No entry'}]}],
+    evidence_index: {anchors: [
+      {kind:'table_cell', anchor_id:'a', logical_table_id:'t', cell_id:'1', producer_observations:[]},
+      {kind:'table_cell', anchor_id:'b', logical_table_id:'t', cell_id:'2', producer_observations:[]},
+    ]},
+  } as unknown as ParsedDocument
+  const model = durableRailModel({values:[saved]} as DurablePage, document)
+  const queue = oneByOneQueue(model)
+  expect(valueParts(saved).map(part => partState(part, false, document))).toEqual(['unread', 'to-check'])
+  expect(queue.map(item => item.row.resultPath)).toEqual([second, first])
+  expect(queue.map(item => passesFilter(item.row, 'doubt'))).toEqual([true, false])
+  expect(queue.map(item => checkReason(item.row))).toEqual(['Not an exact match', 'Source may not support this value'])
 })
 
 it('non-verbatim Evidence determines the uncertain filter, count and queue',()=> {
@@ -100,7 +157,7 @@ it('shows a support check on the extracted value only, never as an approval, and
   const edited=linked({check:check(judgment(path,'ok',0)),
     correction:{revision:1,decision:{action:'EDITED',value:'y',evidence:[],included:true}} as RetainedValue['correction']})
   expect(edited.priority).toBe('unsupported')
-  expect(edited.chip?.text).toBe('linked')
+  expect(edited.chip?.text).toBe('no source')
   expect(supportNote(edited)).toBeNull()
   const plain=linked({})
   expect(plain.priority).toBeNull()
@@ -173,7 +230,6 @@ it('names each scalar part of a composite value with its own link, and keys it b
   // A part's row is that part's Evidence; the decision stays the whole value's.
   expect(durableRailRow(saved,null,parts[0]).chip?.text).toBe('no source')
   expect(durableRailRow(saved,null,parts[2]).link).toBe(cell)
-  expect(durableRailRow(saved,null,parts[0]).decision?.evidenceAnchorId).toBe('a_p1_s2_r1_c1')
   expect(valueParts(value())).toEqual([])
 })
 

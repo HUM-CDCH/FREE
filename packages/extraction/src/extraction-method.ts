@@ -67,7 +67,7 @@ const UNIFIED_BASE = {
   reserves: { discovery: 4_096, entry: 4_096, verification: 2_048, arbitration: 512, document: 2_048 },
   headings: true, splits: 6,
 } as const
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 11 as const
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 12 as const
 export const UNIFIED_CATALOG_DEFAULTS = {
   [UNIFIED_CATALOG_DEFAULTS_VERSION]: { ...UNIFIED_BASE, overlap: 3, entry_reply: 'context' },
 } as const

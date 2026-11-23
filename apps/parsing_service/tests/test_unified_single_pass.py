@@ -183,7 +183,7 @@ def test_a_single_pass_grounds_rows_and_items_as_before(case, arguments, monkeyp
 
     def single(*args, **kwargs):
         result, chat = extracted(*args, **kwargs)
-        assert result["execution"]["method"]["defaults"] == 11
+        assert result["execution"]["method"]["defaults"] == 12
         assert not [call for call in result["calls"] if call["stage"] == "verification"]
         return result, chat
     monkeypatch.setattr(catalog, "extract", single)

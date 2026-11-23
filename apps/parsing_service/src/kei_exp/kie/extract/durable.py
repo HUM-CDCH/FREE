@@ -70,13 +70,12 @@ class CapturePlanner:
         self.historical = lease.call("historical_coverage")
         self.scopes = {}
         self.discovery = None  # discovery's progress while its windows are called (retained.discovering)
-        self._lines = threading.local()  # the lines of the window this thread asks for next
+        self._lines = threading.local()  # labelled source lines for the next discovery capture
         self._ordinals = {}
         self._lock = threading.Lock()
 
     def discovering(self, found, lines):
-        """The record starts read so far, and the lines of the window this thread asks for next: each
-        discovery capture yielded is shown with its own window's lines, since every window labels its lines from L1."""
+        """Associate discovery progress with each pending capture's own source lines, since labels restart at L1."""
         with self._lock:
             self.discovery = None if found is None else {"found": found, "windows": (self.discovery or {}).get("windows", {})}
         self._lines.value = lines
@@ -211,9 +210,8 @@ class CapturePlanner:
             if examples:
                 system += self._guidance(examples)
             count = counter.request_tokens(system, user, schema)
-            # A reply that may use spare capacity (Article's root, a unified
-            # Catalog entry from defaults 4) keeps its required floor; it wins
-            # over examples, then the final reply gets the remaining capacity.
+            # An Article root or Catalog entry keeps its required reply floor before examples are added.
+            # The reply can then use the remaining capacity up to its reserve.
             if minimum_reply_tokens is not None:
                 reserve = min(reserve, context - count)
             body = {"stage": stage, "record": record, "system": system, "user": user, "schema": schema,

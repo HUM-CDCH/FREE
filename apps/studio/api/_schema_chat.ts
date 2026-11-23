@@ -7,14 +7,18 @@ import {
   type ModelDependencies,
 } from './_model_execution.js'
 import type { ExecutionTarget, GeneralExecutionTarget } from './_provider.js'
-import { chatHistoryText, EXTRACT_CLAUSE, NO_ACTION_CLAUSE, schemaSourceExcerpts } from './_schema.js'
-import { answerOf, requestedAction, suggestOrAnswer, type ChatAction, type SchemaModelInput } from './_schema_suggestion.js'
+import { chatHistoryText, schemaSourceExcerpts } from './_schema.js'
+import { answerOf, suggestOnRoute, type SchemaModelInput } from './_schema_suggestion.js'
+import { classifyChatMessage } from './_chat_intent.js'
 import { traceModelCall } from '../server/tracing.js'
-import type { ChatHistory } from '../shared/schemaChat.contract.js'
+import type { ChatHistory, ChatRequestAction } from '../shared/schemaChat.contract.js'
 
-/** A schema chat message: the researcher's text, the chat before it and, after the first schema, that schema as the
- *  model reads it. */
-export type SchemaChatQuestion = Readonly<{ message: string; context: string | null; history: ChatHistory }>
+/** A schema chat message: the researcher's text, the chat before it, after the first schema that schema as the model
+ *  reads it, and what the chat offers beside the message (its step's title and question). */
+export type SchemaChatQuestion = Readonly<{ message: string; context: string | null; history: ChatHistory; offer?: string | null }>
+/** What a chat message asks Studio to do instead of an answer or a change: nothing (`none`), or a request with what a
+ *  template asked for should hold (ADR 0034). */
+export type ChatRequest = { readonly action: 'none' } | { readonly action: ChatRequestAction; readonly focus: string | null }
 export type SchemaChatCall = Readonly<{ temperature?: number; signal?: AbortSignal }>
 type ChatSource = Readonly<{ markdown: string; pageSpans?: readonly SourcePageSpan[] }>
 
@@ -62,27 +66,26 @@ async function ask(target: GeneralExecutionTarget, guidance: string, text: strin
 }
 
 /**
- * The answer when the message asks a question, or null when it gives an instruction for the schema. The model reads
- * the source as Schema Suggestion does (excerpted past `EXCERPT_THRESHOLD`); a long source's question is then answered
- * again from every window (`answerFromWindow`). A message that only declines what was offered is `{ action: 'none' }`;
- * with `extractable` (an edit chat's message, once a schema exists), a request to run the extraction is
- * `{ action: 'extract' }`.
+ * What a chat message asks for, read first (`classifyChatMessage`) whatever the state, then done: a question's answer,
+ * or a request for Studio; null for a change to the schema (before the first schema, an instruction for it). The model
+ * answers from the source as Schema Suggestion reads it (excerpted past `EXCERPT_THRESHOLD`); a long source's question
+ * is then answered again from every window (`answerFromWindow`).
  */
-export async function answerIfQuestion(
+export async function readChatMessage(
   target: GeneralExecutionTarget,
   source: ChatSource | null,
   question: SchemaChatQuestion,
   call: SchemaChatCall = {},
-  extractable = false,
-): Promise<string | { readonly action: ChatAction } | null> {
+): Promise<string | ChatRequest | null> {
+  const { intent, focus } = await classifyChatMessage(target, question, call)
+  if (intent === 'edit') return null
+  if (intent === 'none') return { action: 'none' }
+  if (intent !== 'question') return { action: intent, focus }
   const text = source ? schemaSourceExcerpts(source.markdown, source.pageSpans).text : NO_SOURCE
   const response = await ask(target, `${questionText(question)}
 
-If that message asks a question (about the source document or the extraction schema) instead of giving an instruction for generating or changing the schema, answer it from the source document and return only {"answer":"<your answer>"}. Answer in the language of the question, concisely, and say so when the document does not contain the answer.
-${extractable ? `${EXTRACT_CLAUSE}\n` : ''}${NO_ACTION_CLAUSE}
-Otherwise return only {"answer":null}.`, text, call)
-  const action = await requestedAction(response)
-  if (action === 'none' || (extractable && action === 'extract')) return { action }
+Answer that message from the source document and return only {"answer":"<your answer>"}. Answer in the language of the message, concisely, and say so when the document does not contain the answer.`, text, call)
+  // A question with no answer is read as it was before it was classified: a change, or an instruction.
   return answerOf(response)
 }
 
@@ -123,39 +126,38 @@ async function answerRoute(caller: ModelCaller, call: SchemaChatCall, dependenci
   return answer
 }
 
-/** A message before the first schema: its answer when it asks a question, `{ action: 'none' }` when it only declines,
- *  or null when it is an instruction. */
+/** A message before the first schema: its answer when it asks a question, a request for Studio, or null when it is an
+ *  instruction for generation (every message is one with nothing to read it). */
 export function answerSchemaChat(
   caller: ModelCaller,
   source: ChatSource,
-  message: Pick<SchemaChatQuestion, 'message' | 'history'>,
+  message: Pick<SchemaChatQuestion, 'message' | 'history' | 'offer'>,
   call: SchemaChatCall = {},
   dependencies: ModelDependencies = {},
-): Promise<string | { readonly action: 'none' } | null> {
+): Promise<string | ChatRequest | null> {
   return traceModelCall('schema-chat', async () => {
     const { answer } = await schemaChatRoutes(caller, call.temperature, dependencies)
-    return answer ? answerIfQuestion(answer, source, { ...message, context: null }, call) as Promise<string | { readonly action: 'none' } | null> : null
+    return answer ? readChatMessage(answer, source, { ...message, context: null }, call) : null
   })
 }
 
 /**
- * An edit chat message's reply: the answer when it asks a question, or the revised schema. On a general route one
- * Schema Suggestion request does both; NuExtract only generates templates, so the Interaction Route answers first and
- * a message that is not a question then runs on NuExtract.
+ * An edit chat message's reply: the answer when it asks a question, a request for Studio, or the revised schema. The
+ * general route (the Schema Suggestion Route, or the Interaction Route beside NuExtract) reads the message first; a
+ * change then runs on the Schema Suggestion Route. With NuExtract and nothing beside it, every message is a change.
  */
 export function respondToSchemaEdit(
   caller: ModelCaller,
   input: SchemaModelInput,
   question: SchemaChatQuestion,
   dependencies: ModelDependencies = {},
-): ReturnType<typeof suggestOrAnswer> {
+): Promise<Awaited<ReturnType<typeof suggestOnRoute>> | { readonly answer: string } | ChatRequest> {
   return traceModelCall('schema-chat', async () => {
     const { suggestion, answer } = await schemaChatRoutes(caller, input.temperature, dependencies)
-    if (suggestion.profile === 'general') return suggestOrAnswer(suggestion, input, question, dependencies)
-    const answered = answer && await answerIfQuestion(answer, input.document.markdown
+    const read = answer && await readChatMessage(answer, input.document.markdown
       ? { markdown: input.document.markdown, pageSpans: input.document.pageSpans }
-      : null, question, input, true)
-    if (typeof answered === 'string') return { answer: answered }
-    return answered ?? suggestOrAnswer(suggestion, input, null, dependencies)
+      : null, question, input)
+    if (typeof read === 'string') return { answer: read }
+    return read ?? suggestOnRoute(suggestion, input, dependencies)
   }, (result) => ('answer' in result || 'action' in result ? result : result.template))
 }

@@ -85,6 +85,7 @@ async function seed(letters: readonly string[]) {
 beforeAll(async () => {
   await launchStudioDbos({
     databaseUrl: url,
+    keiDatabaseUrl: url,
     ...schemas,
     register: () =>
       registerBatchSuggestionWorkflow(() =>

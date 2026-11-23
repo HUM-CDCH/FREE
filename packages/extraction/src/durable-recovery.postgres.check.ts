@@ -38,12 +38,12 @@ test('real worker processes recover captures, exact inputs and the app-commit/DB
   for(const fault of ['capture_unit','finalize_input','commit_output','saved_result','acknowledge']){
     const id=randomUUID()
     await owner.query(`INSERT INTO public.extraction (id,"sourceDocumentId","sourceRepresentationRevisionId","schemaRevisionId",strategy,"requestedSettings")
-      VALUES ($1,$2,$3,$4,'CATALOG',$5)`,[id,source.sourceDocumentId,source.sourceRepresentationRevisionId,history.revisions.catalog,{ unified: { defaults: 11 } }])
+      VALUES ($1,$2,$3,$4,'CATALOG',$5)`,[id,source.sourceDocumentId,source.sourceRepresentationRevisionId,history.revisions.catalog,{ unified: { defaults: 12 } }])
     await owner.query('BEGIN')
     try{await initializeDurableExtraction(owner as never,id,{projectContextId:history.projectContextId,
       sourceRepresentationRevisionId:source.sourceRepresentationRevisionId,schemaRevisionId:history.revisions.catalog,
       schemaTree:CATALOG_TREE,strategy:'CATALOG',preprocessId:representation.preprocessId,
-      requestedModels:null,requestedSettings:{ unified: { defaults: 11 } }});await owner.query('COMMIT')}
+      requestedModels:null,requestedSettings:{ unified: { defaults: 12 } }});await owner.query('COMMIT')}
     catch(error){await owner.query('ROLLBACK');throw error}
     const head=(await owner.query('SELECT * FROM extraction_runtime.head WHERE id=$1',[id])).rows[0]
     const attempt=(await owner.query('SELECT "workflowId" FROM extraction_runtime.attempt WHERE id=$1',[head.attemptId])).rows[0]
