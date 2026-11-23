@@ -1,0 +1,34 @@
+[
+  {
+    "id": "retired-contracts.retained-article-options",
+    "invariantId": "retired-contracts.retained-article-options",
+    "label": "Remove the retired Article controls from retained resolved options and configurations, so Resume and Retry run",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "extraction_runtime",
+        "objectType": "table",
+        "name": "selection"
+      }
+    },
+    "precheck": [
+      {
+        "description": "no Extraction is queued or running; let them finish before migrating",
+        "sql": "SELECT NOT EXISTS (SELECT FROM extraction_runtime.head WHERE acknowledgement IN ('QUEUED','RUNNING')) AS ok"
+      }
+    ],
+    "execute": [
+      {
+        "description": "strip the retired Article controls from resolved options and configurations",
+        "sql": "-- 20261116T0040 removed the retired Article controls from requested settings and each selection's method, but a retained\n-- Article Extraction still carried them where the worker reads its method: its selections' resolved options, which\n-- Studio's canonical Article always wrote with identity, identity_fields and prompt, and its resolved configuration,\n-- which the worker's Article serializer always wrote with the same keys. The worker validates both against the admitted\n-- Article options, which refuse unknown keys, so Resume and Retry of such an Extraction failed before any work.\n-- They go here too, and each rewritten configuration gets its content digest again, as 20261121T1855 does for\n-- defaults 12. What a run recorded about itself stays as it was: a selection's digest, snapshots, plans and captures.\nCREATE FUNCTION pg_temp.current_article(value jsonb) RETURNS jsonb LANGUAGE sql IMMUTABLE AS $$\n  SELECT CASE WHEN jsonb_typeof(value #> '{options,article}') = 'object'\n    THEN jsonb_set(value, '{options,article}', (value #> '{options,article}')\n      - ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing'])\n    ELSE value END $$;\n-- Selections and resolved configurations are immutable to the runtime roles; this one rewrite lifts the guards inside\n-- the migration's transaction.\nALTER TABLE extraction_runtime.selection DISABLE TRIGGER selection_immutable;\nUPDATE extraction_runtime.selection SET resolved = pg_temp.current_article(resolved)\n  WHERE pg_temp.current_article(resolved) IS DISTINCT FROM resolved;\nALTER TABLE extraction_runtime.selection ENABLE TRIGGER selection_immutable;\nALTER TABLE extraction_runtime.effective DISABLE TRIGGER effective_immutable;\nUPDATE extraction_runtime.effective SET configuration = pg_temp.current_article(configuration),\n    digest = extraction_runtime.content_hash(pg_temp.current_article(configuration))\n  WHERE pg_temp.current_article(configuration) IS DISTINCT FROM configuration;\nALTER TABLE extraction_runtime.effective ENABLE TRIGGER effective_immutable;\n"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "no resolved Article options or configuration names a retired control, and each configuration keeps its digest and immutability guards",
+        "sql": "WITH options(value) AS (\n  SELECT resolved #> '{options,article}' FROM extraction_runtime.selection\n  UNION ALL SELECT configuration #> '{options,article}' FROM extraction_runtime.effective\n)\nSELECT NOT EXISTS (SELECT FROM options WHERE jsonb_typeof(value) = 'object'\n    AND value ?| ARRAY['identity','identity_fields','prompt','selection','grounding_schedule','grounding_routing'])\n  AND NOT EXISTS (SELECT FROM extraction_runtime.effective\n    WHERE jsonb_typeof(configuration #> '{options,article}') = 'object'\n      AND digest IS DISTINCT FROM extraction_runtime.content_hash(configuration))\n  AND NOT EXISTS (SELECT FROM pg_trigger\n    WHERE tgrelid IN ('extraction_runtime.selection'::regclass, 'extraction_runtime.effective'::regclass)\n      AND tgname IN ('selection_immutable', 'effective_immutable') AND tgenabled = 'D') AS ok\n"
+      }
+    ]
+  }
+]
