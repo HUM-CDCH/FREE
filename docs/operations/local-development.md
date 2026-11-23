@@ -275,9 +275,11 @@ launcher's secret: `export FREE_SESSION_SECRET=$(cat .dev/session-secret)`.
 - Disposable PostgreSQL integration targets must use user `postgres`, explicit
   port `5432`, a loopback host, and a database named `free_test_*`.
 - Studio's container startup replays `pnpm --filter db db:init` as
-  `postgres`, then prepares the Parsing Service's `kei` role and Studio's
-  restricted `free_studio` role (`pnpm --filter db db:roles`) and starts
-  Studio as `free_studio`; each DBOS process migrates its own schema at launch.
+  `postgres`, then prepares the Parsing Service's `kei` role, Studio's
+  restricted `free_studio` role and its separate `free_kei_queue` login
+  (`pnpm --filter db db:roles`). Studio starts as `free_studio` and uses
+  `free_kei_queue` for the Parsing Service queue; each DBOS process migrates
+  its own schema at launch.
   None of these resets data. Host-run tooling keeps using `postgres`.
 
 The Parsing Service's API, worker and model servers are private to the

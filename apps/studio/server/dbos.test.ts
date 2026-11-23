@@ -149,7 +149,7 @@ describe('Studio DBOS', () => {
     expect(schedule).toHaveBeenCalledOnce()
   })
 
-  it('creates the admission client as studio on dbos and the kei client as kei on kei_dbos', async () => {
+  it('creates admission and kei clients on separate database URLs and schemas', async () => {
     const { launchStudioDbos, studioDbos } = await import('./dbos.js')
     expect(() => studioDbos()).toThrow('Studio has not launched DBOS in this process.')
 
