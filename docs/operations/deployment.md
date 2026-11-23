@@ -190,11 +190,13 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   12 and leaves saved results as they are. It refuses to run while an Extraction is queued or running: drain first.
 - `FREE_ADMIN_DATABASE_URL`'s role must own database `free` or hold `CREATE`
   on it, and be able to create roles; Compose uses `postgres`. The entrypoint
-  refuses to prepare a `free_studio` or `kei` that is a superuser or owns
-  anything else, since an owner keeps its object's DDL whatever is revoked.
-  At every start it also revokes what either role was granted in `free` and
-  grants only what it needs again. Studio does not start, and the error names
-  the objects, while either role still holds a grant another role made, can
+  refuses to prepare `free_studio`, `kei` or `free_kei_queue` as a superuser.
+  `free_studio` and `kei` may own only their respective DBOS schemas and the
+  objects in them; `free_kei_queue` must own no objects. An owner keeps its
+  object's DDL whatever is revoked. At every start, the entrypoint revokes
+  each role's grants in `free` outside its own schema and grants only what it
+  needs again. Studio does not start, and the error names the objects, while
+  any role still holds a grant another role made, can
   create schemas in `free` or objects in `free` outside its own schema
   (`PUBLIC` included), or reaches FREE's tables or `extraction_runtime`
   routines through `PUBLIC`. Neither the revocation nor the refusal looks at
@@ -752,22 +754,23 @@ and in Studio's memory. The CLI homes hold the operator's own CLI logins, so
 protect those backups like `.env`. The model caches are re-downloadable and
 need no backup.
 
-`pg_dump` does not include the cluster roles that own the dump's objects. To
-restore into an empty PostgreSQL volume, start only `db`, create those roles,
-then restore the dump:
+`pg_dump` does not include cluster roles. Recreate the roles named by object
+ownership and grants before restoring into an empty PostgreSQL volume: start
+only `db`, create the roles below, then restore the dump:
 
 ```bash
 docker compose -f compose.yaml -f compose.prod.yaml up -d --wait db
 docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free \
   -c "CREATE ROLE kei LOGIN" \
   -c "CREATE ROLE free_studio LOGIN" \
+  -c "CREATE ROLE free_kei_queue LOGIN" \
   -c "CREATE ROLE free_extraction_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS"
 docker compose -f compose.yaml -f compose.prod.yaml exec -T db pg_restore -U postgres -d free < free.dump
 ```
 
 Then restore the volumes and start normally: migrations are already applied,
-and the entrypoint sets the `kei` and `free_studio` passwords from `.env`
-again.
+and the entrypoint sets the `kei`, `free_studio` and `free_kei_queue` passwords
+from `.env` again.
 
 Migrations are forward-only. To upgrade, take the backup set, update the
 checkout and run `node scripts/free.mjs production`. On a GPU host,
