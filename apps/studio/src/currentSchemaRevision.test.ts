@@ -58,6 +58,7 @@ function setupDurable(options: {
   initial?: AcknowledgedSchemaRevision | null
   debounceMs?: number
   normalizeAcknowledgement?: (definition: SchemaDefinition) => SchemaDefinition
+  historical?: SchemaRevision
 } = {}) {
   const edits: SchemaDefinition[] = []
   const events: string[] = []
@@ -106,7 +107,7 @@ function setupDurable(options: {
       return { ...revision(1, sent.schemaNodes[0]!.name), recordScope: headScope }
     },
     listRevisions: async () => [...history],
-    getRevision: async () => revision(1, 'historical'),
+    getRevision: async () => options.historical ?? revision(1, 'historical'),
   })
 
 
@@ -940,6 +941,20 @@ describe('create Current Template Revision from history', () => {
       'historical',
     )
   })
+})
+
+it('creates a revision from history that differs from the current one only in a note\'s provenance', async () => {
+  const noted = (revisionNumber: number, source?: 'suggested'): SchemaRevision => ({
+    ...revision(revisionNumber, 'historical'),
+    schemaNodes: [{ ...node('historical'), description: 'Note.', ...(source && { descriptionSource: source }) }],
+  })
+  const setup = setupDurable({ initial: noted(2), historical: noted(1, 'suggested'), debounceMs: 0 })
+
+  await setup.controller.createCurrentRevisionFromHistory('rev-1')
+
+  expect(setup.appends.map(({ definition }) => definition.schemaNodes[0])).toEqual([
+    { ...node('historical'), description: 'Note.', descriptionSource: 'suggested' },
+  ])
 })
 
 describe('durable persistence adapter', () => {
