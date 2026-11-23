@@ -199,6 +199,23 @@ describe('deriveSchemaProposal', () => {
     expect(cleared.nodes[0]).toEqual(original[0])
   })
 
+  it.each([
+    ['replace', { description: 'New note.' }, 'New note.', undefined],
+    ['same text', { description: ' Original note. ' }, 'Original note.', 'suggested'],
+    ['rename only', { name: 'heading' }, 'Original note.', 'suggested'],
+    ['type change only', { type: 'date' }, 'Original note.', 'suggested'],
+    ['change to group', { type: 'object' }, undefined, undefined],
+    ['clear', { description: '' }, undefined, undefined],
+  ] as const)('keeps suggested provenance only for unchanged chat notes: %s', (_label, edit, description, source) => {
+    const original: SchemaNode[] = [{ id: 'a', name: 'title', type: 'string', description: 'Original note.', descriptionSource: 'suggested' }]
+    const field = { name: 'title', type: 'string', removed: false, ...edit } as const
+    const proposal = deriveSchemaProposal(original, proposed({ a: field }))
+    const [saved] = replaySchemaChanges(original, proposal.changes, new Set(['a'])).nodes
+    expect(saved).toMatchObject({ name: field.name, type: field.type })
+    expect(saved.description).toBe(description)
+    expect(saved.descriptionSource).toBe(source)
+  })
+
   it('leaves an untouched allowed set and description when an edit omits them', () => {
     const original: SchemaNode[] = [
       { id: 'e', name: 'gender', type: 'string', allowedValues: ['woman', 'man'], description: 'Recorded sex' },

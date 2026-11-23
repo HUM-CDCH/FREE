@@ -700,6 +700,41 @@ describe('generation lifecycle', () => {
     expect(setup.controller.snapshot().sourceCoverage).toEqual(EXCERPTED)
   })
 
+  it.each(['generate', 'restoreGeneration'] as const)('%s preserves researcher notes only at the same path with the same text', async (method) => {
+    const initial = revision(1, 'entry')
+    initial.schemaNodes = [
+      { id: 'group', name: 'items', type: 'array', description: ' One item. ', children: [
+        { ...node('name'), description: 'Printed name.' },
+        { ...node('place'), description: 'Place as printed.', descriptionSource: 'suggested' },
+        { ...node('year'), description: 'Printed year.' },
+      ] },
+    ]
+    const setup = setupDurable({ initial, debounceMs: 0 })
+    const template = { _description: 'One entry.', items: [{ _description: 'One item.', name: 'string', place: 'string', year: 'integer' }], 'items.name': 'string' }
+    const notes = [
+      { path: ['items', 'name'], description: ' Printed name. ' },
+      { path: ['items', 'place'], description: 'Place as printed.' },
+      { path: ['items', 'year'], description: 'Year of publication.' },
+      { path: ['items.name'], description: 'Printed name.' },
+    ]
+    if (method === 'generate') {
+      await setup.controller.generate(async (_signal, _coverage, declareNotes) => {
+        declareNotes(notes)
+        return template
+      })
+    } else {
+      expect(await setup.controller.restoreGeneration(template, 'rev-1', null, notes)).toBe(true)
+    }
+    const [group, dotted] = setup.appends[0].definition.schemaNodes
+    expect([group, ...group.children!, dotted].map(({ description, descriptionSource }) => [description, descriptionSource])).toEqual([
+      ['One item.', undefined],
+      ['Printed name.', undefined],
+      ['Place as printed.', 'suggested'],
+      ['Year of publication.', 'suggested'],
+      ['Printed name.', 'suggested'],
+    ])
+  })
+
   it('a generation and a restored generation save their declared field notes as the fields\' notes', async () => {
     const setup = setupDurable({ initial: revision(1, 'site'), debounceMs: 0 })
 

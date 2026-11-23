@@ -464,10 +464,13 @@ function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
     : !crossesContainerBoundary
       ? node.description
       : undefined
+  // A note whose text the edit changed is the researcher's approved note: only an unchanged one stays suggested.
+  const keepSource = description && description.trim() === node.description?.trim()
   const base = {
     id: node.id,
     name: edit.name,
-    ...(description && { description, ...(node.descriptionSource && { descriptionSource: node.descriptionSource }) }),
+    ...(description && { description }),
+    ...(keepSource && node.descriptionSource && { descriptionSource: node.descriptionSource }),
     ...(node.evidencePolicy && { evidencePolicy: node.evidencePolicy }),
   }
 
