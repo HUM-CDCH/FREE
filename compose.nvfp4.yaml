@@ -58,3 +58,7 @@ services:
   studio:
     environment:
       FREE_DEPLOYMENT_INSTRUCT_MODEL: nvidia/Qwen3.8-27B-NVFP4
+
+  eval_watcher:
+    environment:
+      KEI_EXTRACT_MODEL: nvidia/Qwen3.8-27B-NVFP4

@@ -32,7 +32,7 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
   const isCatalog = (settings: unknown) => settings !== null && typeof settings === 'object' &&
     ['unified', 'generic', 'recipe'].some(key => key in settings)
   // An Extraction with its runtime head, producing selection and one researcher correction.
-  const seed = async (settings: unknown, batch?: string) => {
+  const seed = async (settings: unknown, batch?: string, resolved: unknown = {}) => {
     const id = await seedExtraction(client, pins), catalog = isCatalog(settings) || batch !== undefined
     if (catalog) await client.query(
       `UPDATE public.extraction SET strategy='CATALOG',"schemaRevisionId"=$2,"batchExtractionId"=$3 WHERE id=$1`,
@@ -47,9 +47,9 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
       {}, selection, catalog ? 'CATALOG' : 'ARTICLE'])
     await client.query(`INSERT INTO extraction_runtime.selection
       (id,"extractionId",ordinal,"schemaRevisionId","schemaHash","schemaTree",method,resolved,digest)
-      VALUES ($1,$2,1,$3,$4,$5,$6,'{}',$4)`,
+      VALUES ($1,$2,1,$3,$4,$5,$6,$7,$4)`,
     [selection, id, catalog ? pins.revisions.catalog : pins.revisions.article, 'a'.repeat(64), CATALOG_TREE,
-      { strategy: catalog ? 'CATALOG' : 'ARTICLE', models: null, settings }])
+      { strategy: catalog ? 'CATALOG' : 'ARTICLE', models: null, settings }, resolved])
     await client.query('INSERT INTO extraction_runtime."feedbackHead" (id,version) VALUES ($1,0) ON CONFLICT DO NOTHING', [pins.projectContextId])
     await client.query(`INSERT INTO extraction_runtime.correction
       (id,candidate,decision,"extractionId","feedbackVersion",included,"projectId",revision,"selectionId","snapshotVersion","valueId")
@@ -76,7 +76,21 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
     'SELECT "requestedSettings" AS s FROM public.extraction WHERE id=$1', [id])).rows[0]?.s
 
   const retiredArticle = { context: 'full', identity: 'reference', identity_fields: ['title'], prompt: 'old', grounding_routing: 'x' }
-  const article = await seed({ article: retiredArticle })
+  // Where the worker reads the method, Studio's canonical Article (resolved options) and the worker's serializer
+  // (resolved configuration) always wrote identity, identity_fields and prompt.
+  const writtenArticle = { context: 'full', identity: 'reference', identity_fields: [], prompt: 'reference', grounding: 'semantic' }
+  const article = await seed({ article: retiredArticle }, undefined, { protocol: 1, plannerVersion: 1, promptVersion: 1,
+    options: { strategy: 'article', article: writtenArticle }, startPage: null })
+  const provider = { key: 'instruct', model: 'fake/extractor', adapter: 'instruct', adapterVersion: 1, url: 'http://model.test/v1', timeout: 60, maxTokens: 4096 }
+  const configuration = { models: { fields: provider, reasoning: provider }, planner: 1, protocols: { calls: 1, source: 'document' },
+    options: { strategy: 'article', discovery_chars: 48_000, record_chars: 24_000,
+      article: { ...writtenArticle, context_tokens: 12_288, overlap_passages: 0 } } }
+  await client.query(`INSERT INTO extraction_runtime.effective (id,configuration,digest)
+    SELECT "selectionId",$2,extraction_runtime.content_hash($2) FROM extraction_runtime.head WHERE id=$1`, [article, configuration])
+  const resolvedOf = async (id: string) => (await client.query(`SELECT s.resolved, s.digest, e.configuration, e.digest AS "effectiveDigest",
+      e.digest = extraction_runtime.content_hash(e.configuration) AS hashed
+    FROM extraction_runtime.selection s LEFT JOIN extraction_runtime.effective e ON e.id = s.id WHERE s."extractionId"=$1`, [id])).rows[0]
+  const articleBefore = await resolvedOf(article)
 
   // Queued or running work is refused before anything changes.
   await client.query(`UPDATE extraction_runtime.head SET acknowledgement='RUNNING' WHERE id=$1`, [article])
@@ -134,10 +148,10 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
 
   // Retired Article keys and the verification switch leave account preferences; the rest of them stays.
   await client.query('INSERT INTO public."modelConfiguration" ("researcherAccountId",document) VALUES ($1,$2)', [pins.accountId,
-    { extractionSettings: { article: { identity: 'reference', context: 'full' }, catalog: { unified: { defaults: 11, verification: false } } }, roles: { keep: true } }])
+    { extractionSettings: { article: { identity: 'reference', context: 'full' }, catalog: { unified: { overlap: 0, verification: false } } }, roles: { keep: true } }])
   const other = await seedResearchPins(client)
   await client.query('INSERT INTO public."modelConfiguration" ("researcherAccountId",document) VALUES ($1,$2)', [other.accountId,
-    { extractionSettings: { article: null, catalog: { unified: { defaults: 11 } } } }])
+    { extractionSettings: { article: null, catalog: { unified: { headings: true } } } }])
 
   const articleBatch = await batch({ article: { context: 'full', prompt: 'old' } })
   const current = [await seed({ unified: { defaults: 11 } }), await seed({ unified: { defaults: 11, overlap: 0 } }),
@@ -150,7 +164,8 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
     [suggestionId, pins.projectContextId, randomBytes(32).toString('hex'), JSON.stringify(coverage)])
 
   assert.deepEqual((await migrate(target.url)).applied,
-    ['20261116T0040_retire_legacy_contracts', '20261116T0847_unified_catalog', '20261121T1855_unified_defaults_12'])
+    ['20261116T0040_retire_legacy_contracts', '20261116T0847_unified_catalog', '20261121T1855_unified_defaults_12',
+      '20261123T1500_retained_article_options'])
 
   const count = async (sql: string, ids: string[]) => (await client.query(sql, [ids])).rows[0].n
   assert.equal(await count('SELECT count(*)::int AS n FROM public.extraction WHERE id = ANY($1)', retired), 0)
@@ -166,6 +181,15 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
   assert.equal(await count('SELECT count(*)::int AS n FROM extraction_runtime.correction WHERE "extractionId" = ANY($1)', [article, ...current]), 4)
   assert.deepEqual((await client.query('SELECT "requestedSettings" AS s FROM public."batchExtraction" WHERE id=$1', [articleBatch])).rows[0].s,
     { article: { context: 'full' } })
+  // Resume and Retry read the method from the resolved options and configuration: the retired keys leave them too, the
+  // configuration gets its content digest again, and the selection keeps the digest the run recorded.
+  const articleAfter = await resolvedOf(article), currentArticle = { context: 'full', grounding: 'semantic' }
+  assert.deepEqual(articleAfter.resolved, { ...articleBefore.resolved, options: { strategy: 'article', article: currentArticle } })
+  assert.deepEqual(articleAfter.configuration, { ...configuration,
+    options: { ...configuration.options, article: { ...currentArticle, context_tokens: 12_288, overlap_passages: 0 } } })
+  assert.equal(articleAfter.hashed, true)
+  assert.notEqual(articleAfter.effectiveDigest, articleBefore.effectiveDigest)
+  assert.equal(articleAfter.digest, articleBefore.digest)
   // The retirement keeps these pins as they were; the chain's last migration then moves the Catalog ones to defaults 12.
   assert.deepEqual((await client.query('SELECT id,"requestedSettings" FROM public.extraction WHERE id = ANY($1) ORDER BY id', [current])).rows,
     before.map(row => row.requestedSettings.unified
@@ -173,8 +197,8 @@ test('retirement adapts Article pins, deletes what no current method reads, and 
   const preference = async (account: string) => (await client.query(
     'SELECT document FROM public."modelConfiguration" WHERE "researcherAccountId"=$1', [account])).rows[0].document
   assert.deepEqual(await preference(pins.accountId),
-    { extractionSettings: { article: { context: 'full' }, catalog: { unified: { defaults: 11 } } }, roles: { keep: true } })
-  assert.deepEqual(await preference(other.accountId), { extractionSettings: { catalog: { unified: { defaults: 11 } } } })
+    { extractionSettings: { article: { context: 'full' }, catalog: { unified: { overlap: 0 } } }, roles: { keep: true } })
+  assert.deepEqual(await preference(other.accountId), { extractionSettings: { catalog: { unified: { headings: true } } } })
   assert.deepEqual((await client.query('SELECT coverage FROM public."batchSchemaSuggestion" WHERE id=$1', [suggestionId])).rows[0].coverage, coverage)
 
   const tables = (await client.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public'`)).rows.map(r => r.table_name)

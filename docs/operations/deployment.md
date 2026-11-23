@@ -183,14 +183,24 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   [README](../../README.md#models) shows; in production Claude Code's
   `CLAUDE_CODE_OAUTH_TOKEN` goes in `.env`.
 - Catalog uses the unified method for every single and batch Extraction. There is no deployment gate or recipe
-  selector. The migration removes retired generic/recipe account preferences and the `extraction.catalogRecipe`
-  column; live unified preferences and Article settings stay. Old generic/recipe Extractions cannot resume and
-  should be run again. Drain in-flight Catalog work before deploying. This decision does not claim held-out accuracy.
+  selector. This decision does not claim held-out accuracy.
+  The legacy-retirement migration (`20261116T0040`) **deletes** every Extraction whose requested settings or any
+  selection pins the generic or recipe Catalog, a Unified Catalog defaults other than 11, or the retired verification
+  switch, together with sampled and pre-durable Extractions and every Batch Extraction with such a pin and its
+  members. Their results, corrections and runtime state go with them, and their corrections no longer guide later
+  Extractions in the Project. Only the backup brings them back. Before upgrading from a release that predates it,
+  restore the backup into a disposable database, count what it would delete, and tell the researchers concerned.
+  It also removes retired generic/recipe account preferences, the verification switch, retired Article controls and
+  the `extraction.catalogRecipe` column; live unified preferences and Article Extractions stay, and
+  `20261123T1500` removes the retired Article controls from their resolved options too, so Resume and Retry run.
   Unified Catalog defaults 12 replaced 11 with a data-only migration that moves the stored Catalog method pins to
-  12 and leaves saved results as they are. It refuses to run while an Extraction is queued or running: drain first.
+  12 and leaves saved results as they are. Each of these migrations refuses to run while an Extraction is queued or
+  running. The same releases removed workflow patches without changing `studio@1` or `kei@1`: drain both DBOS
+  schemas as [Application versions](#durable-execution-dbos) describes before deploying them.
 - `FREE_ADMIN_DATABASE_URL`'s role must own database `free` or hold `CREATE`
   on it, and be able to create roles; Compose uses `postgres`. The entrypoint
-  refuses to prepare `free_studio`, `kei` or `free_kei_queue` as a superuser.
+  refuses to prepare `free_studio`, `kei` or `free_kei_queue` when that role is
+  a superuser or is the administrator role itself.
   `free_studio` and `kei` may own only their respective DBOS schemas and the
   objects in them; `free_kei_queue` must own no objects. An owner keeps its
   object's DDL whatever is revoked. At every start, the entrypoint revokes
@@ -305,7 +315,10 @@ DGX Spark deployment's reasoning server. The overlay also sets the worker's
 `KEI_CATALOG_CHUNKS` to 3 instead of `NUEXTRACT_MAX_NUM_SEQS`: its 8G KV cache
 holds about 118k tokens, and four unified discovery windows of about 29k
 tokens at once fill it, so vLLM preempts them and the first window takes more
-than twice as long. The launcher does not add this overlay.
+than twice as long. The launcher does not add this overlay. The overlay pins its
+own model, revision, context length and KV cache, so `KEI_EXTRACT_MODEL`,
+`KEI_EXTRACT_REVISION`, `EXTRACT_MAX_MODEL_LEN` and `EXTRACT_KV_CACHE_BYTES`
+do not apply under it.
 
 ### Sharing model servers between stacks
 
