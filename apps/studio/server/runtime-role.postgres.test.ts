@@ -16,11 +16,11 @@ import { runWorkflowChild } from '../test/support/crash.js'
 import { disposableDatabaseUrl, testSchemas } from '../test/support/postgres.js'
 
 /**
- * Studio's own paths on its restricted runtime role, prepared as Studio's entrypoint prepares it (db:roles): its DBOS
- * schema upgraded from one an earlier Studio created as postgres, a fresh DBOS schema, kei's workflows in tables kei
- * creates after the preparation, and domain, admission, review, deletion and garbage-collection writes on the domain
- * pool. The test migrates its own free_test_* database with unique roles and drops both when it ends.
- * packages/db/src/studio-role.postgres.check.ts proves what the role is denied.
+ * Studio's own paths on its restricted roles, prepared as Studio's entrypoint prepares them (db:roles). The runtime
+ * role: its DBOS schema upgraded from one an earlier Studio created as postgres, a fresh DBOS schema, and domain,
+ * admission, review, deletion and garbage-collection writes on the domain pool. The separate queue role: kei's
+ * workflows, in tables kei creates after the preparation. The test migrates its own free_test_* database with unique
+ * roles and drops both when it ends. packages/db/src/studio-role.postgres.check.ts proves what the roles are denied.
  */
 const suffix = randomBytes(4).toString('hex')
 // One runtime role per DBOS schema, as in production: the upgraded schema's and a fresh schema's.
@@ -96,7 +96,7 @@ beforeAll(async () => {
 
   // The upgraded Studio, now the runtime role, recovers the workflow the earlier one left pending.
   runtimeUrl = urlAs(roles.studio, passwords.studio)
-  const recovered = await runWorkflowChild('lifecycle', { ...history, DATABASE_URL: runtimeUrl, FREE_KEI_QUEUE_DATABASE_URL: queueUrl })
+  const recovered = await runWorkflowChild('lifecycle', { ...history, DATABASE_URL: runtimeUrl })
   expect(recovered.code, recovered.output).toBe(0)
 
   // Studio itself: the domain pool binds DATABASE_URL at import, so the runtime URL is set first.
@@ -156,7 +156,7 @@ describe('Studio on its restricted runtime role', () => {
 
   it('migrates a fresh DBOS schema, enqueues and recovers a killed workflow as that role', async () => {
     const file = join(scratch, 'fresh-steps.txt')
-    const env = { DATABASE_URL: urlAs(roles.fresh, passwords.fresh), FREE_KEI_QUEUE_DATABASE_URL: urlAs(roles.queue, passwords.queue),
+    const env = { DATABASE_URL: urlAs(roles.fresh, passwords.fresh),
       FREE_TEST_DBOS_SCHEMA: fresh.schema, FREE_TEST_KEI_SCHEMA: keiSchema,
       FREE_TEST_EXECUTOR: fresh.executorId, FREE_CRASH_MARKER: join(scratch, 'fresh-marker'), FREE_TEST_LIFECYCLE_FILE: file }
     const killed = await runWorkflowChild('lifecycle', env)

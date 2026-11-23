@@ -6,7 +6,6 @@ the repository disposable guard. The worker connects as the restricted role.
 import json
 import os
 from pathlib import Path
-import re
 import signal
 import subprocess
 import sys

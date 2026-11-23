@@ -1,15 +1,4 @@
-"""`tests/helpers/postgres.py`'s `_docker()` helper: it must never hang, even when `check=False`.
-
-`unpause()` and the session teardown's `_docker("rm", "-f", ...)` both call `_docker(check=False)`, whose
-docstring promises it never raises. "Never raises" is not "never blocks" — a Docker daemon that stops
-responding would hang either call forever, leaving the session's PostgreSQL paused (or the container
-un-removed) and wedging every later test that needs it. No real Docker daemon is exercised here: a fake `docker`
-executable that never returns stands in for an unresponsive one.
-"""
-import os
-import stat
-import time
-from pathlib import Path
+"""`tests/helpers/postgres.py`: the disposable-database guard and the URLs it builds."""
 
 import pytest
 
@@ -61,22 +50,3 @@ def test_the_url_brackets_an_ipv6_loopback():
     built = postgres_helper.url("postgresql://postgres:secret@[::1]:5432/free_test_parser")
     assert "@[::1]:5432/" in built
     assert conninfo_to_dict(built)["host"] == "::1"
-
-
-def _unresponsive_docker(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Put a fake `docker` on PATH that sleeps far longer than any timeout this test uses."""
-    fake = tmp_path / "docker"
-    fake.write_text("#!/bin/sh\nsleep 30\n")
-    fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
-    monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
-
-
-def test_docker_helper_times_out_instead_of_hanging(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    _unresponsive_docker(tmp_path, monkeypatch)
-
-    started = time.monotonic()
-    result = postgres_helper._docker("unpause", "does-not-matter", timeout=0.3)
-    elapsed = time.monotonic() - started
-
-    assert elapsed < 5.0, f"a docker command with a 0.3s timeout took {elapsed:.1f}s: it hung instead"
-    assert result.returncode != 0

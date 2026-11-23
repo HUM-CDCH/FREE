@@ -11,7 +11,7 @@ import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
 import { applyStudioSchedules, registerStudioWorkflows } from '../../../server/workflows.js'
 import { orphanPayloadRows } from '../garbage.js'
 import { uploadRequest } from '../ingestion.js'
-import { requiredScenarioValue } from '../scenarioEnvironment.js'
+import { requiredScenarioValue, scenarioDbosOptions } from '../scenarioEnvironment.js'
 
 type Observations={ingestId:string;convertId:string;repaired?:GarbageSummary;currentIngestStatus?:string|null}
 
@@ -23,11 +23,7 @@ export async function run({firstRun,env}:{firstRun:boolean;env:NodeJS.ProcessEnv
   const project = required('FREE_TEST_PROJECT')
   const observations = required('GC_OBSERVATIONS')
   await launchStudioDbos({
-    databaseUrl: url,
-    keiDatabaseUrl: url,
-    schema,
-    keiSchema: required('FREE_TEST_KEI_SCHEMA'),
-    executorId: required('FREE_TEST_EXECUTOR'),
+    ...scenarioDbosOptions(required),
     register: registerStudioWorkflows,
     schedule: applyStudioSchedules,
   })

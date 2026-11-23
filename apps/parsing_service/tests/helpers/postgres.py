@@ -1,8 +1,7 @@
 """Caller-provisioned disposable PostgreSQL for service tests; no implicit stack startup.
 
 PARSING_TEST_DATABASE_URL must identify postgres on loopback:5432 and a free_test_* database.
-Each test gets its own free_test_parsing_* database. Container pause tests additionally require
-PARSING_TEST_POSTGRES_CONTAINER naming an isolated container labelled free.test=parsing.
+Each test gets its own free_test_parsing_* database.
 """
 import json
 import os
@@ -18,42 +17,8 @@ import pytest
 
 @dataclass(frozen=True)
 class Server:
-    """A running postgres:17: the conninfo to its maintenance database, and the id of the container serving
-    it — for the rare test that needs to act on the real server (`docker pause`/`unpause`) rather than just
-    connect to it."""
+    """A running postgres:17: the conninfo to its maintenance database."""
     conninfo: str
-    container_id: str
-
-
-def _docker(*args: str, check: bool = False, timeout: float = 30.0) -> subprocess.CompletedProcess[str]:
-    """Run a docker command, bounded so an unresponsive daemon cannot hang the caller forever.
-
-    A `check=False` timeout behaves like a failed command (nonzero returncode, no exception raised) to match
-    this helper's existing `check=False` contract: `unpause()` promises it never raises, and "never raises" is
-    not "never blocks" — a `check=True` timeout still raises, matching subprocess.run's own contract for
-    check=True.
-    """
-    try:
-        return subprocess.run(["docker", *args], capture_output=True, text=True, check=check, timeout=timeout)
-    except subprocess.TimeoutExpired as error:
-        if check:
-            raise
-        return subprocess.CompletedProcess(["docker", *args], returncode=1, stdout="", stderr=str(error))
-
-
-def pause(container_id: str) -> subprocess.CompletedProcess[str]:
-    """Freeze every process in the container (`docker pause`) without stopping or removing it."""
-    return _docker("pause", container_id)
-
-
-def unpause(container_id: str) -> None:
-    """Resume a paused container (`docker unpause`). Best-effort and silent: safe to call unconditionally from
-    a `finally`, including one that runs after a failed assertion — a paused PostgreSQL left behind would wedge
-    every later test in the session, so this must never itself raise."""
-    try:
-        _docker("unpause", container_id)
-    except OSError:
-        pass
 
 
 def checked_conninfo(value: str) -> dict[str, str]:
@@ -96,12 +61,7 @@ def server() -> Iterator[Server]:
     conninfo = make_conninfo(**checked_conninfo(conninfo))
     with psycopg.connect(conninfo, autocommit=True) as connection:
         connection.execute("SELECT 1")
-    container = os.environ.get("PARSING_TEST_POSTGRES_CONTAINER", "")
-    if container:
-        inspected = _docker("inspect", "--format", '{{ index .Config.Labels "free.test" }}', container, check=True)
-        if inspected.stdout.strip() != "parsing":
-            raise ValueError("outage tests require an isolated container labelled free.test=parsing")
-    yield Server(conninfo, container)
+    yield Server(conninfo)
 
 
 def fresh(maintenance: str) -> Iterator[str]:

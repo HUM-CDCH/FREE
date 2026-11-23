@@ -2,8 +2,8 @@
 
 Vocabulary: `CONTEXT.md`. Contract: `docs/design/2026-09-14-kie-model-and-ingest-design.md`
 (sections are cited as "spec 3.1" below). Pixels, counts and offsets are strict integers, coordinates fixed-length
-tuples and times zoned ISO 8601, so a block, an ingest artifact and a segmentation refuse the same value in the same
-way. `IngestError` is ingest's one refusal of input or configuration. This module imports no other KIE
+tuples and times zoned ISO 8601, so a span and an ingest artifact refuse the same value in the same way.
+`IngestError` is ingest's one refusal of input or configuration. This module imports no other KIE
 module; every model module builds on it.
 """
 

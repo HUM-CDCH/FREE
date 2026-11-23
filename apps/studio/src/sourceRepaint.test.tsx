@@ -148,7 +148,7 @@ it('retains Markdown encoding through Results publications with fresh descriptio
 
 it('lights Results rows and collapsed headers directly, including a hovered part, without rendering rows', async () => {
   const rows: RailRow[] = Array.from({ length: 150 }, (_, i) => ({ key: `v${i}`, name: 'field', value: i, extracted: i,
-    resultPath: ['records', 0, 'field'], kind: 'to-check', link: null, decision: null, chip: null, evidence: null, doubt: null, changed: false, page: 1 }))
+    resultPath: ['records', 0, 'field'], kind: 'to-check', link: null, chip: null, evidence: null, doubt: null, changed: false, page: 1 }))
   const model: RailModel = { document: [], records: [{ index: 0, key: 'record', label: 'Record 1', state: 'finished', page: 1, rows, toCheck: 150 }],
     counts: { toCheck: 150, doubtful: 0, notReviewable: 0, required: 150, approved: 0, edited: 0, rejected: 0 } }
   const selection = createSelectionChannel(), renderRow = vi.fn((row: RailRow) => <span>{row.key}</span>)

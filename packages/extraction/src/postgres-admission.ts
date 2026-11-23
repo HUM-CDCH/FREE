@@ -177,7 +177,7 @@ function sameAdmission(row: AdmittedIdentity, pins: AdmissionPins): boolean {
     row.schemaRevisionId === pins.schemaRevisionId &&
     row.strategy === pins.strategy &&
     isDeepStrictEqual(modelChoice(row.requestedModels), pins.requestedModels) &&
-    isDeepStrictEqual(row.requestedSettings ?? null, pins.requestedSettings)
+    isDeepStrictEqual(row.requestedSettings, pins.requestedSettings)
 }
 
 /** DBOS refused the workflow ID (workflowIDReusePolicy 'reject'): its Extraction is gone, so the ID is spent. */

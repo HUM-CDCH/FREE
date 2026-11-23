@@ -24,7 +24,7 @@ describe('batch source Schema Suggestions', () => {
 
   it('accepts the same field names as ordinary Extraction Schema validation, at every depth', async () => {
     const suggested = await suggestBatchSource(
-      { researcherAccountId: 'researcher' }, { markdown: 'source', pageSpans: [] }, new AbortController().signal,
+      { researcherAccountId: 'researcher' }, 'source', new AbortController().signal,
       async () => ({
         template: {
           _description: 'One record.',
@@ -34,8 +34,8 @@ describe('batch source Schema Suggestions', () => {
         raw: '', pages: null, sourceCoverage: { complete: true },
       }),
     )
-    expect(suggested.definition.schemaNodes.map((node) => node.name)).toEqual(['pages', 'place'])
-    expect(suggested.definition.schemaNodes[1]!.children!.map((node) => node.name)).toEqual(['fuzzyMatches', 'evidence'])
+    expect(suggested.schemaNodes.map((node) => node.name)).toEqual(['pages', 'place'])
+    expect(suggested.schemaNodes[1]!.children!.map((node) => node.name)).toEqual(['fuzzyMatches', 'evidence'])
   })
 
   it('describes system metadata by purpose without forbidding any field name in either instruction', async () => {
@@ -45,9 +45,9 @@ describe('batch source Schema Suggestions', () => {
       return { template: { _description: 'One record.', title: 'string' }, raw: '', pages: null, sourceCoverage: { complete: true } as const }
     }
     const signal = new AbortController().signal
-    const source = await suggestBatchSource({ researcherAccountId: 'researcher' }, { markdown: 'source', pageSpans: [] }, signal, generate)
+    const definition = await suggestBatchSource({ researcherAccountId: 'researcher' }, 'source', signal, generate)
     await combineBatchSchemas({ researcherAccountId: 'researcher' }, 'intersection',
-      `SOURCE DOCUMENT a SCHEMA:\n${JSON.stringify(source.definition)}`, signal, generate)
+      `SOURCE DOCUMENT a SCHEMA:\n${JSON.stringify(definition)}`, signal, generate)
 
     expect(instructions).toHaveLength(2)
     for (const instruction of instructions) {

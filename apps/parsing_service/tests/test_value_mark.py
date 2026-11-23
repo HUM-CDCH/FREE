@@ -15,9 +15,7 @@ import pypdfium2 as pdfium
 import pytest
 
 from kei_exp.kie.extract import run, unified
-from kei_exp.kie.extract.acceptance import Outcome
 from kei_exp.kie.extract.assembly import link_json
-from kei_exp.kie.extract.catalog_result import evidence_link
 from kei_exp.kie.extract.grounding import _Candidate, _link, _location
 from kei_exp.kie.extract import scan_mark
 from kei_exp.kie.extract.value_mark import CONTEXT, folded, on_ink, place, place_links, value_boxes

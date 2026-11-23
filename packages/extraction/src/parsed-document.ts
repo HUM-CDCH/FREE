@@ -121,6 +121,12 @@ export function decodeParsedDocument(data: unknown): ParsedDocument {
 
 export function tableForAnchor(document: ParsedDocument, anchor: TableCellEvidenceAnchor): ParsedLogicalTable | undefined { return document.tables.find((table) => table.table_id === anchor.logical_table_id) }
 export function blockForAnchor(document: ParsedDocument, anchor: TextEvidenceAnchor): ParsedContentBlock | undefined { return document.content_stream.find((block) => block.block_id === anchor.block_id) }
+/** The text an Evidence Anchor stands on: its block's text (a list's items one per line) or its table cell's. */
+export function anchorText(document: ParsedDocument, anchor: ParsedEvidenceAnchor): string | undefined {
+  if (anchor.kind === 'table_cell') return tableForAnchor(document, anchor)?.cells.find((cell) => cell.cell_id === anchor.cell_id)?.text
+  const block = blockForAnchor(document, anchor)
+  return block && 'text' in block ? block.text : block?.kind === 'list' ? block.items.join('\n') : undefined
+}
 
 /** Producer source segments name their physical page as p{page}_s{n}. */
 export function segmentPage(segment: unknown): number | null {

@@ -184,10 +184,6 @@ def assert_accounted(source: Evidence, result: dict) -> None:
         assert all(each.text[at] in discovery.WHITE_SPACE for at in blank), each.id
 
 
-def paths(result: dict, key: str = "evidence") -> list[list]:
-    return [item["path"] for item in result[key]]
-
-
 # --- discovery and accounting ------------------------------------------------------------------------------------
 
 def test_records_sharing_one_line_and_segment_are_distinct_entries():
@@ -1796,14 +1792,6 @@ def test_entries_run_concurrently_assemble_in_source_order():
     chat = CountingChat(Model(source))
     result = unified.extract(None, source, request(), as_router(chat), counter=WordCounter(), chunks=4)
     assert [record["material"] for record in result["records"]] == [f"M{n}" for n in range(1, 9)]
-
-
-def test_the_unified_modules_know_no_recipe():
-    for module in (unified, discovery):
-        imported = {line.split()[1] for line in open(module.__file__, encoding="utf-8")
-                    if line.startswith(("import ", "from "))}
-        assert not imported & {"kei_exp.kie.recipe", "kei_exp.kie.segmentation", "kei_exp.kie.segmentation_run",
-                               "kei_exp.kie.extract.grounded", "kei_exp.kie.extract.catalog"}
 
 
 # --- the cross-language contract ------------------------------------------------------------------------------------

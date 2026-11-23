@@ -14,7 +14,6 @@ const amount = (value: number | undefined, unit: string) => (value === undefined
 export function methodLines(settings: ActiveSettings): readonly MethodLine[] {
   if ('article' in settings) {
     const article = settings.article
-    if (!article) return []
     return ARTICLE_SECTIONS.flatMap(({ keys }) => keys)
       .filter((key) => !(key === 'context_tokens' && article.context === 'full'))
       .map((key) => ({ label: CONTROL_LABELS[key], value: describeArticleValue(article, key) }))
@@ -46,12 +45,8 @@ export function settingsHeadline(settings: ActiveSettings): string {
     const custom = Object.keys(settings.unified).length > 1
     return `Unified Catalog, defaults version ${settings.unified.defaults}${custom ? ' with custom settings' : ''}`
   }
-  if ('article' in settings) {  // recorded without settings: the whole source, the service defaults of its time
-    const defaults = JSON.stringify(canonicalArticle(settings.article)) === JSON.stringify(canonicalArticle(REFERENCE_ARTICLE))
-    return `${defaults ? 'Service defaults · ' : ''}${effectiveSummary(settings.article)}`
-  }
-  const lines = methodLines(settings)
-  return lines.length === 0 ? 'Service defaults' : lines.map((line) => (line.label === 'Factors' ? line.value : `${line.label} ${line.value}`)).join(' · ')
+  const defaults = JSON.stringify(canonicalArticle(settings.article)) === JSON.stringify(canonicalArticle(REFERENCE_ARTICLE))
+  return `${defaults ? 'Service defaults · ' : ''}${effectiveSummary(settings.article)}`
 }
 
 export function modelsLine(models: ExtractionModelChoice | null): string {

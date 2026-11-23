@@ -20,15 +20,13 @@ from kei_exp.kie.extract.stages import contains, leaves
 VERSION = 2
 
 
-def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
-                  identity_passages: Sequence[str], *, strict: bool = True,
+def value_origins(candidates: Sequence[dict], merged: dict, *, strict: bool = True,
                   item_sources: dict[tuple, list[dict]] | None = None) -> list[dict]:
     """Map assembled leaves to their actual reply occurrences: list items through `item_sources`, which several
     candidates need; a single candidate keeps its own positions.
 
     A scalar at another field never counts. A merged array item must equal the
-    entire original item, not merely contain the same leaf value. Bound identity
-    fields were supplied to value calls, so retain their inventory citations instead.
+    entire original item, not merely contain the same leaf value.
     Unless `strict`, a value no reply returned as such (`conform` coerced it) has no
     sources, and routing orders its contexts by value match and relevance alone.
     An assembled whole item's nested leaves keep its original indices; equal items
@@ -70,17 +68,14 @@ def value_origins(candidates: Sequence[dict], merged: dict, identity: dict,
         raise ValueError("several candidates need item_sources")
     origins = []
     for path, _ in leaves(merged):
-        if path[0] in identity:
-            origins.append({"path": list(path), "kind": "inventory", "passages": list(identity_passages)})
-        else:
-            sources = assembled_sources(path)
-            if sources is None:
-                sources = [{"unit": unit, "path": original}
-                           for unit, candidate in enumerate(candidates)
-                           for original in locate(merged, candidate, path)]
-            if not sources and strict:
-                raise ValueError(f"reconciled value has no extraction origin: {path!r}")
-            origins.append({"path": list(path), "kind": "value", "sources": sources})
+        sources = assembled_sources(path)
+        if sources is None:
+            sources = [{"unit": unit, "path": original}
+                       for unit, candidate in enumerate(candidates)
+                       for original in locate(merged, candidate, path)]
+        if not sources and strict:
+            raise ValueError(f"reconciled value has no extraction origin: {path!r}")
+        origins.append({"path": list(path), "kind": "value", "sources": sources})
     return origins
 
 
@@ -97,8 +92,7 @@ def rank_units(contexts: Sequence[Context], value_contexts: Sequence[Context], o
     is no embedding service or learned relevance/recall claim. Only whole contexts
     are reordered; headers, overlap and table cells remain attached.
     """
-    source_ids = (set(origin["passages"]) if origin["kind"] == "inventory" else
-                  {p.id for item in origin["sources"] for p in value_contexts[item["unit"]].primary})
+    source_ids = {p.id for item in origin["sources"] for p in value_contexts[item["unit"]].primary}
     preferred = {index for index, context in enumerate(contexts)
                  if source_ids & {p.id for p in context.primary}}
     texts = ["\n".join(p.text for p in context.passages) for context in contexts]

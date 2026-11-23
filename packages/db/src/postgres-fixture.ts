@@ -67,7 +67,7 @@ export async function seedResearchPins(client: Client) {
   const projectContextId = randomUUID()
   await insert('projectContext', { id: projectContextId, name: 'Current research pins', researcherAccountId: accountId })
   const documents: Array<{ sourceDocumentId: string; sourceRepresentationRevisionId: string }> = []
-  for (const [index, name] of ['article.pdf', 'catalogue-a.pdf', 'catalogue-b.pdf', 'catalogue-c.pdf'].entries()) {
+  for (const [index, name] of ['article.pdf', 'catalogue-a.pdf'].entries()) {
     const sourceDocumentId = randomUUID()
     const sourceRepresentationRevisionId = randomUUID()
     await insert('sourceDocument', { id: sourceDocumentId, projectContextId, contentSha256: randomBytes(32).toString('hex'), mediaType: 'application/pdf', originalName: name })
@@ -90,12 +90,9 @@ export async function seedResearchPins(client: Client) {
     article: await revision('Article', ARTICLE_TREE, { origin: 'SUGGESTION', recordScope: 'document' }),
     catalog: await revision('Catalog', CATALOG_TREE),
     catalogBatch: await revision('Catalog batch', CATALOG_TREE),
-    both: await revision('Both', ARTICLE_TREE),
-    never: await revision('Never run', ARTICLE_TREE),
-    disagree: await revision('Declared later', ARTICLE_TREE),
   }
-  const [d1, d2, d3, d4] = documents as [typeof documents[0], typeof documents[0], typeof documents[0], typeof documents[0]]
-  return { accountId, projectContextId, documents: { d1, d2, d3, d4 }, revisions }
+  const [d1, d2] = documents as [typeof documents[0], typeof documents[0]]
+  return { accountId, projectContextId, documents: { d1, d2 }, revisions }
 }
 
 /** One current public Extraction pin; tests explicitly create its coordination head when needed. */

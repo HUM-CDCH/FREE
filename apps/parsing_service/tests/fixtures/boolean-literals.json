@@ -3,6 +3,7 @@
   {"text":"Active: FalSe","value":false,"literal":true},
   {"text":"Active: no","value":true,"literal":false},
   {"text":"Active: false","value":true,"literal":false},
+  {"text":"Active: true","value":false,"literal":false},
   {"text":"falsehood","value":false,"literal":false},
   {"text":"_true","value":true,"literal":true},
   {"text":"true\u0301","value":true,"literal":false},

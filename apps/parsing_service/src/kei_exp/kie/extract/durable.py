@@ -115,6 +115,8 @@ class CapturePlanner:
                     "execution": execution}
         self.lease.call("publish_plan", str(uuid4()), stage, manifest)
 
+    # shortcut: already-affected Extractions stay absent because completed contexts are masked, upgrade with an
+    # explicit backfill; today reprocessing a saved sibling unmasks the whole Article record and restores them.
     def filter_evidence(self, evidence):
         """Subtract fixed historical primary coverage without moving offsets.
 
@@ -350,21 +352,3 @@ class CapturePlanner:
         self.scopes[record] = scope
         return publish_values(self.lease, fields, scope, record=record, links=links, primary=primary,
                               historical=self.historical, disagreements=disagreements)
-
-    # shortcut: already-affected Extractions stay absent because completed contexts are masked, upgrade with an
-    # explicit backfill; today reprocessing a saved sibling unmasks the whole Article record and restores them.
-    def reuse_record(self, scope, *, record=0):
-        from kei_exp.kie.extract.retained import record_identity
-        snapshot = self.historical.get("snapshot")
-        if not snapshot:
-            return None
-        record_id = record_identity(self.lease.state["source"]["sourceRevisionId"], scope)
-        reprocess = set(self.historical["manifest"]["coverage"].get("reprocessValueIds", []))
-        values = [v for v in snapshot["values"] if v["recordId"] == record_id and v["processing"] == "saved"]
-        complete = any(c.get("scope") == scope for c in snapshot["coverage"].get("completedScopes", {}).values())
-        if not complete or not values or any(v["id"] in reprocess for v in values):
-            return None
-        # Completed values retain their producing selection. Empty fields are
-        # carried as historical results; no new schema is attributed to them.
-        self.scopes[record]={"historical":True,"scope":scope}
-        return {}

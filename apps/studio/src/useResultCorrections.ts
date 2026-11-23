@@ -16,8 +16,6 @@ export type ResultCorrections = {
   readonly pending: { request: number; proposal: ResultCorrectionProposal } | null
   /** A proposal is being asked for, or saved. */
   readonly busy: 'proposing' | 'saving' | null
-  /** Whether there is a result to correct. */
-  readonly available: boolean
   propose(message: string, history: ChatHistory): Promise<void>
   /** Saves every proposed change as the researcher's correction of its value, as Results' own save does. */
   save(): Promise<void>
@@ -121,7 +119,7 @@ export function useResultCorrections({ target, say, onSaved }: {
     running.controller.abort()
   }, [])
 
-  return { pending, busy, available: target !== null, propose, save, discard, stop }
+  return { pending, busy, propose, save, discard, stop }
 }
 
 /** One proposed change as the chat's step shows it: where, and what it becomes. */

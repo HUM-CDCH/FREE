@@ -2,8 +2,7 @@
 
 The location is read off the value within the chosen candidate's range (a cell, a canonical span, or the whole
 passage), searching the whole passage so its neighbours still bound a token. A number counts every printing of its
-value, and its one printing must have no other reading. The version 1 Catalog never asks for one
-(`test_legacy_catalog_golden.py` pins its bytes).
+value, and its one printing must have no other reading.
 """
 import json
 from dataclasses import replace
@@ -16,7 +15,6 @@ from kei_exp.kie.extract.grounding import _Candidate, _link, _location, verify
 from kei_exp.kie.extract.spans import SourceSpan
 from kei_exp.kie.passages import Passage
 from kei_exp.pagefile import PageTable, TableCell
-from tests.test_article_claims_contract import scripted_artifact
 from tests.helpers.extraction import CountingChat, WordCounter
 from tests.test_extract_stages import SCHEMA, passages
 from tests.test_extraction_rendering import table_passage
@@ -143,7 +141,7 @@ def test_a_cell_without_a_box_links_its_segment_but_locates_the_value_in_the_cel
     cell = passage.table.cells[3]
     links, _, issues = verify([passage], {"year": 37}, SCHEMA, CountingChat(lambda s, u, schema: {
         claim: {"label": "E5", "attribution": True} for claim in schema["properties"]}), record=0,
-        counter=WordCounter(), record_context="A", span_ids=True, located=True)
+        counter=WordCounter(), record_context="A", span_ids=True)
     assert not issues and links[0].precision == "segment" and links[0].cell is None
     assert links[0].location == {"spans": [{"segment": "p1_s0", "start": cell.start, "end": cell.end}], "raw": "37"}
 
@@ -154,16 +152,8 @@ def test_a_quoted_link_is_located_from_its_value_never_its_quote(text, quote, ex
     chat = CountingChat(lambda s, u, schema: {
         claim: {"label": "E1", "quote": quote, "attribution": True} for claim in schema["properties"]})
     links, _, issues = verify(passages([text]), {"site": "Cedar Bay"}, SCHEMA, chat, record=0, counter=WordCounter(),
-                              record_context="A", quoted=True, located=True)
+                              record_context="A", quoted=True)
     assert not issues and (links[0].location and links[0].location["raw"]) == expected
-
-
-def test_only_a_located_verification_locates():
-    passage = passages(["Survey site: Cedar Bay"])[0]
-    chat = CountingChat(lambda s, u, schema: {claim: "E1" for claim in schema["properties"]})
-    [link], _, _ = verify([passage], {"site": "Cedar Bay"}, SCHEMA, chat, record=0)
-    assert link.location is None and "location" not in link_json(link)
-    assert any("location" in link for link in scripted_artifact()["evidence"])  # Article asks
 
 
 def test_link_json_writes_the_shared_contract():

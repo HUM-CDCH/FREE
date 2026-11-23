@@ -398,7 +398,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const previews=useMemo(()=>previewing&&document?provisionalMarks(document,displayed):[],[previewing,document,displayed])
   const queue=useMemo(()=>model?[...model.document.filter(row=>row.retained?.reviewable).map(row=>({key:row.key,record:-1,row})),...reviewQueue(model)]:[],[model])
   // The open composite value's parts as shown, an edited one's linked only where unchanged (`valueParts`). The chosen
-  // part (its mark key) is what the value shows on the source: its link (none when it has none), else the value's first.
+  // part (its mark key) is what the value shows on the source: its link (none when it has none), else the whole value's
+  // (`valueEvidenceLink`: its first link, or an edit's own Evidence only).
   const reviewParts=useMemo(()=>review&&composite(review.value)?valueParts(review.value):[],[review])
   const [part,setPart]=useState<string|null>(null)
   const chosenPart=part&&reviewParts.some(each=>each.key===part)?part:null

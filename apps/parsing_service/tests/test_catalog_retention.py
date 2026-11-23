@@ -74,16 +74,8 @@ def test_proposals_follow_object_fields_without_inventing_list_identity():
     assert values['items']['modelValue'] == [{'reference': None}]
 
 
-def test_recipe_proposals_keep_their_existing_contract():
-    result = {'strategy': 'catalog', 'records': [{'reference': None}],
-              'proposed': [{'path': ['records', 0, 'reference'], 'value': '42'}]}
-    value, = retained(result)
-    assert value['modelValue'] is None and value['processing'] == 'absent'
-
-
-@pytest.mark.parametrize('reply', [{}, candidate('42', 'Kreis Reference: 42')], ids=['empty', 'retired-quoted-shape'])
-def test_a_reading_that_is_not_the_value_alone_is_neither_agreement_nor_an_explicit_null(reply):
-    result = inherited(reply)
+def test_a_reading_that_is_not_the_value_alone_is_neither_agreement_nor_an_explicit_null():
+    result = inherited(candidate('42', 'Kreis Reference: 42'))  # the retired {value, quote} reply shape
     assert [(proposal['value'], proposal['reason']) for proposal in result['proposed']] == [('42', 'verification_unresolved')]
     value, = retained(result)
     assert value['modelValue'] == '42' and value['grounding'] == 'ungrounded' and not value['evidence']

@@ -55,7 +55,7 @@ function quoteOf(value: CorrectableValue): string | null {
 }
 
 /** Only a saved value can be corrected (`saveCorrection`); `current` is what Results shows for it now. */
-export const currentValue = (value: CorrectableValue) => reviewedValue(value) ?? null
+const currentValue = (value: CorrectableValue) => reviewedValue(value) ?? null
 
 /**
  * The values the model reads, one JSON line each under a short alias (`v1`, `v2`…) that the reply names, so the model
@@ -149,7 +149,7 @@ export async function correctionProposalOf(
 
 /** One request on a general route: the values and the message in the guidance, the source (excerpted past
  *  `EXCERPT_THRESHOLD`) as the document. */
-export async function proposeCorrectionsOnRoute(
+async function proposeCorrectionsOnRoute(
   target: GeneralExecutionTarget,
   result: ResultToCorrect,
   request: CorrectionRequest,

@@ -71,7 +71,7 @@ def test_keep_all_never_reintroduces_an_overlap_join_and_keeps_nested_origins():
     assert list(chat.calls[0]["schema"]["properties"]["L1"]["properties"]) == ["I1", "I2"]
     assert joined == [{"path": ["finds"], "contexts": [0, 1], "index": 0}]
     origins = {tuple(entry["path"]): entry["sources"] for entry in
-               value_origins(readings, root, {}, [], item_sources=item_sources)}
+               value_origins(readings, root, item_sources=item_sources)}
     for index in (0, 1):
         assert origins[("finds", 0, "parts", index)] == [
             {"unit": unit, "path": ["finds", 0, "parts", index]} for unit in (0, 1)]
@@ -85,7 +85,7 @@ def test_dropping_the_first_equal_item_moves_only_the_kept_occurrence_origins():
     (root, _, repeats, _, _, issues), item_sources = assembled(readings, valid(labelling(L1={"I1": "REPEAT"})))
     assert root["finds"] == [ITEM] and not repeats
     assert item_sources == {("finds", 0): [{"unit": 1, "path": ["finds", 0]}]}
-    assert [entry["sources"] for entry in value_origins(readings, root, {}, [], item_sources=item_sources)] == [
+    assert [entry["sources"] for entry in value_origins(readings, root, item_sources=item_sources)] == [
         [{"unit": 1, "path": ["finds", 0, "name"]}],
         [{"unit": 1, "path": ["finds", 0, "parts", 0]}],
         [{"unit": 1, "path": ["finds", 0, "parts", 1]}]]

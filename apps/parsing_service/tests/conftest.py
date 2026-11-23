@@ -77,15 +77,6 @@ def postgres(_postgres_server: postgres_helper.Server) -> str:
     return _postgres_server.conninfo
 
 
-@pytest.fixture(scope="session")
-def postgres_container(_postgres_server: postgres_helper.Server) -> str:
-    """The id of the container serving the session's throwaway PostgreSQL, for a test that pauses/unpauses the
-    real server rather than just connecting to it."""
-    if not _postgres_server.container_id:
-        pytest.skip("PARSING_TEST_POSTGRES_CONTAINER is required for the opt-in database outage test")
-    return _postgres_server.container_id
-
-
 @pytest.fixture
 def database(postgres: str) -> Iterator[str]:
     """A fresh empty database for one test, as a conninfo string."""

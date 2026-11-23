@@ -8,7 +8,7 @@ export type GuideTopicId = 'scope' | 'grouping' | 'format' | 'grounding' | 'poli
  *  exact code-point range of `text`; `inactive` draws a block that is omitted, not checked or refused. */
 export type FigureBlock = Readonly<{ label: string; text: string; note?: string; mark?: readonly [number, number]; inactive?: boolean }>
 export type ExampleOption = Readonly<{ label: string; blocks: readonly FigureBlock[]; outcome: string; notes?: readonly string[] }>
-export type EvidenceSourceId = 'r1r3r4' | 'r1catalog' | 'r2a' | 'pilot' | 'audit' | 'harvey' | 'labels' | 'overflow'
+export type EvidenceSourceId = 'r1r3r4' | 'r1catalog' | 'pilot' | 'audit' | 'harvey' | 'labels' | 'overflow'
 /** What the studies leave open: an effect nobody measured, or choices never studied together. */
 export type EvidenceGap = Readonly<{ kind: 'Not measured' | 'Combination not studied'; text: string }>
 export type GuideTopic = Readonly<{
@@ -41,11 +41,6 @@ export const EVIDENCE_SOURCES: readonly Readonly<{
     corpus: 'One unannotated document', revision: 'Frozen historical R1 runtime',
     evidence: 'Exact replay of completed fresh-generation cells',
     limits: 'Operational observations, not Catalog accuracy or exhaustive recall; human adjudication unavailable' },
-  { id: 'r2a', title: 'Value-unit selection (R2a)', date: '2026-09-28',
-    corpus: '15 development documents, six of them annotated; 30 sealed cells',
-    revision: 'Registered R2a selection replay; inventory and retained requests use fixed R1 replies',
-    evidence: 'Conditional fixed-reply replay, grounding disabled; no new model calls',
-    limits: 'Fixed-reply savings do not establish fresh-model speed or evidence recall; gold is not exhaustive; no held-out accuracy; human adjudication of the review queues outstanding' },
   { id: 'pilot', title: 'Grounding pilot', date: '2026-09-28',
     corpus: 'One selected development document (Zelechowska, no table cells); six cells of the registered 90-cell R5 matrix',
     revision: 'Registered R5 grounding settings with the original span labels (version 1); upstream records fixed',
@@ -236,4 +231,4 @@ export const GUIDE_TOPICS: readonly GuideTopic[] = [
 export const FLOW_TEXT =
   'Canonical Source Context feeds Context and grouping. Context and grouping feeds Record values and Evidence verification. Record values feeds Evidence verification. Template policies feed Evidence verification. Evidence verification feeds Extraction Result and review.'
 export const FLOW_NOTE =
-  'Rendering affects model input; verification is routed to the unit each value was read from and stops at first support. The diagram is conceptual: filename and document fields and recipe Catalog have their own paths and are not Article stages.'
+  'Rendering affects model input; verification is routed to the unit each value was read from and stops at first support. The diagram is conceptual: filename and document fields and Catalog have their own paths and are not Article stages.'

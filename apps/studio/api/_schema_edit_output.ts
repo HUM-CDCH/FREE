@@ -8,12 +8,8 @@ import { parseJsonObject, parseTemplate } from './_model_output.js'
 export function suggestedFieldNotes(value: unknown): FieldNote[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((entry): FieldNote[] => {
-    if (typeof entry !== 'object' || entry === null) return []
-    const { path, description } = entry as Record<string, unknown>
-    return Array.isArray(path) && path.length > 0 && path.every((name) => typeof name === 'string' && name.length > 0)
-      && typeof description === 'string' && description.trim()
-      ? [{ path: path as string[], description: description.trim() }]
-      : []
+    const note = suggestedNote.safeParse(entry)
+    return note.success ? [note.data] : []
   })
 }
 
@@ -58,6 +54,8 @@ export async function parseSchemaEditOutput(text: string): Promise<{
 }
 
 const descriptionPath = z.array(z.string().min(1)).min(1)
+/** One `suggestedFieldNotes` entry: its other keys are dropped and its description is trimmed. */
+const suggestedNote = z.object({ path: descriptionPath, description: z.string().trim().min(1) })
 const descriptionEntries = z.array(z.union([
   z.object({ path: descriptionPath, description: z.string().nullish() }).strict(),
   z.object({ path: descriptionPath, clear: z.literal(true) }).strict(),
