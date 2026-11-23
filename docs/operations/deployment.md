@@ -104,7 +104,7 @@ openssl pkey -in /srv/free-tls/studio.key -pubout -outform DER \
 The two SHA-256 outputs must match. Also validate the chain with the
 institution's or VPN's trust procedure.
 
-Generate the session secret and three independent database passwords once and
+Generate the session secret and four independent database passwords once and
 retain them across restarts (run the hexadecimal command once per password):
 
 ```bash
@@ -121,6 +121,7 @@ FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
 FREE_KEI_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_STUDIO_POSTGRES_PASSWORD=<separately-generated-hex-output>
+FREE_KEI_QUEUE_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_ENTRA_TENANT_ID=<microsoft-entra-tenant-uuid>
 FREE_ENTRA_CLIENT_ID=<application-client-uuid>
 FREE_ENTRA_CLIENT_CERT_PATH=/srv/free-secrets/entra-client.pem
@@ -162,11 +163,18 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
 - `FREE_STUDIO_POSTGRES_PASSWORD` is the password of `free_studio`, the role
   Studio and the evaluation watcher run as. It reads and writes FREE's data but
   cannot create databases or roles, create schemas in `free`, change the
-  migrated schemas or act as another role; it owns only Studio's `dbos` schema, and uses `kei_dbos` to
-  submit, read, cancel and delete kei's workflows. Studio's entrypoint creates
+  migrated schemas or act as another role. It owns only Studio's `dbos` schema.
+  Studio's entrypoint creates
   the role from this value at every start, and on the first start after an
   upgrade gives it the `dbos` schema and the workflow history an earlier
   Studio created there as `postgres`. Use a generated hexadecimal value.
+- `FREE_KEI_QUEUE_POSTGRES_PASSWORD` is the independent hexadecimal password
+  for `free_kei_queue`. Studio uses it through `FREE_KEI_QUEUE_DATABASE_URL`
+  to submit, read, cancel and delete workflows in `kei_dbos`. The role cannot
+  read or modify application data or Studio's own workflow history. Add this
+  password to an existing deployment's `.env` before upgrading. The entrypoint
+  grants queue access to the new role and removes the old grants from
+  `free_studio` during startup, keeping existing queue history.
 - `FREE_DEPLOYMENT_CLI_PROVIDERS` (optional; `codex-cli`, `claude-code`,
   comma-separated) offers the Codex CLI and Claude Code to every researcher as
   read-only deployment connections. They run on this server's own CLI login,

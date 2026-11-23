@@ -21,8 +21,8 @@ files a run has published, and nothing else.
 
 The worker (`kei-worker worker`) is kei's DBOS application: name `kei`,
 application version `kei@1`, system schema `kei_dbos` in Studio's database
-`free`, connected as the restricted `kei` role. Studio enqueues `convert` and
-`deleteRuns` by name with portable JSON (contract and examples in
+`free`, connected as the restricted `kei` role. Studio uses the separate `free_kei_queue` login for its client in `kei_dbos`.
+It enqueues `convert` and `deleteRuns` by name with portable JSON (contract and examples in
 `tests/fixtures/contracts/`), and durable Extraction attempts
 (`extractDurableV1`) with only their identities, on four lanes:
 `kei-convert-large`, `kei-convert-small` (a document of at most 30 pages),

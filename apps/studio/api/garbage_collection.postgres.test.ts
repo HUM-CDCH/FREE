@@ -26,7 +26,7 @@ let standIn: KeiStandInProcess
 beforeAll(async () => {
   standIn = await spawnKeiStandIn({ databaseUrl: url, schema: schemas.keiSchema })
   await launchStudioDbos({
-    databaseUrl: url, ...schemas,
+    databaseUrl: url, keiDatabaseUrl: url, ...schemas,
     register: () => registerStudioWorkflows({ garbagePorts: () => garbagePorts(overrides) }),
     schedule: applyStudioSchedules,
   })

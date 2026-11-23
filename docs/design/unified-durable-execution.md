@@ -103,12 +103,13 @@ db (postgres:17), database free
   extraction_runtime  durable Extraction coordination; Studio-owned, the kei
                       role has USAGE and EXECUTE on named routines only
   dbos                Studio's DBOS system schema               Studio role
-  kei_dbos            kei's DBOS system schema                  kei role only
+  kei_dbos            kei-owned DBOS schema                     Studio queue login for workflow handoff
 
 studio           web server and DBOS in one process: every Studio workflow and
                  schedule on queues studio, suggest and gc, plus clients for
                  Studio admission and kei handoff. The entrypoint runs the
-                 database migrations and the idempotent kei role/schema setup.
+                 database migrations and prepares the worker, Studio runtime and
+                 queue roles. Studio's queue login has access only to kei_dbos.
 parsing_service  read-only HTTP API (manifests, pages, model listings); no
                  database
 parsing_worker   kei DBOS worker: convert on kei-convert-large/-small, durable
