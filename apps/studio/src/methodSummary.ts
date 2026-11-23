@@ -6,7 +6,7 @@ import {
   ARTICLE_SECTIONS, CONTROL_LABELS, describeArticleValue, effectiveSummary,
 } from './providerConfig/advancedSettings'
 
-/** How a start view and "Method used" describe a method: one headline, and a line per setting. Words only. */
+/** How a start view describes a method: one headline, and a line per setting. Words only. */
 export type MethodLine = Readonly<{ label: string; value: string }>
 
 const amount = (value: number | undefined, unit: string) => (value === undefined ? 'service default' : `${value.toLocaleString('en-US')} ${unit}`)

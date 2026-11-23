@@ -135,12 +135,13 @@ type EffectiveConfiguration = {
   protocols: {calls:number;source:string}
 }
 
-/** The worker's resolved configuration belongs to the producing selection, never to the current account settings. */
-function ProducingMethod({ordinal,requested,effective}:{ordinal:number;requested:unknown;effective:EffectiveConfiguration|undefined}) {
-  return <section aria-label={`Method used for input selection ${ordinal}`} className="space-y-2 pt-2">
-    <h3 className="m-0 text-secondary font-semibold">Method used</h3>
-    <p className="m-0 text-compact font-semibold">Requested method</p>
-    <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(requested,null,2)}</pre>
+/** A version migration can update these executable pins; the saved plans keep their historical execution records. */
+function StoredMethod({ordinal,method,effective}:{ordinal:number;method:unknown;effective:EffectiveConfiguration|undefined}) {
+  return <section aria-label={`Stored settings for input selection ${ordinal}`} className="space-y-2 pt-2">
+    <h3 className="m-0 text-secondary font-semibold">Stored selection settings</h3>
+    <p className="m-0 text-compact text-ink-muted">An upgrade can migrate these settings. Recorded execution plans below keep the settings saved at the time.</p>
+    <p className="m-0 text-compact font-semibold">Stored method</p>
+    <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(method,null,2)}</pre>
     {effective ? <>
       <p className="m-0 text-compact font-semibold">Effective model choices</p>
       <dl className="space-y-1 text-compact">
@@ -152,10 +153,10 @@ function ProducingMethod({ordinal,requested,effective}:{ordinal:number;requested
           </details></dd>}
         </div>)}
       </dl>
-      <p className="m-0 text-compact font-semibold">Effective method settings</p>
+      <p className="m-0 text-compact font-semibold">Stored resolved settings</p>
       <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(effective.options,null,2)}</pre>
       <p className="m-0 text-compact text-ink-muted">Planner version {effective.planner} · call protocol version {effective.protocols.calls} · source scope {effective.protocols.source}</p>
-      <details><summary className="cursor-pointer text-compact">Exact effective configuration</summary>
+      <details><summary className="cursor-pointer text-compact">Stored resolved configuration</summary>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(effective,null,2)}</pre>
       </details>
     </> : <p className="m-0 text-compact text-ink-muted">Effective method: Not recorded</p>}
@@ -175,13 +176,23 @@ function HistoryAudit({id}:{id:string}) {
   },[id])
   if(!history)return <p role={error?'alert':'status'} className="pt-2 text-compact text-ink-muted [overflow-wrap:anywhere]">{error??'Loading…'}</p>
   return <div className="space-y-3 pt-2">
-    {history.selections.map(selection=><details key={selection.id}>
+    {history.selections.map(selection=> {
+      const executions=(history.plans??[]).filter(plan=>plan.manifest?.selectionId===selection.id&&plan.manifest.execution)
+      return <details key={selection.id}>
       <summary className="cursor-pointer">Input selection {selection.ordinal} · template {selection.schemaRevisionId.slice(0,8)}</summary>
-      <ProducingMethod ordinal={selection.ordinal} requested={selection.method} effective={history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined}/>
-      <details><summary className="cursor-pointer">Pinned template and admission inputs</summary>
+      <StoredMethod ordinal={selection.ordinal} method={selection.method} effective={history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined}/>
+      <section aria-label={`Recorded execution plans for input selection ${selection.ordinal}`} className="space-y-2 pt-2">
+        <h3 className="m-0 text-secondary font-semibold">Recorded execution plans</h3>
+        <p className="m-0 text-compact text-ink-muted">A resumed extraction can have more than one recorded plan. A plan may be saved before any values are produced.</p>
+        {executions.length?executions.map(plan=><details key={plan.id}>
+          <summary className="cursor-pointer text-compact">Catalog defaults {plan.manifest.execution.method.defaults} · generation {plan.generation}</summary>
+          <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({stage:plan.stage,digest:plan.digest,execution:plan.manifest.execution},null,2)}</pre>
+        </details>):<p className="m-0 text-compact text-ink-muted">Execution record: Not recorded</p>}
+      </section>
+      <details><summary className="cursor-pointer">Stored template and resolved inputs</summary>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,resolved:selection.resolved},null,2)}</pre>
       </details>
-    </details>)}
+    </details>})}
     {history.captures?.map(capture=><details key={capture.id}>
       <summary className="cursor-pointer">Call · {capture.descriptor.stage} · input selection {history.selections.find(selection=>selection.id===capture.selectionId)?.ordinal??capture.selectionId.slice(0,8)} · decisions {capture.feedbackVersion}</summary>
       <p className="text-compact text-ink-muted">This call keeps its captured guidance even when a correction is later excluded or superseded.</p>
@@ -194,6 +205,11 @@ function HistoryAudit({id}:{id:string}) {
     </details>)}
     {history.snapshots.map(snapshot=><details key={snapshot.id}>
       <summary className="cursor-pointer">Saved result snapshot {snapshot.version} · values and lineage</summary>
+      {snapshot.coverage?.diagnostics?.execution&&<details>
+        <summary className="cursor-pointer text-compact">Execution recorded at publication</summary>
+        <p className="m-0 text-compact text-ink-muted">Retained values can come from earlier executions; their lineage is listed below.</p>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({execution:snapshot.coverage.diagnostics.execution,execution_sha256:snapshot.coverage.diagnostics.execution_sha256},null,2)}</pre>
+      </details>}
       <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(snapshot.values.map((v:Value)=>({field:v.node.name,schema:v.schemaRevisionId,selection:v.selectionId,modelValue:v.modelValue,disagreement:v.disagreement,lineage:v.lineage})),null,2)}</pre>
     </details>)}
   </div>
