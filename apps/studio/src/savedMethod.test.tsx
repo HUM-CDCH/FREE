@@ -14,14 +14,14 @@ afterEach(() => vi.unstubAllGlobals())
 
 it('derives each strategy\'s method from the saved document', () => {
   expect(savedMethodFor({ config }, 'ARTICLE')).toEqual({ models: { reasoning: 'instruct' }, settings: { article: REFERENCE_ARTICLE } })
-  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 11, input_tokens: 30000 } } })
-  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 11, input_tokens: 30000 } } })
+  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 12, input_tokens: 30000 } } })
+  expect(savedMethodFor({ config }, 'CATALOG')).toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 12, input_tokens: 30000 } } })
 })
 
 it('derives the unified Catalog method, and no recipe, where the deployment enables it', () => {
   const unified = { config: { ...config, extractionSettings: { catalog: { unified: { overlap: 0 } } } }, }
   expect(savedMethodFor(unified, 'CATALOG'))
-    .toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 11, overlap: 0 } } })
+    .toEqual({ models: { reasoning: 'instruct' }, settings: { unified: { defaults: 12, overlap: 0 } } })
 })
 
 it('keeps the deployment\'s Catalog method with the saved document it read', async () => {

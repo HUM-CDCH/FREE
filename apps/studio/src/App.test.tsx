@@ -2466,7 +2466,7 @@ describe('reopened Source Document workspace', () => {
       // The stub refuses every run as method_changed: the click re-reads the saved method and retries once.
       await waitFor(() => expect(extractionRequests).toHaveLength(2))
       for (const request of extractionRequests) {
-        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 11 } } } })
+        expect(request).toMatchObject({ strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 12 } } } })
         expect(request).not.toHaveProperty('catalogRecipe')
       }
       expect(await screen.findByText('Your saved settings changed. Run again.')).toBeInTheDocument()
@@ -2486,14 +2486,14 @@ describe('reopened Source Document workspace', () => {
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', executionStatus: 'FAILED', finalizedReview: null, requestedSettings: { unified: { defaults: 11 } }, requestedModels: null, batchExtractionId: null,
+        strategy: 'CATALOG', executionStatus: 'FAILED', finalizedReview: null, requestedSettings: { unified: { defaults: 12 } }, requestedModels: null, batchExtractionId: null,
         createdAt: '2026-08-12T00:00:00.000Z' },
       SUCCEEDED: {
         extractionId: '51000000-0000-4000-8006-000000000042',
         sourceDocumentId: '51000000-0000-4000-8001-000000000001',
         sourceRepresentationRevisionId: reopened.sourceRepresentationId,
         schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
-        strategy: 'CATALOG', executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { unified: { defaults: 11 } }, requestedModels: null, batchExtractionId: null,
+        strategy: 'CATALOG', executionStatus: 'COMPLETED', finalizedReview: null, requestedSettings: { unified: { defaults: 12 } }, requestedModels: null, batchExtractionId: null,
         createdAt: '2026-08-12T00:00:00.000Z' },
     }
 
@@ -2509,7 +2509,7 @@ describe('reopened Source Document workspace', () => {
       // run records explicitly.
       method: {
         models: null,
-        settings: strategy === 'ARTICLE' ? { article: REFERENCE_ARTICLE } : { unified: { defaults: 11 } },
+        settings: strategy === 'ARTICLE' ? { article: REFERENCE_ARTICLE } : { unified: { defaults: 12 } },
       },
     })
 
@@ -3460,7 +3460,7 @@ describe('reopened Source Document workspace', () => {
       strategy: 'CATALOG' as const,
       executionStatus: 'RUNNING' as const,
       finalizedReview: null,
-      requestedSettings: { unified: { defaults: 11 } },
+      requestedSettings: { unified: { defaults: 12 } },
       requestedModels: null,
       batchExtractionId: null,
       createdAt: reopened.persistedExtraction!.createdAt }

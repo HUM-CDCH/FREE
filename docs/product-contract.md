@@ -71,7 +71,7 @@ FREE's normative product and safety contract is:
    service defaults. Article records the shared Studio and Parsing Service
    default explicitly: the whole source, large checks in windows. Null Article
    settings and retired Article keys are refused. Unified Catalog accepts only
-   defaults 11, with no verification switch (Pro mode is retired). Saved settings never edit an
+   defaults 12, with no verification switch (Pro mode is retired). Saved settings never edit an
    Extraction Schema and never hold a key. A Project Context uses its owner's configuration. The
    Model Configuration page supports Ollama, OpenAI, Anthropic, Google, vLLM
    and OpenAI-compatible connections. A researcher's API keys stay in their
@@ -114,6 +114,15 @@ FREE's normative product and safety contract is:
    If incompatible stored shapes remain, the migration fails and rolls back
    the cleanup. Resolve incompatible development data or use the guarded
    local `pnpm db:reset` before retrying. Production is never reset.
+   When Unified Catalog defaults 12 replaced defaults 11, a data migration
+   moved the stored method pins of existing Catalog Extractions to 12: the
+   requested settings of Extractions and Batch Extractions, each Producing
+   Input Selection's method and resolved options, and each resolved
+   configuration with its digest. It also requires drained Extractions.
+   Results, corrections, saved snapshots, plans and call captures are
+   unchanged, so the execution record of a saved result still names defaults
+   11. Resume and Retry use the existing Producing Input Selection under
+   defaults 12.
 9. **Proxy parity.** Production runs behind the host-managed nginx or the
    bundled nginx container; local uses containerized nginx. All render the
    same version-controlled proxy fragment for `/free` routing, forwarded

@@ -172,7 +172,7 @@ describe('/api/extractions transport', () => {
 
   it('hands a unified Catalog method to admission; a recipe never travels with it', async () => {
     const module = extractionModule()
-    const method = { models: null, settings: { unified: { defaults: 11, overlap: 0 } } }
+    const method = { models: null, settings: { unified: { defaults: 12, overlap: 0 } } }
     const catalog = { ...fresh, strategy: 'CATALOG', method }
     expect((await handlerFor(module)(request(catalog))).status).toBe(201)
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({ method }))
@@ -184,18 +184,18 @@ describe('/api/extractions transport', () => {
     const missing: Partial<typeof fresh> = { ...fresh }
     delete missing.method
     expect((await handlerFor(module)(request(missing))).status).toBe(422)
-    expect((await handlerFor(module)(request({ ...fresh, method: { models: null, settings: { unified: { defaults: 11 } } } }))).status).toBe(422)
+    expect((await handlerFor(module)(request({ ...fresh, method: { models: null, settings: { unified: { defaults: 12 } } } }))).status).toBe(422)
     expect(module.runSingle).not.toHaveBeenCalled()
   })
 
   it('passes the Catalog recipe chosen for an Extraction to runSingle', async () => {
     const module = extractionModule()
     await handlerFor(module)(request({
-      ...fresh, strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 11 } } },
+      ...fresh, strategy: 'CATALOG', method: { models: null, settings: { unified: { defaults: 12 } } },
     }))
     expect(module.runSingle).toHaveBeenCalledWith(expect.objectContaining({
       kind: 'fresh', strategy: 'CATALOG',
-      method: { models: null, settings: { unified: { defaults: 11 } } },
+      method: { models: null, settings: { unified: { defaults: 12 } } },
     }))
   })
 

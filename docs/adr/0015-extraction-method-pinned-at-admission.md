@@ -105,3 +105,15 @@ no longer executable; drain their work before deployment and start fresh Extract
 Article's semantic, quoted, span and off verification remain live. A Schema Revision without `recordScope` remains
 an editable Studio draft and still waits for the researcher's strategy choice before admission. This decision
 changes the supported product method; it makes no new claim about held-out accuracy.
+
+## Amendment (2026-11-21)
+
+Unified Catalog defaults 12 replaces defaults 11: the independent reading of an inherited value answers with the
+value alone. Only one defaults version is admitted, so the stored pins of the replaced one are neither kept beside
+the new one nor left for the contract to refuse. The forward migration `20261121T1855_unified_defaults_12` moves
+them to 12 in an Extraction's and a Batch Extraction's requested settings, in each input selection's method and
+resolved options, and in the captured effective configuration with its digest. What a run recorded about itself is
+not rewritten: snapshots, plans and call captures still name defaults 11, and a selection keeps its digest. Drain
+queued and running Extractions before deployment; Resume and Retry then run the existing selection under defaults
+12. The 2026-11-16 retirement deleted pins that had no current equivalent; these pins have one, because defaults 12
+accepts every defaults 11 request.
