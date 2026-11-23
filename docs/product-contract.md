@@ -71,7 +71,7 @@ FREE's normative product and safety contract is:
    service defaults. Article records the shared Studio and Parsing Service
    default explicitly: the whole source, large checks in windows. Null Article
    settings and retired Article keys are refused. Unified Catalog accepts only
-   defaults 11, with no verification switch (Pro mode is retired). Saved settings never edit an
+   defaults 12, with no verification switch (Pro mode is retired). Saved settings never edit an
    Extraction Schema and never hold a key. A Project Context uses its owner's configuration. The
    Model Configuration page supports Ollama, OpenAI, Anthropic, Google, vLLM
    and OpenAI-compatible connections. A researcher's API keys stay in their
@@ -95,15 +95,35 @@ FREE's normative product and safety contract is:
 8. **Safe startup.** Authored forward migrations finish before Studio becomes
    ready, both for a fresh database and an already-migrated one. Studio's
    entrypoint runs them as the administrative role, then prepares the Parsing
-   Service's restricted role and schema and Studio's own restricted runtime
-   role, and starts Studio without the administrative credential. Each process
+   Service's restricted role and schema, Studio's runtime role, and Studio's
+   separate Parsing Service queue role. Studio starts without the administrative
+   or worker credential. Each process
    migrates its own DBOS system schema (`dbos`, `kei_dbos`) when it launches. Normal startup never resets the database or
    seeds an account, Project Context, provider, route, or credential.
-   The legacy-retirement migration refuses incompatible persisted settings and
-   JSON shapes before dropping obsolete columns or tables. It never rewrites a
-   pinned method into another version. Delete incompatible development rows or
-   explicitly run the guarded local `pnpm db:reset` before retrying migration;
-   production is never reset.
+   Before dropping obsolete columns and tables, the legacy-retirement
+   migration requires operators to drain queued and running Extractions. It
+   removes retired controls from account preferences and compatible Article
+   pins. These Article Extractions retain their results, corrections, and
+   original resolved options and digests. Resume and Retry use the existing
+   Producing Input Selection. A researcher can adopt a new selection by
+   changing and applying inputs.
+   The migration deletes Batch Extractions with unsupported method pins
+   and every member of those batches. It deletes an Extraction if its
+   requested settings or any Producing Input Selection has an unsupported
+   method pin. It also deletes sampled and pre-durable Extractions. These
+   deletions remove the associated results, corrections, and runtime state.
+   If incompatible stored shapes remain, the migration fails and rolls back
+   the cleanup. Resolve incompatible development data or use the guarded
+   local `pnpm db:reset` before retrying. Production is never reset.
+   When Unified Catalog defaults 12 replaced defaults 11, a data migration
+   moved the stored method pins of existing Catalog Extractions to 12: the
+   requested settings of Extractions and Batch Extractions, each Producing
+   Input Selection's method and resolved options, and each resolved
+   configuration with its digest. It also requires drained Extractions.
+   Results, corrections, saved snapshots, plans and call captures are
+   unchanged, so the execution record of a saved result still names defaults
+   11. Resume and Retry use the existing Producing Input Selection under
+   defaults 12.
 9. **Proxy parity.** Production runs behind the host-managed nginx or the
    bundled nginx container; local uses containerized nginx. All render the
    same version-controlled proxy fragment for `/free` routing, forwarded
@@ -135,7 +155,10 @@ deployment paths, and speculative extensibility.
   role (role preparation does not change privileges the role may hold on other
   databases in the same PostgreSQL server); it owns only Studio's
   `dbos` schema. The Parsing Service's `kei` owns only `kei_dbos` and calls
-  only its allowlisted coordination routines.
+  only its allowlisted coordination routines. Studio's separate `free_kei_queue`
+  login submits, reads, cancels and deletes workflows in `kei_dbos`. It owns no
+  objects and has no privileges on research data, Extraction coordination, or
+  Studio's workflow history. `free_studio` has no access to `kei_dbos`.
 - Session cookies are signed, and logout saves the session's sign-out in
   PostgreSQL so a copy of the cookie is refused until it would have expired,
   also after a restart; a logout the database cannot save signs the browser

@@ -443,6 +443,7 @@ export function developmentComposeEnvironment(
     FREE_KEI_POSTGRES_PASSWORD: 'kei-development',
     // Studio's restricted runtime role, which its entrypoint creates; Studio and the watcher connect with it.
     FREE_STUDIO_POSTGRES_PASSWORD: 'studio-development',
+    FREE_KEI_QUEUE_POSTGRES_PASSWORD: 'kei-queue-development',
     FREE_SESSION_SECRET: sessionSecret,
     STUDIO_BASE_PATH: '/free',
     STUDIO_ORIGIN: profile.origin,
@@ -579,7 +580,7 @@ export function validateProductionEnvironment(
 
   appendSharedIssue('FREE_SESSION_SECRET')
 
-  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD', 'FREE_STUDIO_POSTGRES_PASSWORD']) {
+  for (const field of ['FREE_POSTGRES_PASSWORD', 'FREE_KEI_POSTGRES_PASSWORD', 'FREE_STUDIO_POSTGRES_PASSWORD', 'FREE_KEI_QUEUE_POSTGRES_PASSWORD']) {
     const password = environment[field]
     if (password === undefined || password === '')
       errors.push(`${field} is required in .env.`)

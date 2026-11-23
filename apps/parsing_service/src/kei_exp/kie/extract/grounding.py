@@ -1,4 +1,4 @@
-"""Grounding: linking a record's extracted values to the passages that support them, as interchangeable techniques.
+"""Article grounding techniques link extracted values to the passages that support them.
 
 Every technique has one call shape: a record's passages, its fields, the schema and a chat, keyword-only
 `record`, `budget`, `counter`, `record_context`, `proofs` and `skip_paths`, returning the record's links, the
@@ -7,19 +7,17 @@ per verification group of each record; it does not know which technique it holds
 function of this shape and one more entry in `technique`.
 
 `semantic` is the production reference: bounded grounding calls choose primary evidence each claim was shown,
-or NONE; Article also asks, once for the claims of each list item or nested object, the context attributing them
+or NONE. Article also asks, once for the claims of each list item or nested object, for the context attributing them
 to that item, and keeps it on their links. A label outside the shown set links
 nothing. Every claim is verified, even a value that occurs as a bounded token in exactly one passage: the same
 string can belong to another field or another record, so a unique text hit is a candidate location (the matching
 cells offered), never field evidence on its own. Every grounding batch also shows the
-record's fields, so a claim batched apart from the fields that identify its record still says whose it is. The
-version 1 Catalog grounds under a character budget; Article adds its record identity and a served counter, and shows a
-projection instead of the whole record (`projected`): a document root can hold hundreds of list items, and a request
-embedding them all could not fit however few claims it carried.
+record's fields, so a claim batched apart from other claims still says whose it is. Article includes record identity,
+uses a token counter and projects the relevant fields (`projected`) so that a document root with hundreds of list
+items can be checked in batches.
 `quoted` also asks for an exact source quote and an attribution to this record, in batches of four claims, and
 records each accepted quote in `proofs`. `spans` selects canonical ranges and reconstructs their quotes. `off` makes
-no call and links nothing, leaving every value ungrounded. Links from before this rule may carry
-`linked_by: "lexical"`; none are made now.
+no call and links nothing, leaving every value ungrounded. Unified Catalog builds its Evidence in `unified.py`.
 """
 from __future__ import annotations
 
@@ -196,8 +194,8 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     unsupported is asked once more with what it hid; only Article's row filter, which predates this, stays hard.
     An oversized single claim stays ungrounded with a diagnostic; evidence is never truncated to fit.
     Every claim is verified by the model, a uniquely found value included. Every batch carries the record's fields,
-    counted in its size, so splitting never separates a claim from its record. Generic Catalog uses a character cap;
-    Article adds its record identity and a served counter, verifying within the context minus an output reserve.
+    counted in its size, so splitting never separates a claim from its record. With a counter, the request and output
+    reserve must fit the model context. Without one, the request uses the character limit `budget`.
     `on_batch`, when given, runs after each batch's reply with the links that batch made (Article retains them once
     the round has read every saved reply): none after a failed reply; a batch split or refused before any call has
     no reply and no call.
@@ -205,8 +203,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     after it are independent of it, so they are captured in the same planning round and run beside it, and a reply
     already saved is read (and `on_batch` run) meanwhile; the round yields once every batch is captured or read. The
     fallback round is grouped from the whole precise round's unsupported claims, so it starts once they have all replied.
-    `located` (Article) also gives each link the value's one printing in the evidence chosen (`_location`), read off
-    the value, never off a model quote; the version 1 Catalog's links stay without one.
+    With `located`, `_location` adds the value's unique printing within the chosen Evidence when it can find one.
     """
     prefix: tuple[str | int, ...] = ("records", record)
     if quoted and span_ids:
@@ -233,7 +230,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     unfiltered = dict(eligible)
     # A list item's claim located to one row that no offered cell lies in: that row, printed as table context.
     context_rows: dict[str, set[tuple[str, int]]] = {}
-    # Row eligibility belongs to the source table, independent of Article's projected prompt or Catalog's full record.
+    # Row eligibility depends on the source table and is independent of how record fields are rendered.
     if any(candidate.cell is not None for candidate in candidates):
         # A value printed in many table rows ("1", a brand name) offers every such cell; a list item's claim is offered
         # only the cells in the rows printing its item's most distinctive other value (the one in fewest rows: its own
@@ -278,8 +275,7 @@ def verify(passages: Sequence[Passage], fields: dict, schema: Schema, chat: Chat
     # Quotes have substantially larger replies than labels; keep their output bounded too.
     batch_size = 4 if quoted else 32 if span_ids else len(claim_ids)
     batches = [claim_ids[n:n + batch_size] for n in range(0, len(claim_ids), batch_size)]
-    # Every batch shows the whole record, so a claim split away from the fields that identify its record is not
-    # verified blind; the budget below counts these lines like the rest of the request.
+    # Include record fields in every batch so grouped claims retain their attribution context.
     identity = f"### Record identity\n{record_context}\n" if record_context else ""
     record_fields = f"Record fields: {json.dumps(fields, ensure_ascii=False)}\n\n"
     if projected:

@@ -34,7 +34,7 @@ let kei: DBOSClient
 beforeAll(async () => {
   standIn = await spawnKeiStandIn({ databaseUrl: url, schema: schemas.keiSchema })
   kei = await DBOSClient.create({ systemDatabaseUrl: url, systemDatabaseSchemaName: schemas.keiSchema, applicationName: KEI_APPLICATION })
-  await launchStudioDbos({ databaseUrl: url, ...schemas, register: () => {
+  await launchStudioDbos({ databaseUrl: url, keiDatabaseUrl: url, ...schemas, register: () => {
     const ports = () => ({ steps: dbosSteps, kei: createKeiHandoff(studioDbos().kei, { pollIntervalMs: 100 }),
       readBase: standIn.url, inboxRoot: inbox, packageStore: packages, storeFor: ingestionStoreFor(packages) })
     registerIngestionWorkflow(ports)

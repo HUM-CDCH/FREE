@@ -19,7 +19,7 @@ type Method=typeof methods[number]
 const hasColumn=(header:string,name:string)=>header.split(',').some(column=>column===name||column.startsWith(`${name}.`))
 
 async function seedNative(page:Page,project:string,sourceId:string,method:Method,
-  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:11}={}) {
+  options:{nodes?:SchemaNode[];schemaRevisionId?:string;articleContext?:'full'|'bounded';models?:{fields:'gliformer'|'instruct';reasoning:'instruct'};defaults?:12}={}) {
   const reopen=await (await page.request.get(`/api/project-contexts/${project}/source-documents/${sourceId}/reopen`)).json()
   const sourceRevisionId=reopen.sourceRepresentation.sourceRepresentationId as string
   const nodes=options.nodes??(method==='article'?[{id:'sites',name:'sites',type:'array' as const,children:siteNodes}]
@@ -33,7 +33,7 @@ async function seedNative(page:Page,project:string,sourceId:string,method:Method
   }
   const id=randomUUID()
   const strategy=method==='article'?'ARTICLE':'CATALOG'
-  const settings={[method]:method==='unified'?{defaults:options.defaults??11}:method==='article'
+  const settings={[method]:method==='unified'?{defaults:options.defaults??12}:method==='article'
     ?{...REFERENCE_ARTICLE,...(options.articleContext?{context:options.articleContext,context_tokens:8192}:{})}:null},models=options.models??null
   // All callers start the service helper, which refuses every database except
   // its owned guarded stack. Use the normal initializer to seed saved producer data.
@@ -64,7 +64,7 @@ for(const method of methods) {
       if(ingestion.status!=='succeeded')throw new Error('The disposable native source was not published.')
       const sourceId=ingestion.sourceDocumentId
       service.holdNextExtraction()
-      const id=await seedNative(page,project,sourceId,method,method==='unified'?{defaults:11}:{})
+      const id=await seedNative(page,project,sourceId,method,method==='unified'?{defaults:12}:{})
       await service.reconcileDurable()
       await expect.poll(()=>service.extractionHeld(),{timeout:60_000}).toBe(true)
       const state=async()=>await (await page.request.get(`/api/extractions/${id}/durable`)).json()
@@ -139,7 +139,7 @@ test('native unified: a Pause while discovery still reads keeps and shows every 
     const sourceId=ingestion.sourceDocumentId
     // The last page's discovery call is held (its window labels entry 5): the entries before it are read meanwhile.
     service.holdExtractionMatching(/^\[L\d+[^\]]*\] 5\. /m)
-    const id=await seedNative(page,project,sourceId,'unified',{defaults: 11})
+    const id=await seedNative(page,project,sourceId,'unified',{defaults: 12})
     await service.reconcileDurable()
     const state=async()=>(await page.request.get(`/api/extractions/${id}/durable`)).json()
     const shown=async()=>new Set(((await (await page.request.get(`/api/extractions/${id}/durable/values?limit=500`)).json()).values as {path:unknown[];modelValue:unknown}[])
@@ -426,7 +426,7 @@ function liveCataloguePages(): string[][] {
 // ADR 0017's live results on a real worker and reasoning server; live-results-evidence.json keeps what the researcher
 // saw and what the model received.
 // The current method pipelines entries after discovery.
-for(const defaults of [11] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
+for(const defaults of [12] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
   test.setTimeout(30*60_000)
   test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
   const service=await startRealService(info.outputPath('live-results-worker.log'))

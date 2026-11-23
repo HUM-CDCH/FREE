@@ -1,9 +1,24 @@
 import { z } from 'zod'
-import { enumerateFieldPaths, type SchemaNode } from 'extraction/schema'
+import { enumerateFieldPaths, type FieldNote, type SchemaNode } from 'extraction/schema'
 import { ApiError } from './_http.js'
 import { parseJsonObject, parseTemplate } from './_model_output.js'
 
-/** Only schema editing adds this sidecar; extraction and initial suggestions keep their compact template. */
+/** A suggestion's scalar field notes (its "fieldDescriptions" sidecar): unlike an edit's, a note that is malformed or
+ *  empty is dropped rather than failing the suggestion, since every note is optional reading for the researcher. */
+export function suggestedFieldNotes(value: unknown): FieldNote[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry): FieldNote[] => {
+    if (typeof entry !== 'object' || entry === null) return []
+    const { path, description } = entry as Record<string, unknown>
+    return Array.isArray(path) && path.length > 0 && path.every((name) => typeof name === 'string' && name.length > 0)
+      && typeof description === 'string' && description.trim()
+      ? [{ path: path as string[], description: description.trim() }]
+      : []
+  })
+}
+
+/** An edit's sidecar sets or clears notes; a suggestion's only sets them (`suggestedFieldNotes`). Extraction keeps
+ *  the compact template alone. */
 export function schemaEditPrompt(instruction: string): string {
   return `Edit the researcher's existing extraction schema according to the change request below. Return only one JSON object with "template" and "fieldDescriptions".
 

@@ -51,7 +51,6 @@ export function batchMethodFitsStrategy(request: {
   return settingsFit(request.strategy, request.method.settings)
 }
 
-export type BatchExtractionRequest = z.infer<typeof batchExtractionRequestSchema>
 
 /**
  * A member is one durable Extraction: its head's lifecycle, whether its current result cut holds saved values, and a

@@ -1,8 +1,8 @@
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
-import type { IncomingMessage, ServerResponse } from 'node:http'
+import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { Plugin } from 'vite'
+import { createServer, type Plugin } from 'vite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import studioConfig, {
   apiFunctions,
@@ -35,14 +35,38 @@ describe('PDF.js assets', () => {
     return { root, source, destination }
   }
 
+  it('serves the decoder from the public URL on first startup', async () => {
+    const { root } = fixture()
+    mkdirSync(join(root, 'public'))
+    writeFileSync(join(root, 'index.html'), '<html>Studio</html>')
+    const server = await createServer({
+      root,
+      base: '/free/',
+      configFile: false,
+      plugins: [pdfjsWasmAssets('serve', root)],
+      server: { middlewareMode: true, watch: null, ws: false },
+    })
+    const httpServer = createHttpServer(server.middlewares)
+    try {
+      await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve))
+      const address = httpServer.address()
+      if (!address || typeof address === 'string') throw new Error('Expected a TCP address')
+      const response = await fetch(`http://127.0.0.1:${address.port}/free/assets/pdfjs-wasm/decoder.wasm`)
+      expect(response.headers.get('content-type')).toBe('application/wasm')
+      expect(await response.text()).toBe('decoder')
+    } finally {
+      httpServer.close()
+      await server.close()
+    }
+  })
+
   it('copies at server startup and leaves existing assets untouched', () => {
     const { root, destination } = fixture()
-    const prepare = configureServerHook(pdfjsWasmAssets('serve', root))
     expect(existsSync(destination)).toBe(false)
-    prepare({} as never)
+    prepareDecoderAssets(root)
     expect(readFileSync(join(destination, 'decoder.wasm'), 'utf8')).toBe('decoder')
     vi.mocked(cpSync).mockClear()
-    prepare({} as never)
+    prepareDecoderAssets(root)
     expect(cpSync).not.toHaveBeenCalled()
   })
 
@@ -56,7 +80,7 @@ describe('PDF.js assets', () => {
 
   it('does not write when the install is missing', () => {
     const root = temporaryDirectory()
-    configureServerHook(pdfjsWasmAssets('serve', root))({} as never)
+    prepareDecoderAssets(root)
     expect(readdirSync(root)).toEqual([])
   })
 
@@ -66,7 +90,7 @@ describe('PDF.js assets', () => {
       cpSync(source, destination, { recursive: true })
       throw Object.assign(new Error('Already published'), { code: 'EEXIST' })
     })
-    configureServerHook(pdfjsWasmAssets('serve', root))({} as never)
+    prepareDecoderAssets(root)
     expect(readdirSync(join(root, 'public/assets'))).toEqual(['pdfjs-wasm'])
     expect(readFileSync(join(destination, 'decoder.wasm'), 'utf8')).toBe('decoder')
   })
@@ -74,7 +98,7 @@ describe('PDF.js assets', () => {
   it('propagates copy failures without publishing partial assets', () => {
     const { root, destination } = fixture()
     vi.mocked(cpSync).mockImplementationOnce(() => { throw new Error('Copy failed') })
-    expect(() => configureServerHook(pdfjsWasmAssets('serve', root))({} as never)).toThrow('Copy failed')
+    expect(() => prepareDecoderAssets(root)).toThrow('Copy failed')
     expect(existsSync(destination)).toBe(false)
     expect(readdirSync(join(root, 'public/assets'))).toEqual([])
   })
@@ -85,6 +109,12 @@ describe('PDF.js assets', () => {
     expect(config.plugins).not.toContainEqual(expect.objectContaining({ name: 'free-pdfjs-wasm' }))
   })
 })
+
+function prepareDecoderAssets(root: string) {
+  const hook = pdfjsWasmAssets('serve', root).config
+  if (typeof hook !== 'function') throw new Error('Expected config hook')
+  return hook({}, { command: 'serve', mode: 'development' })
+}
 
 function temporaryDirectory(): string {
   const directory = mkdtempSync(join(tmpdir(), 'free-studio-vite-'))
@@ -105,11 +135,14 @@ const AMBIENT_STUDIO_ENVIRONMENT = [
 // A synthetic URL: the stubbed DBOS module never connects to it.
 const DEVELOPMENT_DATABASE_URL =
   'postgresql://postgres@127.0.0.1:5432/free_test_development_host'
+const DEVELOPMENT_QUEUE_URL =
+  'postgresql://free_kei_queue@127.0.0.1:5432/free_test_development_host'
 
 beforeEach(() => {
   for (const name of AMBIENT_STUDIO_ENVIRONMENT) vi.stubEnv(name, undefined)
   vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
   vi.stubEnv('DATABASE_URL', DEVELOPMENT_DATABASE_URL)
+  vi.stubEnv('FREE_KEI_QUEUE_DATABASE_URL', DEVELOPMENT_QUEUE_URL)
 })
 
 afterEach(() => {
@@ -300,16 +333,12 @@ describe('Vite Hono integration', () => {
     expect(development.loaded('/server/dbos.ts')).toBe(1)
     expect(development.loaded('/server/workflows.ts')).toBe(1)
     expect(dbos.launchStudioDbos).toHaveBeenCalledOnce()
-    const [launch] = dbos.launchStudioDbos.mock.calls[0]!
-    expect(launch).toEqual({
+    expect(dbos.launchStudioDbos).toHaveBeenCalledWith({
       databaseUrl: DEVELOPMENT_DATABASE_URL,
-      register: expect.any(Function),
-      schedule: expect.any(Function),
+      keiDatabaseUrl: DEVELOPMENT_QUEUE_URL,
+      register: development.workflows.registerStudioWorkflows,
+      schedule: development.workflows.applyStudioSchedules,
     })
-    expect(launch.register).toBe(
-      development.workflows.registerStudioWorkflows,
-    )
-    expect(launch.schedule).toBe(development.workflows.applyStudioSchedules)
     expect(order).toEqual(['dbos launched', 'composed'])
   })
 
@@ -542,8 +571,11 @@ describe('Vite Hono integration', () => {
     expect(development.logger.error).not.toHaveBeenCalled()
   })
 
-  it('fails startup when DATABASE_URL does not name Studio\'s database', async () => {
-    vi.stubEnv('DATABASE_URL', undefined)
+  it.each([
+    ['DATABASE_URL', "DATABASE_URL must name Studio's database."],
+    ['FREE_KEI_QUEUE_DATABASE_URL', "FREE_KEI_QUEUE_DATABASE_URL must name Studio's Parsing Service queue connection."],
+  ])('fails startup without %s', async (name, message) => {
+    vi.stubEnv(name, undefined)
     const createStudioApp = vi.fn(async () => ({}))
     const development = developmentServer({
       ssrLoadModule: studioModules({ createStudioApp }),
@@ -551,7 +583,7 @@ describe('Vite Hono integration', () => {
 
     await expect(
       configureServerHook(apiFunctions('/free'))(development.server),
-    ).rejects.toThrow("DATABASE_URL must name Studio's database.")
+    ).rejects.toThrow(message)
     expect(development.dbos.launchStudioDbos).not.toHaveBeenCalled()
     expect(createStudioApp).not.toHaveBeenCalled()
   })

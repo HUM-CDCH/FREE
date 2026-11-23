@@ -77,7 +77,13 @@ caches and image layers). The first GPU start downloads the Surya OCR weights,
 `KEI_NUEXTRACT_MODEL` (default `numind/NuExtract3-FP8`, about 7 GB) and
 `KEI_EXTRACT_MODEL` (default `Qwen/Qwen3.8-27B-FP8`, about 31 GB) into the
 shared Hugging Face cache, which persists in a named volume. Allow enough disk
-space, network access, and startup time for these downloads.
+space, network access, and startup time for these downloads. With or without a
+GPU, the first native conversion and the first default scan layout together
+use about 0.8 GB of Docling weights in the Hugging Face cache, plus another
+0.8 GB for the worker's local copy on the same volume. Later conversions use
+that copy offline. Each Docling release used by the worker keeps its own copy,
+so budget another 0.8 GB per release for those models, even if the weights are
+unchanged. Selecting additional layout models increases both caches.
 
 Obtain a PEM certificate (a full chain) and its matching PEM private key from
 the institution or VPN that owns the private hostname. FREE does not request a
@@ -98,7 +104,7 @@ openssl pkey -in /srv/free-tls/studio.key -pubout -outform DER \
 The two SHA-256 outputs must match. Also validate the chain with the
 institution's or VPN's trust procedure.
 
-Generate the session secret and three independent database passwords once and
+Generate the session secret and four independent database passwords once and
 retain them across restarts (run the hexadecimal command once per password):
 
 ```bash
@@ -115,6 +121,7 @@ FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
 FREE_KEI_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_STUDIO_POSTGRES_PASSWORD=<separately-generated-hex-output>
+FREE_KEI_QUEUE_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_ENTRA_TENANT_ID=<microsoft-entra-tenant-uuid>
 FREE_ENTRA_CLIENT_ID=<application-client-uuid>
 FREE_ENTRA_CLIENT_CERT_PATH=/srv/free-secrets/entra-client.pem
@@ -156,11 +163,18 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
 - `FREE_STUDIO_POSTGRES_PASSWORD` is the password of `free_studio`, the role
   Studio and the evaluation watcher run as. It reads and writes FREE's data but
   cannot create databases or roles, create schemas in `free`, change the
-  migrated schemas or act as another role; it owns only Studio's `dbos` schema, and uses `kei_dbos` to
-  submit, read, cancel and delete kei's workflows. Studio's entrypoint creates
+  migrated schemas or act as another role. It owns only Studio's `dbos` schema.
+  Studio's entrypoint creates
   the role from this value at every start, and on the first start after an
   upgrade gives it the `dbos` schema and the workflow history an earlier
   Studio created there as `postgres`. Use a generated hexadecimal value.
+- `FREE_KEI_QUEUE_POSTGRES_PASSWORD` is the independent hexadecimal password
+  for `free_kei_queue`. Studio uses it through `FREE_KEI_QUEUE_DATABASE_URL`
+  to submit, read, cancel and delete workflows in `kei_dbos`. The role cannot
+  read or modify application data or Studio's own workflow history. Add this
+  password to an existing deployment's `.env` before upgrading. The entrypoint
+  grants queue access to the new role and removes the old grants from
+  `free_studio` during startup, keeping existing queue history.
 - `FREE_DEPLOYMENT_CLI_PROVIDERS` (optional; `codex-cli`, `claude-code`,
   comma-separated) offers the Codex CLI and Claude Code to every researcher as
   read-only deployment connections. They run on this server's own CLI login,
@@ -172,6 +186,8 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   selector. The migration removes retired generic/recipe account preferences and the `extraction.catalogRecipe`
   column; live unified preferences and Article settings stay. Old generic/recipe Extractions cannot resume and
   should be run again. Drain in-flight Catalog work before deploying. This decision does not claim held-out accuracy.
+  Unified Catalog defaults 12 replaced 11 with a data-only migration that moves the stored Catalog method pins to
+  12 and leaves saved results as they are. It refuses to run while an Extraction is queued or running: drain first.
 - `FREE_ADMIN_DATABASE_URL`'s role must own database `free` or hold `CREATE`
   on it, and be able to create roles; Compose uses `postgres`. The entrypoint
   refuses to prepare a `free_studio` or `kei` that is a superuser or owns

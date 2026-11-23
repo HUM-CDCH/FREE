@@ -24,8 +24,8 @@ def reuse_record(router, scope, *, record=0):
 
 
 def discovering(router, found, lines):
-    """Discovery's record starts so far and the lines of the window this thread asks for next, shown while the
-    durable run reads (None once discovery is done). A view only: nothing is retained."""
+    """Show discovered record starts and the current window's labelled lines during durable discovery.
+    A `found` value of None clears the progress view."""
     if getattr(router,"runtime",None) is not None:
         router.runtime.discovering(found, lines)
 

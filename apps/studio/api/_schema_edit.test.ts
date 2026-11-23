@@ -93,6 +93,15 @@ describe('proposeSchemaEdit', () => {
     expect(generate).not.toHaveBeenCalled()
   })
 
+  it('as a chat reply, hands a request for the template again back to Studio with what it should hold', async () => {
+    const generate = answering({})
+    const respond = vi.fn().mockResolvedValueOnce({ action: 'generate', focus: 'the dates' })
+    await expect(proposeSchemaEdit(definition, 'Start over, focusing on the dates', SOURCE, { caller: CALLER, generate, answerable: true, respond, offer: 'Run extraction' }))
+      .resolves.toEqual({ status: 'requested', action: 'generate', focus: 'the dates' })
+    expect(respond.mock.calls[0]![2]).toMatchObject({ offer: 'Run extraction' })
+    expect(generate).not.toHaveBeenCalled()
+  })
+
   it('as a chat reply, hands a message that only declines back to Studio with no proposal', async () => {
     const generate = answering({})
     const respond = vi.fn().mockResolvedValueOnce({ action: 'none' })

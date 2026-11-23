@@ -15,11 +15,11 @@ afterEach(()=>{cleanup();vi.resetAllMocks()})
 
 it.each([
   {strategy:'ARTICLE',settings:{article: REFERENCE_ARTICLE}},
-  {strategy:'CATALOG',settings:{unified:{defaults: 11}}},
+  {strategy:'CATALOG',settings:{unified:{defaults: 12}}},
   {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',context_tokens:8192}}},
   {strategy:'ARTICLE',settings:{article:{...REFERENCE_ARTICLE,context:'bounded',grounding:'spans',}}},
-  {strategy:'CATALOG',settings:{unified:{defaults: 11,input_tokens:8192,output_tokens:1024,overlap:0,headings:false}}},
-  {strategy:'CATALOG',settings:{unified:{defaults: 11,candidates:8}}},
+  {strategy:'CATALOG',settings:{unified:{defaults: 12,input_tokens:8192,output_tokens:1024,overlap:0,headings:false}}},
+  {strategy:'CATALOG',settings:{unified:{defaults: 12,candidates:8}}},
 ])('can save unchanged $strategy inputs with pinned settings $settings',async({strategy,settings})=>{
   vi.mocked(readExtractionModels).mockResolvedValue({defaults:{fields:'instruct',reasoning:'instruct'},models:[]} as never)
   const state={controlVersion:3,selection:{id:'selection',schemaRevisionId:'schema',method:{models:null,settings},resolved:{}},pendingSelection:null} as unknown as DurableRead

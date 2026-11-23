@@ -31,7 +31,7 @@ def served(monkeypatch):
 
 def request(schema=SCHEMA, **settings):
     return run.ExtractRequest.model_validate({"schema": schema, "options": {
-        "models": {"fields": "gliformer"}, "unified": {"defaults": 11, **settings}}})
+        "models": {"fields": "gliformer"}, "unified": {"defaults": 12, **settings}}})
 
 
 class Counter(WordCounter):
@@ -108,8 +108,8 @@ def test_unsupported_semantics_are_rejected_before_any_call(field):
 
 
 def test_unsupported_methods_and_explicit_controls_are_not_ignored():
-    for options in ({"strategy": "article"}, {"unified": {"defaults": 11, "headings": True}},
-                    {"unified": {"defaults": 11, "verification": False}}):
+    for options in ({"strategy": "article"}, {"unified": {"defaults": 12, "headings": True}},
+                    {"unified": {"defaults": 12, "verification": False}}):
         with pytest.raises(ValidationError):
             run.ExtractRequest.model_validate({"schema": {**SCHEMA, "recordScope": None},
                                                "options": {"models": {"fields": "gliformer"}, **options}})
@@ -198,7 +198,7 @@ def test_native_artifact_contract(tmp_path, monkeypatch):
                             counter={"fields": Counter(), "reasoning": WordCounter()})
     fixture = {"source": {"run_id": source.run_id, "generation": source.generation},
                "request": {"schema": SCHEMA, "options": {"strategy": "catalog", "models": {"fields": "gliformer"},
-                                                         "unified": {"defaults": 11}}},
+                                                         "unified": {"defaults": 12}}},
         "manifest": json.loads((directory / "result/result.json").read_text()),
         "pages": [json.loads((directory / "result/pages/1.json").read_text())], "artifact": produced}
     path = FIXTURES / "extract.gliformer.json"

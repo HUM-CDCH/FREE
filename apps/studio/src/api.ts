@@ -1,8 +1,10 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
+import type { FieldNote } from 'extraction/schema'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import { schemaChatReplySchema, type ChatHistory, type SchemaChatReply } from '../shared/schemaChat.contract'
+import { resultCorrectionProposalSchema, type ResultCorrectionProposal } from '../shared/resultCorrection.contract'
 import {
   extractionRequestSchema,
   extractionAttemptSchema,
@@ -13,7 +15,7 @@ import {
   type ExtractionModelListing,
 } from '../shared/extraction.contract'
 import { ingestionModelListingSchema, type IngestionModelListing } from '../shared/modelConfig.contract'
-import { modelOperationListingSchema, type ModelOperation } from '../shared/modelOperation.contract'
+import { fieldNoteSchema, modelOperationListingSchema, type ModelOperation } from '../shared/modelOperation.contract'
 import { sourceCoverageSchema, type SourceCoverage } from '../shared/schemaSuggestionSource.contract'
 
 export const API_BASE = '/api'
@@ -34,8 +36,15 @@ export type SchemaModelContext = {
   sourceRepresentationRevisionId?: string
 }
 
-/** `sourceCoverage` is what the model read of the source; null when the outcome did not record it. */
-export type SchemaDone = { template: unknown; raw: string; pages: number | null; sourceCoverage: SourceCoverage | null }
+/** `fieldDescriptions` are the template's scalar field notes; `sourceCoverage` is what the model read of the source,
+ *  null when the outcome did not record it. */
+export type SchemaDone = {
+  template: unknown
+  fieldDescriptions: FieldNote[]
+  raw: string
+  pages: number | null
+  sourceCoverage: SourceCoverage | null
+}
 
 export function decodeSchemaDone(data: unknown): SchemaDone {
   if (!isRecord(data) || !('template' in data)) {
@@ -43,7 +52,13 @@ export function decodeSchemaDone(data: unknown): SchemaDone {
   }
   const sourceCoverage = sourceCoverageSchema.nullable().safeParse(data.sourceCoverage ?? null)
   if (!sourceCoverage.success) throw new Error("generate_schema: invalid 'sourceCoverage' — API contract drift?")
-  return { ...(data as Omit<SchemaDone, 'sourceCoverage'>), sourceCoverage: sourceCoverage.data }
+  const fieldDescriptions = fieldNoteSchema.array().safeParse(data.fieldDescriptions ?? [])
+  if (!fieldDescriptions.success) throw new Error("generate_schema: invalid 'fieldDescriptions' — API contract drift?")
+  return {
+    ...(data as Omit<SchemaDone, 'sourceCoverage' | 'fieldDescriptions'>),
+    fieldDescriptions: fieldDescriptions.data,
+    sourceCoverage: sourceCoverage.data,
+  }
 }
 
 async function readError(response: Response): Promise<{ code: string; message: string; details: unknown } | null> {
@@ -166,7 +181,7 @@ export async function requestSchema(
   context: SourceModelContext,
   signal: AbortSignal | undefined,
   options: TemplateOptions & { operationId: string; base: SchemaBase | null },
-): Promise<Pick<SchemaDone, 'template' | 'sourceCoverage'>> {
+): Promise<Pick<SchemaDone, 'template' | 'fieldDescriptions' | 'sourceCoverage'>> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
   form.append(
@@ -183,7 +198,7 @@ export async function requestSchema(
   }
 
   const done = await postModelForm('/generate_schema', form, decodeSchemaDone, signal)
-  return { template: done.template, sourceCoverage: done.sourceCoverage }
+  return { template: done.template, fieldDescriptions: done.fieldDescriptions, sourceCoverage: done.sourceCoverage }
 }
 
 /** A chat message before the first schema: a question's answer, or `instruction` for a message kept for generation. */
@@ -193,6 +208,7 @@ export async function requestSchemaChat(
   signal: AbortSignal | undefined,
   operationId: string,
   history: ChatHistory = [],
+  offer: string | null = null,
 ): Promise<SchemaChatReply> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -200,9 +216,30 @@ export async function requestSchemaChat(
   form.append('message', message)
   // The whole conversation before the message goes with it, so a follow-up can refer to it.
   if (history.length) form.append('history', JSON.stringify(history))
+  // What the chat offers beside the message, which a "yes" or a "no" answers.
+  if (offer) form.append('offer', offer)
   // The operation ID makes the POST repeatable.
   form.append('operation_id', operationId)
   return postModelForm('/schema_chat', form, (data) => schemaChatReplySchema.parse(data), signal)
+}
+
+/** A chat message that corrects particular values of a result (ADR 0035): the changes proposed for one snapshot, the
+ *  one named or else the latest. Nothing is saved. */
+export async function requestResultCorrections(
+  target: { extractionId: string; snapshotVersion: number | null },
+  message: string,
+  signal: AbortSignal | undefined,
+  operationId: string,
+  history: ChatHistory = [],
+): Promise<ResultCorrectionProposal> {
+  const form = new FormData()
+  form.append('extraction_id', target.extractionId)
+  if (target.snapshotVersion !== null) form.append('snapshot_version', String(target.snapshotVersion))
+  form.append('message', message)
+  if (history.length) form.append('history', JSON.stringify(history))
+  // The operation ID makes the POST repeatable.
+  form.append('operation_id', operationId)
+  return postModelForm('/result_chat', form, (data) => resultCorrectionProposalSchema.parse(data), signal)
 }
 
 /** Thrown when a JSON endpoint (an Extraction, or a model listing) answers with an HTTP error status. */
@@ -294,6 +331,7 @@ export async function requestSchemaEdit(
   signal: AbortSignal | undefined,
   operationId: string,
   history: ChatHistory = [],
+  offer: string | null = null,
 ): Promise<SchemaEditResponse> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -306,6 +344,7 @@ export async function requestSchemaEdit(
     )
   form.append('instruction', instruction)
   if (history.length) form.append('history', JSON.stringify(history))
+  if (offer) form.append('offer', offer)
   // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
   form.append('operation_id', operationId)
   return postModelForm('/edit_schema', form, decodeSchemaEdit, signal)

@@ -11,7 +11,7 @@ The experiment runner calls the same strategy implementations through
 flowchart LR
   C[Verified canonical passages] --> R{Strategy}
   R --> A[Article: one document root per value context]
-  R --> G[Catalog: entry discovery or recipe segmentation]
+  R --> G[Catalog: unified record discovery]
   A --> V[Record values]
   G --> V
   V --> Q[Grounding and proposals]
@@ -98,23 +98,17 @@ the source and builds the prompt and reply schema, and who interprets the answer
 | Article | `record` → fields | [`article.document_root`](../src/kei_exp/kie/extract/article.py), per value context | [`stages.record_request`](../src/kei_exp/kie/extract/stages.py) under `stages.DOCUMENT`, no identity, over each value context (by default the complete source); counted; the reply may use the served context the input leaves, at least 4,096 tokens | `schema.conform`; contexts assembled by `contexts.assemble_document` |
 | Article | `arbitration` → reasoning | [`resolution.resolve`](../src/kei_exp/kie/extract/resolution.py), when the source is split and at least one part answered | `RESOLUTION` over the document opening, scalar readings and assembled list items with source snippets; labelled choices, packed into counted batches | A chosen scalar or NONE replaces its conflict; lists keep selected occurrences with their original origins. UNSURE, a null list, invalid labels or a failed or raising resolution preserve assembly; failures remain recoverable attempt-local history |
 | Article | `grounding` → reasoning | [`assembly.ground_records`](../src/kei_exp/kie/extract/assembly.py) → `grounding.technique` (default `semantic`), each claim first in the context its value was read from (`routing.verify_routed`) | [`grounding.verify`](../src/kei_exp/kie/extract/grounding.py): `GROUNDING`, `QUOTED_GROUNDING` or `SPAN_GROUNDING`, the record's scalar fields, each claim beside the scalar fields of the list items enclosing it, and complete evidence; per-batch reply schema enumerating eligible labels; counted, 2,048 output tokens, batches split to fit | `grounding.verify` accepts only offered labels (and, when quoted, exact substrings with attribution) as `Link`s; every claim is verified by the model, with exhaustive fallback stopping at support |
-| Generic Catalog | `document` → fields | `assembly.document_values`, one context | `stages.extract_document` over the source clipped to `record_chars` (`text_truncated` when cut) | `schema.conform`; `unverified` |
-| Generic Catalog | `discovery` → reasoning | [`catalog.discover`](../src/kei_exp/kie/extract/catalog.py), per page-aligned chunk of `discovery_chars` | `catalog.DISCOVERY` with its examples, `B`-labelled blocks (`_labelled`), reply schema enumerating the shown labels | `catalog.discover` keeps ordered starts and a final-chunk end, reports ignored labels and numbering anomalies, and cuts record slices |
-| Generic Catalog | `record` → fields | [`catalog.extract`](../src/kei_exp/kie/extract/catalog.py), per slice | [`stages.extract_record`/`stages.record_request`](../src/kei_exp/kie/extract/stages.py): `_instruction` and the slice clipped to `record_chars` | `schema.conform` |
-| Generic Catalog | `grounding` → reasoning | `assembly.ground_records` → `grounding.semantic` | `grounding.verify`: every claim, a value found once in its slice included, goes to `GROUNDING` calls with its field, its sibling fields and the record's fields, under the `record_chars` character budget | as Article |
 | Unified Catalog | `discovery` → reasoning | `discovery.discover`, per counted source window, with bounded splitting on failed replies | `discovery.DISCOVERY`, also identifying shared table qualifications | Locate copied starts in source; unique neighbouring-line starts can be relocated; unresolved ranges remain explicit |
 | Unified Catalog | `discovery` children → reasoning | `discovery.children`, per settled window of records while discovery continues | `discovery.CHILDREN`, lines of each enclosing record | Children own whole lines, keep a parent reference, and read its remaining text as context; invalid children are dropped |
 | Unified Catalog | `entry` → fields | `unified._Run.entry`, per counted window of record text with overlap and bounded context | `unified.ENTRY`, field notes, reply schema and `{value, quote}` candidates, with single-pass and complete-text instructions | `_Checker` validates types, located quotes and list ownership; child scalars can use their enclosing record context; disagreements and partial observations stay explicit |
-| Unified Catalog | `verification` → reasoning | `unified._Run._verify`, per candidate batch | `VERIFY_RECORD` reads a scalar located outside its record (inherited) afresh, without its candidate; records sharing a heading are read together (`VERIFY_RECORDS`, `_Run._shared`) | Values located in the record are linked `lexical` without this call; an inherited value is accepted only when an equal, source-located reading agrees, never corrected; a check that cannot fit is a final `verification_over_budget` proposal |
+| Unified Catalog | `verification` → reasoning | `unified._Run._verify`, per candidate batch | `VERIFY_RECORD` reads a scalar located outside its record (inherited) afresh, without its candidate; records sharing a heading are read together (`VERIFY_RECORDS`, `_Run._shared`); the reply schema is the field's value alone, or null, per label | Values located in the record are linked `lexical` without this call; an inherited value is accepted only when the reading equals it, at the place code located for the entry's quote, never corrected; a null or different reading rejects it, a reply that is not a value stays undecided, and a check that cannot fit is a final `verification_over_budget` proposal |
 | Unified Catalog | `arbitration` → reasoning | `unified._Run._settle`, per disagreeing scalar | Candidates and source snippets (`ARBITRATION`) | Keep the chosen candidate or retain the disagreement |
 | Unified Catalog | `document` → fields | `unified._Run.document`, per counted window over every admitted line | `unified.DOCUMENT`: `{value, quote}` candidates for document fields | located in the window; windows assembled by `contexts.assemble_document`, list occurrences preserved and scalar conflicts kept; always `unverified` |
 
 Article counts every request on the serving endpoint of its role
 ([`tokens.counters_for`](../src/kei_exp/kie/extract/tokens.py) over `/tokenize`)
-and refuses when either role's context size is unknown. Generic Catalog uses
-character budgets: its record calls reply within 2,048 tokens, and its other
-calls send no `max_tokens`, so the adapter's 8,192 applies. The unified Catalog
-counts every request too; each stage's input ceiling is the served context minus
+and refuses when either role's context size is unknown. Unified Catalog also
+counts every request; each stage's input ceiling is the served context minus
 its reply reserve (or the method's custom ceiling), and its reply reserve is
 sent as `max_tokens`; an entry call sends the served context its
 counted input leaves instead, the reserve its floor.
@@ -232,7 +226,7 @@ evaluation harnesses do), a failed call, a request the server refuses for itself
 (a non-transient HTTP error) included, fails only its window, which is halved or
 left failed and visible. A durable Extraction halves a window only for a
 discovery or entry reply cut off at its token limit, or a reply that parses but
-is not the requested object. Defaults 7 also halves a discovery window whose copied
+is not the requested object. Discovery also halves a window whose copied
 boundary cannot be located uniquely in its source line, within the existing split
 bound. Superseded replies retain their calls and issues; only final readings own
 source text, and exhausted recovery leaves affected text unresolved. Any other

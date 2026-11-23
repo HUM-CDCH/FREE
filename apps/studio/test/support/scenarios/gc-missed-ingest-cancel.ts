@@ -11,24 +11,29 @@ import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
 import { applyStudioSchedules, registerStudioWorkflows } from '../../../server/workflows.js'
 import { orphanPayloadRows } from '../garbage.js'
 import { uploadRequest } from '../ingestion.js'
-
-function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value=env[name]
-  if(!value)throw new Error(`The missed-ingestion-cancel scenario needs ${name}.`)
-  return value
-}
+import { requiredScenarioValue } from '../scenarioEnvironment.js'
 
 type Observations={ingestId:string;convertId:string;repaired?:GarbageSummary;currentIngestStatus?:string|null}
 
 /** Crash after domain deletion, repair the missed cancellations, then prove the next boot can collect history. */
 export async function run({firstRun,env}:{firstRun:boolean;env:NodeJS.ProcessEnv}):Promise<void> {
-  const url=required(env,'DATABASE_URL'),schema=required(env,'FREE_TEST_DBOS_SCHEMA')
-  const project=required(env,'FREE_TEST_PROJECT'),observations=required(env,'GC_OBSERVATIONS')
-  await launchStudioDbos({databaseUrl:url,schema,keiSchema:required(env,'FREE_TEST_KEI_SCHEMA'),
-    executorId:required(env,'FREE_TEST_EXECUTOR'),register:registerStudioWorkflows,schedule:applyStudioSchedules})
+  const required = requiredScenarioValue(env, 'missed-ingestion-cancel')
+  const url = required('DATABASE_URL')
+  const schema = required('FREE_TEST_DBOS_SCHEMA')
+  const project = required('FREE_TEST_PROJECT')
+  const observations = required('GC_OBSERVATIONS')
+  await launchStudioDbos({
+    databaseUrl: url,
+    keiDatabaseUrl: url,
+    schema,
+    keiSchema: required('FREE_TEST_KEI_SCHEMA'),
+    executorId: required('FREE_TEST_EXECUTOR'),
+    register: registerStudioWorkflows,
+    schedule: applyStudioSchedules,
+  })
   if(firstRun) {
-    const store=createResearcherProjectStore(required(env,'FREE_TEST_ACCOUNT'))
-    const pdf=new Uint8Array(await readFile(required(env,'FREE_TEST_PDF')))
+    const store=createResearcherProjectStore(required('FREE_TEST_ACCOUNT'))
+    const pdf=new Uint8Array(await readFile(required('FREE_TEST_PDF')))
     const response=await createSourceDocumentIngestion(store)(uploadRequest(project,pdf))
     if(response.status!==202)throw new Error(`Expected an admitted ingestion, got ${response.status}.`)
     const {workflowId:ingestId}=await response.json() as {workflowId:string}

@@ -1,10 +1,10 @@
 import type { DocumentInput } from './_document.js'
 import { documentFileParts } from './_pdf.js'
-import { schemaAnswerClause, schemaPrompt, schemaSourceExcerpts } from './_schema.js'
+import { schemaPrompt, schemaSourceExcerpts } from './_schema.js'
 import { ApiError } from './_http.js'
-import { parseTemplate, parseUnknownJson } from './_model_output.js'
+import { parseUnknownJson } from './_model_output.js'
 import { traceModelCall } from '../server/tracing.js'
-import { parseSchemaEditOutput, schemaEditPrompt } from './_schema_edit_output.js'
+import { parseSchemaEditOutput, schemaEditPrompt, suggestedFieldNotes } from './_schema_edit_output.js'
 import {
   executeSchemaSuggestion,
   resolveModelTarget,
@@ -18,13 +18,20 @@ import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract.j
 import {
   parseBatchSuggestionDefinition,
   templateToSchemaDefinition,
+  type FieldNote,
   type SchemaDefinition,
 } from 'extraction/schema'
+
+/** A suggested compact template with the scalar field notes it cannot hold (`suggestedFieldNotes`). */
+export type SuggestedSchema = {
+  readonly template: Record<string, unknown>
+  readonly fieldDescriptions: readonly FieldNote[]
+}
 
 export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly instruction: string
-  /** An edit may carry scalar note changes beside its compact template, in the same model reply. */
+  /** A suggestion's sidecar sets scalar notes; an edit's may also clear them (`withFieldDescriptions`). */
   readonly edit?: true
   /** The Markdown is one window of the source (see `schemaSourceWindows`): send it as it is, never excerpted. */
   readonly window?: boolean
@@ -60,9 +67,6 @@ type SchemaSuggested = {
   readonly sourceCoverage: SourceCoverage
 }
 
-/** A chat message a Schema Suggestion request may answer instead of suggesting a schema (`respondToSchemaEdit`). */
-export type SchemaChatMessage = Readonly<{ message: string }>
-
 async function suggestSchema(
   caller: ModelCaller,
   input: SchemaModelInput,
@@ -70,46 +74,29 @@ async function suggestSchema(
   dependencies: ModelDependencies = {},
 ): Promise<SchemaSuggested> {
   const resolved = await resolveModelTarget('schema-suggestion', input.temperature, target, caller, dependencies)
-  return suggestOrAnswer(resolved, input, null, dependencies) as Promise<SchemaSuggested>
+  return suggestOnRoute(resolved, input, dependencies)
 }
 
-/**
- * One Schema Suggestion request on a resolved route. With `chat`, the model may answer the message as a question
- * instead, returning `{"answer": …}`; NuExtract only generates templates, so a NuExtract route never answers.
- */
-export async function suggestOrAnswer(
+/** One Schema Suggestion request on a resolved route: a new schema, or with `edit` the revised one. A chat message's
+ *  intent is read before it (`classifyChatMessage`), so this request only ever returns a schema. */
+export async function suggestOnRoute(
   resolved: ExecutionTarget,
   { document, instruction, edit, window, temperature, signal }: SchemaModelInput,
-  chat: SchemaChatMessage | null,
   dependencies: ModelDependencies = {},
-): Promise<SchemaSuggested | { readonly answer: string } | { readonly action: ChatAction }> {
-  const answerable = chat !== null && resolved.profile === 'general'
+): Promise<SchemaSuggested> {
   const excerpts = document.markdown && !window ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
-  const guidance = edit ? schemaEditPrompt(instruction) : schemaPrompt(instruction)
   const generated = await executeSchemaSuggestion(resolved, {
     instructions: edit
-      ? 'Revise the researcher\'s extraction schema' + (answerable ? ' or answer their question' : '') + '. ' +
-        'Return only one JSON object, with no Markdown or commentary. ' +
-        (answerable ? 'For a question, return only {"answer":"<your answer>"}; to run the extraction, return only {"action":"extract"}; for a message that only declines, return only {"action":"none"}. Otherwise, ' : '') +
-        'return the complete compact schema in "template" and scalar field note edits in "fieldDescriptions", with no extracted values.'
-      : answerable
-      ? 'Propose a compact extraction schema grounded in the supplied source document, or answer the researcher\'s question about it. ' +
-        'Return only one JSON object, with no Markdown or commentary.'
+      ? 'Revise the researcher\'s extraction schema. Return only one JSON object, with no Markdown or commentary: the complete compact schema in "template" and scalar field note edits in "fieldDescriptions", with no extracted values.'
       : 'Propose a compact extraction schema grounded in the supplied source document. ' +
         'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
-    guidance: answerable ? `${guidance}\n\n${schemaAnswerClause(chat.message)}` : guidance,
+    guidance: edit ? schemaEditPrompt(instruction) : schemaPrompt(instruction),
     documentParts: documentParts.parts,
     temperature,
     signal,
   }, dependencies.fetch)
-  if (answerable) {
-    const answer = await answerOf(generated.response)
-    if (answer !== null) return { answer }
-    const action = await requestedAction(generated.response)
-    if (action) return { action }
-  }
-  const output = edit ? await parseSchemaEditOutput(generated.response) : { template: await parseTemplate(generated.response) }
+  const output = await parseSchemaEditOutput(generated.response)
   const parsed = output.template
   if (typeof parsed._description !== 'string' || parsed._description.trim().length === 0)
     throw new ApiError(502, 'invalid_model_output', 'The generated Extraction Schema has no root record description.')
@@ -121,24 +108,8 @@ export async function suggestOrAnswer(
   }
 }
 
-/** What a chat message asked for instead of a schema or an answer: `extract`, to run the extraction, or `none`, when it
- *  only declined what was offered. */
-export type ChatAction = 'extract' | 'none'
-
-/** The action of a reply that is exactly `{"action": "extract"}` or `{"action": "none"}`; null for any other reply. */
-export async function requestedAction(response: string): Promise<ChatAction | null> {
-  let parsed: unknown
-  try {
-    parsed = await parseUnknownJson(response, 'Model returned invalid JSON.')
-  } catch {
-    return null
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed) || Object.keys(parsed).length !== 1) return null
-  const action = (parsed as Record<string, unknown>).action
-  return action === 'extract' || action === 'none' ? action : null
-}
-
-/** The answer of a reply that is exactly `{"answer": "<text>"}`; null for any other reply. */
+/** The answer of a reply that is only `{"answer": "<text>"}`, its null members aside (models often name the replies they
+ *  did not give as null); null for any other reply. */
 export async function answerOf(response: string): Promise<string | null> {
   let parsed: unknown
   try {
@@ -147,18 +118,20 @@ export async function answerOf(response: string): Promise<string | null> {
     return null
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
-  const keys = Object.keys(parsed)
-  const answer = (parsed as Record<string, unknown>).answer
-  return keys.length === 1 && typeof answer === 'string' && answer.trim() ? answer.trim() : null
+  const reply = Object.fromEntries(Object.entries(parsed).filter(([, value]) => value !== null))
+  if (Object.keys(reply).length !== 1 || typeof reply.answer !== 'string') return null
+  return reply.answer.trim() || null
 }
 
 const SOURCE_SUGGESTION_INSTRUCTION =
   'Suggest reusable extraction fields for this Source Document. FREE records Evidence and its locations itself, so suggest only fields that describe the content of the researcher\'s records.'
+const DEFINITIONS =
+  ' Give every kept field one definition, taken or combined from the supplied ones, in its group\'s "_description" or in "fieldDescriptions".'
 const MERGE_INSTRUCTION =
-  'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.'
+  'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.' + DEFINITIONS
 
 const UNION_INSTRUCTION =
-  'Return one compact Extraction Schema for one Source Document from the supplied schemas, each suggested from one part of it: keep every field found in any of them, folding fields that name the same thing into one field of one supported shape, and write one _description that defines a complete root record of the whole document. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.'
+  'Return one compact Extraction Schema for one Source Document from the supplied schemas, each suggested from one part of it: keep every field found in any of them, folding fields that name the same thing into one field of one supported shape, and write one _description that defines a complete root record of the whole document. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.' + DEFINITIONS
 
 /**
  * One request of `reduceSchemas`: combine labelled schemas already within one request's length into one template —
@@ -171,7 +144,7 @@ export async function combineSchemas(
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
   temperature?: number,
-): Promise<Record<string, unknown>> {
+): Promise<SuggestedSchema> {
   const generated = await generate(caller, {
     document: { file: null, markdown: text, pages: null },
     instruction: mode === 'union' ? UNION_INSTRUCTION : MERGE_INSTRUCTION,
@@ -179,12 +152,12 @@ export async function combineSchemas(
     ...(temperature === undefined ? {} : { temperature }),
     signal,
   })
-  return generated.template
+  return { template: generated.template, fieldDescriptions: suggestedFieldNotes(generated.fieldDescriptions) }
 }
 
-function modelSuggestedDefinition(template: unknown): SchemaDefinition {
+function modelSuggestedDefinition({ template, fieldDescriptions }: SuggestedSchema): SchemaDefinition {
   try {
-    return parseBatchSuggestionDefinition(templateToSchemaDefinition(template))
+    return parseBatchSuggestionDefinition(templateToSchemaDefinition(template, fieldDescriptions))
   } catch (error) {
     throw new ApiError(502, 'invalid_model_output',
       error instanceof Error ? error.message : 'The model returned an invalid Schema Suggestion.')
@@ -205,7 +178,8 @@ export async function suggestBatchSource(
     window,
     signal,
   })
-  return { definition: modelSuggestedDefinition(generated.template), sourceCoverage: generated.sourceCoverage }
+  const fieldDescriptions = suggestedFieldNotes(generated.fieldDescriptions)
+  return { definition: modelSuggestedDefinition({ template: generated.template, fieldDescriptions }), sourceCoverage: generated.sourceCoverage }
 }
 
 /** `combineSchemas` for batch definitions: the combination must be an editable batch definition too. */

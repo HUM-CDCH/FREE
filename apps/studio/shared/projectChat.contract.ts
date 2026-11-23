@@ -37,6 +37,5 @@ export const projectChatAppendRequestSchema = z
       .min(1).max(PROJECT_CHAT_APPEND_LIMIT),
   })
   .strict()
-export type ProjectChatAppendRequest = z.output<typeof projectChatAppendRequestSchema>
 
 export const projectChatResponseSchema = z.object({ entries: z.array(projectChatEntryRecordSchema) }).strict()

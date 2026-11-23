@@ -89,7 +89,7 @@ def test_the_unified_catalog_passes_the_same_cardinality_point(monkeypatch):
     calls = []
     monkeypatch.setattr(unified, "extract", fake_implementation(0, calls))
     request = run.ExtractRequest.model_validate({"schema": definition("records"),
-                                                 "options": {"strategy": "catalog", "unified": {"defaults": 11}}})
+                                                 "options": {"strategy": "catalog", "unified": {"defaults": 12}}})
     assert run.dispatch(None, evidence(), request, FakeChat(dict))["records"] == [] and calls == ["records"]
 
 
@@ -228,7 +228,7 @@ def test_a_records_scope_request_with_options_unified_is_the_unified_catalogs():
     source = unified_tests.evidence("12. Adorf. Material: Bronze. Find: Axe (1). Find: Pin (2).\n"
                                     "13. Bdorf. Material: Eisen. Find: Axe (1).")
     request = run.ExtractRequest.model_validate({"schema": {**unified_tests.SCHEMA, "recordScope": "records"},
-        "options": {"strategy": "catalog", "unified": {"defaults": 11}}})
+        "options": {"strategy": "catalog", "unified": {"defaults": 12}}})
     result = run.dispatch(None, source, request, CountingChat(unified_tests.Model(source)), counter=WordCounter())
     assert result["extraction_version"] == 3 and result["schema"]["recordScope"] == "records"
     assert [record["finds"] for record in result["records"]] == [

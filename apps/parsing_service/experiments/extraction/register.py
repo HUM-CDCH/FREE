@@ -47,7 +47,7 @@ def register(root: Path, service: Path) -> dict:
                        ("bounded", "reference", "context"), ("quoted", "bounded", "grounding"),
                        ("full_quoted", "reference", "grounding"), ("overlap", "bounded", "overlap_passages"),
                        ("unverified", "bounded", "grounding")]]
-    methods["catalog"] = {"strategy": "catalog", "models": models, "unified": {"defaults": 11}}
+    methods["catalog"] = {"strategy": "catalog", "models": models, "unified": {"defaults": 12}}
     sources = []
     gold = read(root / "snapshot/validation/adjudicated-v1/gold.corrected.json")
     for paper, metadata in sorted(gold["sources"].items()):
@@ -76,7 +76,7 @@ def register(root: Path, service: Path) -> dict:
             "primary_metric": "Per-document populated sample-field lower-bound accuracy on six development papers",
             "uncertainty": "Paired document bootstrap, seed 20260927, 10000 draws; descriptive only",
             "scope": f"{sum(len(item['methods']) for item in sources)} cells on {len(sources)} existing canonical sources. No held-out claim. No new OCR.",
-            "catalog_scope": "Catalog uses unified defaults 11 without recipe factors; this registration makes no Catalog ablation claim.",
+            "catalog_scope": "Catalog uses unified defaults 12 without recipe factors; this registration makes no Catalog ablation claim.",
             "adaptation": "Paper-inspired components, not complete replications of trained LMDX, Tan or Multi-VIE models."}
 
 

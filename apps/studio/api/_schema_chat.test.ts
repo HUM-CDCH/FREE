@@ -70,22 +70,67 @@ describe('answerOf', () => {
   })
 })
 
+/** The model's replies, in order: the message's intent first, then what it asks for. */
+const replies = (...texts: string[]) => { for (const text of texts) generateTextMock.mockResolvedValueOnce({ text, finishReason: 'stop' }) }
+const intent = (name: string, focus: string | null = null) => JSON.stringify({ intent: name, focus })
+
 describe('respondToSchemaEdit', () => {
-  it('keeps scalar note edits in the general route\'s single response and still answers questions', async () => {
+  it('on a general route reads the message first, then revises the schema with its scalar note edits', async () => {
     const fieldDescriptions = [{ path: ['name'], description: 'Copy the complete name.' }]
-    generateTextMock.mockResolvedValueOnce({ text: JSON.stringify({
-      template: { _description: 'One burial.', name: 'string' }, fieldDescriptions,
-    }), finishReason: 'stop' })
+    replies(intent('edit'), JSON.stringify({ template: { _description: 'One burial.', name: 'string' }, fieldDescriptions }))
     await expect(respondToSchemaEdit(CALLER, { ...input, edit: true }, { ...question, message: 'Copy the complete name' }, general))
       .resolves.toMatchObject({ template: { _description: 'One burial.', name: 'string' }, fieldDescriptions })
-    expect(generateTextMock).toHaveBeenCalledOnce()
-    expect(sent(0)).toContain('fieldDescriptions')
-    expect(sent(0)).toContain('array of exact field names')
-
-    generateTextMock.mockResolvedValueOnce({ text: '{"answer":"The name field copies the name."}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, { ...input, edit: true }, question, general))
-      .resolves.toEqual({ answer: 'The name field copies the name.' })
     expect(generateTextMock).toHaveBeenCalledTimes(2)
+    expect(sent(0)).toContain('Return only {\\"intent\\":\\"<intent>\\"')
+    expect(sent(0)).toContain('Copy the complete name')
+    // The change request itself asks for a schema and nothing else.
+    expect(sent(1)).toContain('array of exact field names')
+    expect(sent(1)).not.toContain('{\\"answer\\"')
+  })
+
+  it('on a general route answers a question in its own request, from the source', async () => {
+    replies(intent('question'), '{"answer":"42 burials."}')
+    await expect(respondToSchemaEdit(CALLER, input, question, general)).resolves.toEqual({ answer: '42 burials.' })
+    expect(sent(1)).toContain('How many burials are there?')
+    expect(sent(1)).toContain('{\\"answer\\":\\"<your answer>\\"}')
+    expect(sent(1)).toContain('42 burials.')
+  })
+
+  it('beside NuExtract the Assistant model reads and answers, and NuExtract revises the schema otherwise', async () => {
+    const untouched = stubNuExtract('{}')
+    replies(intent('question'), '{"answer":"42 burials."}')
+    await expect(respondToSchemaEdit(CALLER, input, question, nuextract)).resolves.toEqual({ answer: '42 burials.' })
+    expect(untouched).not.toHaveBeenCalled()
+    expect(sent(1)).toContain('The researcher\'s current extraction schema')
+
+    const request = stubNuExtract('{"_description":"One burial.","name":"string"}')
+    replies(intent('edit'))
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Add a name field' }, nuextract))
+      .resolves.toMatchObject({ template: { _description: 'One burial.', name: 'string' } })
+    expect(request).toHaveBeenCalledOnce()
+    expect(JSON.parse(request.mock.calls[0]![1].body).chat_template_kwargs.mode).toBe('template-generation')
+  })
+
+  it.each([
+    ['extract', null, { action: 'extract', focus: null }],
+    ['generate', 'dates', { action: 'generate', focus: 'dates' }],
+    ['confirm', null, { action: 'confirm', focus: null }],
+    ['none', null, { action: 'none' }],
+  ] as const)('hands a message asking for %s back to Studio, with no other request', async (name, focus, expected) => {
+    const untouched = stubNuExtract('{}')
+    replies(intent(name, focus))
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'go', offer: 'Run extraction: Run it?' }, general)).resolves.toEqual(expected)
+    replies(intent(name, focus))
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'go' }, nuextract)).resolves.toEqual(expected)
+    expect(generateTextMock).toHaveBeenCalledTimes(2)
+    expect(untouched).not.toHaveBeenCalled()
+    expect(sent(0)).toContain('Studio has just offered: Run extraction: Run it?')
+  })
+
+  it('reads a reply that names no intent as a change, as every message was before', async () => {
+    replies('Sure, here is a schema.', '{"_description":"One burial.","name":"string"}')
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Add a name field' }, general))
+      .resolves.toMatchObject({ template: { name: 'string' } })
   })
 
   it('keeps NuExtract selected for scalar note edits, in the same template-generation call', async () => {
@@ -111,59 +156,6 @@ describe('respondToSchemaEdit', () => {
     expect(JSON.parse(request.mock.calls[0]![1].body).messages[0].content[0].text).toContain('"clear": true')
   })
 
-  it('on a general route one Schema Suggestion request answers a question or returns the schema', async () => {
-    generateTextMock.mockResolvedValueOnce({ text: '{"answer":"42 burials."}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, input, question, general)).resolves.toEqual({ answer: '42 burials.' })
-    expect(generateTextMock).toHaveBeenCalledOnce()
-    expect(sent(0)).toContain('How many burials are there?')
-    expect(sent(0)).toContain('{\\"answer\\":\\"<your answer>\\"}')
-
-    generateTextMock.mockResolvedValueOnce({ text: '{"_description":"One burial.","name":"string"}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Add a name field' }, general))
-      .resolves.toMatchObject({ template: { _description: 'One burial.', name: 'string' } })
-  })
-
-  it('on NuExtract the Assistant model answers a question, and NuExtract revises the schema otherwise', async () => {
-    const untouched = stubNuExtract('{}')
-    generateTextMock.mockResolvedValueOnce({ text: '{"answer":"42 burials."}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, input, question, nuextract)).resolves.toEqual({ answer: '42 burials.' })
-    expect(untouched).not.toHaveBeenCalled()
-    expect(sent(0)).toContain('The researcher\'s current extraction schema')
-
-    const request = stubNuExtract('{"_description":"One burial.","name":"string"}')
-    generateTextMock.mockResolvedValueOnce({ text: '{"answer":null}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Add a name field' }, nuextract))
-      .resolves.toMatchObject({ template: { _description: 'One burial.', name: 'string' } })
-    expect(request).toHaveBeenCalledOnce()
-    expect(JSON.parse(request.mock.calls[0]![1].body).chat_template_kwargs.mode).toBe('template-generation')
-  })
-
-  it('asks to run the extraction instead of a change, on a general route and beside NuExtract alike', async () => {
-    generateTextMock.mockResolvedValueOnce({ text: '{"action":"extract"}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Generate the results' }, general))
-      .resolves.toEqual({ action: 'extract' })
-    expect(sent(0)).toContain('{\\"action\\":\\"extract\\"}')
-
-    const untouched = stubNuExtract('{}')
-    generateTextMock.mockResolvedValueOnce({ text: '{"action":"extract"}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Extract this one' }, nuextract))
-      .resolves.toEqual({ action: 'extract' })
-    expect(untouched).not.toHaveBeenCalled()
-  })
-
-  it('hands back a message that only declines, on a general route and beside NuExtract alike', async () => {
-    generateTextMock.mockResolvedValueOnce({ text: '{"action":"none"}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'No thanks' }, general))
-      .resolves.toEqual({ action: 'none' })
-    expect(sent(0)).toContain('{\\"action\\":\\"none\\"}')
-
-    const untouched = stubNuExtract('{}')
-    generateTextMock.mockResolvedValueOnce({ text: '{"action":"none"}', finishReason: 'stop' })
-    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'not now' }, nuextract))
-      .resolves.toEqual({ action: 'none' })
-    expect(untouched).not.toHaveBeenCalled()
-  })
-
   it('NuExtract with no Assistant model beside it revises the schema, as before', async () => {
     const request = stubNuExtract('{"_description":"One burial.","name":"string"}')
     await expect(respondToSchemaEdit(CALLER, input, question, nuextractAlone)).resolves.toMatchObject({ template: { name: 'string' } })
@@ -174,20 +166,23 @@ describe('respondToSchemaEdit', () => {
 
 describe('answerSchemaChat', () => {
   it('answers a question, or gives null for an instruction', async () => {
-    generateTextMock.mockResolvedValueOnce({ text: '{"answer":"42 burials."}', finishReason: 'stop' })
+    replies(intent('question'), '{"answer":"42 burials."}')
     await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'How many burials?', history: [] }, {}, nuextract)).resolves.toBe('42 burials.')
-    // Before the first schema there is nothing to extract with: the message is never offered as a request to run it.
-    expect(sent(0)).not.toContain('{\\"action\\":\\"extract\\"}')
-    generateTextMock.mockResolvedValueOnce({ text: '{"answer":null}', finishReason: 'stop' })
+    replies(intent('edit'))
     await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Focus on dates', history: [] }, {}, general)).resolves.toBeNull()
+    expect(generateTextMock).toHaveBeenCalledTimes(3)
   })
 
-  it('hands back a message that only declines, never a request to extract', async () => {
-    generateTextMock.mockResolvedValueOnce({ text: '{"action":"none"}', finishReason: 'stop' })
+  it('hands a request back to Studio: a template asked for with what it should hold, a run, a yes or a no', async () => {
+    replies(intent('generate', 'the dates'))
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'give me a template of the dates', history: [] }, {}, general))
+      .resolves.toEqual({ action: 'generate', focus: 'the dates' })
+    replies(intent('extract'))
+    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Extract it', history: [] }, {}, general))
+      .resolves.toEqual({ action: 'extract', focus: null })
+    replies(intent('none'))
     await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'no thanks', history: [] }, {}, general)).resolves.toEqual({ action: 'none' })
-    expect(sent(0)).toContain('{\\"action\\":\\"none\\"}')
-    generateTextMock.mockResolvedValueOnce({ text: '{"action":"extract"}', finishReason: 'stop' })
-    await expect(answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Extract it', history: [] }, {}, general)).resolves.toBeNull()
+    expect(generateTextMock).toHaveBeenCalledTimes(3)
   })
 
   it('keeps every message as an instruction when nothing can answer it', async () => {
@@ -197,11 +192,12 @@ describe('answerSchemaChat', () => {
 })
 
 describe('the conversation', () => {
-  it('goes before the latest message in every question the model reads', async () => {
-    generateTextMock.mockResolvedValueOnce({ text: '{"answer":"Grave 7."}', finishReason: 'stop' })
+  it('goes before the latest message in the classification and in the answer', async () => {
+    replies(intent('question'), '{"answer":"Grave 7."}')
     const history = [{ role: 'user' as const, text: 'Which grave is oldest?' }, { role: 'assistant' as const, text: 'Grave 7.' }]
     await answerSchemaChat(CALLER, { markdown: '42 burials.' }, { message: 'Where is it?', history }, {}, general)
-    expect(sent(0)).toContain('Researcher: Which grave is oldest?\\nAssistant: Grave 7.\\n\\nThe researcher\'s latest chat message:\\nWhere is it?')
+    for (const call of [0, 1])
+      expect(sent(call)).toContain('Researcher: Which grave is oldest?\\nAssistant: Grave 7.\\n\\nThe researcher\'s latest chat message:\\nWhere is it?')
   })
 })
 

@@ -27,7 +27,7 @@ function ports(overrides: Partial<SchemaChatPorts> = {}) {
     cancelSignal: () => undefined,
   }
   const readSource = vi.fn(async (): Promise<SchemaSource | null> => SOURCE)
-  const answer = vi.fn(async (): Promise<string | { readonly action: 'none' } | null> => '42 burials.')
+  const answer = vi.fn(async (): Promise<Awaited<ReturnType<SchemaChatPorts['answer']>>> => '42 burials.')
   const answerWindow = vi.fn(async (_caller: unknown, window: { index: number }) => `part ${window.index}`)
   const combineAnswers = vi.fn(async (_caller: unknown, answers: readonly string[]) => answers.join(' + '))
   return {
@@ -44,7 +44,16 @@ describe('answerSchemaChatWorkflow', () => {
 
     expect(readSource).toHaveBeenCalledExactlyOnceWith(input.sourceRepresentationRevisionId)
     expect(names).toEqual(['answerIfQuestion'])
-    expect(answer.mock.calls[0]!.slice(0, 3)).toEqual([{ researcherAccountId: OWNER }, SOURCE, { message: input.message, history: input.history }])
+    expect(answer.mock.calls[0]!.slice(0, 3)).toEqual([{ researcherAccountId: OWNER }, SOURCE, { message: input.message, history: input.history, offer: null }])
+  })
+
+  it('a request is the reply `requested`, read beside what the chat offered, and nothing else runs', async () => {
+    const { names, answer, ports: p } = ports()
+    answer.mockResolvedValue({ action: 'generate', focus: 'the dates' })
+    await expect(answerSchemaChatWorkflow({ ...input, message: 'give me a template of the dates', offer: 'Generate template' }, p))
+      .resolves.toEqual({ ok: true, reply: { kind: 'requested', action: 'generate', focus: 'the dates' } })
+    expect(names).toEqual(['answerIfQuestion'])
+    expect((answer.mock.calls[0] as unknown[])[2]).toMatchObject({ offer: 'Generate template' })
   })
 
   it('a message that only declines is the reply `none`, and nothing else runs', async () => {

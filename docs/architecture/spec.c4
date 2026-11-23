@@ -1,0 +1,20 @@
+specification {
+  element person {
+    style {
+      shape person
+      color blue
+    }
+  }
+  element system
+  element container
+  element component
+  element datastore {
+    style { shape storage }
+  }
+  element external {
+    style { color gray }
+  }
+  tag optional
+  deploymentNode environment
+  deploymentNode process
+}

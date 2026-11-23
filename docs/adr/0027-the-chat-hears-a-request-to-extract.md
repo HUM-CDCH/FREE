@@ -1,7 +1,8 @@
 # 0027: The chat hears a request to extract
 
 Date: 2026-11-01. Status: accepted; amends [0023](0023-schema-chat-answers-questions.md) and
-[0024](0024-rail-chat-guides-to-extraction.md).
+[0024](0024-rail-chat-guides-to-extraction.md); amended by [0034](0034-the-chat-reads-what-a-message-asks-first.md), whose
+chat reads a request to extract, as every intent, before anything else.
 
 ## Context
 

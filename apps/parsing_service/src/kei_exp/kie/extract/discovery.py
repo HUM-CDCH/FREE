@@ -5,9 +5,8 @@ The admitted canonical text is cut into units: its nonblank source lines, as raw
 and is ledgered `other`. `plan` groups consecutive units into windows whose rendered request fits a
 stage's budget, with disjoint primary text and up to `overlap` units of context on each side; a unit too long for any
 window is cut at whitespace, then at code points (`windows.windows_of`), keeping its raw offsets. Supplementary
-context that does not fit is dropped and named, never primary text. Defaults 7 fixes primary and overlap before
-selecting whole heading excerpts newest first, skipping those that do not fit. `split` halves a failed window;
-under defaults 7 it also halves one whose copied boundary cannot be located in its source line.
+context that does not fit is dropped and named, never primary text. With enclosing-record context, `plan` fixes the
+primary windows and overlap before selecting whole heading excerpts newest first, skipping those that do not fit.
 A WINDOW line's label names its layout kind when ingestion gave its segment one (a heading or a table row). Measured
 on one 6-page excavation report (7 records; Qwen3.8-27B-NVFP4 at temperature 0, 13 October 2026, page windows under
 12 to 24 concurrent requests): without kinds, one record's heading was missed in up to 12 of 12 identical requests,
@@ -16,7 +15,8 @@ as the server's batching decided; with kinds, 48 of 48 windows were read right.
 Each discovery reply names, by line label and the exact text where it starts, every place in its window's primary
 text where a record or record-free text ("other": front matter, headings, an index) begins, and says whether the
 window begins and ends inside a record. A place counts only where that text occurs exactly once in the named line;
-a line with a place that cannot be located stays unresolved up to the next place. A `record` and an `other` place at
+when `nearby` is enabled, a record start missing from its named line can be placed at a unique nearby match.
+An unplaceable boundary leaves the text unresolved up to the next place. A `record` and an `other` place at
 one spot are a record start, its printed label kept. A window's opening text continues the open record only when the
 earlier window says it ends inside a record and the later one says it begins inside one; then an unlabelled place
 (`other`, or a `record` without a located label) or a `record` with the open record's own printed label (compared as
@@ -31,9 +31,8 @@ printed on every record), so numbering that restarts after other records stays a
 the last window says continues after it is cut by the end of the supplied source (an excerpt): its end is
 `source_end`, as settled as a `validated` one, when no nonblank withheld text follows it in reading order, since then
 nothing after it was left unread; when withheld text does follow, the record may continue there and its end is
-`unresolved`. A failed or cut-off reply is retried on the window's two halves a bounded number of times. Defaults 7
-also retries replies with unplaceable boundaries, keeping superseded replies' calls and issues; only final readings
-own source text.
+`unresolved`. A window without a valid reply can be retried on its two halves, up to the configured split depth.
+The failed calls and their issues are retained. A valid reply with an unplaceable boundary leaves that range unresolved.
 
 The ledger gives every nonblank canonical range one disposition: `entry` (a record's own text), `other`,
 `unresolved` or `withheld`. A disposition is a recorded decision, not a measure of recall. Nothing here knows a
@@ -153,8 +152,9 @@ def units_of(passages: Sequence[Passage]) -> list[Unit]:
 def plan(units: Sequence[Unit], texts: dict[str, str], fits: Callable[[Window], bool], *, overlap: int,
          lead: Sequence[Unit] = (), trail: Sequence[Unit] = (), heading: Sequence[Unit] = (),
          candidates: int = CANDIDATES, heading_context: bool = False) -> list[Window] | None:
-    """Consecutive windows over `units`; `lead` and `trail` are the units just outside. With enclosing-record context, it fixes primary windows and overlap before selecting whole headings newest first, skipping those that do not fit;
-    at most `candidates` are measured individually. None when not even one code point fits beside the instructions."""
+    """Consecutive windows over `units`; `lead` and `trail` are the units just outside. With enclosing-record context,
+    fix primary windows and overlap before selecting whole headings newest first. At most `candidates` are measured
+    individually. Return None when even one code point cannot fit beside the instructions."""
     if heading and heading_context:
         windows = plan(units, texts, fits, overlap=overlap, lead=lead, trail=trail)
         if windows is None:
@@ -389,19 +389,16 @@ def discover(evidence: Evidence, description: str, fits_budget: Callable[[str, s
     """The discovery body: entries, ledger, windows, issues and calls (as `Call`s), or None when not even one code
     point fits a discovery request. `fits_budget(system, user, schema)` counts a request against the stage's budget;
     `ask(record, system, user, schema, calls, issues)` makes one counted call. Windows never cross a `groups_of(by)`
-    boundary; context does. Windows are asked in source order, `workers` at once, slice by slice, then every failed
-    one's halves. Once an `ask` in a slice raises, no later window is asked, and the first raised in source order is
-    raised once the slice has stopped: a durable planning round yields at most `workers` discovery calls. Before each
-    call and after each valid reply, `progress` is given every record start found so far, in source order, and the
-    lines the window labels: a view of the run while it reads, never an input to discovery.
+    boundary; context does. Before each call and after each valid reply, `progress` receives the record starts found
+    so far in source order and the window's labelled lines.
 
-    With `frontier`, windows are read as a sliding frontier instead: no slices, a failed window's halves asked as soon
-    as it fails, and the body also says whether it is `complete`. `unanswered` are the exceptions an `ask` raises for a
-    call whose reply is not there yet, a durable planning round's: such an `ask` never waits on a model, so windows are
-    read in turn, without threads, until `workers` are unanswered, and nothing of `unanswered` is raised. Until the
-    body is complete, it holds only the windows of the read prefix (the windows before the first one not yet read
-    whole, halves included) and those of their entries whose end that prefix already decides (`_assemble`). Without
-    `unanswered`, every window is answered: `workers` are asked at once, and the first error stops the rest."""
+    Unified Catalog uses `frontier`: a failed window's halves are requested as soon as it fails. Durable planning
+    visits windows in source order on one thread. It catches `unanswered` exceptions from calls awaiting saved replies
+    and stops after `workers` windows are waiting. Until the body is `complete`, it contains only the fully read
+    prefix, including split windows, and the entries whose end that prefix settles (`_assemble`). With `frontier`
+    and no `unanswered` exceptions, up to `workers` windows run concurrently and the first error in source order is
+    raised after the workers stop. With `frontier` disabled, windows run in groups of up to `workers` before split
+    retries are attempted."""
     texts = {passage.id: passage.text for passage in evidence.passages}
     kinds = kinds_of(evidence.passages)
     system = DISCOVERY.format(description=description)

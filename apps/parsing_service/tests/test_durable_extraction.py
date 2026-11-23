@@ -290,7 +290,7 @@ def test_a_durable_unified_run_keeps_its_execution_record_with_its_plans():
     kept=kept[0]
     assert kept["units"]==[] and kept["execution"]==result["execution"]
     assert kept["execution"]["effective"]["overlap"]==3
-    assert kept["execution"]["method"]=={"defaults":11}
+    assert kept["execution"]["method"]=={"defaults":12}
 
 
 def test_a_paused_unified_run_plans_on_without_its_execution_record():

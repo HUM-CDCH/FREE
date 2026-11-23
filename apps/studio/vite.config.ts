@@ -199,7 +199,8 @@ export function pdfjsWasmAssets(command: 'serve' | 'build', root = import.meta.d
   }
   return {
     name: 'free-pdfjs-wasm',
-    configureServer: prepare,
+    // Vite indexes public files before running configureServer.
+    config: command === 'serve' ? prepare : undefined,
     buildStart() {
       if (command === 'build') prepare()
     },

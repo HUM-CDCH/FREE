@@ -68,7 +68,7 @@ describe('POST /api/edit_schema', () => {
       },
       input: {
         operationId: OPERATION, owner: ACCOUNT, projectContextId: PROJECT, extractionSchemaId: SCHEMA, baseSchemaRevisionId: SCHEMA_REVISION,
-        sourceRepresentationRevisionId: SOURCE_REVISION, instruction: 'Rename title to heading', history: [], temperature: null,
+        sourceRepresentationRevisionId: SOURCE_REVISION, instruction: 'Rename title to heading', history: [], offer: null, temperature: null,
       },
     }])
 
@@ -100,6 +100,16 @@ describe('POST /api/edit_schema', () => {
 
     const refused = operations()
     expect((await createPostEditSchema(store(), () => refused.client)(form({ ...base, history: '{"role":"user"}' }))).status).toBe(422)
+    expect(refused.enqueued).toEqual([])
+  })
+
+  it('records what the chat offered beside the message, and refuses one too long with 422', async () => {
+    const { enqueued, client } = operations()
+    expect((await createPostEditSchema(store(), () => client)(form({ ...base, offer: 'Run extraction: Run it?' }))).status).toBe(200)
+    expect(enqueued[0]!.input).toMatchObject({ offer: 'Run extraction: Run it?' })
+
+    const refused = operations()
+    expect((await createPostEditSchema(store(), () => refused.client)(form({ ...base, offer: 'x'.repeat(2_001) }))).status).toBe(422)
     expect(refused.enqueued).toEqual([])
   })
 

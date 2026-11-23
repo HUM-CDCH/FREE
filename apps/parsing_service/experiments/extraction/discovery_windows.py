@@ -69,7 +69,7 @@ def scaled(evidence: Evidence, copies: int, first: int, last: int, directory: Pa
 
 def once(evidence: Evidence, gold: dict[str, int], by: str, workers: int, overlap: int | None) -> dict:
     request = run.ExtractRequest.model_validate({"schema": SCHEMA, "options": {"strategy": "catalog", "unified": {
-        "defaults": 11, **({"overlap": overlap} if overlap is not None else {})}}})
+        "defaults": 12, **({"overlap": overlap} if overlap is not None else {})}}})
     chat = chats_for(request.options)
     counters = counters_for(chat)
     execution = unified._execution(evidence, request.schema_, request.options.unified, chat, counters)
@@ -202,7 +202,7 @@ def main() -> None:
     parser.add_argument("--scale", type=int, default=1)
     parser.add_argument("--out", type=Path)
     parser.add_argument("--values", type=Path, help="gold rows (JSON with `rows[].values`): score whole extractions")
-    parser.add_argument("--defaults", nargs="+", type=int, default=[11], choices=(11,))  # the one admitted version
+    parser.add_argument("--defaults", nargs="+", type=int, default=[12], choices=(12,))  # the one admitted version
     args = parser.parse_args()
     evidence = load(args.run_dir)
     if args.values:

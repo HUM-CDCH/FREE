@@ -117,6 +117,7 @@ const completeProductionEnvironment = (certificatePath) => ({
   FREE_POSTGRES_PASSWORD: 'a'.repeat(64),
   FREE_KEI_POSTGRES_PASSWORD: 'd'.repeat(64),
   FREE_STUDIO_POSTGRES_PASSWORD: 'e'.repeat(64),
+  FREE_KEI_QUEUE_POSTGRES_PASSWORD: 'f'.repeat(64),
   FREE_ENTRA_TENANT_ID: '11111111-2222-4333-8444-555555555555',
   FREE_ENTRA_CLIENT_ID: '66666666-7777-4888-9999-aaaaaaaaaaaa',
   FREE_ENTRA_CLIENT_CERT_THUMBPRINT: 'b'.repeat(64),
@@ -173,6 +174,9 @@ for (const gpu of [false, true]) test(`production: compose renders with GPU acce
   const config = JSON.parse(result.stdout)
   assertOwnedParsingTopology(config, gpu)
   assert.equal(new URL(config.services.parsing_worker.environment.KEI_SYSTEM_DATABASE_URL).password, 'd'.repeat(64))
+  const queue = new URL(config.services.studio.environment.FREE_KEI_QUEUE_DATABASE_URL)
+  assert.equal(queue.username, 'free_kei_queue')
+  assert.equal(queue.password, 'f'.repeat(64))
   // Production keeps its host-managed nginx and has no mock identity provider.
   assert.equal(config.services.nginx, undefined)
   assert.equal(config.services['mock-oidc'], undefined)
@@ -539,6 +543,7 @@ test('database roles: only Studio\'s entrypoint receives the administrative URL 
       if (name === 'studio') continue
       assert.equal(service.environment?.FREE_ADMIN_DATABASE_URL, undefined, name)
       assert.equal(service.environment?.FREE_KEI_POSTGRES_PASSWORD, undefined, name)
+      assert.equal(service.environment?.FREE_KEI_QUEUE_DATABASE_URL, undefined, name)
       if (name !== 'db')
         assert.ok(Object.values(service.environment ?? {}).every((value) => !String(value).includes(`:${adminPassword}@`)),
           `${name} holds no administrative database credential`)
@@ -555,7 +560,7 @@ test('studio entrypoint: migrates and prepares roles as the administrator, then 
   spawnSync('mkdir', [bin])
   writeFileSync(join(bin, 'pnpm'), `#!/usr/bin/env node
 const { appendFileSync } = require('node:fs')
-const pick = ['DATABASE_URL', 'FREE_ADMIN_DATABASE_URL', 'FREE_KEI_POSTGRES_PASSWORD']
+const pick = ['DATABASE_URL', 'FREE_KEI_QUEUE_DATABASE_URL', 'FREE_ADMIN_DATABASE_URL', 'FREE_KEI_POSTGRES_PASSWORD']
 appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args: process.argv.slice(2),
   env: Object.fromEntries(pick.map((name) => [name, process.env[name]])) }) + '\\n')
 process.exit(process.env.FREE_TEST_FAIL === process.argv.at(-1) ? 3 : 0)
@@ -568,6 +573,7 @@ process.exit(process.env.FREE_TEST_FAIL === process.argv.at(-1) ? 3 : 0)
       FREE_ADMIN_DATABASE_URL: 'postgresql://postgres:admin-secret@db:5432/free',
       DATABASE_URL: 'postgresql://free_studio:runtime-secret@db:5432/free',
       FREE_KEI_POSTGRES_PASSWORD: 'kei-secret',
+      FREE_KEI_QUEUE_DATABASE_URL: 'postgresql://free_kei_queue:queue-secret@db:5432/free',
       ...extra,
     },
     encoding: 'utf8',
@@ -580,15 +586,18 @@ process.exit(process.env.FREE_TEST_FAIL === process.argv.at(-1) ? 3 : 0)
     { args: ['--filter', 'db', 'db:init'], env: {
       DATABASE_URL: 'postgresql://postgres:admin-secret@db:5432/free',
       FREE_ADMIN_DATABASE_URL: 'postgresql://postgres:admin-secret@db:5432/free',
-      FREE_KEI_POSTGRES_PASSWORD: 'kei-secret' } },
+      FREE_KEI_POSTGRES_PASSWORD: 'kei-secret',
+      FREE_KEI_QUEUE_DATABASE_URL: 'postgresql://free_kei_queue:queue-secret@db:5432/free' } },
     { args: ['--filter', 'db', 'db:roles'], env: {
       DATABASE_URL: 'postgresql://free_studio:runtime-secret@db:5432/free',
       FREE_ADMIN_DATABASE_URL: 'postgresql://postgres:admin-secret@db:5432/free',
-      FREE_KEI_POSTGRES_PASSWORD: 'kei-secret' } },
+      FREE_KEI_POSTGRES_PASSWORD: 'kei-secret',
+      FREE_KEI_QUEUE_DATABASE_URL: 'postgresql://free_kei_queue:queue-secret@db:5432/free' } },
   ])
-  // The process the entrypoint execs, and so every child it spawns, has only the runtime role's URL.
+  // The running Studio receives its two restricted roles.
   const studio = JSON.parse(started.stdout)
   assert.equal(studio.DATABASE_URL, 'postgresql://free_studio:runtime-secret@db:5432/free')
+  assert.equal(studio.FREE_KEI_QUEUE_DATABASE_URL, 'postgresql://free_kei_queue:queue-secret@db:5432/free')
   assert.equal(studio.FREE_ADMIN_DATABASE_URL, undefined)
   assert.equal(studio.FREE_KEI_POSTGRES_PASSWORD, undefined)
   assert.ok(!JSON.stringify(studio).includes('admin-secret') && !JSON.stringify(studio).includes('kei-secret'))

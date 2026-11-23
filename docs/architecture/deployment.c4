@@ -1,0 +1,60 @@
+deployment {
+  environment local 'Local Compose' {
+    browser = instanceOf browser
+    process entry 'nginx' { proxy = instanceOf local_gateway }
+    process web 'studio' { host = instanceOf studio.handlers }
+    process identity 'mock-oidc' { issuer = instanceOf mock_oidc }
+    process api 'parsing_service' { read = instanceOf parsing_service.http_api }
+    process worker 'parsing_worker' { worker = instanceOf parsing_service.parser }
+    process database 'db' { database = instanceOf project_db }
+    process telemetry 'phoenix' { collector = instanceOf traces }
+    process gpu 'Optional GPU overlay: three vLLM servers' { models = instanceOf parsing_service.models }
+    packages = instanceOf package_store
+    inbox = instanceOf source_inbox
+    runs = instanceOf parsing_service.task_cache
+    web.host -> identity.issuer 'Redeem the authorization code'
+    web.host -> database.database 'Research state and Studio DBOS'
+    web.host -> api.read 'Read canonical manifests and pages'
+    web.host -> packages 'Retain and read canonical packages'
+    web.host -> inbox 'Stage source PDFs'
+    web.host -> gpu.models 'Default Schema Suggestion and Interaction'
+  }
+  environment production 'Production Compose and nginx' {
+    browser = instanceOf browser
+    identity = instanceOf entra
+    process entry 'Host nginx or bundled nginx container' { proxy = instanceOf gateway }
+    process web 'studio' { host = instanceOf studio.handlers }
+    process api 'parsing_service' { read = instanceOf parsing_service.http_api }
+    process worker 'parsing_worker: one slot' { worker = instanceOf parsing_service.parser }
+    process database 'db' { database = instanceOf project_db }
+    process telemetry 'phoenix' { collector = instanceOf traces }
+    process gpu 'Optional GPU overlay: three vLLM servers' { models = instanceOf parsing_service.models }
+    packages = instanceOf package_store
+    inbox = instanceOf source_inbox
+    runs = instanceOf parsing_service.task_cache
+    web.host -> identity 'Redeem the authorization code'
+    web.host -> database.database 'Research state and Studio DBOS'
+    web.host -> api.read 'Read canonical manifests and pages'
+    web.host -> packages 'Retain and read canonical packages'
+    web.host -> inbox 'Stage source PDFs'
+    web.host -> gpu.models 'Default Schema Suggestion and Interaction'
+  }
+}
+
+views {
+  deployment view local_deployment {
+    title 'Deployment / Local Compose'
+    description 'compose.yaml plus compose.override.yaml; the GPU group exists only with the GPU overlay. Local Entra replaces mock OIDC when selected.'
+    include local.browser, local.entry.*, local.web.*, local.identity.*, local.api.*,
+      local.worker.*, local.database.*, local.telemetry.*, local.gpu.*, local.packages, local.inbox, local.runs
+    autoLayout LeftRight
+  }
+  deployment view production_deployment {
+    title 'Deployment / Production Compose'
+    description 'compose.yaml plus compose.prod.yaml; compose.nginx.yaml supplies bundled nginx when selected. Shared models replace the GPU group. Optional GLiFormer and eval profile are shown in their component and research views.'
+    include production.browser, production.identity, production.entry.*, production.web.*, production.api.*,
+      production.worker.*, production.database.*, production.telemetry.*, production.gpu.*,
+      production.packages, production.inbox, production.runs
+    autoLayout LeftRight
+  }
+}

@@ -1,25 +1,3 @@
-specification {
-  element person {
-    style {
-      shape person
-      color blue
-    }
-  }
-  element system
-  element container
-  element component
-  element datastore {
-    style {
-      shape storage
-    }
-  }
-  element external {
-    style {
-      color gray
-    }
-  }
-}
-
 model {
   operator = person 'FREE Operator' 'Deploys FREE and assigns Researchers to the Microsoft Entra enterprise application.'
   researcher = person 'Humanities Researcher' 'Opens a Source Document, shapes an Extraction Schema, runs Extraction, and reviews Evidence.'
@@ -124,13 +102,13 @@ views {
       The run directory and the source inbox are durable; Studio also stores
       the verified canonical package used for review.
     '''
-    include operator, researcher, browser, entra, gateway, studio, parsing_service, project_db, package_store, source_inbox, model_connections
+    include operator, researcher, browser, entra, gateway, studio, parsing_service, project_db, package_store, source_inbox, model_connections, traces
   }
 
   view current_modules {
     title 'FREE — current runtime modules'
     description 'Maintained module seams; this is not an import graph.'
-    include operator, researcher, browser, entra, gateway, studio.*, parsing_service.*, project_db, package_store, source_inbox, model_connections
+    include operator, researcher, browser, entra, gateway, studio.*, parsing_service.*, project_db, package_store, source_inbox, model_connections, traces
   }
 
   dynamic view current_account_session {

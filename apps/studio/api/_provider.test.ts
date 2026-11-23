@@ -2,12 +2,14 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { generateText, NoObjectGeneratedError, Output } from 'ai'
+import { MockLanguageModelV4 } from 'ai/test'
 import { z } from 'zod'
 import { DEPLOYMENT_CONNECTION_IDS, type ModelConfig, type ModelConnection } from '../shared/modelConfig.contract.js'
 import {
   PROVIDERS,
   appendProviderResource,
   createRestrictedCodexProvider,
+  freshPerCall,
   keyedModel,
   probeConnection,
   providerTable,
@@ -21,6 +23,21 @@ import { ModelKeyRequiredError, createModelKeyCache } from './_model_keys.js'
 
 const stepStatus = vi.hoisted(() => ({ current: undefined as undefined | { cancelSignal: AbortSignal } }))
 vi.mock('@dbos-inc/dbos-sdk', () => ({ DBOS: { get stepStatus() { return stepStatus.current } } }))
+
+/** While set, every Claude Code model is created with this launch in place of the CLI's, and each creation counts. */
+const claudeLaunch = vi.hoisted(() => ({ spawn: undefined as undefined | ((options: { args: string[] }) => unknown), created: 0 }))
+vi.mock('ai-sdk-provider-claude-code', async (original) => {
+  const actual = await original<typeof import('ai-sdk-provider-claude-code')>()
+  return {
+    ...actual,
+    claudeCode: (...[modelId, settings]: Parameters<typeof actual.claudeCode>) => {
+      claudeLaunch.created += 1
+      const model = actual.claudeCode(modelId, settings)
+      if (claudeLaunch.spawn) Object.assign((model as unknown as { settings: object }).settings, { spawnClaudeCodeProcess: claudeLaunch.spawn })
+      return model
+    },
+  }
+})
 
 const ID = '11111111-1111-4111-8111-111111111111'
 const connection: ModelConnection = {
@@ -174,21 +191,30 @@ describe('provider table', () => {
     })
   })
 
-  it('launches Claude Code without session transcripts, so no prompt or reply outlives the call', async () => {
-    const model = providerTable['claude-code'].createModel({ ...connection, provider: 'claude-code', baseUrl: null }, 'sonnet')
-    let launched: readonly string[] | undefined
+  it('launches Claude Code without session transcripts, a model of its own per call, so no call resumes another', async () => {
+    const launched: (readonly string[])[] = []
     // Only the launch is replaced: the installed wrapper and Agent SDK build the real CLI arguments, and a child that
     // exits at once ends the call before any CLI or network runs.
-    Object.assign((model as unknown as { settings: object }).settings, {
-      spawnClaudeCodeProcess: ({ args }: { args: string[] }) => {
-        launched = args
-        return spawn(process.execPath, ['-e', 'process.exit(1)'], { stdio: ['pipe', 'pipe', 'pipe'] })
-      },
-    })
+    claudeLaunch.spawn = ({ args }) => {
+      launched.push(args)
+      return spawn(process.execPath, ['-e', 'process.exit(1)'], { stdio: ['pipe', 'pipe', 'pipe'] })
+    }
+    claudeLaunch.created = 0
+    try {
+      const model = providerTable['claude-code'].createModel({ ...connection, provider: 'claude-code', baseUrl: null }, 'sonnet')
+      await generateText({ model, prompt: 'What does this message ask?', maxRetries: 0 }).catch(() => undefined)
+      await generateText({ model, prompt: 'Answer it.', maxRetries: 0 }).catch(() => undefined)
+    } finally {
+      claudeLaunch.spawn = undefined
+    }
 
-    await generateText({ model, prompt: 'Suggest fields.', maxRetries: 0 }).catch(() => undefined)
-
-    expect(launched).toContain('--no-session-persistence')
+    // One model for the route's metadata, never called, and one per call.
+    expect(claudeLaunch.created).toBe(3)
+    expect(launched).toHaveLength(2)
+    for (const args of launched) {
+      expect(args).toContain('--no-session-persistence')
+      expect(args).not.toContain('--resume')
+    }
   })
 
   it.each([
@@ -258,6 +284,43 @@ describe('provider table', () => {
     expect(appendProviderResource('https://host.example/v1/', '/chat/completions')).toBe(
       'https://host.example/v1/chat/completions',
     )
+  })
+})
+
+describe('freshPerCall', () => {
+  /** A model that, like a Claude Code model without saved sessions, cannot be called a second time. */
+  function oneCallModel() {
+    let called = false
+    return new MockLanguageModelV4({
+      doGenerate: async () => {
+        if (called) throw new Error('No conversation found with session ID')
+        called = true
+        return {
+          content: [{ type: 'text', text: 'ok' }],
+          finishReason: { unified: 'stop', raw: 'stop' },
+          usage: {
+            inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+            outputTokens: { total: 1, text: 1, reasoning: 0 },
+          },
+          warnings: [],
+        }
+      },
+    })
+  }
+
+  it('runs every call on a new model and never calls the metadata model', async () => {
+    const created: MockLanguageModelV4[] = []
+    const model = freshPerCall(() => {
+      const next = oneCallModel()
+      created.push(next)
+      return next
+    })
+
+    await expect(generateText({ model, prompt: 'First', maxRetries: 0 })).resolves.toMatchObject({ text: 'ok' })
+    await expect(generateText({ model, prompt: 'Second', maxRetries: 0 })).resolves.toMatchObject({ text: 'ok' })
+
+    expect(created).toHaveLength(3)
+    expect(created.map((each) => each.doGenerateCalls.length)).toEqual([0, 1, 1])
   })
 })
 

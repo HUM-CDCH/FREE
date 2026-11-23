@@ -21,8 +21,8 @@ files a run has published, and nothing else.
 
 The worker (`kei-worker worker`) is kei's DBOS application: name `kei`,
 application version `kei@1`, system schema `kei_dbos` in Studio's database
-`free`, connected as the restricted `kei` role. Studio enqueues `convert` and
-`deleteRuns` by name with portable JSON (contract and examples in
+`free`, connected as the restricted `kei` role. Studio uses the separate `free_kei_queue` login for its client in `kei_dbos`.
+It enqueues `convert` and `deleteRuns` by name with portable JSON (contract and examples in
 `tests/fixtures/contracts/`), and durable Extraction attempts
 (`extractDurableV1`) with only their identities, on four lanes:
 `kei-convert-large`, `kei-convert-small` (a document of at most 30 pages),
@@ -116,7 +116,7 @@ run would lose its result.
 | `KEI_NUEXTRACT_URL`, `KEI_NUEXTRACT_MODEL` | NuExtract template extractor server and model; unset, every call goes to the instruction model |
 | `KEI_GLIFORMER_URL` | Optional native GLiFormer service base URL; fields only, never selected by default. [Capabilities and deployment](model_servers/gliformer/README.md) |
 | `KEI_EXTRACT_TIMEOUT` | Timeout of one extraction model call, seconds; default 1800 for full-source inventory |
-| `KEI_CATALOG_CHUNKS` | Worker only: how many Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot. A recipe Catalog result records the count used as `chunks`, outside its fingerprint |
+| `KEI_CATALOG_CHUNKS` | Worker only: how many Catalog entries a durable attempt runs at once, how many unified Catalog discovery windows it asks at once, and how many calls of each role it runs at once, 1 to 64; unset means 1 (the GPU overlay sets NuExtract's `--max-num-seqs`); a bad value stops the worker at boot |
 | `KEI_MAX_UPLOAD_BYTES`, `KEI_MAX_PAGES` | Limits `convert` enforces on a staged source; default 200 MiB and 2000 pages |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `FREE_TRACE_CAPTURE` | Worker only: Compose always exports model-call traces to Phoenix; content capture is optional ([development](../../docs/operations/local-development.md#model-call-traces-phoenix), [production](../../docs/operations/deployment.md#model-call-traces-phoenix)). Standalone processes trace only when an endpoint is set |
 
@@ -220,13 +220,9 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   model that cannot take a role (NuExtract cannot reason) is refused before any
   call.
 - A result keeps ungrounded values explicit, and its `calls` lists every model
-  call: a generic Catalog record call that looped on whitespace and was read on
-  its one bounded-grammar retry is kept, failed, with `recovered: true`, and
-  does not by itself make the result incomplete.
-  Unified Catalog entry calls use the same one-retry policy for whitespace
-  loops between JSON tokens, including before a later token. Durable recovery
-  preserves the original source, guidance and budgets; Retry reuses the saved
-  recovery and completed entries.
+  call. Catalog entry calls can retry a whitespace loop between JSON tokens once
+  with a bounded grammar. Durable recovery preserves the original source,
+  guidance and budgets. Retry reuses the saved recovery and completed entries.
 - The task scope is the schema's `recordScope` (`document` for Article,
   `records` for a Catalog; `tests/fixtures/contracts/record-scope.json`). A
   declared scope must match `options.strategy`; an undeclared one (CLI,
@@ -242,10 +238,10 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   page end without a hyphen joins nothing. Complete structured replies are budgeted before admission; oversized
   batches split without truncating source evidence. Unanswered claims and malformed context replies remain
   incomplete; NONE is a completed rejection.
-  Every Catalog uses unified (result version 3). An omitted Catalog settings object uses defaults version 11.
+  Every Catalog uses unified (result version 3). An omitted Catalog settings object uses defaults version 12.
   `options.unified = {defaults, input_tokens?, output_tokens?, overlap?, candidates?, headings?}` runs the unified
   Catalog: result version 3, no recipe and no character limits (a request naming either is refused). Only defaults
-  version 11 is accepted; the number is recorded as the execution's provenance, never read as a switch.
+  version 12 is accepted; the number is recorded as the execution's provenance, never read as a switch.
   Discovery reads records across physical pages within counted token budgets, discovers peer records according to
   the schema, identifies shared table qualifications, and pipelines children discovery for settled records. A child
   owns its lines and reads its enclosing record's remaining text as context. Durable runs save entries once their
@@ -257,25 +253,29 @@ scanned OCR and Extraction; native parsing uses Docling locally.
   the record's owned ranges, not a list item's identifying anchor cell. A missing or unlocated quote stays a proposal
   without Evidence. Links keep record attribution context alongside value spans. A scalar located outside the
   record's owned ranges (inherited from a heading) requires an independent reading without the candidate value,
-  using intervening source to expose superseded headings; only an equal, source-located reading receives Evidence
-  (`verification`), and the check never substitutes a different value. Only the record's own text or its admitted
-  context can supply the supporting quote: intervening records are shown to judge supersession, not to supply
-  inherited values. Records that share their earliest admitted heading are read in one call per field, up to 16
-  records at a time: the source from that heading to the last of them is shown once, each record under its own
-  label, and each record's reading is still judged alone. With multiple inherited fields, sharing can require more
-  calls than the individual check, which batches those fields per record. A child, a record whose context does not
-  all precede it, and a shared reply that is not valid keep one call per record. Which records share a heading is
-  known once discovery is complete: a durable run that reads entries earlier keeps such a value as a
-  `verification_pending` proposal until then. A value whose own check cannot fit the verification budget (the source
-  from its heading to the record is too long) stays a `verification_over_budget` proposal: final, so the record is
-  saved and processing completes, with a `verification_over_budget` issue; only a failed or invalid reply stays
-  undecided. Disagreeing accepted values go to arbitration with their source.
+  using intervening source to expose superseded headings. That reading returns the field's value alone, or null,
+  with no quote: only a candidate it equals receives Evidence (`verification`), at the place code located for the
+  entry's own quote; a null or a different value rejects the candidate, and the check never substitutes a different
+  value. Only the record's own text or its admitted context can supply that quote: intervening records are shown
+  to judge supersession, not to supply inherited values. Records that share their earliest admitted heading are
+  read in one call per field, up to 16 records at a time: the source from that heading to the last of them is shown
+  once, each record under its own label, and each record's reading is still judged alone. With multiple inherited
+  fields, sharing can require more calls than the individual check, which batches those fields per record. A child,
+  a record whose context does not all precede it, and a shared reply that is not valid keep one call per record.
+  Which records share a heading is known once discovery is complete: a durable run that reads entries earlier keeps
+  such a value as a `verification_pending` proposal until then. A value whose own check cannot fit the verification
+  budget (the source from its heading to the record is too long) stays a `verification_over_budget` proposal:
+  final, so the record is saved and processing completes, with a `verification_over_budget` issue; only a failed or
+  invalid reply (one that is not the value alone included) stays undecided, a `verification_unresolved` proposal.
+  Disagreeing accepted values go to arbitration with their source.
   Known limits: a heading value reaches this check only when the entry model quotes the heading, although the
   entry prompt says CONTEXT is not part of the record; a model that obeys strictly leaves the field null. A list
-  item's value quoted from a sibling item's text is still located, and linked, by rule. The verification reserve
-  (2048 tokens) can cut off a long inherited value's reading, which then stays an unresolved proposal.
+  item's value quoted from a sibling item's text is still located, and linked, by rule. The independent reading
+  names no source: when it agrees, nothing tells a value it took from another record's text from one it read at
+  the admitted heading. The verification reserve (2048 tokens) can cut off a long inherited value's reading, which
+  then stays an unresolved proposal.
   There is no verification switch: Studio's Pro mode (every value judged again) is retired, unmeasured on this
-  version, and a request naming `verification` is refused. Studio admits defaults 11 for every new Catalog. The
+  version, and a request naming `verification` is refused. Studio admits defaults 12 for every new Catalog. The
   [pipeline map](docs/extraction-experiments.md#pipeline-map) traces each method's calls.
 
 Limitations:
@@ -290,8 +290,7 @@ Limitations:
   are listed as `unverified`.
 - Field instructions include allowed labels explicitly: constrained decoding
   alone does not show those choices to the instruction model.
-- Under defaults 7 heading applicability is a model judgement, not a code check
-  of heading hierarchy. A stale heading the model accepts can still be wrong.
+- The model judges heading applicability. A stale heading the model accepts can still be wrong.
   Standing headings can be omitted when requests have no room; long histories
   repeat context references and one omission row per range per entry in artifacts.
 - Native word alignment constrains physical rows; it cannot infer a missing
@@ -316,7 +315,9 @@ checks (`cancel.py`), the durable Extraction workflows (`durable_extract.py`,
 the slot lock (`slot.py`) and the `kei-worker` CLI (`cli.py`); `failures.py`
 classifies what a step raised into a retry or a portable failure code. The OCR
 runner lives in `kie/stages/ocr.py`, with native/Surya/VLM adapters in
-`transcription/` and the layout cut in `cut.py`. `models.py` holds lightweight
+`transcription/` and the layout cut in `cut.py`; `weights.py` keeps Docling's
+weights where both read them without asking the Hugging Face hub. `models.py`
+holds lightweight
 OCR records for the API; `transcription/specs.py` owns their Docling
 specifications. `kie/runner.py` orchestrates ingest and OCR;
 `kie/ingest_cache.py` owns ingest generation reuse, recovery and publication;

@@ -25,6 +25,7 @@ export const STUDIO_SYSTEM_POOL_SIZE = 5
 
 export type StudioDbosOptions = Readonly<{
   databaseUrl: string
+  keiDatabaseUrl: string
   /** Registers every Studio workflow (registerStudioWorkflows); called once, before DBOS.launch(). */
   register: () => void
   /** Only hosts apply schedules, after queue registration; test processes never sweep unless they opt in. */
@@ -106,9 +107,9 @@ async function start(options: StudioDbosOptions): Promise<StudioDbos> {
     })
     clients.push(admission)
     const kei = await DBOSClient.create({
-      // Studio's own role: kei's restricted role owns kei_dbos, and the database owner may use it. Creating a client
-      // runs no query (client.js:68-71), so Studio starts before kei has migrated its schema.
-      systemDatabaseUrl: options.databaseUrl,
+      // This login can access the queue without carrying Studio's application-data privileges. Client creation is
+      // lazy, so Studio can become healthy before kei migrates its schema.
+      systemDatabaseUrl: options.keiDatabaseUrl,
       systemDatabaseSchemaName: options.keiSchema ?? KEI_SCHEMA,
       systemDatabasePoolSize: 4,
       applicationName: KEI_APPLICATION,

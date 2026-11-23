@@ -5,6 +5,8 @@ JSON every hash is taken over. Vocabulary: [CONTEXT.md](../../CONTEXT.md). OCR e
 [canonical evidence design](2026-09-21-canonical-evidence-design.md), and segmentation by the
 [grounded catalogue design](2026-09-23-grounded-catalogue-design.md), which amends §3.6.
 
+The recipe Catalog path and its Block and HeadingEvent models (§3.6) are retired. The ingest and Span contracts still apply.
+
 ## 1. Decisions
 
 | Question | Decision | Reason |

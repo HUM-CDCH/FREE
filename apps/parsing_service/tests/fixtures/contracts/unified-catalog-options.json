@@ -1,6 +1,6 @@
 {
   "defaults": {
-    "11": {
+    "12": {
       "reserves": {
         "discovery": 4096,
         "entry": 4096,
@@ -16,25 +16,25 @@
   },
   "valid": [
     {
-      "defaults": 11
+      "defaults": 12
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "candidates": 1
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "candidates": 1024
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "input_tokens": 512,
       "output_tokens": 64,
       "overlap": 0,
       "headings": false
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "input_tokens": 1048576,
       "output_tokens": 65536,
       "overlap": 4
@@ -73,84 +73,87 @@
       "defaults": 10
     },
     {
-      "defaults": 12
+      "defaults": 11
     },
     {
-      "defaults": "11"
+      "defaults": 13
+    },
+    {
+      "defaults": "12"
     },
     {
       "defaults": null
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "verification": true
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "verification": false
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "candidates": 0
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "candidates": 1025
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "candidates": 1.5
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "candidates": true
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "input_tokens": 511
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "input_tokens": 1048577
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "output_tokens": 63
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "output_tokens": 65537
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "overlap": -1
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "overlap": 5
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "input_tokens": 1024.5
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "headings": "yes"
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "discovery_chars": 48000
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "recipe": "numbered-catalogue-de@1"
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "corrections": true
     },
     {
-      "defaults": 11,
+      "defaults": 12,
       "record_evidence": true
     }
   ]

@@ -73,7 +73,6 @@ export function methodRuleIssues(request: { method: z.output<typeof extractionMe
     context.addIssue({ code: 'custom', path: ['method', 'settings', 'article', issue.path], message: issue.message })
 }
 
-export type ExtractionRequest = z.infer<typeof extractionRequestSchema>
 export type ExtractionRequestInput = z.input<typeof extractionRequestSchema>
 
 /** A named immutable result/decision cut of a durable Extraction. */

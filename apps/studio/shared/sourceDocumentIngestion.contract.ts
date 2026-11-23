@@ -22,7 +22,6 @@ export type SourceDocumentIngestionResponse = z.output<
 
 /** What the upload POST answers once Studio admitted the attempt. The attempt may already be running or finished. */
 export const sourceIngestionAdmittedSchema = z.object({ workflowId: z.string() }).strict()
-export type SourceIngestionAdmitted = z.output<typeof sourceIngestionAdmittedSchema>
 
 /** How many workflow IDs one listing request may name explicitly. */
 export const MAX_NAMED_INGESTIONS = 50

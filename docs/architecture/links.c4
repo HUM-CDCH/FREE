@@ -1,0 +1,102 @@
+model {
+  extend studio {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/README.md 'Studio contract'
+  }
+  extend studio.ui {
+    link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/src 'Client source'
+  }
+  extend studio.key_store {
+    link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/src/modelKeys 'Browser key lifecycle'
+  }
+  extend studio.browser_http {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/src/api.ts 'Browser HTTP adapter'
+  }
+  extend studio.handlers {
+    link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/server 'Hono host and authentication'
+    link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/api 'API handlers and workflows'
+  }
+  extend studio.authentication {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/operations/entra-authentication.md 'Authentication contract'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/server/auth.ts 'Authentication boundary'
+  }
+  extend studio.durable {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/design/unified-durable-execution.md 'Durable execution specification'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/server/dbos.ts 'DBOS launch and queues'
+  }
+  extend studio.provider_registry {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/api/_provider.ts 'Provider adapters'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/adr/0008-explicit-model-provider-adapters-and-discovery.md 'Discovery contract'
+  }
+  extend studio.key_cache {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/api/_model_keys.ts 'In-memory key cache'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/adr/0013-per-researcher-model-configuration.md 'Account configuration and key boundary'
+  }
+  extend studio.extraction_module {
+    link https://github.com/HUM-CDCH/FREE/tree/dev/packages/extraction 'Extraction package'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/packages/extraction/src/durable-contract.ts 'Saved-value wire schema'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/adr/0017-durable-extraction-control-and-call-checkpoints.md 'Durable control and call checkpoints'
+  }
+  extend studio.garbage {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/api/_garbage_workflow.ts 'Garbage collection'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/design/unified-durable-execution.md#deletion-and-garbage-collection 'Deletion and quiescence contract'
+  }
+  extend studio.project_store {
+    link https://github.com/HUM-CDCH/FREE/tree/dev/packages/db 'Database and package store'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/packages/db/src/prisma/contract.prisma 'Domain database schema'
+    link https://github.com/HUM-CDCH/FREE/tree/dev/packages/db/migrations 'Authored migrations and coordination SQL'
+  }
+  extend parsing_service {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/README.md 'Parsing Service contract'
+  }
+  extend parsing_service.http_api {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/src/kei_exp/api.py 'Read API and OpenAPI source'
+  }
+  extend parsing_service.parser {
+    link https://github.com/HUM-CDCH/FREE/tree/dev/apps/parsing_service/src/kei_exp/workflows 'Worker source'
+  }
+  extend parsing_service.models {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/compose.gpu.yaml 'OCR, fields and reasoning servers'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/nuextract.template.jinja 'NuExtract chat template'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/compose.use-models.yaml 'Consume shared model servers'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/compose.provide-models.yaml 'Provide shared model servers'
+  }
+  extend parsing_service.task_cache {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/parsing_service/src/kei_exp/runs.py 'Canonical run storage'
+  }
+  extend project_db {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/packages/db/src/prisma/contract.prisma 'Authoritative domain schema'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/packages/db/src/kei-role.ts 'Restricted worker grants'
+  }
+  extend package_store {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/packages/db/src/artifact-store.ts 'Content-addressed package store'
+  }
+  extend source_inbox {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/api/_ingestion_workflow.ts 'Staged-source lifecycle'
+  }
+  extend gateway {
+    link https://github.com/HUM-CDCH/FREE/tree/dev/docker/nginx 'Shared proxy templates'
+    link https://github.com/HUM-CDCH/FREE/blob/dev/compose.nginx.yaml 'Bundled production nginx'
+  }
+  extend local_gateway {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/compose.override.yaml 'Local TLS and mock OIDC topology'
+  }
+  extend mock_oidc {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/compose.override.yaml 'Local identity service'
+  }
+  extend model_connections {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/apps/studio/shared/modelConfig.contract.ts 'Model configuration wire schema'
+  }
+  extend browser {
+    link https://github.com/HUM-CDCH/FREE/tree/dev/apps/studio/src/auth 'Browser session and sign-out'
+  }
+  extend entra {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/operations/entra-authentication.md 'Entra operations'
+  }
+  extend operator {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/docs/operations/deployment.md 'Deployment runbook'
+  }
+  extend researcher {
+    link https://github.com/HUM-CDCH/FREE/blob/dev/CONTEXT.md 'Research vocabulary'
+  }
+}
+

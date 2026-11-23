@@ -28,6 +28,13 @@ columns/tables and sets `NOT NULL` where a null meant "old row", plus a dev-DB r
 longer parse)**. Docker was not running during this survey, so no dev DB was inspected; the "dev data" column names
 the tables and JSON fields that would hold old shapes, not counts.
 
+The Spark deployment turned out to hold researcher data in these shapes (2026-11-17: 689 durable Extractions, all of
+them pinned to a retired method, and 536 corrections), so tier 2's migration does that delete itself instead of
+refusing: Article pins lose the retired keys and stay, with their corrections; every Extraction, batch and correction
+pinned to generic/recipe, a unified defaults other than 11, missing settings or a sample's pages goes
+(`adapt-historical-data.sql`). Data with no method pin to adapt (old attribution, chat kinds, suggestion and
+spreadsheet shapes) is still refused, and the refusal rolls the whole migration back.
+
 DBOS: in-flight workflows started before a patch need that patch to replay. Drain the queue or reset the `kei_dbos`
 and Studio DBOS system schemas before removing patch calls (rows 1.6, 2.9).
 
@@ -87,7 +94,7 @@ TypeScript lands first (admission stops offering generic/recipe), then Python de
 | `grounding.py` `QUOTED_GROUNDING`, `SPAN_GROUNDING`, `off`, and (PR #390) the non-bundled "legacy label replies" fixed reserve | Live: Studio's Article "Verification" control offers Source labels / Generated quotes / Source spans / Off (`advancedSettings.ts:68-70`; the schema preset uses `spans`, `:163`). The fixed-reserve branch runs exactly for Article with quoted or spans. Removing them is a product choice about those options, and it belongs to the PR #390 session. `RECORD_GROUNDING` is the bundled default for Article semantic. |
 | `schema.py` `record_scope: None` | Live Studio draft state until the researcher picks Article or Catalog; only the wording "legacy" is wrong (1.10) |
 | Article (`article.extract`) and its version 1 artifact | The only document-scope method, written today |
-| Unified defaults 11 | The one admitted version (the record-evidence integration retired 5 and 10 and Pro mode) |
+| Unified defaults 12 | The one admitted version (the record-evidence integration retired 5 and 10 and Pro mode; 12 replaced 11 with the value-only reading of inherited values) |
 | `gliformer-compatibility.ts`, `durable-feedback`/`durable-repository` correction compatibility, `historicalProposals`, retained-entry reuse ("historical" in `durable.py`, `retained.py`, `coordination.py`) | Capability checks and product features, not old-data readers |
 | `effective()`'s `model_construct` over pinned options; `ArticleOptions` serializer dropping unset factors | ADR 0015 pinning; the canonical form shared with TS `canonicalArticle` |
 | Tests asserting old shapes are refused (`model` option, legacy limits with unified, `adapterVersion`) | They guard the refusal, not the old shape |
