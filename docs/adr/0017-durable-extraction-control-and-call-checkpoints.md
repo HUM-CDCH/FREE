@@ -50,8 +50,9 @@ establish which committed correction context a new call captured.
 
 - An Extraction's status comes from its head, not from DBOS as 0012 derives
   other work's status.
-- 0015's immutable method pin applies to each linked execution selection, not
-  only to the first admission.
+- Each linked execution selection pins its method. The selections stay fixed during
+  ordinary execution. The [defaults 11 to 12 migration](0015-extraction-method-pinned-at-admission.md#amendment-2026-11-21)
+  updated executable pins and preserved historical plans, snapshots and call captures.
 - The DBOS application versions stay `studio@1` and `kei@1`: durable attempts
   are new workflows, not changed ones.
 - The [product contract](../product-contract.md) states the Extraction

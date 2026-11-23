@@ -184,10 +184,14 @@ function HistoryAudit({id}:{id:string}) {
       <section aria-label={`Recorded execution plans for input selection ${selection.ordinal}`} className="space-y-2 pt-2">
         <h3 className="m-0 text-secondary font-semibold">Recorded execution plans</h3>
         <p className="m-0 text-compact text-ink-muted">A resumed extraction can have more than one recorded plan. A plan may be saved before any values are produced.</p>
-        {executions.length?executions.map(plan=><details key={plan.id}>
-          <summary className="cursor-pointer text-compact">Catalog defaults {plan.manifest.execution.method.defaults} · generation {plan.generation}</summary>
-          <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({stage:plan.stage,digest:plan.digest,execution:plan.manifest.execution},null,2)}</pre>
-        </details>):<p className="m-0 text-compact text-ink-muted">Execution record: Not recorded</p>}
+        {executions.length?executions.map(plan=> {
+          const execution=plan.manifest.execution,defaults=execution.method?.defaults
+          const label=typeof defaults==='number'?`Catalog defaults ${defaults}`:'Recorded execution'
+          return <details key={plan.id}>
+            <summary className="cursor-pointer text-compact">{label} · generation {plan.generation}</summary>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({stage:plan.stage,digest:plan.digest,execution},null,2)}</pre>
+          </details>
+        }):<p className="m-0 text-compact text-ink-muted">Execution record: Not recorded</p>}
       </section>
       <details><summary className="cursor-pointer">Stored template and resolved inputs</summary>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,resolved:selection.resolved},null,2)}</pre>

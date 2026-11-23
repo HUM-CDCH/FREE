@@ -309,7 +309,10 @@ it('shows stored methods with their input selections, and names unresolved effec
     effective:[
       {id:'second',configuration:{models:{fields:provider('resolved-second','served-second'),reasoning:provider('reasoning-second','reasoner-second')},options:{article:{context:'full'}},planner:1,protocols:{calls:1,source:'document'}}},
       {id:'first',configuration:{models:{fields:provider('resolved-first','served-first'),reasoning:provider('reasoning-first','reasoner-first')},options:{article:{context:'bounded',context_tokens:8192}},planner:1,protocols:{calls:1,source:'document'}}},
-    ],snapshots:[],finalizations:[],captures:[],
+    ],
+    plans:[{id:'first-plan',generation:1,stage:'unified-execution:0123456789abcdef',
+      manifest:{selectionId:'first',execution:{method:null,prompt_version:11}}}],
+    snapshots:[],finalizations:[],captures:[],
   }
   vi.mocked(readDurableHistorySummary).mockResolvedValue(history as never)
   vi.mocked(readDurableHistory).mockResolvedValue(history as never)
@@ -327,6 +330,9 @@ it('shows stored methods with their input selections, and names unresolved effec
     const selection=screen.getByText(new RegExp(`^Input selection ${ordinal} · template `)).closest('details')!
     selection.open=true;fireEvent(selection,new Event('toggle'))
   }
+  const plans=within(screen.getByRole('region',{name:'Recorded execution plans for input selection 1'}))
+  const plan=openDetails(plans.getByText('Recorded execution · generation 1'))
+  expect(JSON.parse(within(plan).getByText(/"execution":/).textContent!).execution).toEqual({method:null,prompt_version:11})
   const first=within(screen.getByRole('region',{name:'Stored settings for input selection 1'}))
   expect(first.getByText(/served-first · model key resolved-first · gliformer adapter version 1/)).toBeVisible()
   expect(first.getByText(/reasoner-first · model key reasoning-first/)).toBeVisible()
