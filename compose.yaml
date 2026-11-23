@@ -168,8 +168,6 @@ services:
       # on this server's own CLI login and billing, so none is enabled unless
       # the operator sets it; the development overlay enables both.
       FREE_DEPLOYMENT_CLI_PROVIDERS: "${FREE_DEPLOYMENT_CLI_PROVIDERS:-}"
-      # `unified` admits new Catalog Extractions on the unified Catalog method; unset keeps the legacy generic and
-      # recipe Catalog. Set it only after the unified method passes a held-out evaluation (docs/operations/deployment.md).
       # Developer-only evaluation: `1` exposes the read-only round panel and
       # (with the production launcher) starts the eval_watcher profile.
       FREE_DEVELOPER_EVAL: "${FREE_DEVELOPER_EVAL:-}"

@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createServer, type Plugin } from 'vite'
+import { createServer, loadEnv, type Plugin } from 'vite'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import studioConfig, {
   apiFunctions,
@@ -12,6 +12,11 @@ import studioConfig, {
 } from './vite.config.js'
 
 const temporaryDirectories: string[] = []
+
+vi.mock('vite', async (importOriginal) => {
+  const vite = await importOriginal<typeof import('vite')>()
+  return { ...vite, loadEnv: vi.fn(vite.loadEnv) }
+})
 
 vi.mock('node:fs', async (importOriginal) => {
   const fs = await importOriginal<typeof import('node:fs')>()
@@ -23,6 +28,15 @@ it.each(['serve', 'build'] as const)('resolves %s config without copying assets'
   vi.mocked(cpSync).mockClear()
   await studioConfig({ command, mode: 'development' })
   expect(cpSync).not.toHaveBeenCalled()
+})
+
+it('keeps absent host database URLs unset when the root environment has no values', async () => {
+  vi.stubEnv('DATABASE_URL', undefined)
+  vi.stubEnv('FREE_KEI_QUEUE_DATABASE_URL', undefined)
+  vi.mocked(loadEnv).mockReturnValueOnce({}).mockReturnValueOnce({})
+  await studioConfig({ command: 'serve', mode: 'development' })
+  expect(process.env.DATABASE_URL).toBeUndefined()
+  expect(process.env.FREE_KEI_QUEUE_DATABASE_URL).toBeUndefined()
 })
 
 describe('PDF.js assets', () => {

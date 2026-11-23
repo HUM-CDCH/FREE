@@ -7,6 +7,7 @@
     "extraction-runtime.codex-extraction",
     "extraction-runtime.value-disagreement",
     "retired-contracts.require-current-data",
+    "retired-contracts.retained-article-options",
     "unified-catalog.defaults-12"
   ]
 }

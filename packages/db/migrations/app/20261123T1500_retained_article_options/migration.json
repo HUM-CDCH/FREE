@@ -1,0 +1,9 @@
+{
+  "from": "sha256:fc21067bccaa9c0a1d7dc4dd05201b0fbf04b197346abc19f290ae15c8d1eb5f",
+  "to": "sha256:fc21067bccaa9c0a1d7dc4dd05201b0fbf04b197346abc19f290ae15c8d1eb5f",
+  "providedInvariants": [
+    "retired-contracts.retained-article-options"
+  ],
+  "createdAt": "2026-11-23T09:24:49.224Z",
+  "migrationHash": "sha256:73b93913a21cd3af0660d0f78ef5304c537f4051cea36ef518f5508c6608cc22"
+}

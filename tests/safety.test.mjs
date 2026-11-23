@@ -241,6 +241,9 @@ test('production: the NVFP4 overlay replaces the instruction model and runs fewe
   assert.equal(command[command.indexOf('--kv-cache-memory-bytes') + 1], '8G')
   assert.equal(command[command.indexOf('--max-num-seqs') + 1], '4')
   assert.equal(config.services.parsing_service.environment.KEI_EXTRACT_MODEL, command[0])
+  const evaluation = renderProductionCompose({ ...completeProductionEnvironment('/tmp/free-test-client.pem'), FREE_DEVELOPER_EVAL: '1' },
+    ['-f', 'compose.gpu.yaml', '-f', 'compose.nvfp4.yaml'])
+  assert.equal(evaluation.services.eval_watcher.environment.KEI_EXTRACT_MODEL, command[0])
 })
 
 test('production tracing: enabled by default with content capture off', () => {
