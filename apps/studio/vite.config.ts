@@ -216,8 +216,8 @@ export default defineConfig(({ command, mode }) => {
   )
   if (command === 'serve') {
     const root = loadEnv(mode, resolve(import.meta.dirname, '../..'), '')
-    process.env.DATABASE_URL ??= root.DATABASE_URL
-    process.env.FREE_KEI_QUEUE_DATABASE_URL ??= root.FREE_KEI_QUEUE_DATABASE_URL
+    if (root.DATABASE_URL !== undefined) process.env.DATABASE_URL ??= root.DATABASE_URL
+    if (root.FREE_KEI_QUEUE_DATABASE_URL !== undefined) process.env.FREE_KEI_QUEUE_DATABASE_URL ??= root.FREE_KEI_QUEUE_DATABASE_URL
   }
   return {
     base: command === 'build' ? './' : studioBaseHref(basePath),
