@@ -10,7 +10,7 @@ import { Button } from './ui'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
 import ReviewedValueDisplay, { type PartPick } from './ui/ReviewedValueDisplay'
 
-function RowGlyph({ row }: { row: RailRow }) {
+export function RowGlyph({ row }: { row: RailRow }) {
   switch (row.kind) {
     case 'to-check': return <ToCheckGlyph />
     case 'approved': return <ApprovedGlyph />
@@ -113,11 +113,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
           {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} path={row.resultPath} pick={pick} />}
           {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted [overflow-wrap:anywhere]">Original: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
-          {linked && (
-            <>
-              {row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span>{row.doubt}</span></p>}
-            </>
-          )}
+          {linked && row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span>{row.doubt}</span></p>}
           {support && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span>{support.text}</span></p>}
           {!linked && row.evidence && (
             <>

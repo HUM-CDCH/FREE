@@ -20,10 +20,7 @@ const checkRank = (row: RailRow) => checkCue(row)?.rank ?? ORDINARY
 export const checkReason = (row: RailRow) => checkCue(row)?.text ?? null
 
 export const hasPriority = (items: readonly QueueItem[]) =>
-  items.some(({ row }) => checkRank(row) !== ORDINARY)
-
-export const needsPriority = (item: QueueItem) =>
-  item.row.kind === 'to-check' && checkRank(item.row) !== ORDINARY
+  items.some(({ row }) => checkCue(row) !== null)
 
 /** Queue reviewable scalars once. An unresolved disagreement and a value with no populated parts stay whole. */
 export function oneByOneQueue(model: RailModel, prioritize = true): QueueItem[] {

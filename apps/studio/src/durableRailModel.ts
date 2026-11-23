@@ -53,6 +53,7 @@ const judgmentsByPath = indexed((check: NonNullable<RetainedValue['check']>) => 
  *  edited list an index can name another item, so an item keeps its links only where the list keeps its length and the
  *  item reads once in the model's and once in the edit, at the same index; no insert, drop or reorder of equal items. */
 export function valueParts(value: RetainedValue): ValuePart[] {
+  if (value.node.type !== 'object' && value.node.type !== 'array') return []
   const parts: ValuePart[] = []
   const action = value.correction?.decision.action
   const eligible = action === 'EDITED' || action === 'REJECTED' ? [] : tableCellReview(value).paths
@@ -85,7 +86,7 @@ export function valueParts(value: RetainedValue): ValuePart[] {
     }
     else part(path, name, at, read, kept)
   }
-  if (value.node.type === 'object' || value.node.type === 'array') walk(value.node, reviewedValue(value), value.modelValue, [...value.path], [value.node.name], true)
+  walk(value.node, reviewedValue(value), value.modelValue, [...value.path], [value.node.name], true)
   return parts
 }
 

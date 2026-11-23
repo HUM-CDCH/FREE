@@ -1,24 +1,16 @@
 import DisagreementChoice from './DisagreementChoice'
+import { RowGlyph } from './ReviewRow'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { checkReason, type QueueItem } from './reviewQueue'
 import { DECISION_WORD, type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
-import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
+import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
 import ReviewedValueDisplay, { type PartPick } from './ui/ReviewedValueDisplay'
 
 const Kbd = ({ children }: { children: string }) =>
   <kbd aria-hidden="true" className="rounded border border-current/30 px-1 font-mono text-compact font-normal opacity-80">{children}</kbd>
-
-function QueueGlyph({ row }: { row: RailRow }) {
-  switch (row.kind) {
-    case 'approved': return <ApprovedGlyph />
-    case 'edited': return <EditedGlyph />
-    case 'rejected': return <RejectedGlyph />
-    default: return <ToCheckGlyph />
-  }
-}
 
 /**
  * One by one: the same rail as a card for the current value, its record's queue,
@@ -62,15 +54,16 @@ export default function ReviewFocus({ article, items, position, current, part, r
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <ol aria-label={article ? 'Values in review order' : `${recordLabel}, values in review order`} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
-          {items.map((item) => (
-            <li key={item.key}>
+          {items.map((item) => {
+            const itemReason = checkReason(item.row)
+            return <li key={item.key}>
               <button type="button" disabled={locked} aria-current={item.key === key ? 'step' : undefined} onClick={() => onGo(item.key)}
-                aria-label={`${fieldWords(item.row.name)}, ${stateLabel(item.row).toLowerCase()}${checkReason(item.row) ? `, ${checkReason(item.row)}` : ''}`}
-                className={`flex size-6 cursor-pointer items-center justify-center rounded border ${checkReason(item.row) && item.row.kind === 'to-check' ? 'border-dashed border-ev' : 'border-line'} ${item.key === key ? 'outline-2 outline-accent' : ''}`}>
-                <QueueGlyph row={item.row} />
+                aria-label={`${fieldWords(item.row.name)}, ${stateLabel(item.row).toLowerCase()}${itemReason ? `, ${itemReason}` : ''}`}
+                className={`flex size-6 cursor-pointer items-center justify-center rounded border ${itemReason && item.row.kind === 'to-check' ? 'border-dashed border-ev' : 'border-line'} ${item.key === key ? 'outline-2 outline-accent' : ''}`}>
+                <RowGlyph row={item.row} />
               </button>
             </li>
-          ))}
+          })}
         </ol>
         <span className="flex-1" />
         {position && <span className="text-compact text-ink-muted tabular-nums">{`${order?.priority ? 'Check first' : 'Document order'} · ${position.at} of ${position.of}`}</span>}

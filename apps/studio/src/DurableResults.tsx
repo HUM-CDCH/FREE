@@ -24,7 +24,7 @@ import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markVa
 import { provisionalMarks } from './provisionalMarks'
 import { recordBlocks, type RecordBlock } from './recordBlocks'
 import type { MarkInfo } from './useEvidenceOverlays'
-import { checkReason, forwardItems, hasPriority, needsPriority, nextToCheck, oneByOneQueue, previousInQueue, queuePosition, type QueueItem } from './reviewQueue'
+import { checkReason, forwardItems, hasPriority, nextToCheck, oneByOneQueue, previousInQueue, queuePosition, type QueueItem } from './reviewQueue'
 import { fieldWords, passesFilter, shownValue, stateLabel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from 'extraction/durable-types'
 import type { SelectionChannel } from './selectionChannel'
@@ -35,8 +35,6 @@ import { keyAction } from './reviewKeys'
 import { tableCellReview } from 'extraction/table-cell-review'
 
 type Value=DurablePage['values'][number]
-/** A value whose parts (nested fields, table cells, list entries) carry their own Evidence links. */
-const composite=(value:Value)=>value.node.type==='object'||value.node.type==='array'
 const inputClass='w-full rounded-md border border-line bg-surface px-3 py-2 text-secondary text-ink focus-visible:outline-accent'
 const linkClass='cursor-pointer text-accent underline'
 /** Admitted work whose lifecycle can still change without a researcher's command. */
@@ -426,12 +424,12 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const order=(documentOrder||hasPriority(queue))?{priority:!documentOrder,onToggle:()=>setDocumentOrder(previous=>!previous)}:undefined
   // The open composite value's parts as shown, an edited one's linked only where unchanged (`valueParts`). The chosen
   // part (its mark key) is what the value shows on the source: its link (none when it has none), else the value's first.
-  const reviewParts=useMemo(()=>review&&composite(review.value)?valueParts(review.value):[],[review])
+  const reviewParts=useMemo(()=>review?valueParts(review.value):[],[review])
   const [part,setPart]=useState<string|null>(null)
   const [listAnchor,setListAnchor]=useState<string|null>(null)
-  const chosenPart=part&&reviewParts.some(each=>each.key===part)?part:null
-  const activeQueueKey=chosenPart??review?.value.id??null
-  const activeLink=chosenPart?reviewParts.find(each=>each.key===chosenPart)?.link??null:review?.value.links[0]??null
+  const chosenPart=part?reviewParts.find(each=>each.key===part):undefined
+  const activeQueueKey=chosenPart?.key??review?.value.id??null
+  const activeLink=chosenPart?chosenPart.link:review?.value.links[0]??null
   // What one-by-one follows on the source for a value: its link, once the source is there and the rail is open.
   const followKeyFor=useCallback((value:Value,version:number,link:EvidenceLink|null)=>railOpen&&focus&&document
     ?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${version}:${value.id}:${link?JSON.stringify(link.resultPath):''}:${link?.evidenceAnchorId??''}:${link?.precision??''}`:null,
@@ -519,7 +517,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     const savedLinks=[...displayed.flatMap(value=> {
       // A composite value's link to one of its parts is that part's mark, named by it; a link no part names, or one to a
       // part an edit changed (so it has no link), stays the value's.
-      const parts=new Map(composite(value)?valueParts(value).filter(part=>part.link).map(part=>[JSON.stringify(part.path),part]):[])
+      const parts=new Map(valueParts(value).filter(part=>part.link).map(part=>[JSON.stringify(part.path),part]))
       // The correction's Evidence is its own mark, named as its value: it lights with any part chosen (`ownsMark`).
       const parent=describe.get(value.id),own=value.correction?.decision.evidence??[]
       if(parent&&own.length)describe.set(`${value.id}#correction`,parent)
@@ -540,8 +538,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     }
     // Every value's marks stay on the source; the chosen one is emphasized among them, not shown alone.
     // Record blocks go beside the links, never among them: they are no Evidence, and nothing selects them.
-    selection.publish({marks:{describe,selected:review?chosenPart??review.value.id:null,savedLinks,extractionId:id,records:blocks}})
-  },[model,page,selection,review,document,blocks,id,chosenPart,fieldOrder,previews,displayed])
+    selection.publish({marks:{describe,selected:activeQueueKey,savedLinks,extractionId:id,records:blocks}})
+  },[model,page,selection,review,document,blocks,id,activeQueueKey,fieldOrder,previews,displayed])
   useEffect(()=>()=>{selection.publish({marks:null,dim:null});selection.hover(null)},[selection])
   useEffect(()=>{
     const {reviewId,onEvidence,requestTaken,activeLink:link}=followRef.current
@@ -666,7 +664,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const shownVersion=review?page.values.find(value=>value.id===review.value.id):undefined
   const inline=Boolean(shownVersion)
   // Picking a part of the open value shows its Evidence once, as choose does a value's; one by one, the follow does.
-  const pick:PartPick|undefined=review&&reviewParts.length?{valueId:review.value.id,selected:chosenPart,
+  const pick:PartPick|undefined=review&&reviewParts.length?{valueId:review.value.id,selected:chosenPart?.key??null,
     parts:new Map(reviewParts.map(each=>[each.key,each])),onPick:key=> {
       setPart(key)
       const link=key===null?review.value.links[0]:reviewParts.find(each=>each.key===key)?.link
@@ -698,7 +696,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     else if(markValueId(next)!==value.id)selectValue(next)
     else setPart(next)
   }
-  const valueReview=review&&<ValueReview part={reviewParts.find(each=>each.key===chosenPart)} pick={pick} onCellsChanged={onCellsChanged} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
+  const valueReview=review&&<ValueReview part={chosenPart} pick={pick} onCellsChanged={onCellsChanged} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onNext={openNext} onPrevious={()=>selectValue(previousInQueue(queue,activeQueueKey??review.value.id))} onGo={selectValue} queue={queue} blocked={blocked} keyboardRoot={keyboardRoot} headerSlot={headerSlot}
     order={order}
     menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly||historical}/>
@@ -706,7 +704,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const anchoredKey=listAnchor&&review?.value.id===markValueId(listAnchor)?listAnchor:null
   const prioritized=documentOrder?[]:queue.filter(item=>{
     const selected=item.key===anchoredKey
-    return (needsPriority(item)||selected&&Boolean(checkReason(item.row)))&&
+    return (item.row.kind==='to-check'||selected)&&checkReason(item.row)!==null&&
       (passesFilter(item.row,filter)||selected||linkedKeys.has(item.key))
   })
   const inlineKey=anchoredKey&&prioritized.some(item=>item.key===anchoredKey)?anchoredKey:review?.value.id??null
