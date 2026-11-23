@@ -468,6 +468,8 @@ function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
     id: node.id,
     name: edit.name,
     ...(description && { description }),
+    // The compact template a chat edit returns cannot hold valueSource, so an edit never changes it.
+    ...(node.valueSource && { valueSource: node.valueSource }),
     ...(node.evidencePolicy && { evidencePolicy: node.evidencePolicy }),
   }
 
