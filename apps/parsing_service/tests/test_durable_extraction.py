@@ -714,6 +714,15 @@ def test_completed_document_fields_are_carried_without_another_call():
     assert carried=={"title":"Document title"}
 
 
+def test_field_meaning_reads_a_suggested_note_as_no_note():
+    from kei_exp.kie.extract.durable import field_meaning
+    node={"id":"person","name":"person","type":"object","children":[{"id":"Z","name":"name","type":"string"},{"id":"a","name":"age","type":"integer"}]}
+    suggested={**node,"description":"Generated.","descriptionSource":"suggested","children":[
+        {**node["children"][0],"description":"Generated.","descriptionSource":"suggested"},node["children"][1]]}
+    assert field_meaning(suggested)=="f9283904936a43435df32890e041320ea421d6b269ae281ca876ebc11e659626"
+    assert field_meaning({**node,"description":"Generated."})!=field_meaning(node)
+
+
 def test_renamed_composites_carry_typed_children_and_keep_conflicting_proposals():
     from kei_exp.kie.extract.retained import publish_values
     from kei_exp.kie.extract.durable import field_meaning

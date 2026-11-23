@@ -28,7 +28,9 @@ def digest(body):
 
 
 def field_meaning(node):
-    meaning={k:v for k,v in node.items() if k not in ("id","name","children")}
+    # A suggested note never reaches extraction, so it counts as no note (as in `_guidance_node`).
+    hidden=("id","name","children","descriptionSource")+(("description",) if node.get("descriptionSource")=="suggested" else ())
+    meaning={k:v for k,v in node.items() if k not in hidden}
     if "children" in node:
         meaning["children"]=sorted([[child["id"],field_meaning(child)] for child in node["children"]])
     return digest(meaning)
