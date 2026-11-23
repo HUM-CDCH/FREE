@@ -203,6 +203,7 @@ describe('deriveSchemaProposal', () => {
     ['replace', { description: 'New note.' }, 'New note.', undefined],
     ['same text', { description: ' Original note. ' }, 'Original note.', 'suggested'],
     ['rename only', { name: 'heading' }, 'Original note.', 'suggested'],
+    ['rename with the same note', { name: 'heading', description: ' Original note. ' }, 'Original note.', 'suggested'],
     ['type change only', { type: 'date' }, 'Original note.', 'suggested'],
     ['change to group', { type: 'object' }, undefined, undefined],
     ['clear', { description: '' }, undefined, undefined],

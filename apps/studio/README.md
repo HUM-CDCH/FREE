@@ -80,8 +80,11 @@ inference call. A Schema Suggestion (single or batch, each window and each
 combination) returns the same sidecar with one definition per scalar field, and
 asks for each group's definition in its `_description`; those definitions are
 saved as editable suggestions with each Schema Revision. A suggested note
-enters Extraction context after the researcher changes its text in the editor
-and saves it. Clearing the note removes it from context. A suggestion's malformed
+enters Extraction context once its text is changed, in the editor or by a chat
+proposal the researcher applies, and saved. Regenerating keeps a note the
+researcher wrote as theirs when the suggestion returns it with the same text at
+the same field path; returned reworded, it is a suggestion again. Clearing the
+note removes it from context. A suggestion's malformed
 or unmatched note is dropped rather than failing it, and a reply without the
 sidecar (as a NuExtract template-generation reply may be) has no scalar notes. Extraction
 templates keep their existing form. In the document workspace the chat
