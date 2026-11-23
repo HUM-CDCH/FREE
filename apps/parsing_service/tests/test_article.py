@@ -53,6 +53,33 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert not result["complete"] and result["ungrounded"]  # a model's NONE remains explicit
 
 
+@pytest.mark.parametrize(("note", "expected"), [
+    ({"description": "Generated note.", "descriptionSource": "suggested"}, None),
+    ({"description": "Researcher note."}, "Researcher note."),
+    ({}, None),
+])
+def test_article_model_context_uses_only_saved_instruction_notes(note, expected):
+    schema = Schema.model_validate({"recordDescription": "One find.", "schemaNodes": [
+        {"id": "details", "name": "details", "type": "object",
+         "description": "Generated group note.", "descriptionSource": "suggested", "children": [
+            {"id": "site", "name": "site", "type": "string", **note},
+         ]},
+    ]})
+    seen = []
+
+    def fields(system, user, output):
+        seen.append((system, user, output))
+        return {"details": {"site": "Hill"}}
+
+    extract_record(passages(["Find at Hill."]), schema, CountingChat(fields), budget=1000,
+                   counter=WordCounter(), document=True)
+    assert len(seen) == 1
+    system, user, output = seen[0]
+    assert [line for line in system.splitlines() if line.startswith("- details.site:")] == (
+        [f"- details.site: {expected}"] if expected else [])
+    assert "Generated" not in repr((system, user, output))
+
+
 def test_article_names_the_source_the_engine_never_read(monkeypatch):
     """A segment the engine failed to read was extracted from by no value context: the run names it, never silently
     reporting the same completeness as a run that read the whole source."""

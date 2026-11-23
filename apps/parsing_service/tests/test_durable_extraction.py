@@ -346,10 +346,17 @@ def test_empty_final_publication_saves_completion_proof_without_inventing_values
 
 
 def test_capture_freezes_guidance_before_provider_and_pause_refuses_new_units():
-    node={"id":"field","name":"title","type":"string"}
+    from kei_exp.kie.extract.durable import field_meaning
+
+    node = {"id": "field", "name": "details", "type": "object",
+            "description": "Generated group note.", "descriptionSource": "suggested", "children": [
+                {"id": "title", "name": "title", "type": "string", "description": "Researcher note."},
+                {"id": "site", "name": "site", "type": "string",
+                 "description": "Generated child note.", "descriptionSource": "suggested"},
+            ]}
     lease=MemoryLease({"recordDescription":"document","schemaNodes":[node]})
-    candidate={"id":"correction","fieldId":"field","meaning":digest({"type":"string"}),
-               "value":"corrected without Evidence","grounded":False,"node":node}
+    candidate={"id":"correction","fieldId":"field","meaning":field_meaning(node),
+               "value":{"title":"corrected without Evidence","site":None},"grounded":False,"node":node}
     lease.candidates=[{"id":"revision","candidate":candidate}]
     chat=CountingChat(lambda *_:{"title":"target"});chat.max_tokens=10
     args=dict(stage="record",record=0,system="Read target only",user="source",schema={"type":"object"})
@@ -357,6 +364,9 @@ def test_capture_freezes_guidance_before_provider_and_pause_refuses_new_units():
         CapturePlanner(lease,{"fields":Counter()}).complete(chat,**args)
     unit=next(iter(lease.units.values()));captured=deepcopy(unit["input"])
     assert captured["request"]["examples"]==[candidate]
+    system = captured["request"]["body"]["system"]
+    assert "Researcher note." in system and "corrected without Evidence" in system
+    assert "Generated group note." not in system and "Generated child note." not in system
     lease.candidates=[]
     with pytest.raises(NeedsCall):
         CapturePlanner(lease,{"fields":Counter()}).complete(chat,**args)
@@ -701,6 +711,15 @@ def test_completed_document_fields_are_carried_without_another_call():
     remaining,carried=document_inputs(router,Schema.model_validate(lease.state["selection"]["schemaTree"]))
     assert not remaining.document_nodes
     assert carried=={"title":"Document title"}
+
+
+def test_field_meaning_reads_a_suggested_note_as_no_note():
+    from kei_exp.kie.extract.durable import field_meaning
+    node={"id":"person","name":"person","type":"object","children":[{"id":"Z","name":"name","type":"string"},{"id":"a","name":"age","type":"integer"}]}
+    suggested={**node,"description":"Generated.","descriptionSource":"suggested","children":[
+        {**node["children"][0],"description":"Generated.","descriptionSource":"suggested"},node["children"][1]]}
+    assert field_meaning(suggested)=="f9283904936a43435df32890e041320ea421d6b269ae281ca876ebc11e659626"
+    assert field_meaning({**node,"description":"Generated."})!=field_meaning(node)
 
 
 def test_renamed_composites_carry_typed_children_and_keep_conflicting_proposals():

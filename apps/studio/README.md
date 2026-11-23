@@ -68,10 +68,14 @@ editing proposals come from the Schema Suggestion Route (ADR 0022) and never
 change the pinned Schema Revision. The schema chat answers questions about the
 source instead of proposing or recording them (ADR 0023), on the Interaction
 Route when Schema Suggestion is NuExtract.
-Scalar field notes in an edit travel beside the compact `template` in the same
-model response, as `fieldDescriptions` entries with exact revised field-name
-paths and either a description or `clear: true`. Missing entries or null leave
-notes unchanged; `clear: true` or an empty description string clears one.
+Field notes in an edit, a group's too, travel beside the compact `template` in
+the same model response, as `fieldDescriptions` entries with exact revised
+field-name paths and either a description or `clear: true`. The edit's template
+is sent without group notes, and a group `_description` the model returns inside
+it is read only for a group the edit adds, so an existing note changes only when
+an entry asks for it. Missing entries
+or null leave notes unchanged, also when the field changes between a single
+value and a group; `clear: true` or an empty description string clears one.
 A clear entry cannot also supply a description. These entries become the ordinary per-field proposal
 the researcher reviews and applies, including description-only edits. Invalid,
 duplicate, ambiguous or unknown note targets fail the proposal without saving
@@ -79,10 +83,14 @@ any changes. The envelope uses the selected Schema Suggestion Route and adds no
 inference call. A Schema Suggestion (single or batch, each window and each
 combination) returns the same sidecar with one definition per scalar field, and
 asks for each group's definition in its `_description`; those definitions are
-saved as the fields' ordinary notes, which the researcher reads and edits like
-any other and which extraction receives as they stand. A suggestion's malformed
+saved as editable suggestions with each Schema Revision. A suggested note
+enters Extraction context once its text is changed, in the editor or by a chat
+proposal the researcher applies, and saved. Regenerating keeps a note the
+researcher wrote as theirs when the suggestion returns it with the same text at
+the same field path; returned reworded, it is a suggestion again. Clearing the
+note removes it from context. A suggestion's malformed
 or unmatched note is dropped rather than failing it, and a reply without the
-sidecar (as a NuExtract template-generation reply may be) simply has no notes. Extraction
+sidecar (as a NuExtract template-generation reply may be) has no scalar notes. Extraction
 templates keep their existing form. In the document workspace the chat
 is docked under every rail tab and offers the next step (Generate schema, a
 proposal, the Record Scope, Run extraction, Results) as a card that Studio

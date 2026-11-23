@@ -120,6 +120,16 @@ def test_schema_keeps_material_guidance_without_synthesizing_a_boolean():
     assert shape["record"]["fields"] == ["grave_id", "sex"]
     assert "Leather, skins, hides and fur" in shape["record"]["children"]["leather_mentions"]["description"]
 
+    schema = request().schema_
+    group = next(node for node in schema.record_nodes if node.name == "leather_mentions")
+    group.description = "Suggested group instruction."
+    group.description_source = "suggested"
+    group.children[0].description_source = "suggested"
+    shape = native_schema(schema)
+    assert "Suggested group instruction." not in str(shape)
+    assert "Leather, skins, hides and fur" not in str(shape)
+    assert shape["record"]["children"]["leather_mentions"]["description"].startswith("leather_mentions")
+
 
 def test_entry_isolation_raw_values_and_scores(tmp_path):
     source = evidence("200. Male with goatskin.\n204. Adult male with twigs and matting.\nVorwort summary")

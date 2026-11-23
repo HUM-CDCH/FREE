@@ -457,17 +457,17 @@ function addedSchemaNode(id: string, name: string, addition: SchemaAddition): Sc
 
 function changeNodeType(node: SchemaNode, edit: FieldEdit): SchemaNode {
   const existingContainer = node.children !== undefined
-  const requestedContainer = edit.type === 'object' || (edit.type === 'array' && edit.itemType === null)
-  const crossesContainerBoundary = requestedContainer !== existingContainer
-  const description = edit.description != null
-    ? edit.description.trim() || undefined
-    : !crossesContainerBoundary
-      ? node.description
-      : undefined
+  // An edit that brings no note leaves the field's note as it is, across the scalar/group boundary too.
+  const description = edit.description != null ? edit.description.trim() || undefined : node.description
+  // A note whose text the edit changed is the researcher's approved note: only an unchanged one stays suggested.
+  const keepSource = description && description.trim() === node.description?.trim()
   const base = {
     id: node.id,
     name: edit.name,
     ...(description && { description }),
+    ...(keepSource && node.descriptionSource && { descriptionSource: node.descriptionSource }),
+    // The compact template a chat edit returns cannot hold valueSource, so an edit never changes it.
+    ...(node.valueSource && { valueSource: node.valueSource }),
     ...(node.evidencePolicy && { evidencePolicy: node.evidencePolicy }),
   }
 

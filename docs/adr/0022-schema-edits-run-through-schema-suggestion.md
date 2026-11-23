@@ -29,7 +29,9 @@ repair call is gone.
 - The Interaction Route no longer runs model work of its own; it remains the default an unset Schema Suggestion
   Route follows.
 - A compact template carries no scalar field notes. The edit response now carries those changes separately as
-  `fieldDescriptions`, including explicit clears; Studio presents them for review before applying them. The
+  `fieldDescriptions`, including explicit clears; Studio presents them for review before applying them. A
+  group's note changes the same way: a group `_description` inside an edit reply counts only for a group the
+  edit adds. The
   [Studio protocol](../../apps/studio/README.md#schema-suggestion-and-editing) describes this later extension.
 - A change to the root record description, or to field order, is not proposed.
 - A rename the comparison cannot pair is proposed as a removal and an addition.

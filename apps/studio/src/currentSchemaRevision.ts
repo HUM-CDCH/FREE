@@ -75,6 +75,20 @@ function normalizeSchemaDefinition(
   }
 }
 
+function generatedDefinition(template: unknown, notes: readonly FieldNote[], base: SchemaDefinition | null): SchemaDefinition {
+  const definition = normalizeSchemaDefinition(templateToSchemaDefinition(template, notes))
+  if (!base) return definition
+  const noteKey = (path: readonly string[], text: string) => JSON.stringify([...path, text.trim()])
+  const researcherNotes = new Set<string>()
+  for (const { path, node } of enumerateFieldPaths(base.schemaNodes)) {
+    if (node.description && !node.descriptionSource) researcherNotes.add(noteKey(path, node.description))
+  }
+  for (const { path, node } of enumerateFieldPaths(definition.schemaNodes)) {
+    if (node.description && researcherNotes.has(noteKey(path, node.description))) delete node.descriptionSource
+  }
+  return definition
+}
+
 /**
  * Durability over Extraction Schema revisions. Wraps the save coordinator
  * (debounce → optimistic-conflict-checked append) as an internal detail; the
@@ -688,8 +702,7 @@ export function createSchemaEditorController(
         })
         if (abort.signal.aborted || disposed) return
         if (input || proposal || baseScope !== currentScope() || epoch !== replacementVersion || (base === null ? draft !== null : !draft || !sameSchemaDefinition(base, draft))) throw new Error('The template changed during generation. Generate again from the current template.')
-        const parsed = templateToSchemaDefinition(generatedSchema, notes)
-        const definition = normalizeSchemaDefinition(parsed)
+        const definition = generatedDefinition(generatedSchema, notes, base)
         if (!(await adoptGenerated(definition, declared, abort.signal))) return
         generating = false
         publish()
@@ -719,7 +732,7 @@ export function createSchemaEditorController(
       if (!onBase) return false
       let definition: SchemaDefinition
       try {
-        definition = normalizeSchemaDefinition(templateToSchemaDefinition(template, fieldDescriptions))
+        definition = generatedDefinition(template, fieldDescriptions, save?.acknowledged ?? null)
       } catch {
         return false
       }
