@@ -33,7 +33,7 @@ let after: number
 
 beforeAll(async () => {
   before = await clockMs()
-  launched = await launchStudioDbos({ databaseUrl: url, ...schemas, register: () => undefined })
+  launched = await launchStudioDbos({ databaseUrl: url, keiDatabaseUrl: url, ...schemas, register: () => undefined })
   after = await clockMs()
 })
 

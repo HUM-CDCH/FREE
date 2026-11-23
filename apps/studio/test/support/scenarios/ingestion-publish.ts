@@ -8,12 +8,7 @@ import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../serve
 import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
 import { sourceConversionWorkflowPorts } from '../../../server/workflows.js'
 import { ingestionStoreFor, uploadRequest } from '../ingestion.js'
-
-function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (!value) throw new Error(`The ingestion-publish scenario needs ${name}.`)
-  return value
-}
+import { requiredScenarioValue, scenarioDbosOptions } from '../scenarioEnvironment.js'
 
 /** Dies (SIGKILL) right after the first run's publication commits, before DBOS checkpoints the step. */
 function killAfterPublish(store: IngestionStore, firstRun: boolean): IngestionStore {
@@ -34,16 +29,14 @@ function killAfterPublish(store: IngestionStore, firstRun: boolean): IngestionSt
  * mode as the workflow is about to hand the file to kei. A later run recovers the workflow and waits for it.
  */
 export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.ProcessEnv }): Promise<void> {
-  const mode = required(env, 'FREE_TEST_INGESTION_MODE')
-  const owner = required(env, 'FREE_TEST_ACCOUNT')
-  const projectContextId = required(env, 'FREE_TEST_PROJECT')
-  const packageStore = createCanonicalPackageStore(required(env, 'FREE_TEST_PACKAGE_ROOT'))
+  const required = requiredScenarioValue(env, 'ingestion-publish')
+  const mode = required('FREE_TEST_INGESTION_MODE')
+  const owner = required('FREE_TEST_ACCOUNT')
+  const projectContextId = required('FREE_TEST_PROJECT')
+  const packageStore = createCanonicalPackageStore(required('FREE_TEST_PACKAGE_ROOT'))
   const ownersStore = ingestionStoreFor(packageStore)
   await launchStudioDbos({
-    databaseUrl: required(env, 'DATABASE_URL'),
-    schema: required(env, 'FREE_TEST_DBOS_SCHEMA'),
-    keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'),
-    executorId: required(env, 'FREE_TEST_EXECUTOR'),
+    ...scenarioDbosOptions(required),
     register: () =>
       registerIngestionWorkflow(() => {
         const ports = sourceConversionWorkflowPorts()
@@ -64,7 +57,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
       }),
   })
   if (firstRun) {
-    const pdf = new Uint8Array(await readFile(required(env, 'FREE_TEST_PDF')))
+    const pdf = new Uint8Array(await readFile(required('FREE_TEST_PDF')))
     const response = await createSourceDocumentIngestion(createResearcherProjectStore(owner), { packageStore })(
       uploadRequest(projectContextId, pdf),
     )

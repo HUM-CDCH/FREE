@@ -457,7 +457,7 @@ describe('marks select their values', () => {
 })
 
 describe('correction marks', () => {
-  it('names a value once when its model and correction Evidence share a passage, lit while one of its parts is chosen', async () => {
+  it.each([false, true])('describes shared model and correction Evidence (distinct readings: %s)', distinct => {
     const parsedDocument = decodeParsedDocument(parsedFixture)
     const anchor = parsedDocument.evidence_index.anchors[0]
     const container = document.createElement('div')
@@ -465,14 +465,15 @@ describe('correction marks', () => {
     document.body.append(container)
     const link: EvidenceLink = { resultPath: ['records', 0, 'site'], evidenceAnchorId: anchor.anchor_id }
     const edited = { name: 'site', value: 'Elmbrooke', word: 'Edited', style: 'link' as const }
+    const extracted = distinct ? {...edited, name:'site (extracted)', value:'Elm', word:null} : edited
     renderHook(() => usePublishedEvidence({
       containerRef: { current: container }, viewer: { scrollPageIntoView: vi.fn() } as never, parsedDocument,
-      attempt: { extractionId: 'x' }, active: true, marks: { describe: new Map([['v', edited], ['v#correction', edited]]), selected: 'v#["x"]',
+      attempt: { extractionId: 'x' }, active: true, marks: { describe: new Map([['v', extracted], ['v#correction', edited]]), selected: 'v#["x"]',
         onSelect: vi.fn(), savedLinks: [{ key: 'v', link }, { key: 'v#correction', link, occurrenceIds: [anchor.producer_observations[0].occurrence_id] }] },
     }))
     const [mark, ...rest] = container.querySelectorAll<HTMLButtonElement>('button.evidence-mark')
     expect(rest).toHaveLength(0)
-    expect(mark!.getAttribute('aria-label')).toBe('site: Elmbrooke, Edited')
+    expect(mark!.getAttribute('aria-label')).toBe(distinct ? 'site (extracted): Elm; site: Elmbrooke, Edited' : 'site: Elmbrooke, Edited')
     expect(mark!.getAttribute('aria-current')).toBe('true')
   })
 

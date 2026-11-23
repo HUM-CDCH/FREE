@@ -77,7 +77,13 @@ caches and image layers). The first GPU start downloads the Surya OCR weights,
 `KEI_NUEXTRACT_MODEL` (default `numind/NuExtract3-FP8`, about 7 GB) and
 `KEI_EXTRACT_MODEL` (default `Qwen/Qwen3.8-27B-FP8`, about 31 GB) into the
 shared Hugging Face cache, which persists in a named volume. Allow enough disk
-space, network access, and startup time for these downloads.
+space, network access, and startup time for these downloads. With or without a
+GPU, the first native conversion and the first default scan layout together
+use about 0.8 GB of Docling weights in the Hugging Face cache, plus another
+0.8 GB for the worker's local copy on the same volume. Later conversions use
+that copy offline. Each Docling release used by the worker keeps its own copy,
+so budget another 0.8 GB per release for those models, even if the weights are
+unchanged. Selecting additional layout models increases both caches.
 
 Obtain a PEM certificate (a full chain) and its matching PEM private key from
 the institution or VPN that owns the private hostname. FREE does not request a
@@ -98,7 +104,7 @@ openssl pkey -in /srv/free-tls/studio.key -pubout -outform DER \
 The two SHA-256 outputs must match. Also validate the chain with the
 institution's or VPN's trust procedure.
 
-Generate the session secret and three independent database passwords once and
+Generate the session secret and four independent database passwords once and
 retain them across restarts (run the hexadecimal command once per password):
 
 ```bash
@@ -115,6 +121,7 @@ FREE_SESSION_SECRET=<canonical-base64-output>
 FREE_POSTGRES_PASSWORD=<hex-output>
 FREE_KEI_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_STUDIO_POSTGRES_PASSWORD=<separately-generated-hex-output>
+FREE_KEI_QUEUE_POSTGRES_PASSWORD=<separately-generated-hex-output>
 FREE_ENTRA_TENANT_ID=<microsoft-entra-tenant-uuid>
 FREE_ENTRA_CLIENT_ID=<application-client-uuid>
 FREE_ENTRA_CLIENT_CERT_PATH=/srv/free-secrets/entra-client.pem
@@ -156,11 +163,18 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
 - `FREE_STUDIO_POSTGRES_PASSWORD` is the password of `free_studio`, the role
   Studio and the evaluation watcher run as. It reads and writes FREE's data but
   cannot create databases or roles, create schemas in `free`, change the
-  migrated schemas or act as another role; it owns only Studio's `dbos` schema, and uses `kei_dbos` to
-  submit, read, cancel and delete kei's workflows. Studio's entrypoint creates
+  migrated schemas or act as another role. It owns only Studio's `dbos` schema.
+  Studio's entrypoint creates
   the role from this value at every start, and on the first start after an
   upgrade gives it the `dbos` schema and the workflow history an earlier
   Studio created there as `postgres`. Use a generated hexadecimal value.
+- `FREE_KEI_QUEUE_POSTGRES_PASSWORD` is the independent hexadecimal password
+  for `free_kei_queue`. Studio uses it through `FREE_KEI_QUEUE_DATABASE_URL`
+  to submit, read, cancel and delete workflows in `kei_dbos`. The role cannot
+  read or modify application data or Studio's own workflow history. Add this
+  password to an existing deployment's `.env` before upgrading. The entrypoint
+  grants queue access to the new role and removes the old grants from
+  `free_studio` during startup, keeping existing queue history.
 - `FREE_DEPLOYMENT_CLI_PROVIDERS` (optional; `codex-cli`, `claude-code`,
   comma-separated) offers the Codex CLI and Claude Code to every researcher as
   read-only deployment connections. They run on this server's own CLI login,
@@ -172,13 +186,17 @@ FREE_ENTRA_CLIENT_CERT_THUMBPRINT=<sha256-certificate-thumbprint>
   selector. The migration removes retired generic/recipe account preferences and the `extraction.catalogRecipe`
   column; live unified preferences and Article settings stay. Old generic/recipe Extractions cannot resume and
   should be run again. Drain in-flight Catalog work before deploying. This decision does not claim held-out accuracy.
+  Unified Catalog defaults 12 replaced 11 with a data-only migration that moves the stored Catalog method pins to
+  12 and leaves saved results as they are. It refuses to run while an Extraction is queued or running: drain first.
 - `FREE_ADMIN_DATABASE_URL`'s role must own database `free` or hold `CREATE`
   on it, and be able to create roles; Compose uses `postgres`. The entrypoint
-  refuses to prepare a `free_studio` or `kei` that is a superuser or owns
-  anything else, since an owner keeps its object's DDL whatever is revoked.
-  At every start it also revokes what either role was granted in `free` and
-  grants only what it needs again. Studio does not start, and the error names
-  the objects, while either role still holds a grant another role made, can
+  refuses to prepare `free_studio`, `kei` or `free_kei_queue` as a superuser.
+  `free_studio` and `kei` may own only their respective DBOS schemas and the
+  objects in them; `free_kei_queue` must own no objects. An owner keeps its
+  object's DDL whatever is revoked. At every start, the entrypoint revokes
+  grants outside each role's own schema, preserving `CONNECT` and `TEMPORARY`
+  on the database, then grants the privileges each role needs. Studio refuses to start and names the objects if
+  a role still holds a grant another role made, can
   create schemas in `free` or objects in `free` outside its own schema
   (`PUBLIC` included), or reaches FREE's tables or `extraction_runtime`
   routines through `PUBLIC`. Neither the revocation nor the refusal looks at
@@ -717,15 +735,15 @@ them.
 
 ## Back up and restore
 
-Stop `studio`, `parsing_service` and `parsing_worker` first, so nothing writes while the backup
-runs. The backup set is:
+Stop `studio`, `parsing_service`, `parsing_worker` and, if running, `eval_watcher`
+before taking the backup. Back up these items together:
 
 - `pg_dump -Fc free`, for example
-  `docker compose … exec -T db pg_dump -U postgres -Fc free > free.dump` (all
-  four schemas: `public`, `dbos`, `kei_dbos` and `extraction_runtime`; it
+  `docker compose … exec -T db pg_dump -U postgres -Fc free > free.dump`. This backs up all schemas, including
+  `public`, `dbos`, `kei_dbos`, `extraction_runtime` and `prisma_contract`. It
   includes workflow history — interactive results for up to about a day,
   background inputs for up to about 30 days, and each durable Extraction's
-  results and progress until it is deleted);
+  results and progress until it is deleted.
 - the `source-inbox`, `parsing-runs` and `studio-data` volumes;
 - the CLI homes: `studio-config` (the Codex login under `codex/`) and
   `studio-claude`;
@@ -736,22 +754,23 @@ and in Studio's memory. The CLI homes hold the operator's own CLI logins, so
 protect those backups like `.env`. The model caches are re-downloadable and
 need no backup.
 
-`pg_dump` does not include the cluster roles that own the dump's objects. To
-restore into an empty PostgreSQL volume, start only `db`, create those roles,
-then restore the dump:
+`pg_dump` does not include cluster roles. Recreate the roles named by object
+ownership and grants before restoring into an empty PostgreSQL volume: start
+only `db`, create the roles below, then restore the dump:
 
 ```bash
 docker compose -f compose.yaml -f compose.prod.yaml up -d --wait db
 docker compose -f compose.yaml -f compose.prod.yaml exec -T db psql -U postgres -d free \
   -c "CREATE ROLE kei LOGIN" \
   -c "CREATE ROLE free_studio LOGIN" \
+  -c "CREATE ROLE free_kei_queue LOGIN" \
   -c "CREATE ROLE free_extraction_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS"
 docker compose -f compose.yaml -f compose.prod.yaml exec -T db pg_restore -U postgres -d free < free.dump
 ```
 
 Then restore the volumes and start normally: migrations are already applied,
-and the entrypoint sets the `kei` and `free_studio` passwords from `.env`
-again.
+and the entrypoint sets the `kei`, `free_studio` and `free_kei_queue` passwords
+from `.env` again.
 
 Migrations are forward-only. To upgrade, take the backup set, update the
 checkout and run `node scripts/free.mjs production`. On a GPU host,

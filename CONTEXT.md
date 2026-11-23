@@ -102,7 +102,7 @@ A researcher-visible operation that applies an Extraction Schema to Source Conte
 _Avoid_: schema, suggestion
 
 **Producing Input Selection**:
-The immutable schema revision, Extraction Method and resolved settings that produced particular values within a durable interactive Extraction. Adopting revised inputs creates another selection; earlier values retain their producing selection.
+The schema revision, Extraction Method and resolved settings associated with particular values within a durable interactive Extraction. Adopting revised inputs creates another immutable selection; earlier values retain their producing selection. A method-version migration can update its executable method pins; saved plans and snapshots retain the historical execution records ([ADR 0015](docs/adr/0015-extraction-method-pinned-at-admission.md)).
 _Avoid_: current schema, mutable run settings
 
 **Batch Extraction**:
@@ -187,11 +187,11 @@ A Researcher Account's saved choices, per Extraction Strategy, of how future Ext
 _Avoid_: preset, profile, pipeline configuration, advanced extraction
 
 **Extraction Method**:
-What one Extraction is admitted with and pinned to: its Extraction Strategy, Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version; an Article Extraction recorded without settings ran the whole source. A producing input selection's method never changes after its admission; Extraction details show it beside the effective models and options the Parsing Service captured.
+What one Extraction is admitted with and pinned to: its Extraction Strategy, Extraction Model Choice and the applicable Extraction Method Settings, including the unified Catalog's defaults version; an Article Extraction recorded without settings ran the whole source. A producing input selection's method stays fixed during execution, apart from explicit version migrations. Extraction details distinguish stored settings from the historical execution records kept in plans and snapshots.
 _Avoid_: current settings, configuration, method profile
 
 **Unified Catalog Method**:
-The sole, versioned method for single and batch Catalog Extractions: it discovers records over the complete admitted source and gives every nonblank source range a disposition. Only defaults version 11 is admitted; the number is the run's provenance, never a switch. Each value is read once: code accepts a value whose quote it locates in the record's own text (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence; a value inherited from a heading requires an independent reading that agrees with the candidate and checks intervening source for supersession. Evidence retains the record context separately from the value's source spans. There is no Pro mode: the verification switch that judged every value again is retired. Children discovery is pipelined for settled records: the schema defines peer records, enclosing records retain separately discovered children, and explicitly identified shared table qualifications inform field interpretation without becoming record text. It needs no recipe, language, numbering convention, field name or particular model.
+The sole, versioned method for single and batch Catalog Extractions: it discovers records over the complete admitted source and gives every nonblank source range a disposition. Only defaults version 12 is admitted; the number is the run's provenance, never a switch. Each value is read once: code accepts a value whose quote it locates in the record's own text (linked by rule, not by a verifier) and keeps one whose quote is missing or found nowhere for review, without Evidence; a value inherited from a heading requires an independent reading that agrees with the candidate and checks intervening source for supersession. Evidence retains the record context separately from the value's source spans. There is no Pro mode: the verification switch that judged every value again is retired. Children discovery is pipelined for settled records: the schema defines peer records, enclosing records retain separately discovered children, and explicitly identified shared table qualifications inform field interpretation without becoming record text. It needs no recipe, language, numbering convention, field name or particular model.
 _Avoid_: generic Catalog, recipe Catalog, model discovery
 
 **Ingestion Model Choice**:

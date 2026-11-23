@@ -1,11 +1,9 @@
-"""Counting a request's input tokens with the served model's own tokenizer, before the request is sent (design §8).
+"""Input budgeting before a request is sent (design §8).
 
-Character or byte counts are not an enforceable budget. The endpoint that will serve the calls counts them itself:
-vLLM's `/tokenize` renders a chat request through the served model's chat template and tokenizer and returns the
-count, with the context the server serves (`max_model_len`). The body counted is the chat adapter's own
-`tokenize_body`, so every template switch the real call sends (thinking off, a NuExtract template) is in the count.
-An endpoint without `/tokenize` refuses the grounded Catalog path before a single extraction call. Every call's
-server-reported prompt count is compared with the count afterwards; a mismatch is reported.
+For vLLM, `/tokenize` renders the adapter's `tokenize_body` with the served model's chat template and tokenizer.
+It returns the input count and served context (`max_model_len`). Exact counts are checked against the reported
+prompt usage after inference. Codex CLI and Claude Code supply their own upper-bound policies, and GLiFormer
+supplies a native counter for field reads.
 """
 from __future__ import annotations
 
@@ -37,8 +35,8 @@ SOURCE = "vllm:/tokenize"
 # differs fails and drops its attempt's counts (`forget`). Keys are fixed-size digests, so the cap is in bytes: the
 # process keeps at most CACHED_COUNTS counts over all attempts (each under ENTRY_BYTES with its key and entry, so at
 # most CACHED_BYTES), the least recently used first out, and at most CACHED_ATTEMPTS attempts; an attempt's counts are
-# dropped when it is acknowledged. Planning threads (discovery slices, recipe chunks) do not see the attempt and send
-# their counts.
+# dropped when it is acknowledged. Durable planning reads saved replies and captures pending calls on one thread,
+# so request sizing stays inside the attempt's counting context.
 CACHED_BYTES = 16 * 1024 * 1024
 ENTRY_BYTES = 256
 CACHED_COUNTS = CACHED_BYTES // ENTRY_BYTES

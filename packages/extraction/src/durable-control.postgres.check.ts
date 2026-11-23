@@ -29,7 +29,7 @@ test('boolean review requires decisions and finalizes without legacy grounding c
   ]
   const tree = {recordDescription: 'One source record', schemaNodes: nodes}
   for (const [index, strategy] of (['ARTICLE', 'CATALOG'] as const).entries()) await t.test(strategy, async () => {
-    const id = randomUUID(), schemaRevisionId = randomUUID(), settings = strategy === 'ARTICLE' ? {article: REFERENCE_ARTICLE} : {unified: {defaults: 11}}
+    const id = randomUUID(), schemaRevisionId = randomUUID(), settings = strategy === 'ARTICLE' ? {article: REFERENCE_ARTICLE} : {unified: {defaults: 12}}
     await admin.query(`INSERT INTO public."schemaRevision" (id,"extractionSchemaId","revisionNumber",origin,"schemaTree","recordScope")
       SELECT $1,"extractionSchemaId",$2,'RESEARCHER_EDIT',$3,$4 FROM public."schemaRevision" WHERE id=$5`,
       [schemaRevisionId, 2 + index, tree, strategy === 'ARTICLE' ? 'document' : 'records', fixture.revisions.article])

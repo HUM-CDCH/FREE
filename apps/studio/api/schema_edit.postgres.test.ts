@@ -92,7 +92,7 @@ async function childStatus(env: { FREE_TEST_DBOS_SCHEMA: string }, workflowId: s
 
 beforeAll(async () => {
   server = await startScriptedModelServer()
-  await launchStudioDbos({ databaseUrl: url, ...schemas, register: () => registerSchemaEditWorkflow(() => ports) })
+  await launchStudioDbos({ databaseUrl: url, keiDatabaseUrl: url, ...schemas, register: () => registerSchemaEditWorkflow(() => ports) })
 })
 
 afterEach(() => {

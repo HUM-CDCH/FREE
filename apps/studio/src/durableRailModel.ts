@@ -1,5 +1,5 @@
 import type { DurablePage } from 'extraction/durable-types'
-import type { ParsedDocument } from 'extraction/parsed-document'
+import { blockForAnchor, tableForAnchor, type ParsedDocument } from 'extraction/parsed-document'
 import type { SchemaNode } from 'extraction/schema'
 import type { EvidenceLink } from 'extraction/durable-types'
 import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
@@ -78,27 +78,62 @@ export const sharedColor = (colors: readonly (string | undefined)[]) =>
 export const evidenceColorVars = (color: string | undefined): Record<string, string> => color ? {'--color-ev': color,
   '--color-ev-soft': `color-mix(in srgb, ${color} 24%, white)`, '--color-ev-ghost': `color-mix(in srgb, ${color} 12%, white)`} : {}
 
-/** Identity, producing types and model links come from the fixed saved page.
- * Display paths never identify a correction or transfer a decision. With `part`, the row's Evidence is that part's: its
- * own link (or none), page and chip; the decision stays the whole value's. */
+/** Correction links carry the occurrences selected by the researcher. Model links retain their producer precision. */
+export type ReviewEvidenceLink = EvidenceLink & {readonly occurrenceIds?: readonly string[]}
+
+/** The whole value's Evidence: an edit uses only its own correction Evidence. */
+export function valueEvidenceLink(value: RetainedValue): ReviewEvidenceLink | null {
+  const decision = value.correction?.decision
+  if (decision?.action !== 'EDITED') return value.links[0] ?? null
+  const evidence = decision.evidence?.[0]
+  return evidence ? {resultPath: value.path, evidenceAnchorId: evidence.anchorId, occurrenceIds: evidence.occurrenceIds} : null
+}
+
+function linkedModelValue(value: RetainedValue, link: EvidenceLink): unknown {
+  if (!value.path.every((key, index) => link.resultPath[index] === key)) return undefined
+  let leaf = value.modelValue
+  for (const key of link.resultPath.slice(value.path.length)) {
+    if (leaf === null || typeof leaf !== 'object' || !Object.hasOwn(leaf, key)) return undefined
+    leaf = (leaf as Record<string | number, unknown>)[key]
+  }
+  return leaf
+}
+
+/** Identity and producing types come from the fixed saved page; edits use their correction Evidence.
+ * Display paths never identify a correction or transfer a decision. With `part`, the row's Evidence
+ * is that part's own link (or none), page and chip; the decision stays the whole value's. */
 export function durableRailRow(value: RetainedValue, document: ParsedDocument | null, part?: ValuePart): RailRow {
-  const correction = value.correction?.decision
-  const action = correction?.action
-  const link = part ? part.link : value.links[0] ?? null
+  const action = value.correction?.decision?.action
+  const link: ReviewEvidenceLink | null = part ? part.link : valueEvidenceLink(value)
   const anchor = document?.evidence_index.anchors.find(each => each.anchor_id === link?.evidenceAnchorId)
-  const page = anchor?.producer_observations[0]?.page_number ?? null
-  const disagreement=value.disagreement?.map(entry=>({part:partName(value.node,entry.path),path:entry.path,alternatives:entry.alternatives.map(a=>({value:a.value,pages:originPages(a.segments)}))}))
+  const block = document && anchor?.kind === 'text' ? blockForAnchor(document, anchor) : null
+
+  let text = block && 'text' in block ? block.text : undefined
+  if (block?.kind === 'list') text = block.items.join('\n')
+  if (document && anchor?.kind === 'table_cell') text =
+    tableForAnchor(document, anchor)?.cells.find(cell => cell.cell_id === anchor.cell_id)?.text
+
+  const selectedIds = link?.occurrenceIds
+  const observation = selectedIds
+    ? anchor?.producer_observations.find(each => selectedIds.includes(each.occurrence_id))
+    : anchor?.producer_observations[0]
+  const page = observation?.page_number ?? null
+  const disagreement=value.disagreement?.map(entry=>({
+    part:partName(value.node,entry.path),path:entry.path,
+    alternatives:entry.alternatives.map(alternative=>({
+      value:alternative.value,pages:originPages(alternative.segments),
+    })),
+  }))
   const kind = value.processing !== 'saved' ? value.processing === 'absent' ? 'missing' : 'not-reviewable'
     : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
-  const doubt = link ? evidenceCheck(link, action === 'PENDING' ? undefined : action) : null
+  const checkedAction = action === 'PENDING' ? undefined : action
+  const doubt = link ? evidenceCheck(link, checkedAction, part ? part.value : linkedModelValue(value, link), text) : null
   const origin = link ? linkOrigin(link) : null
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
     value: reviewedValue(value), extracted: value.modelValue,
     kind, link, decision: value.processing === 'saved' ? {
-      resultPath: value.path, evidenceAnchorId: value.links[0]?.evidenceAnchorId ?? null, reviewedOccurrenceIds: [],
       action: action && action !== 'PENDING' ? action : 'APPROVED',
-      reviewedValue: action === 'EDITED' ? correction.value : null,
     } : null,
     // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'different readings' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'

@@ -2487,6 +2487,25 @@ describe('Source Ingestions on the Project Context page', () => {
 })
 
 describe('routed Source Document reopening', () => {
+  it('names each tab after its own document when the previous snapshot stays open during navigation', async () => {
+    const next = Promise.withResolvers<Response>()
+    const reads = studioFetch(documentId => documentId === sourceDocumentId
+      ? Response.json(snapshot()) : next.promise,
+      {...detail, sourceDocuments: [beretning, historical].map(document => ({...document, pageCount: 6}))})
+    history.replaceState(null, '', documentPath())
+    renderRoutes(reads)
+    expect(await screen.findByRole('tab', {name: /Beretning.pdf/})).toBeVisible()
+    back(documentPath(otherSourceDocumentId))
+    await waitFor(() => expect(reads.mock.calls.some(([input]) =>
+      String(input).includes(`source-documents/${otherSourceDocumentId}/reopen`))).toBe(true))
+    expect(screen.getAllByRole('tab', {name: /Beretning.pdf/})).toHaveLength(1)
+    next.resolve(Response.json(snapshot(historical)))
+    expect(await screen.findByRole('tab', {name: /Historical.pdf/})).toBeVisible()
+    expect(screen.getAllByRole('tab', {name: /Beretning.pdf/})).toHaveLength(1)
+    expect(screen.getByRole('button', {name: 'Close Historical.pdf'})).toBeVisible()
+    expect(screen.getByRole('button', {name: 'Close Beretning.pdf'})).toBeVisible()
+  })
+
   it('reopens the routed Source Document from its durable snapshot on refresh', async () => {
     history.replaceState(null, '', documentPath())
     renderRoutes()

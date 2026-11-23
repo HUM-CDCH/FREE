@@ -1,0 +1,9 @@
+{
+  "from": "sha256:fc21067bccaa9c0a1d7dc4dd05201b0fbf04b197346abc19f290ae15c8d1eb5f",
+  "to": "sha256:fc21067bccaa9c0a1d7dc4dd05201b0fbf04b197346abc19f290ae15c8d1eb5f",
+  "providedInvariants": [
+    "unified-catalog.defaults-12"
+  ],
+  "createdAt": "2026-11-21T18:55:24.958Z",
+  "migrationHash": "sha256:78fa5ff94875f775e726c66159f9661052ab7aea390c78f9ebb4e8f632daf31b"
+}

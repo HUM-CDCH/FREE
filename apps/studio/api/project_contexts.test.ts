@@ -32,6 +32,22 @@ function write(url: string, method: 'POST' | 'PATCH', name: string): Request {
 }
 
 describe('Project Context routes', () => {
+  it('lists every project by default while preserving an explicitly requested limit', async () => {
+    const fixture = projectContextFixture()
+    const [first] = await fixture.listProjectContexts()
+    const projects = Array.from({length: 51}, (_, index) => ({...first,
+      projectContextId: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`}))
+    const listProjectContexts = vi.fn(async (limit?: number) => projects.slice(0, limit))
+    const GET = createGetProjectContexts({...fixture, listProjectContexts})
+    const response = await GET(new Request('http://test/api/project-contexts'))
+    const body = projectContextListResponseSchema.parse(await response.json())
+    expect(body.projectContexts).toHaveLength(51)
+    expect(body.projectContexts.at(-1)?.projectContextId).toBe(projects.at(-1)?.projectContextId)
+    expect(listProjectContexts).toHaveBeenLastCalledWith(undefined)
+    const limited = await GET(new Request('http://test/api/project-contexts?limit=20'))
+    expect((await limited.json()).projectContexts).toHaveLength(20)
+  })
+
   it('shares one name limit between the contract and durable storage', () => {
     expect(projectContextNameLimit).toBe(PROJECT_CONTEXT_NAME_LIMIT)
   })

@@ -1,9 +1,8 @@
 """Extraction call execution: one model call from a finished request to its JSON answer and its artifact diagnostics.
 
-`complete` is the one seam every extraction model call goes through — Article inventory, Catalog discovery,
-document and record values, grounding, and the recipe Catalog's entry and arbitration calls. Its callers own
-everything purpose-specific: the source they render, the prompt and reply schema, what the answer means,
-conformance to the schema, reconciliation and grounding.
+`complete` runs extraction model calls, including Article document reads and grounding, and unified Catalog
+discovery, entry reads and independent checks of inherited values. Callers own the rendered source, prompt, reply
+schema, interpretation, conformance, reconciliation and grounding.
 This module owns only what every call shares:
 
 - routing: a `models.Router` sends the call to the chat serving its stage's role (`models.ROLE`);
@@ -16,9 +15,8 @@ This module owns only what every call shares:
 - accounting: every attempt, in order, as a `Call`, the artifact's record of a model call. A failed call's `error`
   may quote the start of the server's refusal or of the unreadable reply; it never carries the request.
 
-It makes no retries of its own; the adapter's single output-format fallback is its only second attempt. The Catalog
-methods' recovery of a record or entry call that looped on whitespace (`looped`) is their caller's, made as a second
-`complete`; durable execution captures that recovery separately.
+The chat adapter can retry the output format once. Unified Catalog can retry an entry call after a whitespace loop
+(`looped`). Durable execution captures that retry separately.
 
 Each call is also a trace span (Phoenix, docs/operations/local-development.md) under the extraction's DBOS step, with
 its model, tokens, outcome and refused attempts; each request it sends is a child span when the worker instruments
@@ -44,7 +42,7 @@ from kei_exp.kie.extract.tokens import BudgetUnavailable, TokenCounter
 @dataclass(frozen=True)
 class Call:
     """One model call as the artifact reports it."""
-    stage: str                          # a `models.ROLE` stage, or the recipe Catalog's tokenizer_probe
+    stage: str                          # a stage in `models.ROLE`
     record: int | None
     input_tokens: int | None
     output_tokens: int | None

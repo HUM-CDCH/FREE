@@ -143,6 +143,7 @@ beforeAll(async () => {
   server = await startScriptedModelServer()
   await launchStudioDbos({
     databaseUrl: url,
+    keiDatabaseUrl: url,
     ...schemas,
     register: () => {
       registerSchemaGenerationWorkflow(() => generationPorts)

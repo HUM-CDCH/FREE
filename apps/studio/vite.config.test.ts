@@ -135,11 +135,14 @@ const AMBIENT_STUDIO_ENVIRONMENT = [
 // A synthetic URL: the stubbed DBOS module never connects to it.
 const DEVELOPMENT_DATABASE_URL =
   'postgresql://postgres@127.0.0.1:5432/free_test_development_host'
+const DEVELOPMENT_QUEUE_URL =
+  'postgresql://free_kei_queue@127.0.0.1:5432/free_test_development_host'
 
 beforeEach(() => {
   for (const name of AMBIENT_STUDIO_ENVIRONMENT) vi.stubEnv(name, undefined)
   vi.stubEnv('FREE_ENTRA_MOCK_ISSUER', 'http://mock-oidc:8080/dev')
   vi.stubEnv('DATABASE_URL', DEVELOPMENT_DATABASE_URL)
+  vi.stubEnv('FREE_KEI_QUEUE_DATABASE_URL', DEVELOPMENT_QUEUE_URL)
 })
 
 afterEach(() => {
@@ -330,16 +333,12 @@ describe('Vite Hono integration', () => {
     expect(development.loaded('/server/dbos.ts')).toBe(1)
     expect(development.loaded('/server/workflows.ts')).toBe(1)
     expect(dbos.launchStudioDbos).toHaveBeenCalledOnce()
-    const [launch] = dbos.launchStudioDbos.mock.calls[0]!
-    expect(launch).toEqual({
+    expect(dbos.launchStudioDbos).toHaveBeenCalledWith({
       databaseUrl: DEVELOPMENT_DATABASE_URL,
-      register: expect.any(Function),
-      schedule: expect.any(Function),
+      keiDatabaseUrl: DEVELOPMENT_QUEUE_URL,
+      register: development.workflows.registerStudioWorkflows,
+      schedule: development.workflows.applyStudioSchedules,
     })
-    expect(launch.register).toBe(
-      development.workflows.registerStudioWorkflows,
-    )
-    expect(launch.schedule).toBe(development.workflows.applyStudioSchedules)
     expect(order).toEqual(['dbos launched', 'composed'])
   })
 
@@ -572,8 +571,11 @@ describe('Vite Hono integration', () => {
     expect(development.logger.error).not.toHaveBeenCalled()
   })
 
-  it('fails startup when DATABASE_URL does not name Studio\'s database', async () => {
-    vi.stubEnv('DATABASE_URL', undefined)
+  it.each([
+    ['DATABASE_URL', "DATABASE_URL must name Studio's database."],
+    ['FREE_KEI_QUEUE_DATABASE_URL', "FREE_KEI_QUEUE_DATABASE_URL must name Studio's Parsing Service queue connection."],
+  ])('fails startup without %s', async (name, message) => {
+    vi.stubEnv(name, undefined)
     const createStudioApp = vi.fn(async () => ({}))
     const development = developmentServer({
       ssrLoadModule: studioModules({ createStudioApp }),
@@ -581,7 +583,7 @@ describe('Vite Hono integration', () => {
 
     await expect(
       configureServerHook(apiFunctions('/free'))(development.server),
-    ).rejects.toThrow("DATABASE_URL must name Studio's database.")
+    ).rejects.toThrow(message)
     expect(development.dbos.launchStudioDbos).not.toHaveBeenCalled()
     expect(createStudioApp).not.toHaveBeenCalled()
   })

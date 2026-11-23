@@ -25,6 +25,7 @@ from docling_core.types.doc import (
 )
 from docling_core.types.doc.page import TextCellUnit
 
+from kei_exp import weights
 from kei_exp._pdfium import pdfium_lock
 from kei_exp.geometry import PointBox
 from kei_exp.progress import Emit
@@ -282,7 +283,8 @@ class PageBoundPipeline(StandardPdfPipeline):
     item per page, hyphen as printed; a column continuation on one page still merges."""
 
     def __init__(self, pipeline_options: PdfPipelineOptions) -> None:
-        super().__init__(pipeline_options)
+        # Local weights: without the folder Docling asks the hub for each model's revision on every conversion.
+        super().__init__(pipeline_options.model_copy(update={"artifacts_path": weights.local(pipeline_options)}))
         self.assemble_model = NativePageAssembly(options=PageAssembleOptions())
         predictor = self.reading_order_model.ro_model
         predict = predictor.predict_merges

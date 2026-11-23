@@ -47,10 +47,15 @@ export type RailMarkState = {
   records?: readonly RecordBlock[]
 }
 
-/** A correction in its model passage names the value once; distinct values that read alike stay distinct. */
+/** A shared passage names each reading. Some decisions reuse the same description for both marks. */
 export const describeMarks = (keys: readonly string[], describe: RailMarkState['describe'] | undefined) =>
-  keys.filter(key => !key.endsWith('#correction') || !keys.includes(markValueId(key)))
-    .flatMap(key => { const info = describe?.get(key); return info ? [{ key, info }] : [] })
+  keys.flatMap(key => {
+    const info = describe?.get(key)
+    if (!info) return []
+    const parent = markValueId(key)
+    if (key.endsWith('#correction') && keys.includes(parent) && describe?.get(parent) === info) return []
+    return [{key, info}]
+  })
 
 function appendOverlay(
   pages: PageMap,

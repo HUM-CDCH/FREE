@@ -124,7 +124,7 @@ export function createGetProjectContexts(
       const id = projectId(url.pathname)
       if (id === null) {
         const [projectContexts, recentActivity] = await Promise.all([
-          store.listProjectContexts(boundedLimit(url)),
+          store.listProjectContexts(url.searchParams.has('limit') ? boundedLimit(url) : undefined),
           store.listRecentActivity?.(RECENT_ACTIVITY_LIMIT) ?? [],
         ]).catch((cause) => {
           throw persistenceUnavailable(cause)

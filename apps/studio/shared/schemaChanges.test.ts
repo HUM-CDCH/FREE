@@ -217,6 +217,18 @@ describe('deriveSchemaProposal', () => {
     expect(saved.descriptionSource).toBe(source)
   })
 
+  it.each(['source-filename', 'document'] as const)('keeps valueSource %s on a field an applied edit renames and notes', (valueSource) => {
+    const original: SchemaNode[] = [{ id: 'f', name: 'file', type: 'string', valueSource }]
+    const proposal = deriveSchemaProposal(original, proposed({
+      f: { name: 'file_name', type: 'string', removed: false, description: 'Where the record comes from.' },
+    }))
+    const [saved] = replaySchemaChanges(original, proposal.changes, new Set(['f'])).nodes
+    expect(saved).toEqual({ id: 'f', name: 'file_name', type: 'string', description: 'Where the record comes from.', valueSource })
+    // A retype keeps it too, as the editor's field form does.
+    const retyped = deriveSchemaProposal(original, proposed({ f: { name: 'file', type: 'object', removed: false } }))
+    expect(retyped.nodes[0]).toEqual({ id: 'f', name: 'file', type: 'object', valueSource, children: [] })
+  })
+
   it('leaves an untouched allowed set and description when an edit omits them', () => {
     const original: SchemaNode[] = [
       { id: 'e', name: 'gender', type: 'string', allowedValues: ['woman', 'man'], description: 'Recorded sex' },

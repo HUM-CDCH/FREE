@@ -176,8 +176,7 @@ def test_article_context_reply_distinguishes_incomplete_checks_from_rejections(r
     assert result["reasons"] == ({reason: 1} if reason else {})
 
 
-@pytest.mark.parametrize("reading,accepted", [(candidate("North", "Jail North"), True),
-                                              (candidate("South", "Jail South"), False), (None, False)])
+@pytest.mark.parametrize("reading,accepted", [("North", True), ("South", False), (None, False)])
 def test_heading_recovery_checks_intervening_source_even_when_discovery_misassigns_it(reading, accepted):
     text = "Jail North\n1. First.\nJail South\n2. Second, owner lives in North."
     source = evidence(text)
@@ -188,10 +187,13 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
         seen.append(user)
         assert user.index("Jail North") < user.index("Jail South") < user.index("### RECORD")
         assert 'replaces an earlier value only when it changes the same field' in system
+        assert "is to be judged" in system  # kept as measured: see the note on `VERIFY_RECORD`
         assert ' = "North"' not in user  # the independent reading cannot copy the candidate
+        assert "source quote" not in system and reply_schema["properties"] == {  # it answers with the value alone
+            "C1": {"type": ["string", "null"], "x-free-type": "string"}}
         return {"C1": reading}
     chat = as_router(CountingChat(answer))
-    options = unified.UnifiedOptions(defaults=11)
+    options = unified.UnifiedOptions(defaults=12)
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
     effective = unified._execution(source, schema, options, chat, counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective)
@@ -202,8 +204,7 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
     work = unified._Work(found=[unified._Found(("jail",), "North", "Jail North", 0,
                                                kind="rejected", reason="quote_not_in_source")])
     replies = runner._record_evidence(entry, [(Window(tuple(units)), {})], work, unified._view(units, runner.texts))
-    runner._verify(0, replies, work, owned=units, context=tuple(Unit(each["segment"], each["start"], each["end"])
-                                                for each in entry["context"]))
+    runner._verify(0, replies, work, owned=units)
     assert seen and (work.found[0].kind == "accepted") == accepted
     assert work.found[0].value == "North"
     if accepted:
@@ -217,9 +218,9 @@ def test_new_catalog_defaults_run_attachment_through_the_real_entry_path():
     model = Model(source, entry=lambda *_: {"region": candidate("Moor", "Kreis Moor")})
     def answer(system, user, reply_schema):
         if system.startswith("Read the source independently"):
-            return {"C1": candidate("Moor", "Kreis Moor")}
+            return {"C1": "Moor"}
         return model(system, user, reply_schema)
-    result, _ = extract(source, answer, schema=schema, defaults=11)
+    result, _ = extract(source, answer, schema=schema, defaults=12)
     assert result["records"] == [{"region": "Moor"}]
     assert result["evidence"][0]["context"] == result["discovery"]["entries"][0]["ranges"]
     assert result["evidence"][0]["linked_by"] == "verification"
@@ -230,7 +231,7 @@ def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="r
         {"id": "r", "name": field, "type": "string"}]})
     chat = as_router(CountingChat(answer))
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
-    effective = unified._execution(source, schema, unified.UnifiedOptions(defaults=11, headings=headings),
+    effective = unified._execution(source, schema, unified.UnifiedOptions(defaults=12, headings=headings),
                                    chat, counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]),
                          {p.id: p.text for p in source.passages}, effective, entries=entries)
@@ -238,7 +239,7 @@ def record_runner(monkeypatch, source, reads, answer, *, headings=True, field="r
     return runner
 
 
-@pytest.mark.parametrize("context", [False, True], ids=["no-admitted-heading", "intervening-record"])
+@pytest.mark.parametrize("context", [False, True], ids=["no-admitted-heading", "admitted-heading"])
 def test_other_records_cannot_supply_inherited_evidence_even_if_the_verifier_agrees(monkeypatch, context):
     text = "Group North\n1. Owner lives in North.\n2. Second."
     start = text.index("2.")
@@ -248,25 +249,28 @@ def test_other_records_cannot_supply_inherited_evidence_even_if_the_verifier_agr
     seen = []
     def answer(system, user, schema):
         seen.append(user)
-        return {"C1": candidate("North", "Owner lives in North")}  # agrees, quoting the other record
+        return {"C1": "North"}  # agrees: the value alone, which names no place
     runner = record_runner(monkeypatch, evidence(text), [(window, {"region": candidate("North", "Group North")})],
                            answer)
     work = runner.entry(0, entry)
-    assert not any(found.kind == "accepted" for found in work.found)
-    assert work.record == {"region": "North"}  # a proposal for review, without Evidence
-    # Without an admitted heading the quote is located nowhere it may be: nothing reads it again.
-    assert len(seen) == context
+    found, = work.found
+    assert work.record == {"region": "North"}
+    # Without an admitted heading the quote is located nowhere it may be: nothing reads it again, a proposal for
+    # review without Evidence.
+    assert len(seen) == context and found.kind == ("accepted" if context else "proposed")
     assert all("Owner lives in North" in user for user in seen)  # intervening text is for judging supersession only
+    if context:  # linked at the admitted heading the entry quoted, never where the other record prints the value
+        assert [(span.start, span.end) for span in found.spans] == [(6, 11)] and not found.alternatives
 
 
 def tight_runner(text, reads, answer, input_tokens, **entries):
-    """A defaults 11 runner over `text` whose verification input budget is `input_tokens` (WordCounter words)."""
+    """A defaults 12 runner over `text` whose verification input budget is `input_tokens` (WordCounter words)."""
     schema = Schema.model_validate({"recordDescription": "One numbered entry", "schemaNodes": [
         {"id": "r", "name": "region", "type": "string"}]})
     chat = as_router(CountingChat(answer))
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
     effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(
-        defaults=11, input_tokens=input_tokens), chat, counters)["effective"]
+        defaults=12, input_tokens=input_tokens), chat, counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective,
                           **entries)
     runner._read = lambda stage, number, *args, **kwargs: reads[number]
@@ -276,7 +280,7 @@ def tight_runner(text, reads, answer, input_tokens, **entries):
 @pytest.mark.parametrize("words,reply,reason,undecided", [
     (1000, {"C1": None}, "verification_over_budget", 0),  # the source up to the record never fits: final
     (5, {}, "verification_unresolved", 1),                # an invalid reply: another attempt may decide it
-    (5, {"C1": {}}, "verification_unresolved", 1)])       # so is a reading without its value, never a rejection
+    (5, {"C1": {}}, "verification_unresolved", 1)])       # so is a reading that is no value, never a rejection
 def test_an_inherited_value_whose_own_check_cannot_fit_is_a_final_proposal(words, reply, reason, undecided):
     text = "Group North\n1. " + "word " * words + "\n2. Last."
     start = text.index("2.")
@@ -305,10 +309,10 @@ def test_an_invalid_reading_of_a_records_inherited_fields_is_asked_again_in_halv
     asked = []
     def answer(system, user, reply_schema):
         asked.append(list(reply_schema["properties"]))
-        return {} if len(asked) == 1 else {"C1": candidate("Moor", "Kreis Moor")}
+        return {} if len(asked) == 1 else {"C1": "Moor"}
     chat = as_router(CountingChat(answer))
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
-    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=11), chat,
+    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=12), chat,
                                    counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective)
     read = {"region": candidate("Moor", "Kreis Moor"), "district": candidate("Moor", "Kreis Moor")}
@@ -335,8 +339,7 @@ def test_a_value_cited_nowhere_stays_in_the_record_without_a_second_reading(monk
         {("accepted", None)} if quote == "Lives in West" else set())
 
 
-@pytest.mark.parametrize("reading,accepted", [(candidate("metres", "Units: metres"), True),
-                                              (candidate("feet", "Units: feet"), False)])
+@pytest.mark.parametrize("reading,accepted", [("metres", True), ("feet", False)])
 def test_following_shared_table_qualification_remains_available(monkeypatch, reading, accepted):
     source = evidence("1. Sample.", "Units: metres")
     entry = {"ranges": [{"segment": "p1_s0", "start": 0, "end": 10}],
@@ -364,7 +367,7 @@ def test_child_keeps_only_its_parent_context_including_text_after_it(monkeypatch
     def answer(system, user, schema):
         assert "Earlier unrelated West" not in user
         assert "All finds: gold" in user and "Grave North" in user
-        return {"C1": candidate("gold", "All finds: gold")}
+        return {"C1": "gold"}
     runner = record_runner(monkeypatch, evidence(text),
                            [(window, {"material": candidate("gold", "All finds: gold")})], answer,
                            headings=headings, field="material")
@@ -383,8 +386,7 @@ def test_disagreeing_inherited_values_reach_arbitration_with_their_source(monkey
         if "choice" in schema["properties"]:
             assert "Group North" in user and "Group South" in user
             return {"choice": "NONE"}
-        value = "North" if "### RECORD\n1." in user else "South"
-        return {"C1": candidate(value, f"Group {value}")}
+        return {"C1": "North" if "### RECORD\n1." in user else "South"}
     runner = record_runner(monkeypatch, evidence(text), reads, answer)
     work = runner.entry(0, entry)
     assert work.contest[0]["outcome"] == "unresolved"
@@ -423,7 +425,9 @@ def test_records_under_one_heading_share_one_reading_that_sees_a_heading_between
                                                 "### RECORD R1\n1. First.\n### END RECORD R1", "### RECORD R2",
                                                 "### CONTEXT (not part of the records)\nGroup South", "### RECORD R3")]
         assert places == sorted(places) and user.endswith("### FIELD\nregion\n\nReturn the JSON object now.")
-        return {"R1": north, "R2": north, "R3": candidate("South", "Group South")}
+        assert "quote" not in system and schema["properties"]["R1"] == {  # each reading is the value alone
+            "type": ["string", "null"], "x-free-type": "string"}
+        return {"R1": "North", "R2": "North", "R3": "South"}
     runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.\nGroup South\n3. Third.",
                                     [north] * 3, answer)
     works = [runner.entry(number, entry) for number, entry in enumerate(entries)]
@@ -436,15 +440,11 @@ def test_records_under_one_heading_share_one_reading_that_sees_a_heading_between
     assert all(len(calls) == 1 and not issues for work in works for calls, issues in work.shared.values())
 
 
-@pytest.mark.parametrize("reading,kind", [
-    (candidate("North", "Group North"), "accepted"),
-    (candidate("South", "Group North"), "rejected"),            # an unequal reading
-    (candidate("North", "Owner lives in North"), "proposed"),   # only another record prints the quote
-    (None, "rejected")])
-def test_a_shared_reading_is_accepted_only_equal_and_located_in_the_record_or_its_heading(monkeypatch, reading, kind):
+@pytest.mark.parametrize("reading,kind", [("North", "accepted"), ("South", "rejected"), (None, "rejected")])
+def test_a_shared_reading_is_accepted_only_when_it_equals_the_candidate(monkeypatch, reading, kind):
     north = candidate("North", "Group North")
     runner, entries = heading_group(monkeypatch, "Group North\n1. Owner lives in North.\n2. Second.", [north] * 2,
-                                    lambda *_: {"R1": north, "R2": reading})
+                                    lambda *_: {"R1": "North", "R2": reading})
     assert runner.entry(1, entries[1]).found[0].kind == kind
     assert runner.entry(0, entries[0]).found[0].kind == "accepted"
 
@@ -453,7 +453,7 @@ def test_a_local_or_uncited_value_is_not_read_with_the_records_sharing_the_headi
     seen = []
     def answer(system, user, schema):
         seen.append(system)
-        return {"C1": candidate("West", "Lives in West")}
+        return {"C1": "West"}
     runner, entries = heading_group(monkeypatch, "Group North\n1. Lives in West.\n2. Second.",
                                     [candidate("West", "Lives in West")] * 2, answer)
     assert runner.entry(0, entries[0]).found[0].kind == "accepted" and not seen  # local: the single pass
@@ -467,7 +467,7 @@ def test_a_shared_reading_without_a_valid_reply_leaves_each_record_its_own_readi
     seen = []
     def answer(system, user, schema):
         seen.append(system)
-        return {} if system.startswith(SHARED) else {"C1": north}
+        return {} if system.startswith(SHARED) else {"C1": "North"}
     runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.", [north] * 2, answer)
     works = [runner.entry(number, entry) for number, entry in enumerate(entries)]
     assert [each.startswith(SHARED) for each in seen] == [True, False, False]  # asked once, then one call each
@@ -496,7 +496,7 @@ def test_a_heading_value_waits_for_complete_discovery_to_know_the_records_sharin
     seen = []
     def answer(system, user, schema):
         seen.append(system)
-        return {"R1": north, "R2": north}
+        return {"R1": "North", "R2": "North"}
     runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.", [north] * 2, answer)
     work = runner.entry(0, entries[0], verify=False)  # discovery still reads: later records may share the heading
     assert not seen and (work.found[0].kind, work.found[0].reason) == ("proposed", "verification_pending")
@@ -511,9 +511,9 @@ def test_a_catalog_counts_the_reading_its_records_share_once():
     model = Model(source, entry=lambda *_: {"region": moor})
     def answer(system, user, reply_schema):
         if system.startswith(SHARED):
-            return dict.fromkeys(reply_schema["properties"], moor)
+            return dict.fromkeys(reply_schema["properties"], "Moor")
         return model(system, user, reply_schema)
-    result, _ = extract(source, answer, schema=schema, defaults=11)
+    result, _ = extract(source, answer, schema=schema, defaults=12)
     assert result["records"] == [{"region": "Moor"}] * 2
     assert [link["linked_by"] for link in result["evidence"]] == ["verification"] * 2
     assert [call["record"] for call in result["calls"] if call["stage"] == "verification"] == [0]
@@ -541,8 +541,7 @@ def test_local_table_values_keep_single_pass_outside_the_item_identity_cell(verd
 
 
 @pytest.mark.parametrize("shared", [False, True], ids=["individual", "shared"])
-@pytest.mark.parametrize("quote", ["This record is North.", "Other record is North.", "Unadmitted North."])
-def test_verification_locates_only_the_source_shown_for_its_own_record(monkeypatch, shared, quote):
+def test_an_agreed_reading_keeps_the_place_code_located_for_the_entrys_quote(monkeypatch, shared):
     text = "Group North\n1. First part.\nThis record is North.\nUnadmitted North.\n2. Other record is North."
     start, middle, gap, sibling = (text.index(each) for each in ("1.", "This record", "Unadmitted", "2."))
     heading = {"segment": "p1_s0", "start": 0, "end": len("Group North")}
@@ -553,19 +552,15 @@ def test_verification_locates_only_the_source_shown_for_its_own_record(monkeypat
              (Window((Unit("p1_s0", middle, gap),)), {"region": None})]
     def answer(system, user, schema):
         assert system.startswith(SHARED if shared else ALONE)
-        assert (quote in user) == shared
-        return dict.fromkeys(schema["properties"], candidate("North", quote))
+        return dict.fromkeys(schema["properties"], "North")
     runner = record_runner(monkeypatch, evidence(text), reads, answer, entries=entries if shared else entries[:1])
     work = runner.entry(0, entries[0])
     found, = work.found
-    accepted = shared and quote == "This record is North."
-    assert work.record == {"region": "North"}
-    assert (found.kind, found.reason) == (("accepted", None) if accepted else
-                                         ("proposed", "verification_unresolved"))
-    if accepted:
-        assert [(span.segment_id, span.start, span.end) for span in found.spans] == [
-            ("p1_s0", middle + quote.index("North"), middle + quote.index("North") + len("North"))]
-        assert found.verified
+    assert work.record == {"region": "North"} and (found.kind, found.reason, found.verified) == ("accepted", None, True)
+    # The reading names no place: the link stays on the heading the entry quoted, wherever else the value prints
+    # (later in the record, in unadmitted text, in the next record).
+    assert [(span.segment_id, span.start, span.end) for span in found.spans] == [("p1_s0", 6, 11)]
+    assert (found.support, found.alternatives) == ("literal", [])
 
 
 def test_heading_group_members_are_stored_once(monkeypatch):
@@ -586,13 +581,13 @@ def test_small_heading_group_call_count_depends_on_inherited_fields(monkeypatch,
     model = Model(source, entry=lambda *_: values)
     def answer(system, user, reply_schema):
         if system.startswith((SHARED, ALONE)):
-            return dict.fromkeys(reply_schema["properties"], candidate("Moor", "Kreis Moor"))
+            return dict.fromkeys(reply_schema["properties"], "Moor")
         return model(system, user, reply_schema)
     counts = []
     # One member per call reaches the unchanged individual fallback, which batches the record's fields.
     for size in (1, 16):
         monkeypatch.setattr(unified, "SHARED", size)
-        result, _ = extract(source, answer, schema=schema, defaults=11)
+        result, _ = extract(source, answer, schema=schema, defaults=12)
         assert result["records"] == [dict.fromkeys(values, "Moor")] * 2
         assert len(result["evidence"]) == fields * 2
         assert all(link["linked_by"] == "verification" for link in result["evidence"])
@@ -617,8 +612,7 @@ def test_readings_of_different_headings_are_asked_at_once_and_each_once(monkeypa
     def answer(system, user, schema):
         seen.append(user)
         both.wait()
-        name = "North" if "Group North" in user else "South"
-        return dict.fromkeys(schema["properties"], candidate(name, f"Group {name}"))
+        return dict.fromkeys(schema["properties"], "North" if "Group North" in user else "South")
     runner = record_runner(monkeypatch, evidence(text), None, answer, entries=entries)
     monkeypatch.setattr(runner, "_read", lambda stage, number, *args, **kwargs: reads[number])
     with ThreadPoolExecutor(max_workers=4) as pool:
@@ -641,7 +635,7 @@ def test_one_planning_round_captures_the_shared_reading_of_every_inherited_field
         raise stop
     chat = as_router(CountingChat(answer))
     counters = dict.fromkeys(("fields", "reasoning"), WordCounter())
-    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=11), chat,
+    effective = unified._execution(evidence(text), schema, unified.UnifiedOptions(defaults=12), chat,
                                    counters)["effective"]
     heading = {"segment": "p1_s0", "start": 0, "end": len("Group North")}
     units = [Unit("p1_s0", text.index(line), text.index(line) + len(line)) for line in ("1. First.", "2. Second.")]
@@ -669,7 +663,7 @@ def test_a_group_halves_its_shared_reading_and_leaves_the_records_no_check_can_f
     seen = []
     def answer(system, user, schema):
         seen.append(system)
-        return dict.fromkeys(schema["properties"], north)
+        return dict.fromkeys(schema["properties"], "North")
     runner = tight_runner(text, [[(Window((unit,)), {"region": north})] for unit in units], answer, 1024,
                           entries=entries)
     works = [runner.entry(number, entry) for number, entry in enumerate(entries)]
@@ -698,9 +692,9 @@ def test_durable_planning_asks_every_inherited_fields_shared_reading_in_the_same
         model = Model(source, entry=lambda *_: {node["name"]: moor for node in schema["schemaNodes"]})
         def answer(system, user, reply_schema):
             if system.startswith(SHARED):
-                return dict.fromkeys(reply_schema["properties"], moor)
+                return dict.fromkeys(reply_schema["properties"], "Moor")
             return model(system, user, reply_schema)
-        chat, asked = CountingChat(answer), request(schema, defaults=11)
+        chat, asked = CountingChat(answer), request(schema, defaults=12)
         lease = MemoryLease(asked.schema_.model_dump(by_alias=True, exclude_none=True))
         for count in range(1, 40):
             counter = Counter()
@@ -730,9 +724,9 @@ def test_a_catalog_whose_later_checks_cannot_fit_completes_processing_and_keeps_
     model = Model(source, entry=lambda *_: {"region": moor})
     def answer(system, user, reply_schema):
         if system.startswith(SHARED):
-            return dict.fromkeys(reply_schema["properties"], moor)
+            return dict.fromkeys(reply_schema["properties"], "Moor")
         return model(system, user, reply_schema)
-    result, _ = extract(source, answer, schema=schema, defaults=11, input_tokens=1024)
+    result, _ = extract(source, answer, schema=schema, defaults=12, input_tokens=1024)
     # The source from the heading to each of the last 4 records is longer than any check of theirs can show.
     over = [issue["path"][1] for issue in result["issues"] if issue["code"] == "verification_over_budget"]
     assert result["records"] == [{"region": "Moor"}] * 16 and over == [12, 13, 14, 15]
@@ -751,7 +745,7 @@ def test_a_value_cited_nowhere_is_not_read_again_because_another_window_inherits
     seen = []
     def answer(system, user, schema):
         seen.append(user)
-        return dict.fromkeys(schema["properties"], candidate("South", "somewhere south"))
+        return dict.fromkeys(schema["properties"], "South")
     work = record_runner(monkeypatch, evidence(text), reads, answer).entry(0, entry)
     assert len(seen) == 1 and work.record == {"region": "West"}  # the reading contradicts the inherited value only
     assert [(found.value, found.kind, found.reason) for found in work.found] == [
@@ -788,7 +782,7 @@ def test_a_shared_reading_without_a_records_value_is_asked_again_never_a_rejecti
     seen = []
     def answer(system, user, schema):
         seen.append(system)
-        return {"R1": north, "R2": {}} if system.startswith(SHARED) else {"C1": north}
+        return {"R1": "North", "R2": {}} if system.startswith(SHARED) else {"C1": "North"}
     runner, entries = heading_group(monkeypatch, "Group North\n1. First.\n2. Second.", [north] * 2, answer)
     works = [runner.entry(number, entry) for number, entry in enumerate(entries)]
     assert [each.startswith(SHARED) for each in seen] == [True, False, False]  # then each record alone

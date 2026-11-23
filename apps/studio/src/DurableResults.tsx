@@ -20,7 +20,7 @@ import ResultsMenu, { type MenuItem } from './ResultsMenu'
 import { RunDiagnostics } from './RunDiagnostics'
 import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { quietRevision, resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
-import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, statusLine, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
+import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, statusLine, valueEvidenceLink, valueParts, type ReviewEvidenceLink, type RunProgress, type ValuePart } from './durableRailModel'
 import { provisionalMarks } from './provisionalMarks'
 import { recordBlocks, type RecordBlock } from './recordBlocks'
 import type { MarkInfo } from './useEvidenceOverlays'
@@ -135,12 +135,13 @@ type EffectiveConfiguration = {
   protocols: {calls:number;source:string}
 }
 
-/** The worker's resolved configuration belongs to the producing selection, never to the current account settings. */
-function ProducingMethod({ordinal,requested,effective}:{ordinal:number;requested:unknown;effective:EffectiveConfiguration|undefined}) {
-  return <section aria-label={`Method used for input selection ${ordinal}`} className="space-y-2 pt-2">
-    <h3 className="m-0 text-secondary font-semibold">Method used</h3>
-    <p className="m-0 text-compact font-semibold">Requested method</p>
-    <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(requested,null,2)}</pre>
+/** A version migration can update these executable pins; the saved plans keep their historical execution records. */
+function StoredMethod({ordinal,method,effective}:{ordinal:number;method:unknown;effective:EffectiveConfiguration|undefined}) {
+  return <section aria-label={`Stored settings for input selection ${ordinal}`} className="space-y-2 pt-2">
+    <h3 className="m-0 text-secondary font-semibold">Stored selection settings</h3>
+    <p className="m-0 text-compact text-ink-muted">An upgrade can migrate these settings. Recorded execution plans below keep the settings saved at the time.</p>
+    <p className="m-0 text-compact font-semibold">Stored method</p>
+    <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(method,null,2)}</pre>
     {effective ? <>
       <p className="m-0 text-compact font-semibold">Effective model choices</p>
       <dl className="space-y-1 text-compact">
@@ -152,10 +153,10 @@ function ProducingMethod({ordinal,requested,effective}:{ordinal:number;requested
           </details></dd>}
         </div>)}
       </dl>
-      <p className="m-0 text-compact font-semibold">Effective method settings</p>
+      <p className="m-0 text-compact font-semibold">Stored resolved settings</p>
       <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(effective.options,null,2)}</pre>
       <p className="m-0 text-compact text-ink-muted">Planner version {effective.planner} · call protocol version {effective.protocols.calls} · source scope {effective.protocols.source}</p>
-      <details><summary className="cursor-pointer text-compact">Exact effective configuration</summary>
+      <details><summary className="cursor-pointer text-compact">Stored resolved configuration</summary>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(effective,null,2)}</pre>
       </details>
     </> : <p className="m-0 text-compact text-ink-muted">Effective method: Not recorded</p>}
@@ -175,13 +176,27 @@ function HistoryAudit({id}:{id:string}) {
   },[id])
   if(!history)return <p role={error?'alert':'status'} className="pt-2 text-compact text-ink-muted [overflow-wrap:anywhere]">{error??'Loading…'}</p>
   return <div className="space-y-3 pt-2">
-    {history.selections.map(selection=><details key={selection.id}>
+    {history.selections.map(selection=> {
+      const executions=(history.plans??[]).filter(plan=>plan.manifest?.selectionId===selection.id&&plan.manifest.execution)
+      return <details key={selection.id}>
       <summary className="cursor-pointer">Input selection {selection.ordinal} · template {selection.schemaRevisionId.slice(0,8)}</summary>
-      <ProducingMethod ordinal={selection.ordinal} requested={selection.method} effective={history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined}/>
-      <details><summary className="cursor-pointer">Pinned template and admission inputs</summary>
+      <StoredMethod ordinal={selection.ordinal} method={selection.method} effective={history.effective?.find(entry=>entry.id===selection.id)?.configuration as EffectiveConfiguration|undefined}/>
+      <section aria-label={`Recorded execution plans for input selection ${selection.ordinal}`} className="space-y-2 pt-2">
+        <h3 className="m-0 text-secondary font-semibold">Recorded execution plans</h3>
+        <p className="m-0 text-compact text-ink-muted">A resumed extraction can have more than one recorded plan. A plan may be saved before any values are produced.</p>
+        {executions.length?executions.map(plan=> {
+          const execution=plan.manifest.execution,defaults=execution.method?.defaults
+          const label=typeof defaults==='number'?`Catalog defaults ${defaults}`:'Recorded execution'
+          return <details key={plan.id}>
+            <summary className="cursor-pointer text-compact">{label} · generation {plan.generation}</summary>
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({stage:plan.stage,digest:plan.digest,execution},null,2)}</pre>
+          </details>
+        }):<p className="m-0 text-compact text-ink-muted">Execution record: Not recorded</p>}
+      </section>
+      <details><summary className="cursor-pointer">Stored template and resolved inputs</summary>
         <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({schema:selection.schemaTree,resolved:selection.resolved},null,2)}</pre>
       </details>
-    </details>)}
+    </details>})}
     {history.captures?.map(capture=><details key={capture.id}>
       <summary className="cursor-pointer">Call · {capture.descriptor.stage} · input selection {history.selections.find(selection=>selection.id===capture.selectionId)?.ordinal??capture.selectionId.slice(0,8)} · decisions {capture.feedbackVersion}</summary>
       <p className="text-compact text-ink-muted">This call keeps its captured guidance even when a correction is later excluded or superseded.</p>
@@ -194,6 +209,11 @@ function HistoryAudit({id}:{id:string}) {
     </details>)}
     {history.snapshots.map(snapshot=><details key={snapshot.id}>
       <summary className="cursor-pointer">Saved result snapshot {snapshot.version} · values and lineage</summary>
+      {snapshot.coverage?.diagnostics?.execution&&<details>
+        <summary className="cursor-pointer text-compact">Execution recorded at publication</summary>
+        <p className="m-0 text-compact text-ink-muted">Retained values can come from earlier executions; their lineage is listed below.</p>
+        <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify({execution:snapshot.coverage.diagnostics.execution,execution_sha256:snapshot.coverage.diagnostics.execution_sha256},null,2)}</pre>
+      </details>}
       <pre className="overflow-x-auto whitespace-pre-wrap break-words text-compact">{JSON.stringify(snapshot.values.map((v:Value)=>({field:v.node.name,schema:v.schemaRevisionId,selection:v.selectionId,modelValue:v.modelValue,disagreement:v.disagreement,lineage:v.lineage})),null,2)}</pre>
     </details>)}
   </div>
@@ -382,17 +402,25 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const reviewParts=useMemo(()=>review&&composite(review.value)?valueParts(review.value):[],[review])
   const [part,setPart]=useState<string|null>(null)
   const chosenPart=part&&reviewParts.some(each=>each.key===part)?part:null
-  const activeLink=chosenPart?reviewParts.find(each=>each.key===chosenPart)?.link??null:review?.value.links[0]??null
+  const activeLink=chosenPart?reviewParts.find(each=>each.key===chosenPart)?.link??null
+    :review?valueEvidenceLink(review.value):null
+  const showEvidence=useCallback((link:ReviewEvidenceLink)=> {
+    if(link.occurrenceIds)onEvidence(link.evidenceAnchorId,link.occurrenceIds)
+    else onEvidence(link.evidenceAnchorId,undefined,link)
+  },[onEvidence])
   // What one-by-one follows on the source for a value: its link, once the source is there and the rail is open.
-  const followKeyFor=useCallback((value:Value,version:number,link:EvidenceLink|null)=>railOpen&&focus&&document
-    ?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${version}:${value.id}:${link?JSON.stringify(link.resultPath):''}:${link?.evidenceAnchorId??''}:${link?.precision??''}`:null,
+  const followKeyFor=useCallback((value:Value,version:number,link:ReviewEvidenceLink|null)=>railOpen&&focus&&document
+    ? JSON.stringify([sourceRevisionId,document.preprocessing.preprocess_id,version,value.id,
+      link?.resultPath,link?.evidenceAnchorId,link?.precision,link?.occurrenceIds]) : null,
   [railOpen,focus,document,sourceRevisionId])
   // Collapsed, one-by-one follows nothing; expanding follows its value again.
   const followKey=review?followKeyFor(review.value,review.version,activeLink):null
   // A request pending this commit may select another value: the follow waits for it rather than scroll back to this one.
   const requestTaken=Boolean(request&&request.extractionId===id&&page&&railOpen)
-  const followRef=useRef({onEvidence,requestTaken,activeLink,reviewId:review?.value.id})
-  useEffect(()=>{followRef.current={onEvidence,requestTaken,activeLink,reviewId:review?.value.id}})
+  const followRef=useRef({showEvidence,requestTaken,activeLink,
+    reviewId:review?.value.id})
+  useEffect(()=>{followRef.current={showEvidence,requestTaken,activeLink,
+    reviewId:review?.value.id}})
   // A chosen value shows in its record, whichever way the researcher last toggled it.
   const reveal=(record:string)=>setToggledRecords(previous=>{if(previous.get(record)!==false)return previous;const next=new Map(previous);next.delete(record);return next})
   const selectValue=useCallback((key:string,fromMark=false)=> {
@@ -419,10 +447,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     selectValue(key)
     // A value the page lacks may be the open review's, read on its own.
     const value=page?.values.find(each=>each.id===key)??(review?.value.id===key&&review.version===page?.snapshotVersion?review.value:undefined)
-    const link=value?.links[0],own=value?.correction?.decision.evidence[0] as {anchorId:string;occurrenceIds:string[]}|undefined
+    const link=value?valueEvidenceLink(value):null
     if(focus&&value&&link&&(!document||followKeyFor(value,page!.snapshotVersion,link)!==followKey))return
-    if(link)followRef.current.onEvidence(link.evidenceAnchorId,undefined,link)
-    else if(own)followRef.current.onEvidence(own.anchorId,own.occurrenceIds)
+    if(link)followRef.current.showEvidence(link)
   },[page,selectValue,focus,document,followKeyFor,followKey,review])
   // A value link's or a mark's request is taken once: for this Extraction, once its values are read and the rail is
   // open, so a link that arrives while collapsed waits. The live snapshot says whether it is still pending.
@@ -468,6 +495,12 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       // The correction's Evidence is its own mark, named as its value: it lights with any part chosen (`ownsMark`).
       const parent=describe.get(value.id),own=value.correction?.decision.evidence??[]
       if(parent&&own.length)describe.set(`${value.id}#correction`,parent)
+      if(parent&&value.correction?.decision.action==='EDITED') {
+        const original=durableRailRow({...value,correction:null},document)
+        describe.set(value.id,{...parent,name:`${value.node.name} (extracted)`,
+          value:shownValue(value.modelValue),
+          word:null,style:original.chip?.style??'neutral'})
+      }
       return [...value.links.flatMap(link=> {
         const part=parts.get(JSON.stringify(link.resultPath))
         // The part's mark takes its own link's style (rule, doubtful); the decision word stays the value's.
@@ -489,11 +522,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   },[model,page,selection,review,document,blocks,id,chosenPart,fieldOrder,previews,displayed])
   useEffect(()=>()=>{selection.publish({marks:null,dim:null});selection.hover(null)},[selection])
   useEffect(()=>{
-    const {reviewId,onEvidence,requestTaken,activeLink:link}=followRef.current
+    const {showEvidence,reviewId,requestTaken,activeLink:link}=followRef.current
     selection.publish({dim:followKey?link:null})
     const fromMark=selectionFromMark.current===reviewId
     selectionFromMark.current=null
-    if(followKey&&link&&!fromMark&&!requestTaken)onEvidence(link.evidenceAnchorId,undefined,link)
+    if(followKey&&link&&!fromMark&&!requestTaken)showEvidence(link)
   },[followKey,selection])
   useEffect(()=> {
     if(id&&page)onReviewProgress?.({extractionId:id,snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion,
@@ -608,8 +641,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const pick:PartPick|undefined=review&&reviewParts.length?{valueId:review.value.id,selected:chosenPart,
     parts:new Map(reviewParts.map(each=>[each.key,each])),onPick:key=> {
       setPart(key)
-      const link=key===null?review.value.links[0]:reviewParts.find(each=>each.key===key)?.link
-      if(!focus&&link)onEvidence(link.evidenceAnchorId,undefined,link)
+      const link=key===null?valueEvidenceLink(review.value)
+        :reviewParts.find(each=>each.key===key)?.link
+      if(!focus&&link)showEvidence(link)
     }}:undefined
   const valueReview=review&&<ValueReview part={reviewParts.find(each=>each.key===chosenPart)} pick={pick} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} blocked={blocked} keyboardRoot={keyboardRoot} headerSlot={headerSlot}

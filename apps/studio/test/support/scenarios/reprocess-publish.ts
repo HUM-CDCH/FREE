@@ -7,27 +7,22 @@ import { createSourceDocumentReprocessing } from '../../../api/source_reprocess.
 import { launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
 import { awaitWorkflowOutcome } from '../../../server/workflowOutcome.js'
 import { ingestionStoreFor } from '../ingestion.js'
-
-function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]
-  if (!value) throw new Error(`The reprocess-publish scenario needs ${name}.`)
-  return value
-}
+import { requiredScenarioValue, scenarioDbosOptions } from '../scenarioEnvironment.js'
 
 export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.ProcessEnv }): Promise<void> {
-  const owner = required(env, 'FREE_TEST_ACCOUNT')
-  const project = required(env, 'FREE_TEST_PROJECT')
-  const document = required(env, 'FREE_TEST_DOCUMENT')
-  const head = required(env, 'FREE_TEST_HEAD')
-  const key = required(env, 'FREE_TEST_REQUEST_KEY')
-  const packages = createCanonicalPackageStore(required(env, 'FREE_TEST_PACKAGE_ROOT'))
+  const required = requiredScenarioValue(env, 'reprocess-publish')
+  const owner = required('FREE_TEST_ACCOUNT')
+  const project = required('FREE_TEST_PROJECT')
+  const document = required('FREE_TEST_DOCUMENT')
+  const head = required('FREE_TEST_HEAD')
+  const key = required('FREE_TEST_REQUEST_KEY')
+  const packages = createCanonicalPackageStore(required('FREE_TEST_PACKAGE_ROOT'))
   const ordinaryStoreFor = ingestionStoreFor(packages)
   await launchStudioDbos({
-    databaseUrl: required(env, 'DATABASE_URL'), schema: required(env, 'FREE_TEST_DBOS_SCHEMA'),
-    keiSchema: required(env, 'FREE_TEST_KEI_SCHEMA'), executorId: required(env, 'FREE_TEST_EXECUTOR'),
+    ...scenarioDbosOptions(required),
     register: () => registerReprocessWorkflow(() => ({
       steps: dbosSteps, kei: createKeiHandoff(studioDbos().kei, { pollIntervalMs: 100 }),
-      readBase: required(env, 'KEI_EXP_URL'), inboxRoot: required(env, 'FREE_SOURCE_INBOX'), packageStore: packages,
+      readBase: required('KEI_EXP_URL'), inboxRoot: required('FREE_SOURCE_INBOX'), packageStore: packages,
       storeFor: (account): ResearcherProjectStore => {
         const store = ordinaryStoreFor(account)
         return { ...store, async reprocessSourceDocument(projectId, documentId, input) {
