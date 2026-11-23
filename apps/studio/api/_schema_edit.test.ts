@@ -29,8 +29,8 @@ function answering(template: Record<string, unknown>, fieldDescriptions?: unknow
 }
 
 /** The schema the researcher would have after applying every proposed change. */
-async function applied(template: Record<string, unknown>): Promise<SchemaNode[]> {
-  const response = await proposeSchemaEdit(definition, 'change it', SOURCE, { caller: CALLER, generate: answering(template) })
+async function applied(template: Record<string, unknown>, fieldDescriptions?: unknown): Promise<SchemaNode[]> {
+  const response = await proposeSchemaEdit(definition, 'change it', SOURCE, { caller: CALLER, generate: answering(template, fieldDescriptions) })
   if (response.status !== 'proposed') throw new Error(`expected a proposal, got ${response.status}`)
   return deriveSchemaProposal(definition.schemaNodes, response).nodes
 }
@@ -276,15 +276,48 @@ describe('proposeSchemaEdit', () => {
     [{ path: ['heading'], description: 'First' }, { path: ['heading'], description: 'Second' }],
     [{ path: ['heading'], clear: true, description: null }],
     [{ path: ['title'], description: 'The old name must not be guessed after a rename.' }],
-    [{ path: ['grave'], description: 'Groups use the template.' }],
     [{ path: ['title'], description: 42 }],
     [{ path: 'title', description: 'Not a path array.' }],
-  ])('fails the whole proposal when a scalar note cannot be safely mapped: %j', async (...entries) => {
+  ])('fails the whole proposal when a note cannot be safely mapped: %j', async (...entries) => {
     const response = await proposeSchemaEdit(definition, 'Rename title and revise its note', null, {
       caller: CALLER,
       generate: answering({ _description: definition.recordDescription, heading: 'string', grave: { plot: 'string' } }, entries),
     })
     expect(response).toEqual({ status: 'failed', message: 'Schema edit generation failed.' })
+  })
+
+  it('changes a group note only through the sidecar, never from a copy inside the template', async () => {
+    const current: SchemaDefinition = { recordDescription: 'One entry.', schemaNodes: [
+      { id: 'title', name: 'title', type: 'string' },
+      { id: 'finds', name: 'finds', type: 'array', description: 'One find, with its place.', descriptionSource: 'suggested',
+        children: [{ id: 'place', name: 'place', type: 'string' }] },
+      { id: 'grave', name: 'grave', type: 'object', description: 'Where the burial lies.', descriptionSource: 'suggested',
+        children: [{ id: 'plot', name: 'plot', type: 'string' }] },
+    ] }
+    const propose = async (template: Record<string, unknown>, notes: unknown) => {
+      const generate = answering({ _description: current.recordDescription, ...template }, notes)
+      const response = await proposeSchemaEdit(current, 'Rename title', null, { caller: CALLER, generate })
+      if (response.status !== 'proposed') throw new Error('Expected proposal')
+      return { response, generate, nodes: deriveSchemaProposal(current.schemaNodes, response).nodes }
+    }
+    // The model renames the field it was asked to and copies both group notes back, one of them reworded.
+    const echoed = await propose({
+      heading: 'string', finds: [{ _description: 'One find, with its place', place: 'string' }],
+      grave: { _description: 'Where the burial lies.', plot: 'string' },
+    }, [])
+    expect(Object.keys(echoed.response.fields)).toEqual(['title'])
+    expect(echoed.nodes.slice(1)).toEqual(current.schemaNodes.slice(1))
+    // The model is not shown the group notes inside the template it must return, only in the list of notes.
+    const instruction = (echoed.generate.mock.calls[0] as unknown as [unknown, { instruction: string }])[1].instruction
+    expect(instruction).not.toContain('"_description": "One find, with its place."')
+    expect(instruction).toContain('- finds: One find, with its place.')
+
+    const asked = await propose({ title: 'string', finds: [{ place: 'string' }], grave: { plot: 'string' } },
+      [{ path: ['finds'], description: 'Every find listed.' }, { path: ['grave'], clear: true }])
+    expect(asked.nodes.slice(1)).toEqual([
+      { id: 'finds', name: 'finds', type: 'array', description: 'Every find listed.', children: current.schemaNodes[1]!.children },
+      { id: 'grave', name: 'grave', type: 'object', children: current.schemaNodes[2]!.children },
+    ])
   })
 
   it('turns a revised template into the edits that reproduce it, keeping each surviving field', async () => {
@@ -293,9 +326,9 @@ describe('proposeSchemaEdit', () => {
       heading: 'string',
       status: 'string',
       count: 'integer',
-      grave: { _description: 'Where the burial lies', plot: 'string', row: 'integer' },
+      grave: { plot: 'string', row: 'integer' },
       mourners: [{ name: 'verbatim-string' }],
-    })
+    }, [{ path: ['grave'], description: 'Where the burial lies' }])
 
     expect(nodes).toEqual([
       // A lone unmatched pair at one level is a rename: the field keeps its id, note and evidence policy.

@@ -68,10 +68,13 @@ editing proposals come from the Schema Suggestion Route (ADR 0022) and never
 change the pinned Schema Revision. The schema chat answers questions about the
 source instead of proposing or recording them (ADR 0023), on the Interaction
 Route when Schema Suggestion is NuExtract.
-Scalar field notes in an edit travel beside the compact `template` in the same
-model response, as `fieldDescriptions` entries with exact revised field-name
-paths and either a description or `clear: true`. Missing entries or null leave
-notes unchanged; `clear: true` or an empty description string clears one.
+Field notes in an edit, a group's too, travel beside the compact `template` in
+the same model response, as `fieldDescriptions` entries with exact revised
+field-name paths and either a description or `clear: true`. The edit's template
+is sent without group notes, and a group `_description` the model returns inside
+it is ignored, so a note changes only when an entry asks for it. Missing entries
+or null leave notes unchanged, also when the field changes between a single
+value and a group; `clear: true` or an empty description string clears one.
 A clear entry cannot also supply a description. These entries become the ordinary per-field proposal
 the researcher reviews and applies, including description-only edits. Invalid,
 duplicate, ambiguous or unknown note targets fail the proposal without saving

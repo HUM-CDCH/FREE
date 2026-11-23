@@ -205,7 +205,7 @@ describe('deriveSchemaProposal', () => {
     ['rename only', { name: 'heading' }, 'Original note.', 'suggested'],
     ['rename with the same note', { name: 'heading', description: ' Original note. ' }, 'Original note.', 'suggested'],
     ['type change only', { type: 'date' }, 'Original note.', 'suggested'],
-    ['change to group', { type: 'object' }, undefined, undefined],
+    ['change to group', { type: 'object' }, 'Original note.', 'suggested'],
     ['clear', { description: '' }, undefined, undefined],
   ] as const)('keeps suggested provenance only for unchanged chat notes: %s', (_label, edit, description, source) => {
     const original: SchemaNode[] = [{ id: 'a', name: 'title', type: 'string', description: 'Original note.', descriptionSource: 'suggested' }]
@@ -268,7 +268,7 @@ describe('deriveSchemaProposal', () => {
     ])
   })
 
-  it('materialises and removes children across the container boundary', () => {
+  it('materialises and removes children across the container boundary, keeping a note the edit omits', () => {
     const original: SchemaNode[] = [
       { id: 'leaf', name: 'leaf', type: 'string' },
       { id: 'group', name: 'group', type: 'object', description: 'rule', children: [{ id: 'child', name: 'child', type: 'string' }] },
@@ -280,7 +280,7 @@ describe('deriveSchemaProposal', () => {
     }))
 
     expect(result.nodes[0]).toEqual({ id: 'leaf', name: 'leaf', type: 'object', children: [] })
-    expect(result.nodes[1]).toEqual({ id: 'group', name: 'group', type: 'string' })
+    expect(result.nodes[1]).toEqual({ id: 'group', name: 'group', type: 'string', description: 'rule' })
     const groupChange = result.changes.find(({ id }) => id === 'group')
     expect(groupChange).toMatchObject({ kind: 'modified', outcome: 'applied' })
     expect(groupChange).not.toHaveProperty('reason')

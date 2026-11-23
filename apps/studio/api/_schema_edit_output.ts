@@ -17,8 +17,8 @@ export function suggestedFieldNotes(value: unknown): FieldNote[] {
   })
 }
 
-/** An edit's sidecar sets or clears notes; a suggestion's only sets them (`suggestedFieldNotes`). Extraction keeps
- *  the compact template alone. */
+/** An edit's sidecar sets or clears notes, a group's too, so the model never copies a note it was not asked to change;
+ *  a suggestion's only sets scalar notes (`suggestedFieldNotes`). Extraction keeps the compact template alone. */
 export function schemaEditPrompt(instruction: string): string {
   return `Edit the researcher's existing extraction schema according to the change request below. Return only one JSON object with "template" and "fieldDescriptions".
 
@@ -26,18 +26,18 @@ ${instruction.trim()}
 
 Template rules:
 - Return the COMPLETE revised "template", including every unchanged field. When only notes change, copy the current template exactly: fields must remain present with their current types and nesting.
-- Keep the root "_description" defining one complete record, unless the researcher asks to change that definition. Keep group notes in their existing "_description" inside the template.
+- Keep the root "_description" defining one complete record, unless the researcher asks to change that definition. It is the template's only "_description": field notes, a group's too, stay outside the template.
 - Place field names directly inside "template", never in a list of field descriptors. Scalar type tokens are "verbatim-string", "string", "date", "number", "integer" and "boolean". Use nested objects for groups, ["date"] for a scalar list, and [{"name":"string"}] for repeating objects. Specify array and object contents rather than bare "array" or "object" tokens. Closed string sets use literal allowed values, such as ["open","closed"]. Return types and allowed values, never extracted values.
 
-Scalar field notes cannot be represented by the template's type tokens. Return requested scalar note changes in a "fieldDescriptions" array BESIDE "template", in the same JSON response. Each entry has "path": an array of exact field names in the REVISED template, from the root to the field (no array indexes). This includes single values, closed sets of allowed values and lists of scalar values. Use the revised path after a rename. Never guess between ambiguous targets. Do not put the sidecar inside "template" or turn scalar fields into objects to hold notes.
+Field notes are not part of the template: never copy them into it. Return requested note changes in a "fieldDescriptions" array BESIDE "template", in the same JSON response. Each entry has "path": an array of exact field names in the REVISED template, from the root to the field (no array indexes). A field is a single value, a closed set of allowed values, a list of scalar values, or a group (a nested object or a repeating object). Use the revised path after a rename. Never guess between ambiguous targets. Do not put the sidecar inside "template" or turn scalar fields into objects to hold notes.
 
 Note operations:
 - Set or replace a note: "description" is the new note text.
-- Clear an EXISTING note: include its path with "clear": true, for example {"path":["title"],"clear":true}. A clear entry must not contain "description".
+- Clear an EXISTING note, only when the change request asks to remove it: include its path with "clear": true, for example {"path":["title"],"clear":true}. A clear entry must not contain "description".
 - Leave a note unchanged: omit its entry. A null description also leaves the current note saved; it never clears it.
 
 Response shape example (use the actual current schema and requested changes):
-{"template":{"_description":"One catalogue entry.","title":"string","items":[{"name":"string"}]},"fieldDescriptions":[{"path":["title"],"description":"Copy the complete heading."},{"path":["items","name"],"clear":true}]}
+{"template":{"_description":"One catalogue entry.","title":"string","items":[{"name":"string"}]},"fieldDescriptions":[{"path":["title"],"description":"Copy the complete heading."},{"path":["items"],"description":"One listed item."},{"path":["items","name"],"clear":true}]}
 Return only requested note changes in the sidecar; use [] when none are needed.`
 }
 
@@ -77,8 +77,7 @@ export function withFieldDescriptions(nodes: SchemaNode[], value: unknown): Sche
     const description = 'clear' in entry ? '' : entry.description
     const key = JSON.stringify(path)
     const matches = paths.filter((field) => JSON.stringify(field.path) === key)
-    if (seen.has(key) || matches.length !== 1 || matches[0]!.node.children !== undefined)
-      throw invalidDescriptions()
+    if (seen.has(key) || matches.length !== 1) throw invalidDescriptions()
     seen.add(key)
     if (description != null) descriptions.set(matches[0]!.id, description)
   }
@@ -91,5 +90,5 @@ export function withFieldDescriptions(nodes: SchemaNode[], value: unknown): Sche
 }
 
 function invalidDescriptions(): ApiError {
-  return new ApiError(502, 'invalid_model_output', 'The model returned invalid scalar field notes.')
+  return new ApiError(502, 'invalid_model_output', 'The model returned invalid field notes.')
 }
