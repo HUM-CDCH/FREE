@@ -194,14 +194,22 @@ export async function proposeSchemaEdit(
     throw error
   }
   let revised: SchemaDefinition
+  let inline: Map<string, string | undefined>
   try {
     revised = templateToSchemaDefinition(template)
+    inline = new Map(enumerateFieldPaths(revised.schemaNodes).map(({ path, node }) => [JSON.stringify(path), node.description]))
     // Only the sidecar changes a note: a group note copied into the template is not a change request.
     revised.schemaNodes = withFieldDescriptions(withoutNotes(revised.schemaNodes), fieldDescriptions)
   } catch {
     return FAILED
   }
-  return { status: 'proposed', ...schemaEditBetween(definition.schemaNodes, revised.schemaNodes), issues: [] }
+  const { fields, additions } = schemaEditBetween(definition.schemaNodes, revised.schemaNodes)
+  // A group the edit adds has no note to copy: the one written for it inside the template is its note.
+  const noted = additions.map((addition) => {
+    const note = addition.description == null ? inline.get(JSON.stringify(addition.path)) : undefined
+    return note ? { ...addition, description: note } : addition
+  })
+  return { status: 'proposed', fields, additions: noted, issues: [] }
 }
 
 function withoutNotes(nodes: readonly SchemaNode[]): SchemaNode[] {

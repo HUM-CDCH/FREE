@@ -320,6 +320,16 @@ describe('proposeSchemaEdit', () => {
     ])
   })
 
+  it('reads the note written inside the template for a group the edit adds', async () => {
+    const nodes = await applied({
+      _description: definition.recordDescription, title: 'string', status: ['open', 'closed'], count: 'string', notes: 'string',
+      grave: { plot: 'string' }, burial: { _description: 'Where it lies.', date: 'date' },
+    })
+    expect(nodes.slice(0, -1)).toEqual(definition.schemaNodes)
+    expect(nodes.at(-1)).toEqual({ id: expect.any(String), name: 'burial', type: 'object', description: 'Where it lies.',
+      children: [{ id: expect.any(String), name: 'date', type: 'date' }] })
+  })
+
   it('turns a revised template into the edits that reproduce it, keeping each surviving field', async () => {
     const nodes = await applied({
       _description: 'One numbered burial entry.',

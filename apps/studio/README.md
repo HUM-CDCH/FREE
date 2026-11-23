@@ -72,7 +72,8 @@ Field notes in an edit, a group's too, travel beside the compact `template` in
 the same model response, as `fieldDescriptions` entries with exact revised
 field-name paths and either a description or `clear: true`. The edit's template
 is sent without group notes, and a group `_description` the model returns inside
-it is ignored, so a note changes only when an entry asks for it. Missing entries
+it is read only for a group the edit adds, so an existing note changes only when
+an entry asks for it. Missing entries
 or null leave notes unchanged, also when the field changes between a single
 value and a group; `clear: true` or an empty description string clears one.
 A clear entry cannot also supply a description. These entries become the ordinary per-field proposal
