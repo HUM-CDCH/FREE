@@ -20,7 +20,7 @@ import ResultsMenu, { type MenuItem } from './ResultsMenu'
 import { RunDiagnostics } from './RunDiagnostics'
 import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { quietRevision, resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
-import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, statusLine, valueParts, type RunProgress, type ValuePart } from './durableRailModel'
+import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, statusLine, valueEvidenceLink, valueParts, type ReviewEvidenceLink, type RunProgress, type ValuePart } from './durableRailModel'
 import { provisionalMarks } from './provisionalMarks'
 import { recordBlocks, type RecordBlock } from './recordBlocks'
 import type { MarkInfo } from './useEvidenceOverlays'
@@ -382,17 +382,25 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const reviewParts=useMemo(()=>review&&composite(review.value)?valueParts(review.value):[],[review])
   const [part,setPart]=useState<string|null>(null)
   const chosenPart=part&&reviewParts.some(each=>each.key===part)?part:null
-  const activeLink=chosenPart?reviewParts.find(each=>each.key===chosenPart)?.link??null:review?.value.links[0]??null
+  const activeLink=chosenPart?reviewParts.find(each=>each.key===chosenPart)?.link??null
+    :review?valueEvidenceLink(review.value):null
+  const showEvidence=useCallback((link:ReviewEvidenceLink)=> {
+    if(link.occurrenceIds)onEvidence(link.evidenceAnchorId,link.occurrenceIds)
+    else onEvidence(link.evidenceAnchorId,undefined,link)
+  },[onEvidence])
   // What one-by-one follows on the source for a value: its link, once the source is there and the rail is open.
-  const followKeyFor=useCallback((value:Value,version:number,link:EvidenceLink|null)=>railOpen&&focus&&document
-    ?`${sourceRevisionId??''}:${document.preprocessing.preprocess_id}:${version}:${value.id}:${link?JSON.stringify(link.resultPath):''}:${link?.evidenceAnchorId??''}:${link?.precision??''}`:null,
+  const followKeyFor=useCallback((value:Value,version:number,link:ReviewEvidenceLink|null)=>railOpen&&focus&&document
+    ? JSON.stringify([sourceRevisionId,document.preprocessing.preprocess_id,version,value.id,
+      link?.resultPath,link?.evidenceAnchorId,link?.precision,link?.occurrenceIds]) : null,
   [railOpen,focus,document,sourceRevisionId])
   // Collapsed, one-by-one follows nothing; expanding follows its value again.
   const followKey=review?followKeyFor(review.value,review.version,activeLink):null
   // A request pending this commit may select another value: the follow waits for it rather than scroll back to this one.
   const requestTaken=Boolean(request&&request.extractionId===id&&page&&railOpen)
-  const followRef=useRef({onEvidence,requestTaken,activeLink,reviewId:review?.value.id})
-  useEffect(()=>{followRef.current={onEvidence,requestTaken,activeLink,reviewId:review?.value.id}})
+  const followRef=useRef({showEvidence,requestTaken,activeLink,
+    reviewId:review?.value.id})
+  useEffect(()=>{followRef.current={showEvidence,requestTaken,activeLink,
+    reviewId:review?.value.id}})
   // A chosen value shows in its record, whichever way the researcher last toggled it.
   const reveal=(record:string)=>setToggledRecords(previous=>{if(previous.get(record)!==false)return previous;const next=new Map(previous);next.delete(record);return next})
   const selectValue=useCallback((key:string,fromMark=false)=> {
@@ -419,10 +427,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     selectValue(key)
     // A value the page lacks may be the open review's, read on its own.
     const value=page?.values.find(each=>each.id===key)??(review?.value.id===key&&review.version===page?.snapshotVersion?review.value:undefined)
-    const link=value?.links[0],own=value?.correction?.decision.evidence[0] as {anchorId:string;occurrenceIds:string[]}|undefined
+    const link=value?valueEvidenceLink(value):null
     if(focus&&value&&link&&(!document||followKeyFor(value,page!.snapshotVersion,link)!==followKey))return
-    if(link)followRef.current.onEvidence(link.evidenceAnchorId,undefined,link)
-    else if(own)followRef.current.onEvidence(own.anchorId,own.occurrenceIds)
+    if(link)followRef.current.showEvidence(link)
   },[page,selectValue,focus,document,followKeyFor,followKey,review])
   // A value link's or a mark's request is taken once: for this Extraction, once its values are read and the rail is
   // open, so a link that arrives while collapsed waits. The live snapshot says whether it is still pending.
@@ -468,6 +475,12 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       // The correction's Evidence is its own mark, named as its value: it lights with any part chosen (`ownsMark`).
       const parent=describe.get(value.id),own=value.correction?.decision.evidence??[]
       if(parent&&own.length)describe.set(`${value.id}#correction`,parent)
+      if(parent&&value.correction?.decision.action==='EDITED') {
+        const original=durableRailRow({...value,correction:null},document)
+        describe.set(value.id,{...parent,name:`${value.node.name} (extracted)`,
+          value:shownValue(value.modelValue),
+          word:null,style:original.chip?.style??'neutral'})
+      }
       return [...value.links.flatMap(link=> {
         const part=parts.get(JSON.stringify(link.resultPath))
         // The part's mark takes its own link's style (rule, doubtful); the decision word stays the value's.
@@ -489,11 +502,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   },[model,page,selection,review,document,blocks,id,chosenPart,fieldOrder,previews,displayed])
   useEffect(()=>()=>{selection.publish({marks:null,dim:null});selection.hover(null)},[selection])
   useEffect(()=>{
-    const {reviewId,onEvidence,requestTaken,activeLink:link}=followRef.current
+    const {showEvidence,reviewId,requestTaken,activeLink:link}=followRef.current
     selection.publish({dim:followKey?link:null})
     const fromMark=selectionFromMark.current===reviewId
     selectionFromMark.current=null
-    if(followKey&&link&&!fromMark&&!requestTaken)onEvidence(link.evidenceAnchorId,undefined,link)
+    if(followKey&&link&&!fromMark&&!requestTaken)showEvidence(link)
   },[followKey,selection])
   useEffect(()=> {
     if(id&&page)onReviewProgress?.({extractionId:id,snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion,
@@ -608,8 +621,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const pick:PartPick|undefined=review&&reviewParts.length?{valueId:review.value.id,selected:chosenPart,
     parts:new Map(reviewParts.map(each=>[each.key,each])),onPick:key=> {
       setPart(key)
-      const link=key===null?review.value.links[0]:reviewParts.find(each=>each.key===key)?.link
-      if(!focus&&link)onEvidence(link.evidenceAnchorId,undefined,link)
+      const link=key===null?valueEvidenceLink(review.value)
+        :reviewParts.find(each=>each.key===key)?.link
+      if(!focus&&link)showEvidence(link)
     }}:undefined
   const valueReview=review&&<ValueReview part={reviewParts.find(each=>each.key===chosenPart)} pick={pick} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onNext={openNext} onPrevious={()=>selectValue(previousInRecord(queue,review.value.id))} onGo={selectValue} queue={queue} blocked={blocked} keyboardRoot={keyboardRoot} headerSlot={headerSlot}

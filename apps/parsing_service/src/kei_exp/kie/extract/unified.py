@@ -714,8 +714,10 @@ class _Checker:
             for text in forms(typed):
                 literal += [each for each in self._places(text, raw_range(self.view, spans), numeric)
                             if each not in literal]
-        if not literal and len(quoted) == 1:  # one quoted table cell, such as a row's number, and the value printed
-            for within in self._row(quoted[0]):  # in a cell of that row; a quote found in several places names none
+        # A quoted row identifier may locate a value in another cell. For a boolean, a neighbouring
+        # field's true/false says nothing about the quoted field: keep its supporting passage.
+        if not literal and len(quoted) == 1 and not isinstance(typed, bool):
+            for within in self._row(quoted[0]):
                 for text in forms(typed):
                     literal += [each for each in self._places(text, within, numeric) if each not in literal]
         if not literal and free and len(quoted) == 1:

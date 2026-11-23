@@ -314,7 +314,7 @@ def raw_range(block: BlockText, spans: list[Span]) -> tuple[int, int]:
 def forms(value: object) -> list[str]:
     """How the source may print a typed value: an integral float as its integer, a decimal with comma or point."""
     if isinstance(value, bool):
-        return []
+        return [str(value).lower()]
     if isinstance(value, int):
         return [str(value)]
     if isinstance(value, float):
