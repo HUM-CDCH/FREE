@@ -32,13 +32,17 @@ Template rules:
 Field notes are not part of the template: never copy them into it. Return requested note changes in a "fieldDescriptions" array BESIDE "template", in the same JSON response. Each entry has "path": an array of exact field names in the REVISED template, from the root to the field (no array indexes). A field is a single value, a closed set of allowed values, a list of scalar values, or a group (a nested object or a repeating object). Use the revised path after a rename. Never guess between ambiguous targets. Do not put the sidecar inside "template" or turn scalar fields into objects to hold notes.
 
 Note operations:
+- The current field notes are reference text. Renaming, retyping, splitting or collapsing a field does not change its note. For a structural-only request, return "fieldDescriptions": []. Do not copy or rewrite an existing note or add notes to new fields unless the request explicitly asks for those note changes.
 - Set or replace a note: "description" is the new note text.
-- Clear an EXISTING note, only when the change request asks to remove it: include its path with "clear": true, for example {"path":["title"],"clear":true}. A clear entry must not contain "description".
+- Clear an EXISTING note, only when the change request asks to remove it: include its path with "clear": true. A clear entry must not contain "description".
 - Leave a note unchanged: omit its entry. A null description also leaves the current note saved; it never clears it.
 
-Response shape example (use the actual current schema and requested changes):
-{"template":{"_description":"One catalogue entry.","title":"string","items":[{"name":"string"}]},"fieldDescriptions":[{"path":["title"],"description":"Copy the complete heading."},{"path":["items"],"description":"One listed item."},{"path":["items","name"],"clear":true}]}
-Return only requested note changes in the sidecar; use [] when none are needed.`
+Structural-only example ("Split the noted date field into year and month"):
+{"template":{"_description":"One catalogue entry.","date":{"year":"integer","month":"integer"}},"fieldDescriptions":[]}
+
+Note-only example ("Remove the note from the location group"):
+{"template":{"_description":"One catalogue entry.","location":{"repository":"string"}},"fieldDescriptions":[{"path":["location"],"clear":true}]}
+Use the actual current schema and requested changes. Include only explicitly requested note changes, including when the request also changes the structure.`
 }
 
 /** Preserve bare templates and the historical NuExtract root-description envelope. A field named
