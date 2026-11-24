@@ -82,13 +82,17 @@ async function cutCorrections(client: PoolClient, id: string, snapshotVersion: n
   [id,feedbackVersion,snapshotVersion,valueId??null])).rows
 }
 
+async function valueInSnapshot(client: PoolClient, id: string, version: number, valueId: string) {
+  const {rows} = await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,version])
+  return rows[0] ? durableValueSchema.array().parse(rows[0].values).find(value => value.id === valueId) : undefined
+}
+
 async function lockedReviewTarget(client: PoolClient, owner: string, id: string, valueId: string,
   input: {snapshotVersion: number; expectedRevision: number}) {
   const initial = await ownedHead(client,owner,id)
   const feedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1 FOR UPDATE', [initial.projectId])).rows[0]
   const head = await ownedHead(client,owner,id,true)
-  const snapshot = (await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,input.snapshotVersion])).rows[0]
-  const value = snapshot ? durableValueSchema.array().parse(snapshot.values).find(v=>v.id===valueId) : null
+  const value = await valueInSnapshot(client,id,input.snapshotVersion,valueId)
   if (!value || value.processing !== 'saved') throw new DurableInvalid('Choose a structurally valid saved value.')
   const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
   if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
@@ -315,15 +319,14 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           JOIN extraction_runtime.selection i ON i.id=s."selectionId" AND i."extractionId"=s."extractionId"
           WHERE s."extractionId"=$1 AND s.version=$2`, [id,snapshotVersion])).rows[0]
         if (!snapshot && snapshotVersion !== 0) throw new DurableNotFound('That saved result snapshot is unavailable.')
-        const feedbackVersion = input.feedbackVersion ?? (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0].version
         const latestFeedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1', [head.projectId])).rows[0].version
+        const feedbackVersion = input.feedbackVersion ?? latestFeedback
         if (!Number.isInteger(snapshotVersion) || snapshotVersion < 0 || snapshotVersion > head.snapshotVersion ||
           !Number.isInteger(feedbackVersion) || feedbackVersion < 0 || feedbackVersion > latestFeedback)
           throw new DurableInvalid('Choose a committed result and review snapshot.')
         const corrections = await cutCorrections(client,id,snapshotVersion,feedbackVersion)
         const correctionsByValue = new Map(corrections.map(correction=>[correction.valueId,correction]))
         const allValues = snapshot ? durableValueSchema.array().parse(snapshot.values) : []
-        const values=input.valueId?allValues.filter(v=>v.id===input.valueId):allValues
         const offset = input.offset ?? 0, limit = Math.min(input.limit ?? 100,500)
         if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1) throw new DurableInvalid('Invalid result page.')
         const finalization = (await client.query(`SELECT id,"snapshotVersion","feedbackVersion","createdAt" FROM extraction_runtime.finalization
@@ -349,15 +352,14 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
           'SELECT "schemaRevisionId" FROM extraction_runtime.selection WHERE id=$1 AND "extractionId"=$2', [head.selectionId,id])).rows[0].schemaRevisionId
         return { extractionId:id,snapshotVersion,feedbackVersion,finalization,reviewCounts,status:durableStatus(head),coverage:snapshot?.coverage??null,
           schemaRevisionId,schemaRevisions:await resultSchemaRevisions(client,head),
-          total:values.length,values:selected.slice(offset,offset+limit),
-          next:offset+limit < values.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
+          total:selected.length,values:selected.slice(offset,offset+limit),
+          next:offset+limit < selected.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
       })
     },
     async saveCorrection(id: string, valueId: string, raw: unknown, validateEvidence: (value: DurableValue, evidence: {anchorId:string;occurrenceIds:string[]}[], sourceRevisionId: string) => Promise<Record<string,unknown> | void>) {
       const input = durableCorrectionSchema.parse(raw)
       const validated = await owned(id,async(client,head)=> {
-        const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
-        const value=snapshot?durableValueSchema.array().parse(snapshot.values).find(v=>v.id===valueId):null
+        const value = await valueInSnapshot(client,id,input.snapshotVersion,valueId)
         if(!value) throw new DurableInvalid('Choose a saved value.')
         return {value,sourceRevisionId:head.sourceRevisionId}
       })
@@ -400,11 +402,12 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         // shortcut: decisions store the approved paths so far, switch to per-path events if large tables make history expensive.
         const approvedCells = cells.paths.filter(path=>approvals.has(JSON.stringify(path)))
         const complete = cells.wholeValue && approvedCells.length === cells.paths.length
-        const decision: CorrectionDecision = wholeDecision?.action === 'APPROVED'
-          ? {...wholeDecision,approvedCells,expectedRevision:input.expectedRevision,snapshotVersion:input.snapshotVersion}
-          : {action:complete?'APPROVED':'PENDING',evidence:[],included:false,approvedCells,
-            expectedRevision:input.expectedRevision,snapshotVersion:input.snapshotVersion}
-        return publishCorrection(client,target,decision,undefined)
+        return publishCorrection(client,target,{
+          ...(wholeDecision?.action === 'APPROVED' ? wholeDecision : {
+            action: complete ? 'APPROVED' : 'PENDING', evidence: [], included: false,
+          }),
+          approvedCells, expectedRevision: input.expectedRevision, snapshotVersion: input.snapshotVersion,
+        },undefined)
       })
     },
     history(id: string) { return runtimeTransaction(source,async (client)=> {

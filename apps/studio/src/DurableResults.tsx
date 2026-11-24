@@ -24,7 +24,7 @@ import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markVa
 import { provisionalMarks } from './provisionalMarks'
 import { recordBlocks, type RecordBlock } from './recordBlocks'
 import type { MarkInfo } from './useEvidenceOverlays'
-import { checkReason, forwardItems, hasPriority, nextToCheck, oneByOneQueue, previousInQueue, queuePosition, type QueueItem } from './reviewQueue'
+import { checkReason, forwardItems, hasPriority, nextToCheck, oneByOneQueue, previousInQueue, type QueueItem } from './reviewQueue'
 import { fieldWords, passesFilter, shownValue, stateLabel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from 'extraction/durable-types'
 import type { SelectionChannel } from './selectionChannel'
@@ -66,8 +66,6 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   useEffect(()=> {if(state.matches('saved')&&state.context.acknowledgement) onSaved(state.context.acknowledgement)},[state,onSaved])
   const row=durableRailRow(state.context.value,document,part)
   const busy=savingCell||state.matches('saving')||state.matches('reloading')||state.matches('undoing')
-  const queueKey=part?.key??value.id
-  const position=queuePosition(queue,queueKey)
   // An edit is guidance for the model's later calls by default (`reviewDraft`): the researcher's fix reaches its context.
   const decide=(action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING',edited?:unknown)=> {
     if(action==='EDITED')send({type:'edit',draft:{...state.context.draft,value:edited}})
@@ -134,8 +132,8 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   })
   return <section aria-label={`Review ${fieldWords(value.node.name)}`} className="space-y-2">
     <div>
-      {focus?<ReviewFocus {...common} article={article} current={row} part={part} items={position?.items??[]} position={position} order={order}
-        recordLabel={recordLabel} upNext={forwardItems(queue,queueKey,blocked).slice(0,3)}
+      {focus?<ReviewFocus {...common} article={article} current={row} part={part} queue={queue} blocked={blocked} order={order}
+        recordLabel={recordLabel}
         headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo}/>
         :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable)}
           saved={readOnly}/>}
@@ -722,8 +720,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     setReview(previous=>previous?.value.id===value.id&&previous.version===version&&previous.cutGeneration===cutGeneration?{...previous,value,feedbackVersion}:previous)
     if(selectedGeneration.current!==cellReviewGeneration||!focus||!approvedKey)return
     const approved=new Set(value.approvedCells?.map(path=>partKey(value.id,path)))
-    const remaining=queue.filter(item=>item.key===approvedKey||!approved.has(item.key))
-    const next=nextToCheck(remaining,approvedKey,blocked)
+    const next=forwardItems(queue,approvedKey,blocked).find(item=>!approved.has(item.key))?.key
     if(!next)setReview(null)
     else if(markValueId(next)!==value.id)selectValue(next)
     else setPart(next)

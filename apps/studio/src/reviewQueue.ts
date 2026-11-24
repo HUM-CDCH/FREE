@@ -68,6 +68,6 @@ export function previousInQueue(queue: readonly QueueItem[], current: string): s
 export function queuePosition(queue: readonly QueueItem[], current: string) {
   const index = queue.findIndex((each) => each.key === current)
   if (index < 0) return null
-  const record = queue[index]!.record
-  return { at: index + 1, of: queue.length, items: queue.filter((each) => each.record === record) }
+  const { record, row } = queue[index]!
+  return { at: index + 1, of: queue.length, row, items: queue.filter((each) => each.record === record) }
 }

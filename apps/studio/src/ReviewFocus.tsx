@@ -2,7 +2,7 @@ import DisagreementChoice from './DisagreementChoice'
 import { RowGlyph } from './ReviewRow'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import { checkReason, type QueueItem } from './reviewQueue'
+import { checkReason, forwardItems, queuePosition, type QueueItem } from './reviewQueue'
 import { DECISION_WORD, type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, UndoGlyph } from './ui/icons'
@@ -16,18 +16,17 @@ const Kbd = ({ children }: { children: string }) =>
  * One by one: the same rail as a card for the current value, its record's queue,
  * its Evidence, the decision and what comes next.
  */
-export default function ReviewFocus({ article, items, position, current, part, recordLabel, editing, node, upNext,
+export default function ReviewFocus({ article, queue, blocked, current, part, recordLabel, editing, node,
   headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onTypedEdit, pick, order, canApproveWhole = true, canUndoWhole = true, locked = false }: {
   article: boolean
-  items: readonly QueueItem[]
-  position: { at: number; of: number } | null
+  queue: readonly QueueItem[]
+  blocked: ReadonlySet<string>
   order?: { priority: boolean; onToggle: () => void }
   current: RailRow
   part?: { key: string; name: string; value: unknown }
   recordLabel: string
   editing: boolean
   node: SchemaNode | null
-  upNext: readonly QueueItem[]
   headingRef: Ref<HTMLHeadingElement>
   onDecide: (action: ReviewAction, value?: unknown) => void
   onChoose?: (choices: { path: string[]; value: unknown }[]) => void
@@ -47,14 +46,16 @@ export default function ReviewFocus({ article, items, position, current, part, r
 }) {
   const decided = current.kind !== 'to-check'
   const key = part?.key ?? current.key
-  const reason = checkReason(items.find((item) => item.key === key)?.row ?? current)
+  const position = queuePosition(queue, key)
+  const reason = checkReason(position?.row ?? current)
+  const upNext = forwardItems(queue, key, blocked).slice(0, 3)
   const name = fieldWords(part?.name ?? current.name)
   const trail = article ? name : `${recordLabel} › ${name}`
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
       <div className="flex flex-wrap items-center gap-1.5">
         <ol aria-label={article ? 'Values in review order' : `${recordLabel}, values in review order`} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
-          {items.map((item) => {
+          {position?.items.map((item) => {
             const itemReason = checkReason(item.row)
             return <li key={item.key}>
               <button type="button" disabled={locked} aria-current={item.key === key ? 'step' : undefined} onClick={() => onGo(item.key)}
