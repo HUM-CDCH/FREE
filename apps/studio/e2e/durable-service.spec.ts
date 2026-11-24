@@ -129,7 +129,7 @@ for(const method of methods) {
 
 test('native unified: a Pause while discovery still reads keeps and shows every entry already read',async({page},info)=>{
   test.skip(Boolean(process.env.FREE_REAL_EXTRACT_URL),'The pause needs the counted provider hold.')
-  const service=await startRealService(info.outputPath('durable-worker.log'))
+  const service=await startRealService(info.outputPath('durable-worker.log'),{discoveryTokensPerRecord:4000})
   try {
     await loginResearcher(page,randomUUID())
     const project=(await (await page.request.post('/api/project-contexts',{headers:{Origin:E2E_ORIGIN},data:{name:'Pipelined pause'}})).json()).projectContext.projectContextId as string
@@ -164,6 +164,13 @@ test('native unified: a Pause while discovery still reads keeps and shows every 
     const paused=await shown()
     expect(read.size).toBeGreaterThan(0)
     expect([...paused].sort()).toEqual([...read].sort())
+    // The last window had not finished at Pause. Its entries will be admitted after this edit.
+    await rail.getByRole('button',{name:/^To check finds /}).first().click()
+    await rail.getByRole('button',{name:'Edit',exact:true}).click()
+    await rail.getByRole('textbox',{name:'Reviewed value'}).fill('Correction from the paused window')
+    await rail.getByRole('button',{name:'Save edit',exact:true}).click()
+    await expect.poll(async()=> (await (await page.request.get(`/api/extractions/${id}/durable/values?limit=500`)).json()).values
+      .some((v:{correction:{decision:{value?:unknown}}|null})=>v.correction?.decision.value==='Correction from the paused window')).toBe(true)
     // The chat's step notice says the same: the count is the Results view's.
     await expect(rail.getByRole('group',{name:'Results status'}).getByText(new RegExp(`${read.size} records? read`))).toBeVisible()
     await page.getByRole('button',{name:'▶ Resume extraction',exact:true}).click()
@@ -174,6 +181,9 @@ test('native unified: a Pause while discovery still reads keeps and shows every 
     },{timeout:120_000}).toBe('COMPLETED')
     expect((await state()).recordsFinal).toBe(true)
     expect((await shown()).size).toBe(6)
+    const finished=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
+    expect(finished.captures.some((c:{feedbackVersion:number;descriptor:{stage:string};request:{examples:{value:unknown}[]}|null})=>
+      c.descriptor.stage==='entry' && c.feedbackVersion>0 && c.request?.examples.some(e=>e.value==='Correction from the paused window'))).toBe(true)
     await page.screenshot({path:info.outputPath('pipelined-paused-resumed.png'),fullPage:true})
   } finally {service.releaseExtraction();await service.close()}
 })
@@ -426,7 +436,7 @@ function liveCataloguePages(): string[][] {
 // ADR 0017's live results on a real worker and reasoning server; live-results-evidence.json keeps what the researcher
 // saw and what the model received.
 // The current method pipelines entries after discovery.
-for(const defaults of [12] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later calls; pause and resume`,async({page},info)=>{
+for(const defaults of [12] as const) test(`native unified live results (defaults ${defaults}): discovery progress, then each record and its Evidence while the run reads; a mid-run edit guides later admissions; pause and resume`,async({page},info)=>{
   test.setTimeout(30*60_000)
   test.skip(!process.env.FREE_REAL_EXTRACT_URL,'Requires an explicitly selected real reasoning server.')
   const service=await startRealService(info.outputPath('live-results-worker.log'))
@@ -481,6 +491,10 @@ for(const defaults of [12] as const) test(`native unified live results (defaults
     await rail.getByRole('button',{name:/^To check finds /}).first().click()
     await rail.getByRole('button',{name:'Edit',exact:true}).click()
     await rail.getByRole('textbox',{name:'Reviewed value'}).fill('Corrected finds sentinel')
+    type Capture={id:string;feedbackVersion:number;descriptor:{stage:string};request:{examples:{value:unknown}[];body:{httpRequest:Record<string,unknown>}}|null;output:{parsed:unknown}|null}
+    const capturesOf=async(run:string):Promise<Capture[]>=> (await (await page.request.get(`/api/extractions/${run}/durable/history`)).json()).captures
+    const pinned=(await capturesOf(id)).filter(capture=>capture.request!==null)
+    expect(pinned.length).toBeGreaterThan(0)
     await rail.getByRole('button',{name:'Save edit',exact:true}).click()
     let correctionVersion=0
     await expect.poll(async()=>{
@@ -509,12 +523,33 @@ for(const defaults of [12] as const) test(`native unified live results (defaults
     await expect(rail.getByText('Completed',{exact:true})).toBeVisible({timeout:30_000})
     await shot('06-completed')
 
-    const history=await (await page.request.get(`/api/extractions/${id}/durable/history`)).json()
-    type Capture={id:string;feedbackVersion:number;descriptor:{stage:string};request:{examples:{value:unknown}[];body:{httpRequest:Record<string,unknown>}}|null;output:{parsed:unknown}|null}
-    const captures:Capture[]=history.captures
-    const guided=captures.filter(capture=>capture.request?.examples.some(example=>example.value==='Corrected finds sentinel'))
-    expect(guided.length).toBeGreaterThan(0)
-    expect(guided.every(capture=>capture.feedbackVersion>=correctionVersion)).toBe(true)
+    const captures=await capturesOf(id)
+    for(const before of pinned) {
+      const after=captures.find(capture=>capture.id===before.id)
+      expect(after?.request).toEqual(before.request)
+      expect(after?.feedbackVersion).toBe(before.feedbackVersion)
+    }
+    // All known entries can already be captured when the first value becomes editable. A fresh source with
+    // the same schema guarantees later admissions on the real model regardless of provider speed.
+    const nextSource=await settle(page,project,await admit(page,project,textPdf([['1. Lake: copper dated 1821.']]),'later.pdf'),180_000)
+    if(nextSource.status!=='succeeded')throw new Error('The follow-up source was not published.')
+    const final=await values()
+    const next=await seedNative(page,project,nextSource.sourceDocumentId,'unified',{
+      schemaRevisionId:final.values[0].schemaRevisionId,models:{fields:'instruct',reasoning:'instruct'},defaults})
+    await service.reconcileDurable()
+    await expect.poll(async()=>{
+      const head=await (await page.request.get(`/api/extractions/${next}/durable`)).json()
+      if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
+      return head.status
+    },{timeout:600_000}).toBe('COMPLETED')
+    const later=(await capturesOf(next)).filter(c=>c.descriptor.stage==='entry' && c.request!==null)
+    expect(later.length).toBeGreaterThan(0)
+    const guided=[...captures.filter(c=>c.descriptor.stage==='entry' && c.feedbackVersion>=correctionVersion),...later]
+    for(const capture of guided) {
+      expect(capture.feedbackVersion).toBeGreaterThanOrEqual(correctionVersion)
+      expect(capture.request?.examples).toContainEqual(expect.objectContaining({value:'Corrected finds sentinel'}))
+      expect(JSON.stringify(capture.request?.body.httpRequest)).toContain('Corrected finds sentinel')
+    }
     const discovery=captures.filter(capture=>capture.descriptor.stage==='discovery')
     expect(discovery.length).toBeGreaterThan(0)
     // The captured request is the exact unstreamed one; only the transport asked for the stream.
@@ -524,8 +559,7 @@ for(const defaults of [12] as const) test(`native unified live results (defaults
       const workflows=[...attempts.map(attempt=>attempt.workflowId),...attempts.flatMap(attempt=>discovery.map(capture=>`kei-call:${attempt.id}:${capture.id}`))]
       return (await client.query('SELECT workflow_uuid,key FROM kei_dbos.workflow_events WHERE workflow_uuid=ANY($1)',[workflows])).rows as {workflow_uuid:string;key:string}[]
     })
-    const final=await values()
-    await writeFile(info.outputPath('live-results-evidence.json'),JSON.stringify({id,found,midRun,timeline,correctionVersion,events,
+    await writeFile(info.outputPath('live-results-evidence.json'),JSON.stringify({id,next,found,midRun,timeline,correctionVersion,events,
       pausedValues:paused.values.length,finalValues:final.values.length,linked:final.values.filter((value:{links:unknown[]})=>value.links.length>0).length,
       guided:guided.map(capture=>({id:capture.id,stage:capture.descriptor.stage,feedbackVersion:capture.feedbackVersion})),
       discovery:discovery.map(capture=>({id:capture.id,output:capture.output?.parsed})),

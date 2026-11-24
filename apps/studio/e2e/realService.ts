@@ -61,7 +61,7 @@ const DOCUMENT_INSTRUCTION = 'The document is the one object to extract:'
 /** Only the model boundary is scripted. Responses are derived from the real parser text in each prompt.
  *  `unansweredClaimValue`: the verifier leaves the claim whose value is this text unanswered, so the Parsing Service
  *  records it as not completed (`missing_claim`). */
-async function modelServer(options: { unansweredClaimValue?: string; articleReading?: (prompt:string)=>Record<string,unknown> } = {}) {
+async function modelServer(options: { discoveryTokensPerRecord?: number; unansweredClaimValue?: string; articleReading?: (prompt:string)=>Record<string,unknown> } = {}) {
   let calls = 0
   const requests: unknown[] = []
   let holdNext = false
@@ -77,7 +77,10 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
       const body = JSON.parse(bytes)
       // A verified count stands in for vLLM's /tokenize, and every completion reports the same count, as a
       // real server does: the recipe path refuses an endpoint whose counts it cannot verify.
-      const counted = body.messages.reduce((total: number, message: { content: string }) =>
+      // A test that holds a later discovery window needs its short fixture to span several windows.
+      const discoveryCost = options.discoveryTokensPerRecord && body.messages[0]?.content.startsWith('You find where records begin')
+        ? (body.messages.at(-1).content.match(/^\[L\d+[^\]]*\] \d+\. /gm)?.length ?? 0) * options.discoveryTokensPerRecord : 0
+      const counted = discoveryCost + body.messages.reduce((total: number, message: { content: string }) =>
         total + message.content.split(/\s+/).filter(Boolean).length, 0) + 7
       if (request.url === '/tokenize') {
         response.writeHead(200, { 'content-type': 'application/json' })
@@ -173,7 +176,7 @@ async function modelServer(options: { unansweredClaimValue?: string; articleRead
 type Process = { child: ChildProcess; exited: Promise<number | null> }
 
 export async function startRealService(logFile: string,
-  options: { holdConversion?: boolean; unansweredClaimValue?: string; articleReading?: (prompt:string)=>Record<string,unknown> } = {}) {
+  options: { holdConversion?: boolean; discoveryTokensPerRecord?: number; unansweredClaimValue?: string; articleReading?: (prompt:string)=>Record<string,unknown> } = {}) {
   const url = process.env.FREE_PLAYWRIGHT_SERVICE_URL
   if (!url) throw new Error('Run this test with playwright.service.config.ts.')
   const address = new URL(url)
@@ -196,7 +199,7 @@ export async function startRealService(logFile: string,
   const realModel = process.env.FREE_REAL_EXTRACT_MODEL
   if (Boolean(realUrl) !== Boolean(realModel))
     throw new Error('Provide both FREE_REAL_EXTRACT_URL and FREE_REAL_EXTRACT_MODEL, or neither.')
-  const fixture = realUrl ? null : await modelServer({ unansweredClaimValue: options.unansweredClaimValue, articleReading: options.articleReading })
+  const fixture = realUrl ? null : await modelServer(options)
   const runs = await mkdtemp(join(tmpdir(), 'free-real-service-'))
   const conversionBarrier = options.holdConversion ? join(runs, '.conversion-hold') : null
   if (conversionBarrier) await mkdir(conversionBarrier)
