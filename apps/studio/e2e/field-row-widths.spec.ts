@@ -212,10 +212,14 @@ async function checkRows(page: Page, width: number) {
     expect(editBox.height, `${width}px, kind: the focused Edit 28px tall`).toBe(28)
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
   }
+  const title = page.getByRole('listitem', { name: 'title', exact: true })
+  const note = title.getByRole('button', { name: 'The report title as printed on its cover page.' })
   if (width >= 344) {
-    // Rows are 30px at rest when their pills fit beside the name, clear of the actions' 140px: at 344px the top level
-    // keeps 123px for them, so `title · string` does (`sex · string · 6 values`, 137px, wraps its values pill).
-    const titleLine = page.getByRole('listitem', { name: 'title', exact: true }).locator('> div').first()
+    // The preview wraps below the type pill. Expanding it moves the full note below the compact header.
+    const pill = (await title.getByTitle(/^Type:/).boundingBox())!
+    expect((await note.boundingBox())!.y).toBeGreaterThanOrEqual(pill.y + pill.height - 0.5)
+    await note.click()
+    const titleLine = title.locator('> div').first()
     expect((await titleLine.boundingBox())!.height, `${width}px: title row height`).toBe(30)
   } else {
     // A row line under 296px would leave its pills under 110px beside the name: at 264px every row's pills start on the
@@ -228,10 +232,9 @@ async function checkRows(page: Page, width: number) {
       expect(Math.abs(first.x - nameBox.x), `${width}px, ${name}: pills start under the name`).toBeLessThanOrEqual(0.5)
     }
   }
-  // A note starts where its field's name starts.
-  const title = page.getByRole('listitem', { name: 'title', exact: true })
+  // The expanded note stays aligned with its field name as the rail narrows.
   const nameStart = (await title.getByText('title', { exact: true }).boundingBox())!.x
-  const noteStart = await title.getByRole('button', { name: 'The report title as printed on its cover page.' }).evaluate((element) =>
+  const noteStart = await note.evaluate((element) =>
     element.getBoundingClientRect().left + parseFloat(getComputedStyle(element).paddingLeft))
   expect(Math.abs(noteStart - nameStart), `${width}px: the note starts under the name (${noteStart} vs ${nameStart})`).toBeLessThanOrEqual(0.5)
 }
