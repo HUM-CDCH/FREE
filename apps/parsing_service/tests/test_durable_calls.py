@@ -415,11 +415,11 @@ def test_a_call_is_started_as_soon_as_another_of_its_role_ends_and_never_more_th
     assert calls.events[-2:] == [("publish", 0), ("ack", 0, True, None)]
 
 
-def test_each_call_starts_with_its_planned_priority(monkeypatch):
-    roles = {"d0": "reasoning", "e0": "fields", "e1": "fields"}
+def test_chat_calls_keep_their_priority_and_native_calls_start_without_one(monkeypatch):
+    roles = {"d0": "reasoning", "e0": "fields", "e1": "fields", "native": "fields"}
     calls = Calls(roles, priorities={"d0": 0, "e0": 3, "e1": 1})
     assert run_loop(monkeypatch, calls) == {"status": "ACK"}
-    assert calls.sent == {"d0": 0, "e0": 3, "e1": 1}
+    assert calls.sent == {"d0": 0, "e0": 3, "e1": 1, "native": 0}
 
 
 @pytest.mark.parametrize("ending,failure", [("boundary", None), ("failure", {"code": "capture_failed"})])

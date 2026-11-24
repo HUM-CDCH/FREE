@@ -670,6 +670,7 @@ def test_native_input_captures_schema_guidance_without_adding_source_facts(monke
     with pytest.raises(NeedsCall):
         planner.structure(backend,record=0,text="target source only",schema={"record":{"fields":["title"],"children":{},"description":"document"}},
                           identity=info["identity"],counted=100,context=10000)
+    assert planner.priorities == dict.fromkeys(planner.pending, 0)
     request=next(iter(lease.units.values()))["input"]["request"]
     assert request["body"]["text"]=="target source only"
     assert request["examples"][0]["grounded"] is False

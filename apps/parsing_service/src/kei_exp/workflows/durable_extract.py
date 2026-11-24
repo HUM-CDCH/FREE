@@ -369,7 +369,8 @@ def extract_workflow(request: dict) -> dict:
             if capture in ended:  # its call ended without saving an output: planning it again would never end
                 return stop(False, {"code": "capture_replanned"})
             if sum(each == role for each, _ in running.values()) < max(1, config.CATALOG_CHUNKS):
-                priority = work["priorities"][capture]
+                # Previously saved plans omitted the priority for native fields calls.
+                priority = work["priorities"].get(capture, 0)
                 with SetWorkflowID(f"kei-call:{attempt}:{capture}"):
                     running[capture] = (role, DBOS.start_workflow(call_workflow, extraction, attempt, capture,
                                                                   priority))

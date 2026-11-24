@@ -323,6 +323,7 @@ class CapturePlanner:
         with self._lock:
             self.pending[capture["id"]]=key
             self.roles[capture["id"]]="fields"
+            self.priorities[capture["id"]]=0  # native calls do not send a vLLM queue priority
         raise NeedsCall()
 
     def _guidance(self, examples):
