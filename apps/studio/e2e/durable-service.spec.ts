@@ -505,6 +505,7 @@ for(const defaults of [12] as const) test(`native unified live results (defaults
       if(head.status==='FAILED')throw new Error(JSON.stringify(head.failure))
       return head.status
     },{timeout:1_200_000,intervals:[1000]}).toBe('COMPLETED')
+    await rail.getByRole('region',{name:'Results ready'}).getByRole('button',{name:'Open Results'}).click({timeout:30_000})
     await expect(rail.getByText('Completed',{exact:true})).toBeVisible({timeout:30_000})
     await shot('06-completed')
 
