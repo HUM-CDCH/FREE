@@ -273,6 +273,110 @@ test('saved live review survives reload, rejects another owner and exports its f
   } finally {await fixture.close()}
 })
 
+test('one ranked table cell approval survives reload and an independent owner session', async ({ page, browser }) => {
+  const fixture = await prepareInteractiveDocument(page, { hasKey: false })
+  const secondContext = await browser.newContext()
+  try {
+    const source = decodeParsedDocument(await (await page.request.get(`/api/project-contexts/${fixture.projectContextId}/source-representations/${fixture.sourceRepresentationRevisionId}/source`)).json())
+    const anchor = source.evidence_index.anchors[0]!
+    const occurrence = anchor.producer_observations[0]!
+    const columns = ['baseline', 'week12', 'week24'].map(name => ({ id: name, name, type: 'integer' as const }))
+    const rows = [
+      { baseline: 22, week12: 12, week24: 13 },
+      { baseline: 21, week12: 22, week24: 23 },
+      { baseline: 31, week12: 32, week24: 33 },
+    ]
+    const path = ['records', 0, 'measurements', 1, 'week12']
+    const { x0, y0, x1, y1 } = occurrence.bbox
+    const { id } = await savedExtraction(fixture, [
+      { id: 'measurements', name: 'measurements', type: 'array', children: columns },
+    ], [rows], 'COMPLETED', {
+      modelEvidence: { measurements: [{
+        anchorId: anchor.anchor_id,
+        occurrenceIds: [occurrence.occurrence_id],
+        producer: {
+          path, segment: 'p1_s0', page: 1, bbox_pt: [x0, y0, x1, y1],
+          verbatim: false, linked_by: 'lexical', precision: 'segment',
+        },
+      }] },
+    })
+    const root = `/api/extractions/${id}/durable`
+    const valueUrl = `${root}/values/measurements`
+    const read = async (view: Page, query = '') => {
+      const response = await view.request.get(valueUrl + query)
+      expect(response.ok(), await response.text()).toBe(true)
+      return response.json()
+    }
+    const name = 'measurements › #2 › week12'
+    const checkFirst = (view: Page) => view.getByRole('region', { name: 'Check first' })
+    const rankedCell = (view: Page) => checkFirst(view).getByRole('button', { name: /measurements › #2 › week12.*22/i })
+    const table = (view: Page) => view.getByRole('table', { name: 'measurements', exact: true })
+    const cell = (view: Page) => table(view).getByRole('button', { name: `${name}: 22`, exact: false })
+    const decision = (view: Page) => view.getByRole('group', { name: `Decision for ${name}`, exact: true })
+    const checkOnlyTargetApproved = async (view: Page) => {
+      await expect(table(view).getByRole('button')).toHaveCount(9)
+      await expect(table(view).getByRole('button', { name: /, approved$/i })).toHaveCount(1)
+      await expect(cell(view)).toHaveAccessibleName(`${name}: 22, approved`)
+      await expect(view.getByText(/accepted, not read/i)).toHaveCount(0)
+      await expect(view.getByRole('button', { name: /accepted, not read|accept.*not read/i })).toHaveCount(0)
+      await expect(view.getByRole('group', { name: 'Decision for measurements', exact: true })
+        .getByRole('button', { name: /^(approve|accept)/i })).toHaveCount(0)
+      await expect(view.getByRole('button', { name: 'Save review', exact: true })).toHaveCount(0)
+    }
+    const openTable = async (view: Page) => {
+      await openRailView(view, 'Results')
+      await expect(checkFirst(view).getByRole('button', { name: /measurements › #1 › baseline.*22/i })).toBeVisible()
+      await expect(rankedCell(view)).toHaveCount(0)
+      await view.getByRole('button', { name: 'Use document order', exact: true }).click()
+      await view.getByRole('button', { name: /^To check measurements/ }).click()
+    }
+
+    await page.goto(`${fixture.url}?extractionId=${id}`)
+    await openRailView(page, 'Results')
+    await rankedCell(page).click()
+    await expect(cell(page)).toHaveAttribute('aria-pressed', 'true')
+    await expect(table(page).getByRole('button', { pressed: true })).toHaveCount(1)
+    await expect(page.locator(`.evidence-mark.selected[data-occurrence-id="${occurrence.occurrence_id}"]`)).toBeVisible()
+    expect((await read(page)).values[0].approvedCells ?? []).toEqual([])
+    await decision(page).getByRole('button', { name: 'Approve', exact: true }).click()
+    await checkOnlyTargetApproved(page)
+    const approved = await read(page)
+    expect(approved).toMatchObject({
+      snapshotVersion: 1, feedbackVersion: 1, reviewCounts: { approved: 0, toCheck: 1 },
+      values: [{ approvedCells: [path], modelValue: rows }],
+    })
+
+    await page.reload()
+    await openTable(page)
+    await checkOnlyTargetApproved(page)
+    const second = await secondContext.newPage()
+    await loginResearcher(second, fixture.objectId)
+    await second.goto(`${fixture.url}?extractionId=${id}`)
+    await openTable(second)
+    await checkOnlyTargetApproved(second)
+    expect((await read(second)).values[0].approvedCells).toEqual([path])
+    const unreviewed = await second.request.post(`${root}/finalize`, {
+      headers: { Origin: E2E_ORIGIN },
+      data: { snapshotVersion: 1, feedbackVersion: approved.feedbackVersion },
+    })
+    expect(unreviewed.status()).toBe(422)
+    expect(await unreviewed.json()).toMatchObject({ error: { message: 'Review each saved value in this snapshot before finalizing.' } })
+
+    await cell(second).click()
+    await decision(second).getByRole('button', { name: 'Undo approval', exact: true }).click()
+    await expect(table(second).getByRole('button', { name: /, approved$/i })).toHaveCount(0)
+    expect(await read(second)).toMatchObject({
+      snapshotVersion: 1, feedbackVersion: 2, reviewCounts: { approved: 0, toCheck: 1 },
+      values: [{ approvedCells: [], modelValue: rows }],
+    })
+    expect((await read(second, `?snapshotVersion=1&feedbackVersion=${approved.feedbackVersion}`)).values[0].approvedCells).toEqual([path])
+    expect((await (await second.request.get(`${root}/history`)).json()).finalizations).toEqual([])
+  } finally {
+    await secondContext.close()
+    await fixture.close()
+  }
+})
+
 test('whole typed edits preserve siblings and pending input adoption preserves producing history',async({page})=> {
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   const nodes=[{id:'title',name:'title',type:'string' as const},{id:'flag',name:'flag',type:'boolean' as const},
@@ -291,7 +395,7 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     expect((await (await page.request.get(`/api/extractions/${id}/durable/values/title`)).json()).values[0].correction).toBeNull()
     await page.getByRole('button',{name:'Cancel',exact:true}).click()
     await page.getByRole('button',{name:/To check title Title/}).click()
-    await page.getByRole('button',{name:/To check work/}).click()
+    await page.getByRole('button',{name:/^To check work (?!›)/}).click()
     await page.getByRole('button',{name:'Edit',exact:true}).click()
     await page.getByRole('textbox',{name:'Reviewed value'}).fill('{"name":"Corrected book","included":false}')
     await page.getByRole('button',{name:'Save edit',exact:true}).click()
@@ -301,7 +405,7 @@ test('whole typed edits preserve siblings and pending input adoption preserves p
     await page.getByRole('combobox',{name:'Reviewed value'}).selectOption('true')
     await page.getByRole('button',{name:'Save edit',exact:true}).click()
     await expect.poll(()=>savedValue('flag')).toBe(true)
-    await page.getByRole('button',{name:/To check names/}).click()
+    await page.getByRole('button',{name:/^To check names (?!›)/}).click()
     await page.getByRole('button',{name:'Edit',exact:true}).click()
     await page.getByRole('textbox',{name:'Reviewed value'}).fill('[1]')
     await page.getByRole('button',{name:'Save edit',exact:true}).click()
@@ -876,7 +980,7 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     await fixture.open();await openRailView(page,'Results')
     second=await page.context().newPage();await second.goto(page.url());await openRailView(second,'Results')
     for(const view of [page,second]) {
-      await view.getByRole('button',{name:/To check work/}).click()
+      await view.getByRole('button',{name:/^To check work (?!›)/}).click()
       await view.getByRole('button',{name:'Edit',exact:true}).click()
     }
     const read=async()=>(await (await page.request.get(`/api/extractions/${id}/durable/values/work`)).json()).values[0].correction
@@ -1137,11 +1241,11 @@ test('run diagnostics of the saved completion snapshot show at their occurrences
       'charges · assembled values retained; resolution not applied (invalid list reply)']
     await expect(diagnostics.getByRole('listitem')).toHaveText(expected)
     await expect(diagnostics).toContainText(`From saved results ${completion.version} · source generation g1 · attempt ${head.attemptId.slice(0,8)}`)
-    await expect(page.getByRole('button',{name:/To check fees/})).toBeVisible()
+    await expect(page.getByRole('button',{name:/^To check fees (?!›)/})).toBeVisible()
     await page.screenshot({path:testInfo.outputPath('before-reload.png')})
     await page.reload();await openRailView(page,'Results')
     await expect(diagnostics.getByRole('listitem')).toHaveText(expected)
-    await expect(page.getByRole('button',{name:/To check fees/})).toBeVisible()
+    await expect(page.getByRole('button',{name:/^To check fees (?!›)/})).toBeVisible()
     const reloaded=(await (await page.request.get(`/api/extractions/${id}/durable/values`)).json())
     expect(reloaded).toEqual(served)
     await page.screenshot({path:testInfo.outputPath('after-reload.png')})

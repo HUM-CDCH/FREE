@@ -4,6 +4,25 @@ import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
 import { durableValueSchema, plannedRecords } from './durable-contract.js'
 import { plainEvidenceLink, unifiedEvidenceLink } from './kei-evidence.js'
+import { tableCellReview } from './table-cell-review.js'
+import type { SchemaNode } from './schema.js'
+
+test('only original populated scalar table cells can supply a whole value approval', () => {
+  const table: SchemaNode = {id:'table',name:'table',type:'array',children:[
+    {id:'count',name:'count',type:'integer'}, {id:'enum',name:'label',type:'string'},
+  ]}
+  const path = ['records',0,'details']
+  const rows = [{count:0,label:'A'},{count:null,label:''}]
+  const value = {node:table,path,modelValue:rows,processing:'saved' as const}
+  assert.deepEqual(tableCellReview(value),{
+    paths:[[...path,0,'count'],[...path,0,'label']],wholeValue:true,
+  })
+  const node: SchemaNode = {id:'details',name:'details',type:'object',children:[table,{id:'name',name:'name',type:'string'}]}
+  assert.deepEqual(tableCellReview({...value,node,modelValue:{table:rows,name:'Manual check'}}),{
+    paths:[[...path,'table',0,'count'],[...path,'table',0,'label']],wholeValue:false,
+  })
+  assert.deepEqual(tableCellReview({...value,processing:'unprocessed'}),{paths:[],wholeValue:false})
+})
 
 test('retained model Evidence preserves leaf attribution and rejects a different value or anchor',()=> {
   const producer={path:['records',0,'work','title'],segment:'p1_s1',page:1,bbox_pt:null,verbatim:true,
@@ -69,6 +88,29 @@ test('a producer link keeps the value boxes the Parsing Service writes and proje
   assert.deepEqual(unifiedEvidenceLink(producerSchema.parse(fixture.unified) as Parameters<typeof unifiedEvidenceLink>[0], 'a_p2_s5').valueBoxes,
     fixture.unified.value_boxes_pt.map(boxes))
   assert.equal(producerSchema.safeParse({ ...fixture.article, value_boxes_pt: [[1, 1, 1, 2]] }).success, false)
+})
+
+test('a saved value keeps the support check the Parsing Service writes, and stays valid without one', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../../../apps/parsing_service/tests/fixtures/contracts/value-check.json', import.meta.url), 'utf8'))
+  const saved = (node: { id: string; name: string }, modelValue: unknown) => ({ id: `${node.id}-value`, recordId: 'record', fieldId: node.id,
+    path: ['records', 0, node.name], selectionId: '11111111-1111-4111-8111-111111111111',
+    schemaRevisionId: '22222222-2222-4222-8222-222222222222', node, modelValue, evidence: [], grounding: 'ungrounded',
+    processing: 'saved', lineage: [] })
+  assert.ok(fixture.cases.length > 0)
+  for (const { name, node, value, check } of fixture.cases) {
+    const plain = saved(node, value)
+    assert.deepEqual(durableValueSchema.parse(plain), plain, name)
+    assert.deepEqual(durableValueSchema.parse({ ...plain, check }), { ...plain, check }, name)
+  }
+  const { node, value, check } = fixture.cases[0], [judgment] = check.judgments
+  for (const invalid of [
+    { ...check, judgments: [] }, { ...check, protocol: 2 }, { ...check, model: { threshold: 0.5 } }, { ...check, score: 0.9 },
+    { ...check, judgments: [{ ...judgment, label: null }] }, { ...check, judgments: [{ ...judgment, label: 2 }] },
+    { ...check, judgments: [{ ...judgment, status: 'no_evidence' }] }, { ...check, judgments: [{ ...judgment, status: 'supported' }] },
+    { ...check, judgments: [{ ...judgment, input: 'not-a-digest' }] }, { ...check, judgments: [{ ...judgment, claim: 'kept text' }] },
+    // A judgment names a scalar of its own value, never another record's or field's.
+    { ...check, judgments: [{ ...judgment, path: ['records', 1, node.name] }] }, { ...check, judgments: [{ ...judgment, path: ['records', 0, 'other'] }] },
+  ]) assert.equal(durableValueSchema.safeParse({ ...saved(node, value), check: invalid }).success, false, JSON.stringify(invalid))
 })
 
 test('Value Disagreements retain typed alternatives at null places addressed by child id',()=> {

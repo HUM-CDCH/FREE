@@ -19,9 +19,25 @@ export const valueDisagreementSchema = z.array(z.object({
   path: z.array(z.string()),
   alternatives: z.array(z.object({ value: z.unknown(), segments: z.array(z.string().min(1)).min(1) }).strict()).min(2),
 }).strict()).min(1)
+const resultPathSchema = z.array(z.union([z.string(), z.number().int().nonnegative()]))
+/** An optional support check records the checker's 0/1 label for each scalar it judges
+ *  or why there is no label, with the input digest and checker identity. It orders the review
+ *  only: never Evidence, never an Evidence status, and absent on a value no checker ran for. */
+export const valueCheckSchema = z.object({
+  protocol: z.literal(1),
+  model: z.record(z.string(), z.string()),
+  judgments: z.array(z.object({
+    path: resultPathSchema,
+    status: z.enum(['ok', 'input_limit', 'no_evidence', 'unavailable']),
+    label: z.union([z.literal(0), z.literal(1)]).nullable(),
+    input: z.string().regex(/^[0-9a-f]{64}$/).optional(),
+  }).strict().refine(judgment => (judgment.status === 'ok') === (judgment.label !== null),
+    { message: 'Only a judged scalar has a label.' })).min(1),
+}).strict()
+export type ValueCheck = z.infer<typeof valueCheckSchema>
 export const durableValueSchema = z.object({
   id: z.string().min(1), recordId: z.string().min(1), fieldId: z.string().min(1),
-  path: z.array(z.union([z.string(), z.number().int().nonnegative()])),
+  path: resultPathSchema,
   selectionId: z.uuid(), schemaRevisionId: z.uuid(), node: schemaNodeSchema,
   modelValue: z.unknown(), evidence: z.array(z.object({
     anchorId: z.string().min(1), occurrenceIds: z.array(z.string()),
@@ -30,7 +46,12 @@ export const durableValueSchema = z.object({
   grounding: z.enum(['grounded', 'ungrounded', 'provisional']),
   processing: z.enum(['saved', 'absent', 'unprocessed', 'failed']),
   lineage: z.array(z.string()), disagreement: valueDisagreementSchema.optional(),
+  check: valueCheckSchema.optional(),
 }).strict().superRefine((value,context)=> {
+  value.check?.judgments.forEach((judgment,index)=> {
+    if(!value.path.every((step,at)=>judgment.path[at]===step))
+      context.addIssue({code:'custom',path:['check','judgments',index],message:'A support judgment must name a scalar of this value.'})
+  })
   value.disagreement?.forEach((entry,index)=> {
     const issue=(message:string)=>context.addIssue({code:'custom',path:['disagreement',index],message})
     if(value.processing!=='saved') issue('A Value Disagreement must be saved.')
@@ -52,6 +73,12 @@ export const durableValueSchema = z.object({
   })
 })
 export type DurableValue = z.infer<typeof durableValueSchema>
+export type ResultPath = z.infer<typeof resultPathSchema>
+export const durableCellApprovalSchema = z.object({
+  snapshotVersion: z.number().int().positive(), expectedRevision: z.number().int().nonnegative(),
+  path: resultPathSchema.min(1), approved: z.boolean(),
+}).strict()
+
 export const durableCorrectionSchema = z.object({
   expectedRevision: z.number().int().nonnegative(), snapshotVersion: z.number().int().positive(),
   action: z.enum(['APPROVED', 'EDITED', 'REJECTED', 'PENDING']), value: z.unknown().optional(),

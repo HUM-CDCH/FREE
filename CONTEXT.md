@@ -118,7 +118,10 @@ _Avoid_: extraction, output, response
 A researcher's choice to approve, edit, or reject a schema suggestion or
 extraction result. For an Extraction it is a revisioned correction of one saved
 value, bound to that value's stable identity and producing type, and saved in a
-numbered Decision Version of its Project. The chat may propose edits and
+numbered Decision Version of its Project. Within a table, a researcher can
+approve one cell. The cell's path identifies the occurrence reviewed in the
+named result snapshot. A whole-value decision alone gives no evidence about
+which cells the researcher examined. The chat may propose edits and
 rejections of values the researcher names, checked against their fields; only
 the researcher's Save makes them decisions (ADR 0035).
 _Avoid_: status, vote, review draft

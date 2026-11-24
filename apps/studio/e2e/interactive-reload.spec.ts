@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { e2eStudioPath, loginResearcher } from './auth.js'
-import { prepareInteractiveDocument, type InteractiveDocument } from './interactiveStack.js'
+import { EDIT_INTENT, prepareInteractiveDocument, RENAME_TITLE, type InteractiveDocument } from './interactiveStack.js'
 import { openRailView } from './rail.js'
 import { schemaRevisionResponseSchema } from '../shared/schemaRevision.contract.js'
 
@@ -11,8 +11,6 @@ const extractionDatabaseReady = () =>
   Boolean(process.env.EXTRACTION_TEST_DATABASE_URL) && process.env.DATABASE_URL === process.env.EXTRACTION_TEST_DATABASE_URL
 
 const TEMPLATE = '{"_description":"One catalogue entry.","heading":"string","year_of_record":"integer"}'
-// Every field is named, so the edit workflow's bounded repair (a second model call) has nothing to ask for.
-const RENAME_TITLE = '{"_description":"One interactive record.","heading":"string","year":"integer"}'
 const STILL_WORKING = (instruction: string) => `Still working on an earlier request: “${instruction}”`
 
 let stack: InteractiveDocument | undefined
@@ -109,7 +107,7 @@ test('a scalar note edited through template chat is reviewed, saved and retained
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(title.getByText(oldNote, { exact: true })).toBeVisible()
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
-  stack.model.reply({ text: '{"intent":"edit"}' })
+  stack.model.reply(EDIT_INTENT)
   stack.model.reply({ text: JSON.stringify({
     template: { _description: 'One interactive record.', title: 'string', year: 'integer' },
     fieldDescriptions: [{ path: ['title'], description: newNote }],
@@ -233,10 +231,10 @@ test('a reload mid-proposeSchemaEdit reopens the review bar; Discard persists ac
   stack = await prepareInteractiveDocument(page, { hasKey: false })
   await stack.open()
   await openRailView(page, 'Template')
-  stack.model.reply({ text: RENAME_TITLE, hold: true })
+  stack.model.reply(EDIT_INTENT, { ...RENAME_TITLE, hold: true })
 
   await requestEdit(page, 'Rename title to heading')
-  await stack.model.waitForCall(1, 30_000)
+  await stack.model.waitForCall(2, 30_000)
   await page.reload()
 
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toBeVisible({ timeout: 20_000 })
@@ -253,5 +251,5 @@ test('a reload mid-proposeSchemaEdit reopens the review bar; Discard persists ac
   await page.waitForTimeout(3_000)
   await expect(page.getByRole('button', { name: 'Apply changes' })).toHaveCount(0)
   await expect(page.getByText(STILL_WORKING('Rename title to heading'))).toHaveCount(0)
-  expect(stack.model.calls()).toHaveLength(1)
+  expect(stack.model.calls()).toHaveLength(2)
 })

@@ -1,0 +1,77 @@
+{
+  "run": {
+    "protocol": 1,
+    "model": {"model": "example/checker", "revision": "0000", "protocol": "1"},
+    "judgments": {
+      "[\"records\",0,\"title\"]": {"status": "ok", "label": 0, "value": "Alfa", "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
+      "[\"records\",0,\"work\",\"title\"]": {"status": "ok", "label": 1, "value": "Book", "input": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+      "[\"records\",0,\"items\",1,\"name\"]": {"status": "input_limit", "label": null, "value": "second", "input": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+      "[\"records\",0,\"note\"]": {"status": "unavailable", "label": null, "value": "seen", "input": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"},
+      "[\"records\",0,\"tags\",0]": {"status": "ok", "label": 1, "value": "removed", "input": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"},
+      "[\"records\",0,\"count\"]": {"status": "ok", "label": 1, "value": 1, "input": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}
+    }
+  },
+  "cases": [
+    {
+      "name": "a judged scalar",
+      "node": {"id": "title", "name": "title", "type": "string"},
+      "value": "Alfa",
+      "links": [["records", 0, "title"]],
+      "check": {"protocol": 1, "model": {"model": "example/checker", "revision": "0000", "protocol": "1"}, "judgments": [
+        {"path": ["records", 0, "title"], "status": "ok", "label": 0, "input": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}
+    },
+    {
+      "name": "an object with a judged scalar and one the run did not link",
+      "node": {"id": "work", "name": "work", "type": "object", "children": [
+        {"id": "work-title", "name": "title", "type": "string"}, {"id": "work-year", "name": "year", "type": "integer"},
+        {"id": "work-place", "name": "place", "type": "string"}]},
+      "value": {"title": "Book", "year": 1827, "place": null},
+      "links": [["records", 0, "work", "title"]],
+      "check": {"protocol": 1, "model": {"model": "example/checker", "revision": "0000", "protocol": "1"}, "judgments": [
+        {"path": ["records", 0, "work", "title"], "status": "ok", "label": 1, "input": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
+        {"path": ["records", 0, "work", "year"], "status": "no_evidence", "label": null}]}
+    },
+    {
+      "name": "a list of objects with an abstention",
+      "node": {"id": "items", "name": "items", "type": "array", "children": [{"id": "item-name", "name": "name", "type": "string"}]},
+      "value": [{"name": "first"}, {"name": "second"}],
+      "links": [["records", 0, "items", 1, "name"]],
+      "check": {"protocol": 1, "model": {"model": "example/checker", "revision": "0000", "protocol": "1"}, "judgments": [
+        {"path": ["records", 0, "items", 0, "name"], "status": "no_evidence", "label": null},
+        {"path": ["records", 0, "items", 1, "name"], "status": "input_limit", "label": null, "input": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}]}
+    },
+    {
+      "name": "a scalar whose call failed",
+      "node": {"id": "note", "name": "note", "type": "string"},
+      "value": "seen",
+      "links": [["records", 0, "note"]],
+      "check": {"protocol": 1, "model": {"model": "example/checker", "revision": "0000", "protocol": "1"}, "judgments": [
+        {"path": ["records", 0, "note"], "status": "unavailable", "label": null, "input": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}]}
+    },
+    {
+      "name": "a judged path the value is published without a link for",
+      "node": {"id": "title", "name": "title", "type": "string"},
+      "value": "Alfa",
+      "links": [],
+      "check": {"protocol": 1, "model": {"model": "example/checker", "revision": "0000", "protocol": "1"}, "judgments": [
+        {"path": ["records", 0, "title"], "status": "no_evidence", "label": null}]}
+    },
+    {
+      "name": "a list whose judged index now holds another item",
+      "node": {"id": "tags", "name": "tags", "type": "array", "itemType": "string"},
+      "value": ["kept", null, "other"],
+      "links": [["records", 0, "tags", 0]],
+      "check": {"protocol": 1, "model": {"model": "example/checker", "revision": "0000", "protocol": "1"}, "judgments": [
+        {"path": ["records", 0, "tags", 0], "status": "no_evidence", "label": null},
+        {"path": ["records", 0, "tags", 2], "status": "no_evidence", "label": null}]}
+    },
+    {
+      "name": "a value of another type than the one judged",
+      "node": {"id": "count", "name": "count", "type": "boolean"},
+      "value": true,
+      "links": [["records", 0, "count"]],
+      "check": {"protocol": 1, "model": {"model": "example/checker", "revision": "0000", "protocol": "1"}, "judgments": [
+        {"path": ["records", 0, "count"], "status": "no_evidence", "label": null}]}
+    }
+  ]
+}

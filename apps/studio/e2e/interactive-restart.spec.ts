@@ -7,14 +7,13 @@ import { STUDIO_BOOT_HEADER } from '../shared/studioBoot.js'
 import { plantedKey } from '../test/support/plantedKey.js'
 import { E2E_ORIGIN, e2eStudioPath } from './auth.js'
 import { openRailView, workspaceRail } from './rail.js'
-import { prepareInteractiveDocument, type InteractiveDocument } from './interactiveStack.js'
+import { EDIT_INTENT, prepareInteractiveDocument, RENAME_TITLE, type InteractiveDocument } from './interactiveStack.js'
 import { killStudio } from './studioRestart.js'
 
 // One restartable Studio (playwright.recovery.config.ts): the specs kill it under an open page, one at a time.
 test.describe.configure({ mode: 'serial' })
 
 const TEMPLATE = '{"_description":"One catalogue entry.","heading":"string","year_of_record":"integer"}'
-const RENAME_TITLE = '{"_description":"One interactive record.","heading":"string","year":"integer"}'
 const STILL_WORKING = (instruction: string) => `Still working on an earlier request: “${instruction}”`
 const pathOf = (url: string) => new URL(url).pathname
 
@@ -97,10 +96,10 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
   stack = await prepareInteractiveDocument(page, { hasKey: true, key })
   await stack.open()
   await openRailView(page, 'Template')
-  stack.model.reply({ text: RENAME_TITLE, hold: true }, { text: RENAME_TITLE, hold: true })
+  stack.model.reply(EDIT_INTENT, { ...RENAME_TITLE, hold: true }, EDIT_INTENT, { ...RENAME_TITLE, hold: true })
 
   await requestEdit(page, 'Rename title to heading')
-  const first = await stack.model.waitForCall(1, 30_000)
+  const first = await stack.model.waitForCall(2, 30_000)
   expect(first.authorization === `Bearer ${key}`, 'the first call carried the key').toBe(true)
 
   // The reloaded page polls the running proposal; every poll answers with the Studio process's boot ID.
@@ -128,7 +127,7 @@ test('a Studio restart between two polls: the reloaded page sees the new boot ID
   expect(rebooted.headers()[STUDIO_BOOT_HEADER.toLowerCase()]).not.toBe(firstBoot)
   await expect.poll(() => requests.includes('PUT /api/model-keys'), { timeout: 20_000 }).toBe(true)
 
-  const recovered = await stack.model.waitForCall(2, 90_000)
+  const recovered = await stack.model.waitForCall(4, 90_000)
   expect(recovered.authorization === `Bearer ${key}`, 'the recovered call carried the resent key').toBe(true)
   stack.model.release()
 
@@ -194,14 +193,14 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   expect(keyedProbes.length).toBeGreaterThanOrEqual(2)
   for (const probe of keyedProbes) expect(probe.authorization === `Bearer ${key}`, 'every probe after the key was typed carried it').toBe(true)
 
-  // An edit proposal on the seeded schema (whose field IDs the scripted envelope names): refused once, then proposed
-  // and discarded.
-  stack.model.reply(refusal, { text: RENAME_TITLE, headers: echo })
+  // Both requests classify as edits. The first proposal is refused and the second can be applied.
+  const classifyEdit = { ...EDIT_INTENT, headers: echo }
+  stack.model.reply(classifyEdit, refusal, classifyEdit, { ...RENAME_TITLE, headers: echo })
   await requestEdit(page, 'Rename title to heading')
   await expect(page.getByText(/^(Request failed|Error):/).first()).toBeVisible({ timeout: 30_000 })
   await requestEdit(page, 'Rename title to heading')
   await expect(page.getByRole('button', { name: 'Apply changes' })).toBeVisible({ timeout: 30_000 })
-  expect(stack.model.calls()).toHaveLength(2)
+  expect(stack.model.calls()).toHaveLength(4)
   // Apply releases proposal ownership and preserves its workflow for the sweep; Discard would delete that history.
   await page.getByRole('button', { name: 'Apply changes' }).click()
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(2)
@@ -213,7 +212,7 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   await regenerate(page, 'Catalog entries')
   await expect(page.getByText('heading', { exact: true }).first()).toBeVisible({ timeout: 30_000 })
   await expect.poll(revisionCount, { timeout: 20_000 }).toBe(3)
-  expect(stack.model.calls()).toHaveLength(4)
+  expect(stack.model.calls()).toHaveLength(6)
 
   // A Batch Schema Suggestion over one document: refused once, then answered. A lone source needs no merge call.
   stack.model.reply(refusal, { text: TEMPLATE, headers: echo })
@@ -237,7 +236,7 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   expect((await suggestion()).proposal).not.toBeNull()
 
   // Every model call carried the key, which is the only place it belongs on the server side of this test.
-  expect(stack.model.calls()).toHaveLength(6)
+  expect(stack.model.calls()).toHaveLength(8)
   for (const call of stack.model.calls()) expect(call.authorization === `Bearer ${key}`, 'every model call carried the key').toBe(true)
 
   // The operations whose history the sweep must see: both edits (the refused one is a typed failure in a SUCCESS

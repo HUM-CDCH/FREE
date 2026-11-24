@@ -38,6 +38,10 @@ export async function canonicalPackage(
   }
 }
 
+export const EDIT_INTENT = { text: '{"intent":"edit"}' }
+/** Both seeded fields appear in the suggestion, so the edit needs no repair call. */
+export const RENAME_TITLE = { text: '{"_description":"One interactive record.","heading":"string","year":"integer"}' }
+
 export const INTERACTIVE_SCHEMA_NODES = [
   { id: 'title', name: 'title', type: 'string' },
   { id: 'year', name: 'year', type: 'integer' },

@@ -68,7 +68,7 @@ const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_140px)] @max-[296px]:max-w-full @
 const NOTE_INDENT = 'pl-[46px]'
 /** A closed note: one line in the pills' flow, after them, ellipsized (its full text is its title). It keeps at least
  *  96px beside them, else wraps to its own line below them; it stays clear of the actions like the pills. */
-const NOTE_INLINE = 'ml-1 min-w-24 flex-1 basis-0 cursor-pointer truncate text-left text-secondary leading-snug text-ink-muted outline-none hover:text-ink'
+const NOTE_INLINE = 'min-w-24 flex-1 basis-0 cursor-pointer truncate text-left text-secondary leading-snug text-ink-muted outline-none hover:text-ink'
 
 function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
   if (outcome === 'rejected') return (

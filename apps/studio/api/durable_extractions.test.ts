@@ -28,6 +28,21 @@ describe('durable extraction reads require an owned runtime head',()=> {
   })
 })
 
+it('scopes the cell decision path to the owning review repository',async()=> {
+  const receipt={id:'correction',revision:1,feedbackVersion:1,included:false}
+  const saveCellApproval=vi.fn().mockResolvedValue(receipt)
+  vi.mocked(createDurableRepository).mockReturnValue({saveCellApproval} as never)
+  const approval={snapshotVersion:1,expectedRevision:0,path:['records',0,'items',0,'title'],approved:true}
+  const url=request().url+'/values/v%3Atable/cells'
+  const handlers=createResearcherApiHandlers(store)
+  const response=await handlers.POST(new Request(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(approval)}))
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual(receipt)
+  expect(createDurableRepository).toHaveBeenCalledWith(store.researcherAccountId)
+  expect(saveCellApproval).toHaveBeenCalledWith(id,'v:table',approval)
+  expect((await handlers.GET(new Request(url))).status).toBe(404)
+})
+
 describe('document history',()=> {
   const project='00000000-0000-4000-8000-000000000002', document='00000000-0000-4000-8000-000000000003'
   const historyRequest=(path=`${project}/source-documents/${document}`)=>new Request(`https://localhost/api/project-contexts/${path}/history`)

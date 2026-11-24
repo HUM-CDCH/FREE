@@ -211,13 +211,6 @@ async function checkRows(page: Page, width: number) {
     expectInside(editBox, (await kind.boundingBox())!, `${width}px, kind: the focused Edit inside its row`)
     expect(editBox.height, `${width}px, kind: the focused Edit 28px tall`).toBe(28)
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
-  }
-  if (width >= 344) {
-    // Rows are 30px at rest when their pills fit beside the name, clear of the actions' 140px: at 344px the top level
-    // keeps 123px for them, so `title · string` does (`sex · string · 6 values`, 137px, wraps its values pill).
-    const titleLine = page.getByRole('listitem', { name: 'title', exact: true }).locator('> div').first()
-    expect((await titleLine.boundingBox())!.height, `${width}px: title row height`).toBe(30)
-  } else {
     // A row line under 296px would leave its pills under 110px beside the name: at 264px every row's pills start on the
     // line below the name, at its left edge, and the name's line holds the name alone.
     for (const name of rows) {
@@ -228,12 +221,6 @@ async function checkRows(page: Page, width: number) {
       expect(Math.abs(first.x - nameBox.x), `${width}px, ${name}: pills start under the name`).toBeLessThanOrEqual(0.5)
     }
   }
-  // A note starts where its field's name starts.
-  const title = page.getByRole('listitem', { name: 'title', exact: true })
-  const nameStart = (await title.getByText('title', { exact: true }).boundingBox())!.x
-  const noteStart = await title.getByRole('button', { name: 'The report title as printed on its cover page.' }).evaluate((element) =>
-    element.getBoundingClientRect().left + parseFloat(getComputedStyle(element).paddingLeft))
-  expect(Math.abs(noteStart - nameStart), `${width}px: the note starts under the name (${noteStart} vs ${nameStart})`).toBeLessThanOrEqual(0.5)
 }
 
 /** Every row's type and values pills, clicked at their right edge with the row hovered, as a pointer would: the click
@@ -344,6 +331,51 @@ test('field rows fit the rail at 344px and 264px @deterministic', async ({ page 
   const listBox = (await page.getByRole('list', { name: 'Template fields' }).boundingBox())!
   expectInside(await findings.getByTitle('Type: list of objects · 2 fields — click to edit').boundingBox(), listBox, '264px: collapsed findings pill')
   for (const action of actionsOf(findings, 'findings')) expectInside(await action.boundingBox(), listBox, '264px: collapsed findings action')
+})
+
+test('a field note fits beside its type or wraps under its name, and expands in full @deterministic', async ({ page }) => {
+  test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
+  await openSchema(page)
+  const title = page.getByRole('listitem', { name: 'title', exact: true })
+  const name = title.getByText('title', { exact: true })
+  const header = title.locator('> div').first()
+  const type = title.getByTitle(/^Type:/)
+  const note = title.getByRole('button', { name: 'The report title as printed on its cover page.' })
+
+  for (const width of [344, 264, 560]) {
+    await resizeRail(page, width)
+    await expect(note).toHaveAttribute('aria-expanded', 'false')
+    const preview = (await note.boundingBox())!
+    const pill = (await type.boundingBox())!
+    const lineHeight = await note.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight))
+    expect(preview.height, `${width}px: a single preview line`).toBeCloseTo(lineHeight)
+    expectInside(preview, (await title.boundingBox())!, `${width}px: closed note inside the row`)
+    if (width === 344) {
+      // With the actions overlaid, the preview takes one extra line below the pill.
+      expect(preview.y - (pill.y + pill.height), '344px: row gap above the wrapped note').toBeCloseTo(2)
+      expect(preview.x, '344px: wrapped note aligned with its name').toBeCloseTo((await name.boundingBox())!.x)
+      expect((await header.boundingBox())!.height, '344px: compact header plus one note line').toBeCloseTo(30 + 2 + lineHeight)
+    } else {
+      // At 264px the actions move to a separate line. At 560px there is room beside them.
+      expect(preview.x, `${width}px: note follows the type pill`).toBeGreaterThanOrEqual(pill.x + pill.width)
+      expect(preview.y + preview.height / 2, `${width}px: note and type share a line`).toBeCloseTo(pill.y + pill.height / 2)
+      if (width === 560) expect((await header.boundingBox())!.height, '560px: compact row at rest').toBe(30)
+    }
+  }
+
+  await note.click()
+  for (const width of [344, 264]) {
+    await resizeRail(page, width)
+    expect(await note.evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight),
+      `${width}px: full note displayed without clipping`).toBe(true)
+    const box = (await note.boundingBox())!
+    const line = (await header.boundingBox())!
+    expect(box.y, `${width}px: full note below the header`).toBeGreaterThanOrEqual(line.y + line.height)
+    const textStart = await note.evaluate((el) => el.getBoundingClientRect().left + parseFloat(getComputedStyle(el).paddingLeft))
+    expect(textStart, `${width}px: expanded note aligned with its name`).toBeCloseTo((await name.boundingBox())!.x)
+    expectInside(box, (await title.boundingBox())!, `${width}px: expanded note inside the row`)
+    if (width === 344) expect(line.height, '344px: compact header above the full note').toBe(30)
+  }
 })
 
 test('a pointer on a pill\'s right edge reaches the pill, never the actions, at 344px and 264px @deterministic', async ({ page }) => {

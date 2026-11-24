@@ -119,11 +119,35 @@ export function decodeParsedDocument(data: unknown): ParsedDocument {
   return parsed
 }
 
-export function tableForAnchor(document: ParsedDocument, anchor: TableCellEvidenceAnchor): ParsedLogicalTable | undefined { return document.tables.find((table) => table.table_id === anchor.logical_table_id) }
-export function blockForAnchor(document: ParsedDocument, anchor: TextEvidenceAnchor): ParsedContentBlock | undefined { return document.content_stream.find((block) => block.block_id === anchor.block_id) }
+/** Parsed revisions are immutable. Index each array once so looking up every cell of a table stays linear. */
+function lookupById<T>(idOf: (item: T) => string) {
+  const indexes = new WeakMap<readonly T[], Map<string, T>>()
+  return (items: readonly T[], id: string) => {
+    let index = indexes.get(items)
+    if (!index) {
+      index = new Map<string, T>()
+      for (const item of items) {
+        const key = idOf(item)
+        if (!index.has(key)) index.set(key, item)
+      }
+      indexes.set(items, index)
+    }
+    return index.get(id)
+  }
+}
+
+const blockById = lookupById((block: ParsedContentBlock) => block.block_id)
+const tableById = lookupById((table: ParsedLogicalTable) => table.table_id)
+const cellById = lookupById((cell: ParsedLogicalTable['cells'][number]) => cell.cell_id)
+
+export function tableForAnchor(document: ParsedDocument, anchor: TableCellEvidenceAnchor): ParsedLogicalTable | undefined { return tableById(document.tables, anchor.logical_table_id) }
+export function blockForAnchor(document: ParsedDocument, anchor: TextEvidenceAnchor): ParsedContentBlock | undefined { return blockById(document.content_stream, anchor.block_id) }
 /** The text an Evidence Anchor stands on: its block's text (a list's items one per line) or its table cell's. */
 export function anchorText(document: ParsedDocument, anchor: ParsedEvidenceAnchor): string | undefined {
-  if (anchor.kind === 'table_cell') return tableForAnchor(document, anchor)?.cells.find((cell) => cell.cell_id === anchor.cell_id)?.text
+  if (anchor.kind === 'table_cell') {
+    const table = tableForAnchor(document, anchor)
+    return table && cellById(table.cells, anchor.cell_id)?.text
+  }
   const block = blockForAnchor(document, anchor)
   return block && 'text' in block ? block.text : block?.kind === 'list' ? block.items.join('\n') : undefined
 }

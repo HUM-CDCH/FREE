@@ -1,39 +1,32 @@
 import DisagreementChoice from './DisagreementChoice'
+import { RowGlyph } from './ReviewRow'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import type { QueueItem } from './reviewQueue'
+import { checkReason, forwardItems, queuePosition, type QueueItem } from './reviewQueue'
 import { type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
-import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, ToCheckGlyph, UndoGlyph } from './ui/icons'
+import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
 import ReviewedValueDisplay, { type PartPick } from './ui/ReviewedValueDisplay'
 
 const Kbd = ({ children }: { children: string }) =>
   <kbd aria-hidden="true" className="rounded border border-current/30 px-1 font-mono text-compact font-normal opacity-80">{children}</kbd>
 
-function QueueGlyph({ row }: { row: RailRow }) {
-  switch (row.kind) {
-    case 'approved': return <ApprovedGlyph />
-    case 'edited': return <EditedGlyph />
-    case 'rejected': return <RejectedGlyph />
-    default: return <ToCheckGlyph />
-  }
-}
-
 /**
  * One by one: the same rail as a card for the current value, its record's queue,
  * its Evidence, the decision and what comes next.
  */
-export default function ReviewFocus({ article, items, position, current, recordLabel, editing, node, upNext,
-  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onTypedEdit, pick, locked = false }: {
+export default function ReviewFocus({ article, queue, blocked, current, part, recordLabel, editing, node,
+  headingRef, onDecide, onChoose, onEdit, onCancelEdit, onUndo, onNext, onPrevious, onGo, onTypedEdit, pick, order, canApproveWhole = true, canUndoWhole = true, locked = false }: {
   article: boolean
-  items: readonly QueueItem[]
-  position: { record: number; records: number; at: number; of: number } | null
+  queue: readonly QueueItem[]
+  blocked: ReadonlySet<string>
+  order?: { priority: boolean; onToggle: () => void }
   current: RailRow
+  part?: { key: string; name: string; value: unknown }
   recordLabel: string
   editing: boolean
   node: SchemaNode | null
-  upNext: readonly QueueItem[]
   headingRef: Ref<HTMLHeadingElement>
   onDecide: (action: ReviewAction, value?: unknown) => void
   onChoose?: (choices: { path: string[]; value: unknown }[]) => void
@@ -46,27 +39,36 @@ export default function ReviewFocus({ article, items, position, current, recordL
   onTypedEdit?: (value: unknown) => void
   /** The open value's parts, each pickable to show only its Evidence. */
   pick?: PartPick
+  canApproveWhole?: boolean
+  canUndoWhole?: boolean
   /** A decision is saving or the review is a saved one: decisions and moves wait, picking a part never does. */
   locked?: boolean
 }) {
   const decided = current.kind !== 'to-check'
-  const trail = article ? fieldWords(current.name) : `${recordLabel} › ${fieldWords(current.name)}`
+  const key = part?.key ?? current.key
+  const position = queuePosition(queue, key)
+  const reason = checkReason(position?.row ?? current)
+  const upNext = forwardItems(queue, key, blocked).slice(0, 3)
+  const name = fieldWords(part?.name ?? current.name)
+  const trail = article ? name : `${recordLabel} › ${name}`
   return (
     <div className="flex flex-col gap-3.5 bg-surface px-4 pt-3.5 pb-4.5">
       <div className="flex flex-wrap items-center gap-1.5">
-        <ol aria-label={article ? 'Values in review order' : `Record ${position?.record ?? 1}, values in review order`} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
-          {items.map((item) => (
-            <li key={item.key}>
-              <button type="button" disabled={locked} aria-current={item.key === current.key ? 'step' : undefined} onClick={() => onGo(item.key)}
-                aria-label={`${fieldWords(item.row.name)}, ${stateLabel(item.row).toLowerCase()}${item.row.doubt ? ', not an exact match' : ''}`}
-                className={`flex size-6 cursor-pointer items-center justify-center rounded border ${item.row.doubt && item.row.kind === 'to-check' ? 'border-dashed border-ev' : 'border-line'} ${item.key === current.key ? 'outline-2 outline-accent' : ''}`}>
-                <QueueGlyph row={item.row} />
+        <ol aria-label={article ? 'Values in review order' : `${recordLabel}, values in review order`} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
+          {position?.items.map((item) => {
+            const itemReason = checkReason(item.row)
+            return <li key={item.key}>
+              <button type="button" disabled={locked} aria-current={item.key === key ? 'step' : undefined} onClick={() => onGo(item.key)}
+                aria-label={`${fieldWords(item.row.name)}, ${stateLabel(item.row).toLowerCase()}${itemReason ? `, ${itemReason}` : ''}`}
+                className={`flex size-6 cursor-pointer items-center justify-center rounded border ${itemReason && item.row.kind === 'to-check' ? 'border-dashed border-ev' : 'border-line'} ${item.key === key ? 'outline-2 outline-accent' : ''}`}>
+                <RowGlyph row={item.row} />
               </button>
             </li>
-          ))}
+          })}
         </ol>
         <span className="flex-1" />
-        {position && <span className="text-compact text-ink-muted tabular-nums">{article ? `${position.at} of ${position.of}` : `Record ${position.record} of ${position.records} · ${position.at} of ${position.of} in this record`}</span>}
+        {position && <span className="text-compact text-ink-muted tabular-nums">{`${order?.priority ? 'Check first' : 'Document order'} · ${position.at} of ${position.of}`}</span>}
+        {order && <Button onClick={order.onToggle}>{order.priority ? 'Use document order' : 'Use Check first order'}</Button>}
       </div>
       <div>
         <p className="m-0 mb-1 flex items-baseline gap-1.5 text-secondary text-ink-faint">
@@ -81,7 +83,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
           </fieldset>
         ) : (
           <>
-            <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{current.value && typeof current.value === 'object' ? reviewedValueSummary(node, current.value) : rowText(current)}</h2>
+            <h2 ref={headingRef} tabIndex={-1} className="m-0 text-display font-bold break-words text-ink outline-none">{part ? rowText({ value: part.value }) : current.value && typeof current.value === 'object' ? reviewedValueSummary(node, current.value) : rowText(current)}</h2>
             {current.value !== null && typeof current.value === 'object' && <ReviewedValueDisplay node={node} value={current.value} path={current.resultPath} pick={pick} />}
           </>
         )}
@@ -89,17 +91,17 @@ export default function ReviewFocus({ article, items, position, current, recordL
         {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted [overflow-wrap:anywhere]">Original: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
       </div>
       {current.page !== null && <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />Page {current.page}</p>}
-      {current.doubt && (
+      {reason && (
         <div className="flex items-start gap-1.5 rounded-md border border-dashed border-ev px-2.5 py-2 text-secondary text-ink">
-          <DoubtGlyph /><span>{current.doubt}</span>
+          <DoubtGlyph /><span>{reason}</span>
         </div>
       )}
       <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3.5 border-0 p-0">
         {!decided && !editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
         {!decided && !editing && (
           <div className="grid grid-cols-2 gap-2">
-            {!current.disagreement && <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>
-              <ApprovedGlyph className="text-current" />Approve and next <Kbd>A</Kbd>
+            {canApproveWhole && !current.disagreement && <Button variant="outline-positive" size="md" className="col-span-2 h-11" onClick={() => onDecide('APPROVED')}>
+              <ApprovedGlyph className="text-current" />{pick?.parts.size ? 'Approve value' : 'Approve'} and next <Kbd>A</Kbd>
             </Button>}
             <Button size="md" className="h-11 @max-[264px]:col-span-1" onClick={onEdit}><EditedGlyph className="text-current" />Edit <Kbd>E</Kbd></Button>
             <Button variant="outline-danger" size="md" className="h-11" onClick={() => onDecide('REJECTED')}><RejectedGlyph className="text-current" />Reject <Kbd>R</Kbd></Button>
@@ -109,7 +111,7 @@ export default function ReviewFocus({ article, items, position, current, recordL
           <div className="flex items-center gap-2 rounded-md bg-surface-muted px-3 py-2.5">
             <b className="text-content text-ink">{stateLabel(current)}</b>
             <span className="flex-1" />
-            <Button onClick={onUndo}><UndoGlyph />Undo</Button>
+            {canUndoWhole && <Button onClick={onUndo}><UndoGlyph />Undo</Button>}
           </div>
         )}
         <div className="flex items-center justify-between">
@@ -121,8 +123,8 @@ export default function ReviewFocus({ article, items, position, current, recordL
         <Overline as="p" className="m-0 mb-1 block">Up next</Overline>
         {upNext.length === 0 ? <p className="m-0 text-secondary text-ink-muted">This is the last one.</p> : upNext.map((item) => (
           <div key={item.key} className="flex items-baseline justify-between gap-2 py-0.5 text-secondary">
-            <span className="min-w-0 truncate first-letter:uppercase"><span className="text-ink-faint">{fieldWords(item.row.name)}</span> · {rowText(item.row)}</span>
-            <span className="shrink-0 text-ink-muted">{item.row.doubt ? 'not exact' : item.row.chip?.style === 'rule' ? 'matched by rule' : item.row.page === null ? '' : `p.${item.row.page}`}</span>
+            <span className="min-w-0 truncate first-letter:uppercase"><span className="text-ink-faint">{item.record && !article ? `${item.record.label} › ` : ''}{fieldWords(item.row.name)}</span> · {rowText(item.row)}</span>
+            <span className="shrink-0 text-ink-muted">{checkReason(item.row) ?? (item.row.chip?.style === 'rule' ? 'matched by rule' : item.row.page === null ? '' : `p.${item.row.page}`)}</span>
           </div>
         ))}
       </div>
