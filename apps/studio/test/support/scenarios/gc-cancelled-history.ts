@@ -7,7 +7,7 @@ import { listStagedSources, removeStagedSource } from '../../../api/_source_inbo
 import { databaseClockMs, launchStudioDbos, shutdownStudioDbos, studioDbos } from '../../../server/dbos.js'
 import { applyStudioSchedules, registerStudioWorkflows } from '../../../server/workflows.js'
 import { backdateWorkflow, orphanPayloadRows } from '../garbage.js'
-import { requiredScenarioValue } from '../scenarioEnvironment.js'
+import { requiredScenarioValue, scenarioDbosOptions } from '../scenarioEnvironment.js'
 
 async function until(predicate: () => boolean, what: string): Promise<void> {
   const deadline = Date.now() + 15_000
@@ -29,9 +29,7 @@ export async function run({ firstRun, env }: { firstRun: boolean; env: NodeJS.Pr
   const packages = createCanonicalPackageStore(required('FREE_TEST_PACKAGE_ROOT'))
   let holdFirstClock = firstRun
   await launchStudioDbos({
-    databaseUrl: url, keiDatabaseUrl: url, schema,
-    keiSchema: required('FREE_TEST_KEI_SCHEMA'),
-    executorId: required('FREE_TEST_EXECUTOR'),
+    ...scenarioDbosOptions(required),
     register: () => registerStudioWorkflows({ garbagePorts: () => garbagePorts({
       packages, inbox: { root, list: listStagedSources, remove: removeStagedSource },
       clock: async () => {

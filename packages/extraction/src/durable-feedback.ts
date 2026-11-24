@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { stableJson } from 'db'
 import { schemaNodesToZod, schemaPathNames, isRecord, type SchemaNode } from './schema.js'
-import { blockForAnchor, tableForAnchor, type ParsedDocument } from './parsed-document.js'
+import { anchorText, type ParsedDocument } from './parsed-document.js'
 import type { DurableValue } from './durable-contract.js'
 
 /** Immutable examples contain source material, not just application IDs. Links
@@ -13,12 +13,7 @@ export function correctionSourceContext(document: ParsedDocument, markdown: stri
   const excerpts=selected.flatMap(link=> {
     const anchor=document.evidence_index.anchors.find(each=>each.anchor_id===link.anchorId)
     if(!anchor)return []
-    let text: string | undefined
-    if(anchor.kind==='text') {
-      const block=blockForAnchor(document,anchor)
-      if(block && 'text' in block)text=block.text
-      else if(block?.kind==='list')text=block.items.join('\n')
-    } else text=tableForAnchor(document,anchor)?.cells.find(cell=>cell.cell_id===anchor.cell_id)?.text
+    const text=anchorText(document,anchor)
     return text===undefined?[]:[{anchorId:link.anchorId,occurrenceIds:link.occurrenceIds,text}]
   })
   return {
@@ -33,9 +28,11 @@ export function correctionSourceContext(document: ParsedDocument, markdown: stri
 }
 
 /** Names are presentation. Identity and meaning/type/constraints determine
- * compatibility; reinterpreting a field deliberately changes this digest. */
+ * compatibility; reinterpreting a field deliberately changes this digest. A suggested note never reaches
+ * extraction, so it counts as no note. */
 export function fieldMeaning(node: SchemaNode): string {
-  const { id: _id, name: _name, children, ...meaning } = node
+  const { id: _id, name: _name, children, descriptionSource, ...meaning } = node
+  if(descriptionSource==='suggested') delete meaning.description
   if(children) Object.assign(meaning,{children:children.map(child=>[child.id,fieldMeaning(child)]).sort((a,b)=>Buffer.compare(Buffer.from(String(a[0])),Buffer.from(String(b[0]))))})
   return createHash('sha256').update(stableJson(meaning)).digest('hex')
 }

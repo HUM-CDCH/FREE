@@ -105,10 +105,11 @@ FREE's normative product and safety contract is:
    Before dropping obsolete columns and tables, the legacy-retirement
    migration requires operators to drain queued and running Extractions. It
    removes retired controls from account preferences and compatible Article
-   pins. These Article Extractions retain their results, corrections, and
-   original resolved options and digests. Resume and Retry use the existing
-   Producing Input Selection. A researcher can adopt a new selection by
-   changing and applying inputs.
+   pins. These Article Extractions retain their results, corrections and
+   selection digests. A later data migration removes the same retired controls
+   from their resolved options and resolved configuration, whose digest it
+   recomputes, so Resume and Retry use the existing Producing Input Selection.
+   A researcher can adopt a new selection by changing and applying inputs.
    The migration deletes Batch Extractions with unsupported method pins
    and every member of those batches. It deletes an Extraction if its
    requested settings or any Producing Input Selection has an unsupported

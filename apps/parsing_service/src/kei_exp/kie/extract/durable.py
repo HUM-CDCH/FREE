@@ -28,10 +28,21 @@ def digest(body):
 
 
 def field_meaning(node):
-    meaning={k:v for k,v in node.items() if k not in ("id","name","children")}
+    # A suggested note never reaches extraction, so it counts as no note (as in `_guidance_node`).
+    hidden=("id","name","children","descriptionSource")+(("description",) if node.get("descriptionSource")=="suggested" else ())
+    meaning={k:v for k,v in node.items() if k not in hidden}
     if "children" in node:
         meaning["children"]=sorted([[child["id"],field_meaning(child)] for child in node["children"]])
     return digest(meaning)
+
+
+def _guidance_node(node: dict) -> dict:
+    projected = dict(node)
+    if projected.pop("descriptionSource", None) == "suggested":
+        projected.pop("description", None)
+    if "children" in projected:
+        projected["children"] = [_guidance_node(child) for child in projected["children"]]
+    return projected
 
 
 def adapt_value(source, target, value):
@@ -115,6 +126,8 @@ class CapturePlanner:
                     "execution": execution}
         self.lease.call("publish_plan", str(uuid4()), stage, manifest)
 
+    # shortcut: already-affected Extractions stay absent because completed contexts are masked, upgrade with an
+    # explicit backfill; today reprocessing a saved sibling unmasks the whole Article record and restores them.
     def filter_evidence(self, evidence):
         """Subtract fixed historical primary coverage without moving offsets.
 
@@ -319,7 +332,9 @@ class CapturePlanner:
                 nodes[node["id"]] = node
                 visit(node.get("children", []))
         visit(self.selection["schemaTree"]["schemaNodes"])
-        projected = [{**candidate, "value": adapt_value(candidate["node"], nodes[candidate["fieldId"]], candidate["value"])} for candidate in examples]
+        projected = [{**candidate, "node": _guidance_node(candidate["node"]),
+                      "value": adapt_value(candidate["node"], nodes[candidate["fieldId"]], candidate["value"])}
+                     for candidate in examples]
         return ("\nResearcher correction examples (patterns only). Extract facts and Evidence solely from the target source; "
                 "these examples never supply target facts or anchors.\n" + canonical(projected))
 
@@ -350,21 +365,3 @@ class CapturePlanner:
         self.scopes[record] = scope
         return publish_values(self.lease, fields, scope, record=record, links=links, primary=primary,
                               historical=self.historical, disagreements=disagreements)
-
-    # shortcut: already-affected Extractions stay absent because completed contexts are masked, upgrade with an
-    # explicit backfill; today reprocessing a saved sibling unmasks the whole Article record and restores them.
-    def reuse_record(self, scope, *, record=0):
-        from kei_exp.kie.extract.retained import record_identity
-        snapshot = self.historical.get("snapshot")
-        if not snapshot:
-            return None
-        record_id = record_identity(self.lease.state["source"]["sourceRevisionId"], scope)
-        reprocess = set(self.historical["manifest"]["coverage"].get("reprocessValueIds", []))
-        values = [v for v in snapshot["values"] if v["recordId"] == record_id and v["processing"] == "saved"]
-        complete = any(c.get("scope") == scope for c in snapshot["coverage"].get("completedScopes", {}).values())
-        if not complete or not values or any(v["id"] in reprocess for v in values):
-            return None
-        # Completed values retain their producing selection. Empty fields are
-        # carried as historical results; no new schema is attributed to them.
-        self.scopes[record]={"historical":True,"scope":scope}
-        return {}

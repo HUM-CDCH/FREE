@@ -2,7 +2,7 @@ import type { DocumentInput } from './_document.js'
 import { documentFileParts } from './_pdf.js'
 import { schemaPrompt, schemaSourceExcerpts } from './_schema.js'
 import { ApiError } from './_http.js'
-import { parseUnknownJson } from './_model_output.js'
+import { parseJsonObject } from './_model_output.js'
 import { traceModelCall } from '../server/tracing.js'
 import { parseSchemaEditOutput, schemaEditPrompt, suggestedFieldNotes } from './_schema_edit_output.js'
 import {
@@ -13,7 +13,6 @@ import {
   type ModelDependencies,
 } from './_model_execution.js'
 import type { ExecutionTarget } from './_provider.js'
-import type { SchemaSource } from 'db'
 import type { SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 import {
   parseBatchSuggestionDefinition,
@@ -31,7 +30,7 @@ export type SuggestedSchema = {
 export type SchemaModelInput = {
   readonly document: DocumentInput
   readonly instruction: string
-  /** A suggestion's sidecar sets scalar notes; an edit's may also clear them (`withFieldDescriptions`). */
+  /** A suggestion's sidecar sets scalar notes; an edit's sets or clears any field's (`withFieldDescriptions`). */
   readonly edit?: true
   /** The Markdown is one window of the source (see `schemaSourceWindows`): send it as it is, never excerpted. */
   readonly window?: boolean
@@ -88,7 +87,7 @@ export async function suggestOnRoute(
   const documentParts = await documentContentParts({ ...document, markdown: excerpts ? excerpts.text : document.markdown })
   const generated = await executeSchemaSuggestion(resolved, {
     instructions: edit
-      ? 'Revise the researcher\'s extraction schema. Return only one JSON object, with no Markdown or commentary: the complete compact schema in "template" and scalar field note edits in "fieldDescriptions", with no extracted values.'
+      ? 'Revise the researcher\'s extraction schema. Return only one JSON object, with no Markdown or commentary: the complete compact schema in "template" and field note edits in "fieldDescriptions", with no extracted values.'
       : 'Propose a compact extraction schema grounded in the supplied source document. ' +
         'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
     guidance: edit ? schemaEditPrompt(instruction) : schemaPrompt(instruction),
@@ -111,13 +110,8 @@ export async function suggestOnRoute(
 /** The answer of a reply that is only `{"answer": "<text>"}`, its null members aside (models often name the replies they
  *  did not give as null); null for any other reply. */
 export async function answerOf(response: string): Promise<string | null> {
-  let parsed: unknown
-  try {
-    parsed = await parseUnknownJson(response, 'Model returned invalid JSON.')
-  } catch {
-    return null
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
+  const parsed = await parseJsonObject(response, 'Model returned invalid JSON.').catch(() => null)
+  if (!parsed) return null
   const reply = Object.fromEntries(Object.entries(parsed).filter(([, value]) => value !== null))
   if (Object.keys(reply).length !== 1 || typeof reply.answer !== 'string') return null
   return reply.answer.trim() || null
@@ -164,22 +158,22 @@ function modelSuggestedDefinition({ template, fieldDescriptions }: SuggestedSche
   }
 }
 
-/** Per-source batch call; unlike single generation, the result must be an editable batch definition. */
+/** Batch call on one window of a source (`schemaSourceWindows`); unlike single generation, the result must be an
+ *  editable batch definition. */
 export async function suggestBatchSource(
   caller: ModelCaller,
-  source: SchemaSource,
+  window: string,
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
-  window = false,
-): Promise<{ definition: SchemaDefinition; sourceCoverage: SourceCoverage }> {
+): Promise<SchemaDefinition> {
   const generated = await generate(caller, {
-    document: { file: null, markdown: source.markdown, pageSpans: source.pageSpans, pages: null },
+    document: { file: null, markdown: window, pages: null },
     instruction: SOURCE_SUGGESTION_INSTRUCTION,
-    window,
+    window: true,
     signal,
   })
   const fieldDescriptions = suggestedFieldNotes(generated.fieldDescriptions)
-  return { definition: modelSuggestedDefinition({ template: generated.template, fieldDescriptions }), sourceCoverage: generated.sourceCoverage }
+  return modelSuggestedDefinition({ template: generated.template, fieldDescriptions })
 }
 
 /** `combineSchemas` for batch definitions: the combination must be an editable batch definition too. */

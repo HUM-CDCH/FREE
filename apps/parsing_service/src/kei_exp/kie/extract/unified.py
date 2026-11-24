@@ -49,7 +49,7 @@ from kei_exp.canonical import canonical_json
 from kei_exp.failures import TransientBackendError, classify
 from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract import discovery, gliformer, tokens
-from kei_exp.kie.extract.acceptance import Outcome, typed_value
+from kei_exp.kie.extract.acceptance import typed_value
 from kei_exp.kie.extract.calls import MAX_WHITESPACE, Call, complete, looped
 from kei_exp.kie.extract.catalog_result import evidence_link, place, spans_json
 from kei_exp.kie.extract.contexts import assemble_document, printed_once_in
@@ -925,6 +925,8 @@ class _Run:
         self.schema, self.budget, self.texts, self.effective = schema, budget, texts, effective
         self.tables = tables or {}
         self.nodes = schema.record_nodes
+        self.scalars = dict(_scalar_nodes(self.nodes))
+        self.order = {segment: index for index, segment in enumerate(texts)}  # each segment's place in source order
         self.entries = entries
         # Entry number -> (the earliest heading admitted for it, the entries sharing that heading in source order).
         # Complete discovery alone decides it, so every member composes the same shared reading (`_shared`). A child,
@@ -933,8 +935,7 @@ class _Run:
         self._readings: dict[tuple, Any] = {}
         self._asking: dict[tuple, threading.Lock] = {}  # per reading: its members wait for it, other readings run
         if effective["headings"]:
-            order = {segment: index for index, segment in enumerate(texts)}
-            at = lambda each: (order[each["segment"]], each["start"])
+            at = lambda each: (self.order[each["segment"]], each["start"])
             under: dict[tuple, list[int]] = {}
             for number, entry in enumerate(entries):
                 if entry.get("parent") is None and entry["ranges"] and entry["context"] \
@@ -1032,10 +1033,9 @@ class _Run:
         out.issues += [Issue("quote_repaired", REPAIRED, number, ("records", number, *path))
                        for path in sorted({_field_path(each.path) for each in found if each.repaired})]
         out.found, out.items = _merged(found, view, _edges(replies), out.issues, number)
-        replies = self._record_evidence(entry, replies, out, view)
+        replies = self._record_evidence(units, heading, parent, replies, out, view)
         self._verify(number, replies, out, owned=units, parent=parent, settled=verify)
-        order = {segment: index for index, segment in enumerate(self.texts)}
-        in_source = lambda unit: (order[unit.segment], unit.start, unit.end)
+        in_source = lambda unit: (self.order[unit.segment], unit.start, unit.end)
         view = _view(sorted({*(unit for window, _ in replies for unit in window.heading), *units}, key=in_source),
                      self.texts)
         out.contest = self._settle(number, out, view)
@@ -1052,14 +1052,12 @@ class _Run:
                                          number)
         return out
 
-    def _record_evidence(self, entry: dict, replies: list, out: _Work, view: BlockText) -> list:
-        """Keep candidates fixed; include intervening source so a misassigned heading cannot hide supersession."""
-        units = [Unit(each["segment"], each["start"], each["end"]) for each in entry["ranges"]]
+    def _record_evidence(self, units: list[Unit], admitted: tuple[Unit, ...], parent: bool, replies: list, out: _Work,
+                         view: BlockText) -> list:
+        """Keep candidates fixed; include intervening source so a misassigned heading cannot hide supersession.
+        `admitted` is the context `entry` admits: its headings, or a child's enclosing record."""
         first = units[0]
-        order = {segment: index for index, segment in enumerate(self.texts)}
-        parent = entry.get("parent") is not None
-        admitted = tuple(Unit(each["segment"], each["start"], each["end"]) for each in entry["context"]) \
-            if self.effective["headings"] or parent else ()
+        order = self.order
         heading = admitted
         prior = [unit for unit in admitted if (order[unit.segment], unit.start) < (order[first.segment], first.start)]
         if prior and not parent:
@@ -1070,13 +1068,12 @@ class _Run:
                             for segment in self.texts if order[earliest.segment] <= order[segment] <= order[first.segment]
                             and (segment != first.segment or first.start)) + tuple(unit for unit in admitted if unit not in prior)
         context = _view(list(admitted), self.texts) if admitted else None
-        nodes = dict(_scalar_nodes(self.nodes))
         for index, found in enumerate(out.found):
-            if found.reason in UNCITED and found.path in nodes and context is not None:
+            if found.reason in UNCITED and found.path in self.scalars and context is not None:
                 recovered = _Checker(view, (0, len(view.text)), found.window, self.nodes, self.tables,
                                      repair=False, context=context, heading_context=True)._scalar(
-                                         found.path, nodes[found.path], {"value": found.value, "quote": found.quote},
-                                         found.item, found.anchor)
+                                         found.path, self.scalars[found.path],
+                                         {"value": found.value, "quote": found.quote}, found.item, found.anchor)
                 if recovered.kind == "candidate":
                     out.found[index] = recovered
         return [(replace(window, heading=heading), answer) for window, answer in replies]
@@ -1095,9 +1092,9 @@ class _Run:
         first = members.index(number) // SHARED * SHARED
         chunk = members[first:first + SHARED]
         system = VERIFY_RECORDS.format(description=self.schema.record_description, notes=_notes(self.nodes))
-        node = dict(_scalar_nodes(self.nodes))[path]
+        node = self.scalars[path]
         names = list(self.texts)
-        order = {segment: index for index, segment in enumerate(names)}
+        order = self.order
 
         def between(start: tuple[int, int], end: tuple[int, int]) -> list[Unit]:
             return [unit for index in range(start[0], end[0] + 1) for unit in discovery.trimmed(
@@ -1164,11 +1161,6 @@ class _Run:
         # A lexical match outside the record is never accepted without that reading.
         outside = lambda found: any(not any(own.segment == span.segment_id and own.start <= span.start
                                             and span.end <= own.end for own in owned) for span in found.spans)
-        inherited = {found.path for found in out.found if outside(found)}
-        # Only a scalar is read again: a list item would need its identity rediscovered, and code locates its values
-        # in the record's own text alone (`_Checker` admits context for scalars only).
-        nodes = {path: node for path, node in _scalar_nodes(self.nodes)
-                 if path in inherited and evidence_policy(self.nodes, path) == "quoted"}
         for found in out.found:
             if found.kind != "candidate":
                 continue
@@ -1178,13 +1170,16 @@ class _Run:
             elif not outside(found):  # code located this candidate in the record: linked `lexical`
                 found.kind, found.reason = "accepted", None
         system = VERIFY_RECORD.format(description=self.schema.record_description, notes=_notes(self.nodes))
+        # The candidates left are quoted values code located outside the record, each read again. Only a scalar is: a
+        # list item would need its identity rediscovered, and code locates its values in the record's own text alone
+        # (`_Checker` admits context for scalars only).
         for index, (window, _) in enumerate(replies):
             batch = [found for found in out.found if found.window == index and found.kind == "candidate"]
             # A value located outside the record is read with the records sharing its heading. Which those are is
             # known once discovery is complete: until then it waits as a proposal, and the entry is read again.
             shared, waiting = {}, None
-            for found in batch:
-                if outside(found) and number in self.groups:
+            if number in self.groups:
+                for found in batch:
                     if not settled:
                         found.kind, found.reason = "proposed", "verification_pending"
                         continue
@@ -1212,17 +1207,16 @@ class _Run:
                         f"{label}: {'.'.join(str(step) for step in _field_path(found.path))}"
                         for label, found in zip(labels, group, strict=True)) + "\n\nReturn the JSON object now."
                     schema = {"type": "object", "properties": {
-                        label: _value(nodes[found.path]) for label, found in zip(labels, group, strict=True)},
+                        label: _value(self.scalars[found.path]) for label, found in zip(labels, group, strict=True)},
                               "required": labels, "additionalProperties": False}
                     fits = self.budget.fits("verification", system, user, schema)
                     answer = self.budget.ask("verification", number, system, user, schema, out.calls, out.issues,
                                              out.unit, out.page) if fits else None
-                if answer is not None and all(label in answer and not isinstance(answer[label], (dict, list))
-                                              for label in labels):
+                if answer is not None and all(not isinstance(answer[label], (dict, list)) for label in labels):
                     for label, found in zip(labels, group, strict=True):
                         # The reading is the value alone. Its own candidate, when equal, keeps the spans, alternatives
                         # and support code located for the entry's quote; a null or another value rejects it.
-                        if typed_value(answer[label], nodes[found.path]) == found.value:
+                        if typed_value(answer[label], self.scalars[found.path]) == found.value:
                             found.kind, found.reason, found.verified = "accepted", None, True
                         else:
                             found.kind, found.reason = "rejected", "verification_rejected"
@@ -1457,11 +1451,9 @@ def _link(found: _Found, number: int, passages: dict, ranges: Sequence[dict] = (
     inherited value; `lexical`, code alone, which located the model's quote and the value in it. Its context is its
     record's identity, from source ownership, not another extracted field: a list item's own located occurrence, else
     `ranges`, its entry's own."""
-    shared = evidence_link(Outcome("accepted", ("records", number, *found.path), found.value, spans=found.spans,
-                                   alternatives=found.alternatives), passages)
-    keep = ("path", "segment", "page", "bbox_pt", "cell", "precision", "spans", "alternatives", "raw")
+    shared = evidence_link(("records", number, *found.path), found.spans, found.alternatives, passages)
     item = [{"segment": s, "start": a, "end": b} for s, a, b in found.anchor] if found.anchor else None
-    return {**{key: shared[key] for key in keep}, "verbatim": found.support == "literal", "support": found.support,
+    return {**shared, "verbatim": found.support == "literal", "support": found.support,
             "linked_by": "verification" if found.verified else "lexical",
             "item": item, **({"context": [dict(each) for each in item or ranges]} if ranges else {})}
 

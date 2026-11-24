@@ -193,9 +193,11 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     })
   }
 
-  /** Customize: that strategy's override starts from Studio's defaults (`REFERENCE_ARTICLE`, with windows). */
+  /** Customize: that strategy's override starts from Studio's defaults (`REFERENCE_ARTICLE` with windows, or an empty
+   *  unified Catalog group) and no number text is left over from before. */
   function customize(strategy: AdvancedStrategy): void {
     setSettings((settings) => ({ ...settings, [strategy]: strategy === 'article' ? REFERENCE_ARTICLE : { unified: {} } }))
+    setNumberEdits((edits) => Object.fromEntries(Object.entries(edits).filter(([path]) => !path.startsWith(`${strategy}.`))))
   }
 
   /** Use service defaults: removes only that strategy's override; Models, Connections and the other strategy stay. */
@@ -223,15 +225,9 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     }))
   }
 
-  /** The unified Catalog group replaces the whole Catalog branch: retired generic and recipe overrides are never
-   *  carried over or converted. An empty group is the service defaults. */
+  /** Sets one unified Catalog control; `undefined` leaves it to the service defaults. */
   function setUnified(key: keyof UnifiedCatalogPreference, value: UnifiedCatalogPreference[typeof key] | undefined): void {
     setSettings((settings) => ({ ...settings, catalog: orderedCatalog({ unified: { ...settings.catalog?.unified, [key]: value } }) }))
-  }
-
-  function customizeUnified(): void {
-    setSettings((settings) => ({ ...settings, catalog: { unified: {} } }))
-    setNumberEdits((edits) => Object.fromEntries(Object.entries(edits).filter(([path]) => !path.startsWith('catalog.'))))
   }
 
   /** Digits only: a whole number reaches the draft (its minimum is then the contract's to report); any other text
@@ -254,7 +250,7 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     })
     const value = Number(text)
     if (scope === 'article') setArticle(member as ArticleKey, value as never)
-    else if (member === 'unified') setUnified(key as keyof UnifiedCatalogPreference, value)
+    else setUnified(key as keyof UnifiedCatalogPreference, value)
     // Never parsed here: a value below its minimum must stay in the draft, visible and reported.
   }
 
@@ -332,7 +328,6 @@ export function useProviderConfigDraft({ accountId, providers, scheduleProbe, ca
     useServiceDefaults,
     setArticle,
     replaceArticle,
-    customizeUnified,
     setUnified,
     setNumber,
     commit,

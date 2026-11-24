@@ -134,7 +134,7 @@ describe('RailChat', () => {
     const view = render(<Heard heard={null} />)
     fireEvent.keyDown(screen.getByRole('region', { name: 'Generate template' }), { key: 'Escape' })
     expect(screen.queryByRole('region', { name: 'Generate template' })).not.toBeInTheDocument()
-    view.rerender(<Heard heard={{ request: 1, action: 'generate', offer: null }} />)
+    view.rerender(<Heard heard={{ action: 'generate', offer: null }} />)
     expect(screen.getByRole('region', { name: 'Generate template' })).toBeVisible()
     expect(clearHeard).toHaveBeenCalledOnce()
     // Generating is still the researcher's choice.
@@ -361,7 +361,7 @@ describe('changes to the results (ADR 0035)', () => {
     ],
   }
   function corrections(overrides: Partial<ResultCorrections> = {}): ResultCorrections {
-    return { pending: null, busy: null, available: true, propose: vi.fn(async () => {}), save: vi.fn(async () => {}),
+    return { pending: null, busy: null, propose: vi.fn(async () => {}), save: vi.fn(async () => {}),
       discard: vi.fn(), stop: vi.fn(), ...overrides }
   }
   const schema = schemaWithFields()
@@ -375,9 +375,9 @@ describe('changes to the results (ADR 0035)', () => {
   it('proposes the changes a message asked for on the result shown, and says when there is none', () => {
     const results = corrections()
     const view = render(<Heard heard={null} results={results} />)
-    view.rerender(<Heard heard={{ request: 1, action: 'correct', offer: null, said }} results={results} />)
+    view.rerender(<Heard heard={{ action: 'correct', offer: null, said }} results={results} />)
     expect(results.propose).toHaveBeenCalledExactlyOnceWith(said.message, said.history)
-    view.rerender(<Heard heard={{ request: 2, action: 'correct', offer: null, said }} results={null} />)
+    view.rerender(<Heard heard={{ action: 'correct', offer: null, said }} results={null} />)
     expect(screen.getByText(NO_RESULTS_REPLY)).toBeInTheDocument()
   })
 
@@ -400,7 +400,7 @@ describe('changes to the results (ADR 0035)', () => {
     const results = corrections({ pending: { request: 4, proposal: PROPOSAL } })
     const view = render(<Heard heard={null} results={results} />)
     const card = { key: 'correct:4', title: 'Change results', options: [] }
-    view.rerender(<Heard heard={{ request: 1, action: 'confirm', offer: { card, picked: [] } }} results={results} />)
+    view.rerender(<Heard heard={{ action: 'confirm', offer: { card, picked: [] } }} results={results} />)
     expect(results.save).toHaveBeenCalledOnce()
   })
 })

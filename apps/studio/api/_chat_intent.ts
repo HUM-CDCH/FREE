@@ -1,6 +1,6 @@
 import { executeSchemaSuggestion } from './_model_execution.js'
 import type { GeneralExecutionTarget } from './_provider.js'
-import { parseUnknownJson } from './_model_output.js'
+import { parseJsonObject } from './_model_output.js'
 import { chatHistoryText } from './_schema.js'
 import type { ChatHistory } from '../shared/schemaChat.contract.js'
 
@@ -43,14 +43,9 @@ A message that says how a field should be read from now on, or for every value, 
 
 /** The classification of a reply `{"intent": …, "focus": …}` (the intent in any case); null for any other reply. */
 export async function chatIntentOf(response: string): Promise<ClassifiedMessage | null> {
-  let parsed: unknown
-  try {
-    parsed = await parseUnknownJson(response, 'Model returned invalid JSON.')
-  } catch {
-    return null
-  }
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null
-  const { intent, focus } = parsed as Record<string, unknown>
+  const parsed = await parseJsonObject(response, 'Model returned invalid JSON.').catch(() => null)
+  if (!parsed) return null
+  const { intent, focus } = parsed
   const key = typeof intent === 'string' ? intent.trim().toLowerCase() : null
   const known = CHAT_INTENTS.find((candidate) => candidate === key)
   if (!known) return null

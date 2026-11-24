@@ -40,13 +40,3 @@ def keeps_every_reading(schema: dict) -> dict:
     """A resolution answer that settles nothing away: each place's first candidate, every list item its own."""
     return {key: {label: {"of": "", "label": "OWN"} for label in spec["properties"]} if "properties" in spec
             else spec["enum"][0] for key, spec in schema["properties"].items()}
-
-
-SCHEMA = {"recordDescription": "One numbered entry of an archaeological catalogue.", "schemaNodes": [
-    {"id": "n", "name": "entry_no", "type": "integer"},
-    {"id": "s", "name": "site_name", "type": "string", "description": "the find place after the number"},
-    {"id": "b", "name": "bezirk", "type": "string"},
-    {"id": "k", "name": "kreis", "type": "string"},
-    {"id": "m", "name": "mbl_old", "type": "integer", "description": "map sheet number after Mbl."},
-    {"id": "f", "name": "fundart", "type": "string", "description": "find category after FA:"},
-]}

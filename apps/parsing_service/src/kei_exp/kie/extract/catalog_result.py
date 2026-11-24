@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from kei_exp.kie.blocks import Span
-from kei_exp.kie.extract.acceptance import Outcome
 
 
 def place(record: dict, path: tuple, value: Any) -> None:
@@ -33,14 +32,14 @@ def _raw(spans: list[Span], texts: dict) -> str:
     return "".join(texts[span.segment_id].text[span.start:span.end] for span in spans)
 
 
-def evidence_link(outcome: Outcome, texts: dict) -> dict:
-    """The artifact's `evidence` entry for an accepted outcome; `texts` maps segment IDs to passages."""
-    first = texts[outcome.spans[0].segment_id]
+def evidence_link(path: tuple, spans: list[Span], alternatives: list[list[Span]], texts: dict) -> dict:
+    """The artifact's `evidence` entry for an accepted value at `path`; `texts` maps segment IDs to passages."""
+    first = texts[spans[0].segment_id]
     cells = [cell for cell in first.table.cells if cell.bbox_pt is not None
              and all(span.segment_id == first.id and cell.start <= span.start < span.end <= cell.end
-                     for span in outcome.spans)] if first.table and not outcome.alternatives else []
+                     for span in spans)] if first.table and not alternatives else []
     cell = cells[0] if len(cells) == 1 else None
-    return {"path": list(outcome.path), "segment": first.id, "page": first.page,
+    return {"path": list(path), "segment": first.id, "page": first.page,
             "bbox_pt": list(cell.bbox_pt if cell else first.bbox_pt), "cell": cell.cell_id if cell else None,
-            "spans": spans_json(outcome.spans), "alternatives": [spans_json(spans) for spans in outcome.alternatives],
-            "precision": "cell" if cell else first.precision, "raw": _raw(outcome.spans, texts)}
+            "precision": "cell" if cell else first.precision, "spans": spans_json(spans),
+            "alternatives": [spans_json(each) for each in alternatives], "raw": _raw(spans, texts)}

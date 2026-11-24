@@ -3,7 +3,7 @@ import { RowGlyph } from './ReviewRow'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { checkReason, forwardItems, queuePosition, type QueueItem } from './reviewQueue'
-import { DECISION_WORD, type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
+import { type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, type RailRow } from './reviewVocabulary'
 import { Button, Overline } from './ui'
 import { ApprovedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, RejectedGlyph, UndoGlyph } from './ui/icons'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
@@ -109,7 +109,7 @@ export default function ReviewFocus({ article, queue, blocked, current, part, re
         )}
         {decided && (
           <div className="flex items-center gap-2 rounded-md bg-surface-muted px-3 py-2.5">
-            <b className="text-content text-ink">{DECISION_WORD[current.decision!.action]}</b>
+            <b className="text-content text-ink">{stateLabel(current)}</b>
             <span className="flex-1" />
             {canUndoWhole && <Button onClick={onUndo}><UndoGlyph />Undo</Button>}
           </div>

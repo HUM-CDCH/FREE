@@ -102,8 +102,8 @@ def fingerprint(result: dict, request, model: dict) -> str:
     })).hexdigest()
 
 
-def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Schema, chat: Router, *, budget: int,
-                    counter: TokenCounter | None = None, structured: bool = False
+def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Schema, chat: Router, *,
+                    counter: TokenCounter, structured: bool = False
                     ) -> tuple[dict, list[dict], list[Call], list[Issue]]:
     """The document-level fields read in each context and reconciled across them, the conflicts, calls and issues.
 
@@ -118,7 +118,7 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
     issues: list[Issue] = []
     for context in contexts:
         document, document_calls, document_issues = extract_document(replace(evidence, passages=context.passages),
-            schema, chat, budget=budget, counter=counter, structured=structured)
+            schema, chat, counter=counter, structured=structured)
         documents.append(document)
         calls += document_calls
         issues += document_issues
@@ -146,7 +146,7 @@ class GroundingResult:
 
 
 def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Schema, chat, *,
-                   budget: int, counter=None,
+                   counter,
                    method: ArticleOptions, identities: Sequence[dict],
                    contexts: Sequence[Context] = (), value_contexts: Sequence[Sequence[Context]] = (),
                    origins: Sequence[Sequence[dict]] = (), resume: frozenset = frozenset(),
@@ -155,9 +155,9 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
 
     Article supplies identities and complete source contexts; each claim is routed to the context its value was read
     from first (`routing.verify_routed`: exhaustive fallback, stopping at support) and shown with its enclosing items'
-    fields rather than the whole root (`grounding.verify`'s `projected`), each link with its value's one printing when
-    there is one (`located`). This stage never extracts or reconciles values. `resume` names paths an earlier grounding of the same values already
-    supported: they are not checked again. `on_batch` runs after each grounding batch with the links it made.
+    fields rather than the whole root (`grounding.verify`), each link with its value's one printing when there is one.
+    This stage never extracts or reconciles values. `resume` names paths an earlier grounding of the same values
+    already supported: they are not checked again. `on_batch` runs after each grounding batch with the links it made.
     """
     result = GroundingResult()
     verifier = grounding.technique(method.grounding)
@@ -172,13 +172,13 @@ def ground_records(slices: Sequence[tuple[Sequence[Passage], dict]], schema: Sch
                     result.skipped.append({"path": list(full_path), "policy": policy})
                     result.issues.append(Issue("evidence_policy_skipped", f"{policy}: source verification not requested",
                                                number, full_path))
-        verification = dict(record=number, budget=budget, counter=counter,
+        verification = dict(record=number, counter=counter,
             record_context=(identities[number]["label"] + "\n" + json.dumps(identities[number]["identity"],
                 ensure_ascii=False)),
             proofs=result.proofs, on_batch=on_batch)
         links, calls, issues, routes = verify_routed(contexts, fields, schema, chat,
             origins=origins[number], value_contexts=value_contexts[number],
-            skip_paths=frozenset(skipped_paths | resume), verifier=verifier, projected=True, located=True,
+            skip_paths=frozenset(skipped_paths | resume), verifier=verifier,
             windows=method.grounding_overflow == "windows", **verification)
         result.links += links
         result.calls += calls

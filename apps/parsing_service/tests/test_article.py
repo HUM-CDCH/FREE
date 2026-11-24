@@ -54,6 +54,32 @@ def test_article_reads_the_complete_source_as_one_document_root_without_an_ident
     assert not result["complete"] and result["ungrounded"]  # a model's NONE remains explicit
 
 
+@pytest.mark.parametrize(("note", "expected"), [
+    ({"description": "Generated note.", "descriptionSource": "suggested"}, None),
+    ({"description": "Researcher note."}, "Researcher note."),
+    ({}, None),
+])
+def test_article_model_context_uses_only_saved_instruction_notes(note, expected):
+    schema = Schema.model_validate({"recordDescription": "One find.", "schemaNodes": [
+        {"id": "details", "name": "details", "type": "object",
+         "description": "Generated group note.", "descriptionSource": "suggested", "children": [
+            {"id": "site", "name": "site", "type": "string", **note},
+         ]},
+    ]})
+    seen = []
+
+    def fields(system, user, output):
+        seen.append((system, user, output))
+        return {"details": {"site": "Hill"}}
+
+    extract_record(passages(["Find at Hill."]), schema, CountingChat(fields), counter=WordCounter())
+    assert len(seen) == 1
+    system, user, output = seen[0]
+    assert [line for line in system.splitlines() if line.startswith("- details.site:")] == (
+        [f"- details.site: {expected}"] if expected else [])
+    assert "Generated" not in repr((system, user, output))
+
+
 def test_article_names_the_source_the_engine_never_read(monkeypatch):
     """A segment the engine failed to read was extracted from by no value context: the run names it, never silently
     reporting the same completeness as a run that read the whole source."""
@@ -87,18 +113,10 @@ def test_article_grounding_does_not_lexically_accept_another_samples_unique_meas
     fields = {"site": "Brook", "year": 18.5}
     seen = []
     chat = CountingChat(lambda system, user, schema: seen.append(user) or {k: "NONE" for k in schema["properties"]})
-    links, calls, issues = verify(source, fields, SCHEMA, chat, record=0, budget=10,
+    links, calls, issues = verify(source, fields, SCHEMA, chat, record=0,
         counter=WordCounter(), record_context="Brook")
     assert not links and len(calls) == 1 and not issues
     assert '"site": "Brook"' in seen[0] and "18.5" in seen[0]
-
-
-def test_all_identity_fields_need_no_second_extraction():
-    scalar = Schema(schemaNodes=[{"id": "site", "name": "site", "type": "string"}], recordDescription="A site")
-    chat = CountingChat(lambda *_: pytest.fail("no remaining fields"))
-    result, calls, issues = extract_record(passages(), scalar, chat, budget=1000,
-        identity={"site": "Hill"}, record_name="Hill", counter=WordCounter())
-    assert result == {"site": "Hill"} and not calls and not issues
 
 
 def test_grounding_splits_claims_while_retaining_all_evidence_and_stops_at_oversized_singletons():
@@ -194,7 +212,7 @@ def test_a_long_list_root_may_reply_with_the_served_context_its_input_leaves():
 
 def test_a_context_too_full_for_a_4096_token_reply_is_refused_before_it_is_sent():
     source = finds_source(2000)
-    system, user, reply_schema = record_request(text_of(source.passages), SCHEMA, None, None, document=True)
+    system, user, reply_schema = record_request(text_of(source.passages), SCHEMA)
     counter = WordCounter()
     counter.context_tokens = WordCounter().request_tokens(system, user, reply_schema) + 4000
     chat = Lister()
@@ -207,7 +225,7 @@ def test_a_document_too_long_for_one_root_call_is_read_in_bounded_parts_and_reso
     """The measured failure: a long article failed under the full default. It is now read in parts of the served
     context and assembled as a bounded Article is."""
     source = finds_source(2000, 2)
-    system, user, reply_schema = record_request(text_of(source.passages), SCHEMA, None, None, document=True)
+    system, user, reply_schema = record_request(text_of(source.passages), SCHEMA)
     counter = WordCounter()
     counter.context_tokens = WordCounter().request_tokens(system, user, reply_schema) + 4000
 
@@ -265,7 +283,7 @@ def test_bounded_contexts_are_sized_against_the_document_value_request():
         def request_tokens(self, system, user, schema=None):
             measured.append((system, user, schema))
             assert system.startswith(DOCUMENT)
-            assert schema == record_request('', SCHEMA, None, None, document=True)[2]
+            assert schema == record_request('', SCHEMA)[2]
             return 5000 if all(p.text in user for p in source) else 1000
     groups = source_contexts(source, SCHEMA, ArticleOptions(context="bounded"), Counter())
     assert [list(group.primary) for group in groups] == [[source[0]], [source[1]]]

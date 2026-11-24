@@ -4,8 +4,6 @@
 `counter` and `chunks`, to the implementation the options choose. The implementations are called
 here directly, with no `run.load` to replace.
 """
-from dataclasses import replace
-
 import pytest
 
 from kei_exp.kie.extract import article, assembly, unified, run

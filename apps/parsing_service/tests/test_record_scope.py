@@ -214,15 +214,6 @@ def test_a_bounded_article_resolves_one_root_across_contexts(method):
     assert "inventory" not in result
 
 
-ENTRIES = Schema.model_validate({"recordDescription": "One numbered catalogue entry.", "schemaNodes": [
-    {"id": "e", "name": "entry", "type": "string"},
-    {"id": "t", "name": "tags", "type": "array", "itemType": "string"},
-    {"id": "f", "name": "finds", "type": "array", "children": [
-        {"id": "k", "name": "kind", "type": "string"},
-        {"id": "m", "name": "materials", "type": "array", "itemType": "string"}]},
-]})
-
-
 def test_a_records_scope_request_with_options_unified_is_the_unified_catalogs():
     from tests import test_unified_catalog as unified_tests
     source = unified_tests.evidence("12. Adorf. Material: Bronze. Find: Axe (1). Find: Pin (2).\n"

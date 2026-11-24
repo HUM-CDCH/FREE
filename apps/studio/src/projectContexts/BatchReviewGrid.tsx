@@ -6,7 +6,7 @@ import {
   type GridAction, type GridColumn, type GridLayout, type GridRecord, type GridValue,
 } from '../batchReviewGrid'
 import { durableRailRow } from '../durableRailModel'
-import { DECISION_WORD, reviewedValueSummary, rowText, stateLabel } from '../reviewVocabulary'
+import { reviewedValueSummary, rowText, stateLabel } from '../reviewVocabulary'
 import { gridMember, useBatchReviewGrid, type GridDecision, type MemberGridState } from '../useBatchReviewGrid'
 import { Button, CheckIcon, EmptyState, SegmentedControl, Spinner, UndoIcon } from '../ui'
 import {
@@ -137,7 +137,7 @@ function GridCell({ value, open, editing, locked, onOpen, onClose, onDecide, onE
             <Button size="sm" variant="pill" onClick={() => onDecide('REJECTED')}>Reject</Button>
             {row.disagreement && <Button size="sm" variant="pill" onClick={onOpenDocument}>Choose a reading…</Button>}
           </> : <>
-            <span className="self-center text-[10.5px] font-semibold text-ink">{row.decision ? DECISION_WORD[row.decision.action] : ''}</span>
+            <span className="self-center text-[10.5px] font-semibold text-ink">{stateLabel(row)}</span>
             <Button size="sm" variant="pill" onClick={onEdit}>Edit</Button>
             <Button size="sm" variant="pill" onClick={() => onDecide('PENDING')}>Back to To check</Button>
           </>}

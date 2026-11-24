@@ -183,7 +183,7 @@ describe('GET and DELETE /api/model-operations on PostgreSQL', () => {
     expect(listed).toEqual([{
       kind: 'generation', workflowId, operationId: workflowId.slice('suggestion:'.length), status: 'SUCCEEDED',
       instruction: 'Catalog entries', createdAt: expect.any(String), failure: null, baseSchemaRevisionId: null,
-      template: { _description: 'One catalogue entry.', title: 'string' }, sourceCoverage: { complete: true },
+      template: { _description: 'One catalogue entry.', title: 'string' }, fieldDescriptions: [], sourceCoverage: { complete: true },
     }])
     expect(await operations(scope.accountId, scope.projectContextId, base.extractionSchemaId)).toEqual([])
   })
@@ -215,7 +215,7 @@ describe('GET and DELETE /api/model-operations on PostgreSQL', () => {
     const ids: string[] = []
     for (const target of [base, base, base, other]) {
       const operationId = randomUUID()
-      server.reply({ text: ENVELOPE })
+      server.reply({ text: '{"intent":"edit"}' }, { text: ENVELOPE })
       const response = await propose(scope, target, operationId)
       expect(response.status).toBe(200)
       await expect(response.json()).resolves.toEqual(PROPOSED)
@@ -243,7 +243,7 @@ describe('GET and DELETE /api/model-operations on PostgreSQL', () => {
     const ids: string[] = []
     for (let i = 0; i < 2; i += 1) {
       const operationId = randomUUID()
-      server.reply({ text: ENVELOPE })
+      server.reply({ text: '{"intent":"edit"}' }, { text: ENVELOPE })
       expect((await propose(scope, base, operationId)).status).toBe(200)
       ids.push(`edit:${operationId}`)
     }

@@ -108,6 +108,13 @@ test('child ordering uses the same UTF-8 order as the Python planner',()=> {
   assert.equal(fieldMeaning(node),'f9283904936a43435df32890e041320ea421d6b269ae281ca876ebc11e659626')
 })
 
+test('a suggested note counts as no note, on a field and on its children',()=> {
+  const node:SchemaNode={id:'person',name:'person',type:'object',children:[{id:'Z',name:'name',type:'string'},{id:'a',name:'age',type:'integer'}]}
+  const suggested:SchemaNode={...node,description:'Generated.',descriptionSource:'suggested',children:[{...node.children![0]!,description:'Generated.',descriptionSource:'suggested'},node.children![1]!]}
+  assert.equal(fieldMeaning(suggested),'f9283904936a43435df32890e041320ea421d6b269ae281ca876ebc11e659626')
+  assert.notEqual(fieldMeaning({...node,description:'Generated.'}),fieldMeaning(node))
+})
+
 const alternative=(value:unknown)=>({value,segments:['p3_s0']})
 const work:SchemaNode={id:'work',name:'work',type:'object',children:[{id:'t',name:'title',type:'string'},{id:'y',name:'year',type:'integer'}]}
 const titles={path:['t'],alternatives:[alternative('A'),alternative('C')]}

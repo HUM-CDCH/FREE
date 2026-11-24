@@ -111,7 +111,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     if method.context == "full":
         source = (structured_source(evidence.passages) if method.rendering == "structured"
                   else text_of(evidence.passages))
-        counted = counter["fields"].request_tokens(*record_request(source, schema, None, None, document=True))
+        counted = counter["fields"].request_tokens(*record_request(source, schema))
         served = counter["fields"].context_tokens
         if counted + REPLY_TOKENS > served:
             # A document too long for one root call is read in bounded parts of the served context instead of failing.
@@ -126,8 +126,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
     from kei_exp.kie.extract.retained import plan_records
     plan_records(chat, "article-contexts", [context.dumped() for context in contexts])
     document, document_conflicts, calls, issues = document_values(evidence, contexts, schema, chat,
-        budget=24_000, counter=counter["fields"],
-        structured=method.rendering == "structured")
+        counter=counter["fields"], structured=method.rendering == "structured")
     if fallback is not None:
         issues.append(fallback)
     def retained_context(*args):
@@ -137,7 +136,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             saved_record(chat, root, "document", primary=[{"segment": p.id, "start": 0, "end": len(p.text)}
                                                          for p in group.primary], disagreements=disagreements)
     extracted = document_root(evidence.passages, schema, chat, counters=counter,
-                              record_chars=24_000, method=method, contexts=contexts,
+                              method=method, contexts=contexts,
                               start_page=options.start_page,
                               on_context=retained_context)
     if extracted.calls and not any(call.ok for call in extracted.calls):
@@ -162,7 +161,7 @@ def extract(run_dir: Path | None, evidence: Evidence, request, chat: Router, *, 
             place_links(links, evidence.passages, None if run_dir is None else run_dir / "input.pdf")  # as `dispatch`
             saved_record(chat, extracted.slices[0][1], "document", links=links, disagreements=extracted.disagreements)
     try:
-        support = ground_records(extracted.slices, schema, chat, budget=24_000,
+        support = ground_records(extracted.slices, schema, chat,
             counter=counter["reasoning"], method=method, identities=extracted.identities, contexts=contexts,
             value_contexts=extracted.value_contexts, origins=extracted.origins, on_batch=grounded.extend)
     except NeedsCall:
@@ -235,7 +234,7 @@ def context_order(groups: Sequence[Context], start_page: int | None) -> list[int
 
 
 def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, counters: dict,
-                  record_chars: int, method: ArticleOptions = REFERENCE,
+                  method: ArticleOptions = REFERENCE,
                   contexts: list[Context] | None = None, start_page: int | None = None,
                   on_context: Callable[..., None] | None = None) -> Records:
     """The document's one root, from each of its value contexts, assembled; grounding belongs to the shared path.
@@ -265,8 +264,8 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
         # The context's page nearest the start page, as `context_order` measures it, sets its call's priority.
         page = None if start_page is None else min((passage.page for passage in group.passages),
                                                    key=lambda page: abs(page - start_page), default=None)
-        fields, attempts, problems = extract_record(group.passages, schema, chat, budget=record_chars, record=0,
-            counter=counters["fields"], structured=structured, document=True,
+        fields, attempts, problems = extract_record(group.passages, schema, chat, record=0,
+            counter=counters["fields"], structured=structured,
             bounded_document=method.context == "bounded", page=page)
         fields, invalid = _typed_reading(fields, schema.record_nodes)
         candidates[index], answered[index] = fields, (attempts, problems + invalid)
@@ -295,7 +294,7 @@ def document_root(passages: Sequence[Passage], schema: Schema, chat: Chat, *, co
         issues += settled
     root = conform(root, schema.record_nodes)
     # A coerced value has no origin and is routed by value match and relevance.
-    origins = [value_origins(candidates, root, {}, item["passages"], strict=False,
+    origins = [value_origins(candidates, root, strict=False,
                              item_sources=item_sources if len(candidates) != 1 else None)]
     issues += [Issue("conflicting_values", json.dumps(conflict, ensure_ascii=False), 0) for conflict in contested]
     issues += [Issue("possible_repeated_items", json.dumps(repeat, ensure_ascii=False), 0,
@@ -313,7 +312,7 @@ def source_contexts(passages: Sequence[Passage], schema: Schema, method: Article
                     counter: TokenCounter) -> list[Context]:
     def fits(group):
         source = structured_source(group) if method.rendering == "structured" else text_of(group)
-        counted = counter.request_tokens(*record_request(source, schema, None, None, document=True))
+        counted = counter.request_tokens(*record_request(source, schema))
         return counted + max(REPLY_TOKENS, counted) <= counter.context_tokens
     return partition(passages, fits, overlap=method.overlap_passages,
                      structural=method.grouping == "structural") or [Context(())]

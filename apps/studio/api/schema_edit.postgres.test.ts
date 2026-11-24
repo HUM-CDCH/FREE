@@ -128,7 +128,7 @@ describe('proposeSchemaEdit on PostgreSQL', () => {
     const editBase = { extractionSchemaId: base.extractionSchemaId, schemaRevisionId: seeded.revision.schemaRevisionId }
     const operationId = randomUUID()
     const callsBefore = server.calls().length
-    server.reply({ text: JSON.stringify({
+    server.reply({ text: '{"intent":"edit"}' }, { text: JSON.stringify({
       template: { _description: definition.recordDescription, title: 'string' },
       fieldDescriptions: [{ path: ['title'], description: 'Copy the complete source heading.' }],
     }) })
@@ -140,7 +140,7 @@ describe('proposeSchemaEdit on PostgreSQL', () => {
     expect(proposed.fields.title).toMatchObject({ description: 'Copy the complete source heading.' })
     const repeated = await post(scope, editBase, operationId, { grounded: false, instruction: 'Copy the complete source heading' })
     await expect(repeated.json()).resolves.toEqual(proposed)
-    expect(server.calls().length).toBe(callsBefore + 1)
+    expect(server.calls().length).toBe(callsBefore + 2)
 
     const review = deriveSchemaProposal(definition.schemaNodes, proposed)
     const accepted = replaySchemaChanges(definition.schemaNodes, review.changes, new Set(review.changes.map(({ id }) => id)))
@@ -163,11 +163,11 @@ describe('proposeSchemaEdit on PostgreSQL', () => {
     expect(schemaRevisionResponseSchema.parse(await original.json()).revision.schemaNodes).toEqual(definition.schemaNodes)
   })
 
-  it('an edit runs as edit:<operationId>, and a repeated POST returns the same proposal without a second model call', async () => {
+  it('an edit runs as edit:<operationId>, and a repeated POST returns the same proposal without repeating either model call', async () => {
     const { scope, base } = await seed(false)
     const operationId = randomUUID()
     const callsBefore = server.calls().length
-    server.reply({ text: ENVELOPE })
+    server.reply({ text: '{"intent":"edit"}' }, { text: ENVELOPE })
 
     const [first, second] = await Promise.all([post(scope, base, operationId), post(scope, base, operationId)])
 
@@ -175,7 +175,7 @@ describe('proposeSchemaEdit on PostgreSQL', () => {
     expect(second.status).toBe(200)
     await expect(first.json()).resolves.toEqual(PROPOSED)
     await expect(second.json()).resolves.toEqual(PROPOSED)
-    expect(server.calls().length).toBe(callsBefore + 1)
+    expect(server.calls().length).toBe(callsBefore + 2)
     const recorded = await studioDbos().admission.getWorkflow(`edit:${operationId}`)
     expect(recorded).toMatchObject({ status: 'SUCCESS', authenticatedUser: scope.accountId, workflowName: 'proposeSchemaEdit', queueName: 'studio' })
     expect(recorded?.attributes).toEqual({
@@ -211,31 +211,31 @@ describe('proposeSchemaEdit on PostgreSQL', () => {
       FREE_CRASH_MARKER: join(scratch, `marker-${operationId}`),
     }
     const callsBefore = server.calls().length
-    server.reply({ text: ENVELOPE, hold: true })
+    server.reply({ text: '{"intent":"edit"}' }, { text: ENVELOPE, hold: true })
 
     let kill: (() => void) | undefined
     const exited = runWorkflowChild('edit-recover', env, { spawned: (fn) => { kill = fn } })
-    await server.waitForCall(callsBefore + 1, 30_000)
+    await server.waitForCall(callsBefore + 2, 30_000)
     kill!()
     expect((await exited).signal).toBe('SIGKILL')
     server.release()
     expect(await childStatus(env, `edit:${operationId}`)).toBe('PENDING')
 
-    server.reply({ text: ENVELOPE })
+    server.reply({ text: '{"intent":"edit"}' }, { text: ENVELOPE })
     const second = await runWorkflowChild('edit-recover', env)
     expect(second.code).toBe(0)
     expect(JSON.parse(readFileSync(env.FREE_TEST_OUTPUT, 'utf8'))).toEqual({
       state: 'finished', output: { ok: true, baseSchemaRevisionId: base.schemaRevisionId, response: PROPOSED },
     })
-    expect(server.calls().length).toBe(callsBefore + 2)
-    expect(server.calls().slice(-2).every((call) => call.authorization === `Bearer ${key}`), 'both calls carried the planted key').toBe(true)
+    expect(server.calls().length).toBe(callsBefore + 4)
+    expect(server.calls().slice(-4).every((call) => call.authorization === `Bearer ${key}`), 'all four calls carried the planted key').toBe(true)
     expect(await childStatus(env, `edit:${operationId}`)).toBe('SUCCESS')
   })
 
   it('a schema-only edit records only the project and schema attributes', async () => {
     const { scope, base } = await seed(false)
     const operationId = randomUUID()
-    server.reply({ text: ENVELOPE })
+    server.reply({ text: '{"intent":"edit"}' }, { text: ENVELOPE })
 
     const response = await post(scope, base, operationId, { grounded: false })
 

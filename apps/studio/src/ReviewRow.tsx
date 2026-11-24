@@ -1,7 +1,7 @@
 import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import { DECISION_WORD, type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, supportNote, type RailRow } from './reviewVocabulary'
+import { type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, supportNote, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -79,10 +79,9 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   onDecide, onChoose, onEdit, onCancelEdit, onUndo, onTypedEdit, pick, canApproveWhole = true, canUndoWhole = true, locked = false }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
-  const linked = row.decision !== null && row.link !== null
-  const reviewable = row.retained?.reviewable ?? linked
+  const reviewable = row.retained?.reviewable ?? false
+  const linked = reviewable && row.link !== null
   const decided = row.kind === 'approved' || row.kind === 'edited' || row.kind === 'rejected'
-  const word = row.decision ? DECISION_WORD[row.decision.action] : ''
   const style = row.chip?.style ?? 'neutral'
   const support = supportNote(row)
   return (
@@ -142,10 +141,10 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
               </div>
             </div>
           ) : decided && saved ? (
-            <p className="m-0 text-secondary font-semibold text-ink">{word} · saved</p>
+            <p className="m-0 text-secondary font-semibold text-ink">{stateLabel(row)} · saved</p>
           ) : decided && canDecide ? (
             <div className="flex items-center gap-2">
-              <span className="text-secondary font-semibold text-ink">{word}</span>
+              <span className="text-secondary font-semibold text-ink">{stateLabel(row)}</span>
               {canUndoWhole && <Button variant="ghost" onClick={onUndo}><UndoGlyph />Undo</Button>}
             </div>
           ) : null}

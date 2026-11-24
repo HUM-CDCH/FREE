@@ -11,14 +11,6 @@ it('an uncertain passage is non-verbatim', () => {
   expect(evidenceCheck({ verbatim: false }, 'APPROVED')).toBe('Not an exact match, please double check')
 })
 
-it.each([true, false])('recognises literal %s in historical supporting Evidence', value => {
-  const link = {verbatim: false}
-  expect(evidenceCheck(link, undefined, value, `Active: ${value}`)).toBeNull()
-  expect(evidenceCheck(link, undefined, value, `Active: ${String(value).toUpperCase()}`)).toBeNull()
-  for (const text of ['Active: yes', `Active: ${!value}`, `Active: ${value}hood`])
-    expect(evidenceCheck(link, undefined, value, text)).toBe('Not an exact match, please double check')
-})
-
 it.each(booleanLiterals)('agrees with Catalog on the printed boolean in "$text"', ({text, value, literal}) => {
   const hint = evidenceCheck({verbatim: false}, undefined, value, text)
   expect(hint === null).toBe(literal)

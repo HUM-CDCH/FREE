@@ -1,4 +1,4 @@
-import { blockForAnchor, tableForAnchor, type ParsedDocument } from 'extraction/parsed-document'
+import { anchorText, type ParsedDocument } from 'extraction/parsed-document'
 import type { EvidenceLink } from 'extraction/durable-types'
 import { valueParts, type RetainedValue } from './durableRailModel'
 
@@ -6,9 +6,7 @@ import { valueParts, type RetainedValue } from './durableRailModel'
  * A repeated, missing or partial-token match has no preview; only the verifier can decide what supports a field. */
 export function provisionalMarks(document: ParsedDocument, values: readonly RetainedValue[]) {
   const texts = document.evidence_index.anchors.flatMap(anchor => {
-    const block = anchor.kind === 'text' ? blockForAnchor(document, anchor) : null
-    const text = anchor.kind === 'table_cell' ? tableForAnchor(document, anchor)?.cells.find(cell => cell.cell_id === anchor.cell_id)?.text
-      : block && 'text' in block ? block.text : block?.kind === 'list' ? block.items.join('\n') : null
+    const text = anchorText(document, anchor)
     return text ? [{anchorId: anchor.anchor_id, text}] : []
   })
   const matches = new Map<string, string | null>()

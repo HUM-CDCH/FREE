@@ -8,7 +8,7 @@ import type { ModelConfig } from '../../shared/modelConfig.contract'
 import { ExplainButton, GuideProvider, HowThisWorksButton } from './AdvancedGuide'
 import { SECTION_TOPIC, type GuideTopicId } from './advancedGuide.data'
 import {
-  ARTICLE_CHOICES, ARTICLE_CONTROL_SECTIONS, CONTROL_HINTS, CONTROL_LABELS,
+  ARTICLE_CHOICES, ARTICLE_SECTIONS, CONTROL_HINTS, CONTROL_LABELS,
   changedSections, effectiveSummary, unavailableReason,
   type AdvancedStrategy, type ArticleKey, type NumberPath,
 } from './advancedSettings'
@@ -17,7 +17,7 @@ import { SettingsViews } from './SettingsViews'
 
 export type AdvancedEditor = Pick<ProviderConfigDraft,
   'customize' | 'useServiceDefaults' | 'setArticle' | 'replaceArticle' |
-  'customizeUnified' | 'setUnified' | 'setNumber' | 'numberEdits' | 'settingsIssues'>
+  'setUnified' | 'setNumber' | 'numberEdits' | 'settingsIssues'>
 
 type Props = {
   draft: ModelConfig
@@ -132,7 +132,7 @@ export function AdvancedTab({ draft, saved, editor, focusIssue, onIssueFocused, 
             onClick={() => editor.useServiceDefaults(strategy)}>Use service defaults</button>
           <button type="button" aria-pressed={custom}
             className={`${textButton} rounded-md border border-line px-2.5 py-1 ${custom ? 'bg-surface-muted text-ink' : 'text-accent hover:underline'}`}
-            onClick={() => { if (custom) return; if (unifiedView) editor.customizeUnified(); else editor.customize(strategy) }}>Customize</button>
+            onClick={() => { if (!custom) editor.customize(strategy) }}>Customize</button>
         </div>
         </div>
         <div>
@@ -175,7 +175,7 @@ function ArticleSettingsView({ draft, saved, editor, focusIssue }:
   }
   const issue = focusIssue ? editor.settingsIssues.find((item) => item.path.startsWith('article.')) : undefined
   const issueKey = issue?.path.slice('article.'.length) as ArticleKey | undefined
-  const pages = ARTICLE_CONTROL_SECTIONS.flatMap(({ section, title, keys }) => keys.map((key) => ({
+  const pages = ARTICLE_SECTIONS.flatMap(({ section, title, keys }) => keys.map((key) => ({
     title: `${title}: ${CONTROL_LABELS[key]}`,
     key,
     content: <section key={key} aria-label={title} className="flex flex-col gap-2">
@@ -279,8 +279,7 @@ function NumberField({ path, label, hint, unit, value, edit, disabled, inactive 
   )
 }
 
-/** The unified Catalog's five controls: one group for every new single and batch Catalog Extraction. Retired generic
- *  and recipe values are shown, never converted; replacing them is the researcher's explicit Apply. */
+/** The unified Catalog's five controls: one group for every new single and batch Catalog Extraction. */
 function UnifiedCatalogView({ draft, saved, editor, focusIssue }: Pick<Props, 'draft' | 'saved' | 'editor' | 'focusIssue'>) {
   const catalog = draft.extractionSettings.catalog
   const unified = catalog?.unified

@@ -441,7 +441,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const queue=useMemo(()=>model?oneByOneQueue(model,!documentOrder):[],[model,documentOrder])
   const order=(documentOrder||hasPriority(queue))?{priority:!documentOrder,onToggle:()=>setDocumentOrder(previous=>!previous)}:undefined
   // The open composite value's parts as shown, an edited one's linked only where unchanged (`valueParts`). The chosen
-  // part (its mark key) is what the value shows on the source: its link (none when it has none), else the value's first.
+  // part (its mark key) is what the value shows on the source: its link (none when it has none), else the whole value's
+  // (`valueEvidenceLink`: its first link, or an edit's own Evidence only).
   const reviewParts=useMemo(()=>review?valueParts(review.value):[],[review])
   const [part,setPart]=useState<string|null>(null)
   const [listAnchor,setListAnchor]=useState<string|null>(null)

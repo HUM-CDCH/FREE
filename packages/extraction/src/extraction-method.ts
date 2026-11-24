@@ -57,19 +57,18 @@ export const ARTICLE_KEYS = [
 /** Article's shared default: the whole source, with oversized checks read in windows. */
 export const REFERENCE_ARTICLE: ArticleSettings = Object.freeze(articleSettingsSchema.parse({ grounding_overflow: 'windows' }))
 
+export const UNIFIED_CATALOG_DEFAULTS_VERSION = 12 as const
 /** The unified Catalog's service defaults (`unified.py` `DEFAULTS`), pinned to it by the shared contract fixture:
  *  reply reserves per stage, overlap in source lines, heading context, window halvings, and an entry reply that may
  *  use the context its counted input leaves (its reserve the floor). Each value is read once; a value located in its
  *  record's own text is linked by rule; one inherited from a heading is accepted only when an independent reading
  *  agrees. Auto input is the served context minus the stage's reserve. Only `UNIFIED_CATALOG_DEFAULTS_VERSION` is
  *  admitted: the number is provenance, never a switch. */
-const UNIFIED_BASE = {
-  reserves: { discovery: 4_096, entry: 4_096, verification: 2_048, arbitration: 512, document: 2_048 },
-  headings: true, splits: 6,
-} as const
-export const UNIFIED_CATALOG_DEFAULTS_VERSION = 12 as const
 export const UNIFIED_CATALOG_DEFAULTS = {
-  [UNIFIED_CATALOG_DEFAULTS_VERSION]: { ...UNIFIED_BASE, overlap: 3, entry_reply: 'context' },
+  [UNIFIED_CATALOG_DEFAULTS_VERSION]: {
+    reserves: { discovery: 4_096, entry: 4_096, verification: 2_048, arbitration: 512, document: 2_048 },
+    headings: true, splits: 6, overlap: 3, entry_reply: 'context',
+  },
 } as const
 
 /** The unified Catalog's five controls as the account saves them: each an override, absent for the defaults. */
@@ -87,7 +86,11 @@ export const unifiedCatalogSettingsSchema = unifiedCatalogPreferenceSchema.exten
   defaults: z.literal(UNIFIED_CATALOG_DEFAULTS_VERSION),
 }).strict()
 export type UnifiedCatalogSettings = z.output<typeof unifiedCatalogSettingsSchema>
-const UNIFIED_KEYS = ['defaults', 'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings'] as const
+/** Unified option order: saved, compared and sent unified settings keep it, so equal drafts serialize alike. */
+export const UNIFIED_PREFERENCE_KEYS = [
+  'input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings',
+] as const satisfies readonly (keyof UnifiedCatalogPreference)[]
+const UNIFIED_KEYS = ['defaults', ...UNIFIED_PREFERENCE_KEYS] as const
 
 /** One group of Catalog controls for single and batch work. */
 export const catalogSettingsSchema = z.object({ unified: unifiedCatalogPreferenceSchema.optional() }).strict()
@@ -162,7 +165,7 @@ export function canonicalUnified(preference: UnifiedCatalogPreference | UnifiedC
 
 /** Saved settings as stored: an explicit Article in full, Catalog members only when they carry a value. */
 export function canonicalExtractionSettings(settings: ExtractionSettings): ExtractionSettings {
-  const unified = present(settings.catalog?.unified, UNIFIED_KEYS.slice(1) as readonly (keyof UnifiedCatalogPreference)[])
+  const unified = present(settings.catalog?.unified, UNIFIED_PREFERENCE_KEYS)
   return {
     ...(settings.article ? { article: canonicalArticle(settings.article) } : {}),
     ...(unified ? { catalog: { unified } } : {}),
@@ -175,15 +178,10 @@ export const activeSettingsSchema = z.union([
   z.object({ unified: unifiedCatalogSettingsSchema }).strict(),
 ])
 export type ActiveSettings = z.output<typeof activeSettingsSchema>
-export type SettingsSlot = 'article' | 'unified'
-
-export function settingsSlot(strategy: ExtractionStrategy): SettingsSlot {
-  return strategy === 'ARTICLE' ? 'article' : 'unified'
-}
 
 /** Only the settings belonging to the declared strategy can run. */
 export function settingsFit(strategy: ExtractionStrategy, settings: object): boolean {
-  return settingsSlot(strategy) in settings
+  return (strategy === 'ARTICLE' ? 'article' : 'unified') in settings
 }
 
 export function activeSettings(settings: ExtractionSettings, strategy: ExtractionStrategy): ActiveSettings {
@@ -227,15 +225,11 @@ export function accountMethod(
 export function canonicalIntent(value: unknown, strategy: ExtractionStrategy): ExtractionMethodIntent | null {
   const parsed = extractionMethodIntentSchema.safeParse(value)
   if (!parsed.success || !settingsFit(strategy, parsed.data.settings)) return null
-  const settings = parsed.data.settings as Partial<Record<SettingsSlot, unknown>>
-  const slot = 'unified' in settings ? 'unified' : settingsSlot(strategy)
+  const { settings } = parsed.data
   const models = modelChoice(parsed.data.models)
-  if (slot === 'unified') return { models, settings: { unified: canonicalUnified(settings.unified as UnifiedCatalogSettings) } }
-  if (slot === 'article') {
-    const article = settings.article as ArticleSettings
-    return articleSettingsIssues(article).length > 0 ? null : { models, settings: { article: canonicalArticle(article) } }
-  }
-  return null
+  if ('unified' in settings) return { models, settings: { unified: canonicalUnified(settings.unified) } }
+  const { article } = settings
+  return articleSettingsIssues(article).length > 0 ? null : { models, settings: { article: canonicalArticle(article) } }
 }
 
 /** An Extraction's validated, explicitly recorded settings. */
@@ -245,8 +239,6 @@ export function storedSettings(value: unknown, strategy: ExtractionStrategy): Ac
     throw new ExtractionError('invalid_extraction_method', 'The admitted extraction method is invalid.')
   return parsed.data
 }
-
-export const recordedSettings = storedSettings
 
 /** A choice from a request or stored jsonb value: absent, null and empty roles all mean service defaults. */
 export function modelChoice(value: unknown): ExtractionModelChoice | null {

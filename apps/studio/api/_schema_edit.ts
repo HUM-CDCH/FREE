@@ -150,7 +150,7 @@ export async function loadOwnedSchemaRevision(
 /**
  * A schema edit proposal through Schema Suggestion: the model receives the current schema as a template, its field
  * notes and the researcher's change request (with the source, when one is named) and returns the whole revised
- * template with scalar note changes beside it, which are compared with the current tree to give the per-field
+ * template with note changes beside it, which are compared with the current tree to give the per-field
  * proposal the researcher reviews.
  */
 export async function proposeSchemaEdit(
@@ -194,13 +194,31 @@ export async function proposeSchemaEdit(
     throw error
   }
   let revised: SchemaDefinition
+  let inline: Map<string, string | undefined>
   try {
     revised = templateToSchemaDefinition(template)
-    revised.schemaNodes = withFieldDescriptions(revised.schemaNodes, fieldDescriptions)
+    inline = new Map(enumerateFieldPaths(revised.schemaNodes).map(({ path, node }) => [JSON.stringify(path), node.description]))
+    // Only the sidecar changes a note: a group note copied into the template is not a change request.
+    revised.schemaNodes = withFieldDescriptions(withoutNotes(revised.schemaNodes), fieldDescriptions)
   } catch {
     return FAILED
   }
-  return { status: 'proposed', ...schemaEditBetween(definition.schemaNodes, revised.schemaNodes), issues: [] }
+  const { fields, additions } = schemaEditBetween(definition.schemaNodes, revised.schemaNodes)
+  // A group the edit adds has no note to copy: the one written for it inside the template is its note.
+  const noted = additions.map((addition) => {
+    const note = addition.description == null ? inline.get(JSON.stringify(addition.path)) : undefined
+    return note ? { ...addition, description: note } : addition
+  })
+  return { status: 'proposed', fields, additions: noted, issues: [] }
+}
+
+function withoutNotes(nodes: readonly SchemaNode[]): SchemaNode[] {
+  return nodes.map((node) => {
+    const bare: SchemaNode = node.children ? { ...node, children: withoutNotes(node.children) } : { ...node }
+    delete bare.description
+    delete bare.descriptionSource
+    return bare
+  })
 }
 
 /** The current schema as an edit chat's question reads it. */
@@ -224,7 +242,7 @@ export function schemaRevisionInstruction(definition: SchemaDefinition, request:
   return `Revise the researcher's current extraction schema according to the change request, and return the complete revised schema in the same template form.
 
 Current schema:
-${JSON.stringify(schemaDefinitionToTemplate(definition), null, 2)}
+${JSON.stringify(schemaDefinitionToTemplate({ ...definition, schemaNodes: withoutNotes(definition.schemaNodes) }), null, 2)}
 ${notes.length ? `\nField notes from the current schema:\n${notes.join('\n')}\n` : ''}${conversation ? `\n${conversation}\n` : ''}
 Change request:
 ${request.trim()}
@@ -265,7 +283,7 @@ export function schemaEditBetween(
         fields[old.id] = { name: old.name, removed: true, ...nodeShape(old) }
         continue
       }
-      // Absent notes stay unchanged; an edit's scalar-note sidecar can also supply text or an explicit empty clear.
+      // Absent notes stay unchanged; an edit's note sidecar can also supply text or an explicit empty clear.
       const edit: FieldEdit = { name: node.name, removed: false, description: node.description ?? null, ...nodeShape(node, old) }
       if (changesField(old, edit)) fields[old.id] = edit
       if (node.children) compare(old.children ?? [], node.children, [...parentPath, node.name])

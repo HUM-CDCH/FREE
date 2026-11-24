@@ -62,7 +62,7 @@ def ground(fields: dict, source, *, counter=None, users=None, skip=frozenset(), 
     users = [] if users is None else users
     counter = counter or LimitedCounter(WordCounter(), 8192)
     links, calls, issues = grounding.semantic(source, fields, SCHEMA, CountingChat(script or labelling(users, schemas)),
-        record=0, counter=counter, record_context="the whole document\n{}", projected=True, skip_paths=skip)
+        record=0, counter=counter, record_context="the whole document\n{}", skip_paths=skip)
     return links, calls, issues, users
 
 
@@ -232,7 +232,7 @@ def test_a_claim_inside_a_nested_object_keeps_that_objects_fields():
     users = []
     grounding.semantic(passages(["Buyer: Berg, Ribe."]), {"buyer": {"name": "Berg", "city": "Ribe"}}, nested,
         CountingChat(labelling(users)), record=0, counter=LimitedCounter(WordCounter(), 8192),
-        record_context="the whole document\n{}", projected=True)
+        record_context="the whole document\n{}")
     assert 'Within buyer: {"name": "Berg", "city": "Ribe"}' in users[0]
 
 
@@ -330,7 +330,7 @@ def test_a_claim_refused_over_the_whole_source_is_verified_in_windows_of_it():
     assert all(len(user.split()) + 2048 <= 6600 for user in checks)
 
 
-def test_record_aware_requests_remain_pinned_for_full_bounded_and_legacy_settings():
+def test_record_aware_requests_remain_pinned_for_the_reference_full_and_bounded_settings():
     """The record-aware prompts change fitting requests; refused requests still make no model call. Omitted
     settings are the reference (`grounding_overflow` windows), so its refused claim is verified in windows; a bounded
     context uses the document-value request, which fits either budget."""
@@ -360,8 +360,7 @@ def test_a_claim_too_large_for_any_window_keeps_its_refusal_without_a_call():
     users = []
     links, calls, issues, routes = verify_routed([Context(tuple(source))], fields, SCHEMA,
         CountingChat(labelling(users)), origins=origins, value_contexts=[], record=0, verifier=grounding.semantic,
-        windows=True, counter=LimitedCounter(WordCounter(), 8192), budget=24_000, record_context="the document\n{}",
-        projected=True)
+        windows=True, counter=LimitedCounter(WordCounter(), 8192), record_context="the document\n{}")
     oversized = {("records", 0, "items", 0, name) for name in ("sku", "description", "unit", "amount")}
     for route in routes:  # the source is refused for each item claim, in each of its eighths; the root's claims fit
         assert (route["attempted"], route["refused"]) == (([], [0]) if tuple(route["path"]) in oversized else ([0], []))

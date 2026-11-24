@@ -1,10 +1,8 @@
 """Extraction model-call spans for Phoenix: what one call records, what only capture adds, and that a Catalog's chunk
 threads stay on the extraction's trace."""
 import json
-from types import SimpleNamespace
 
 import pytest
-from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter

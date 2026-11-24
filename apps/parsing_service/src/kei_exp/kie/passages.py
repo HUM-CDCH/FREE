@@ -1,5 +1,5 @@
-"""A finished parse run's canonical result as the recipe stages and extraction see it: passages in reading order,
-named by identity. It imports neither.
+"""A finished parse run's canonical result as extraction sees it: passages in reading order, named by identity. It
+imports no extraction module.
 
 Extraction never reparses the PDF. It reads `result/result.json` and the page files through
 `pagefile.load_result`, which proves they belong together, and projects every readable segment into a `Passage`

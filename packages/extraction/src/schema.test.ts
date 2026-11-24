@@ -48,11 +48,12 @@ test('a suggested template takes its notes onto the scalar fields their exact pa
     ],
   )
   const notes = (nodes: readonly SchemaNode[]): unknown[] =>
-    nodes.map((node) => node.children ? [node.name, node.description, notes(node.children)] : [node.name, node.description])
-  assert.deepEqual(notes(parsed.schemaNodes), [
-    ['title', 'The entry heading.'],
-    ['status', 'Whether the entry is open.'],
-    ['refs', 'Each cited work.'],
-    ['items', 'One item.', [['name', 'The item name.']]],
+    nodes.map((node) => [node.name, node.description, node.descriptionSource, ...(node.children ? [notes(node.children)] : [])])
+  const reloaded = parseSchemaDefinition(JSON.parse(JSON.stringify(parsed)))
+  assert.deepEqual(notes(reloaded.schemaNodes), [
+    ['title', 'The entry heading.', 'suggested'],
+    ['status', 'Whether the entry is open.', 'suggested'],
+    ['refs', 'Each cited work.', 'suggested'],
+    ['items', 'One item.', 'suggested', [['name', 'The item name.', 'suggested']]],
   ])
 })

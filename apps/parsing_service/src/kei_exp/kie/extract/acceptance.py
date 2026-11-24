@@ -1,16 +1,6 @@
-"""Typed values and located outcomes shared by Catalog extraction and Evidence placement."""
-from dataclasses import dataclass, field
+"""Catalog values typed to their fields."""
 from typing import Any
-from kei_exp.kie.blocks import Span
 from kei_exp.kie.extract.schema import Node
-
-@dataclass
-class Outcome:
-    kind: str
-    path: tuple
-    value: Any
-    spans: list[Span] = field(default_factory=list)
-    alternatives: list[list[Span]] = field(default_factory=list)
 
 
 def typed_value(value: Any, node: Node) -> Any:

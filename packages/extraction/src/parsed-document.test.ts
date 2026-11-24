@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
+  anchorText,
   decodeParsedDocument,
   type ParsedDocument,
+  type TextEvidenceAnchor,
 } from './parsed-document.js'
 
 const fixture: ParsedDocument = {
@@ -188,5 +190,16 @@ describe('parsed_document.v2 canonical order', () => {
       },
     ]
     assert.doesNotThrow(() => decodeParsedDocument(input))
+  })
+})
+
+describe('anchorText', () => {
+  it("reads a text anchor's block, a list's items one per line, and nothing for a block that is not there", () => {
+    const input = copyFixture()
+    input.content_stream.push({ kind: 'list', block_id: 'b4', page_number: 2, parser: 'test', bbox: null, markdown_span: null, ordered: false, items: ['One', 'Two'] })
+    const anchor = (block_id: string) => ({ kind: 'text', anchor_id: `anchor-${block_id}`, block_id }) as TextEvidenceAnchor
+    assert.equal(anchorText(input, anchor('b2')), 'Body')
+    assert.equal(anchorText(input, anchor('b4')), 'One\nTwo')
+    assert.equal(anchorText(input, anchor('missing')), undefined)
   })
 })

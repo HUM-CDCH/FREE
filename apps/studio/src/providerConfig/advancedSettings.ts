@@ -1,6 +1,6 @@
 import {
   ARTICLE_KEYS, articleSettingsIssues, METHOD_MESSAGES, REFERENCE_ARTICLE, type ArticleSettings,
-  type CatalogSettings,
+  type CatalogSettings, UNIFIED_PREFERENCE_KEYS,
 } from 'extraction/extraction-method'
 
 /** The Advanced tab's labels, one-line hints, summaries and availability. Local data and pure functions: the method
@@ -18,7 +18,6 @@ export const ARTICLE_SECTIONS: readonly { section: ArticleSection; title: string
   { section: 'input', title: 'Extraction input', keys: ['rendering'] },
   { section: 'evidence', title: 'Evidence', keys: ['grounding', 'grounding_overflow', 'evidence_policy'] },
 ]
-export const ARTICLE_CONTROL_SECTIONS = ARTICLE_SECTIONS
 
 export const SECTION_OF = Object.fromEntries(
   ARTICLE_SECTIONS.flatMap(({ section, keys }) => keys.map((key) => [key, section])),
@@ -142,10 +141,8 @@ export function settingsDelta(before: ArticleSettings | undefined, after: Articl
   ]
 }
 
-const UNIFIED_KEYS = ['input_tokens', 'output_tokens', 'overlap', 'candidates', 'headings'] as const
-
 /** A Catalog draft in contract order, without unset values; validation is the contract's. */
 export function orderedCatalog(catalog: Readonly<{ unified?: Record<string, unknown> }>): CatalogSettings {
   const member = catalog.unified
-  return member ? { unified: Object.fromEntries(UNIFIED_KEYS.flatMap(key => member[key] === undefined ? [] : [[key, member[key]]])) } : {}
+  return member ? { unified: Object.fromEntries(UNIFIED_PREFERENCE_KEYS.flatMap(key => member[key] === undefined ? [] : [[key, member[key]]])) } : {}
 }

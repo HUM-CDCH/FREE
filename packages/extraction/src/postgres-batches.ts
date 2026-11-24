@@ -6,7 +6,7 @@
 
 import type { Database, DatabaseOrm } from 'db'
 import { durableStatus } from './durable-contract.js'
-import { modelChoice, recordedSettings, type ActiveSettings } from './extraction-method.js'
+import { modelChoice, storedSettings, type ActiveSettings } from './extraction-method.js'
 import { deriveAttempts, readAttemptRows } from './postgres-attempts.js'
 import { ownsResearcherBatch } from './postgres-ownership.js'
 import type {
@@ -115,8 +115,7 @@ export async function loadBatches(
       schemaRevisionNumber: schema.revisionNumber,
       strategy: batch.strategy as ExtractionStrategy,
       requestedModels: modelChoice(batch.requestedModels),
-      // A batch has no recipe: its members pin none.
-      requestedSettings: recordedSettings(batch.requestedSettings, batch.strategy as ExtractionStrategy),
+      requestedSettings: storedSettings(batch.requestedSettings, batch.strategy as ExtractionStrategy),
       executionStatus,
       createdAt: batch.createdAt,
       // Approved after it was opened, or not at all: the round tried the revision before its approval.

@@ -26,8 +26,6 @@ export type RailRow = {
   extracted: unknown
   kind: RowKind
   link: EvidenceLink | null
-  /** The decision a To check, approved, edited or rejected row carries. */
-  decision: Readonly<{ action: ReviewAction }> | null
   chip: { text: string; style: ChipStyle } | null
   /** A not reviewable value's label and detail. */
   evidence: { label: string; detail: string } | null
@@ -64,8 +62,6 @@ export type RailCounts = {
 }
 
 export type RailModel = { document: RailRow[]; records: RailRecord[]; counts: RailCounts }
-
-export const DECISION_WORD = { APPROVED: 'Approved', EDITED: 'Edited', REJECTED: 'Rejected' } as const
 
 /** The text equivalent of a row's glyph. */
 export function stateLabel(row: Pick<RailRow, 'kind' | 'evidence'>): string {

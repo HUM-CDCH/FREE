@@ -1,5 +1,5 @@
 import type { DurablePage } from 'extraction/durable-types'
-import type { ParsedDocument, ParsedLogicalTable } from 'extraction/parsed-document'
+import { anchorText, type ParsedDocument } from 'extraction/parsed-document'
 import type { SchemaNode } from 'extraction/schema'
 import { tableCellReview } from 'extraction/table-cell-review'
 import type { EvidenceLink } from 'extraction/durable-types'
@@ -48,23 +48,13 @@ const linksByPath = indexed((links: RetainedValue['links']) => byKey(links, link
 const anchorsById = indexed((document: ParsedDocument) => byKey(document.evidence_index.anchors, anchor => anchor.anchor_id))
 const judgmentsByPath = indexed((check: NonNullable<RetainedValue['check']>) => byKey(check.judgments, judgment => JSON.stringify(judgment.path)))
 
-const blocksById = indexed((document: ParsedDocument) => byKey(document.content_stream, block => block.block_id))
-const tablesById = indexed((document: ParsedDocument) => byKey(document.tables, table => table.table_id))
-const cellsById = indexed((table: ParsedLogicalTable) => byKey(table.cells, cell => cell.cell_id))
-
 /** Older links can omit the source text. Look up only the cited passage when checking a printed boolean. */
 export function reviewLinkDoubt(link: EvidenceLink, value: unknown, document: ParsedDocument | null, action?: ReviewAction) {
   if (action === 'EDITED' || action === 'REJECTED') return null
   let text: string | undefined
   if (document && typeof value === 'boolean' && link.verbatim === false && link.location?.raw == null && link.grounding?.raw == null) {
     const anchor = anchorsById(document).get(link.evidenceAnchorId)?.[0]
-    if (anchor?.kind === 'text') {
-      const block = blocksById(document).get(anchor.block_id)?.[0]
-      text = block?.kind === 'list' ? block.items.join('\n') : block && 'text' in block ? block.text : undefined
-    } else if (anchor?.kind === 'table_cell') {
-      const table = tablesById(document).get(anchor.logical_table_id)?.[0]
-      if (table) text = cellsById(table).get(anchor.cell_id)?.[0]?.text
-    }
+    if (anchor) text = anchorText(document, anchor)
   }
   return evidenceCheck(link, undefined, value, text)
 }
@@ -189,9 +179,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
     value: reviewedValue(value), extracted: value.modelValue,
-    kind, link, decision: value.processing === 'saved' ? {
-      action: action && action !== 'PENDING' ? action : 'APPROVED',
-    } : null,
+    kind, link,
     // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'different readings' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'
       : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · not exact' : ''}${support ? ` · ${support.word}` : ''}`,
@@ -208,7 +196,7 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
 /** A field of a record still being read: a placeholder, never a value. */
 const placeholder = (ordinal: number, name: string): RailRow => ({
   key: `reading:${ordinal}:${name}`, resultPath: ['records', ordinal, name], name, value: null, extracted: null, kind: 'reading',
-  link: null, decision: null, chip: null, evidence: null, doubt: null, changed: false, page: null,
+  link: null, chip: null, evidence: null, doubt: null, changed: false, page: null,
 })
 
 export function durableRailModel(page: DurablePage, document: ParsedDocument | null, progress: RunProgress | null = null,

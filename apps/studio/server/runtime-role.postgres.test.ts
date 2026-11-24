@@ -16,11 +16,11 @@ import { runWorkflowChild } from '../test/support/crash.js'
 import { disposableDatabaseUrl, testSchemas } from '../test/support/postgres.js'
 
 /**
- * Studio's own paths on its restricted runtime role, prepared as Studio's entrypoint prepares it (db:roles): its DBOS
- * schema upgraded from one an earlier Studio created as postgres, a fresh DBOS schema, kei's workflows in tables kei
- * creates after the preparation, and domain, admission, review, deletion and garbage-collection writes on the domain
- * pool. The test migrates its own free_test_* database with unique roles and drops both when it ends.
- * packages/db/src/studio-role.postgres.check.ts proves what the role is denied.
+ * Studio's own paths on its restricted roles, prepared as Studio's entrypoint prepares them (db:roles). The runtime
+ * role: its DBOS schema upgraded from one an earlier Studio created as postgres, a fresh DBOS schema, and domain,
+ * admission, review, deletion and garbage-collection writes on the domain pool. The separate queue role: kei's
+ * workflows, in tables kei creates after the preparation. The test migrates its own free_test_* database with unique
+ * roles and drops both when it ends. packages/db/src/studio-role.postgres.check.ts proves what the roles are denied.
  */
 const suffix = randomBytes(4).toString('hex')
 // One runtime role per DBOS schema, as in production: the upgraded schema's and a fresh schema's.

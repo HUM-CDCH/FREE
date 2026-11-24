@@ -17,12 +17,6 @@ def saved_record(router, fields: dict, scope, *, record: int = 0, links=(), prim
         router.runtime.saved_record(fields, scope, record=record, links=links, primary=primary, disagreements=disagreements)
 
 
-def reuse_record(router, scope, *, record=0):
-    if getattr(router,"runtime",None) is None:
-        return None
-    return router.runtime.reuse_record(scope,record=record)
-
-
 def discovering(router, found, lines):
     """Show discovered record starts and the current window's labelled lines during durable discovery.
     A `found` value of None clears the progress view."""
@@ -210,19 +204,15 @@ def publish_final(lease, result):
     document_ids = {node["id"] for node in raw_nodes if node.get("valueSource") is not None}
     if records and document_ids:
         publish_values(lease, records[0], "document-fields", complete=True, field_ids=document_ids, metadata=metadata)
-    # Record scopes were captured at the producer boundary. If a method cannot
-    # prove a final record's lineage, retain it under a distinct historical
-    # identity rather than guessing a mapping from its presentation ordinal.
+    # Record scopes were captured at the producer boundary.
     scopes = lease.state.get("recordScopes", {})
     for index, fields in enumerate(records):
         scope = scopes.get(str(index), scopes.get(index))
-        if isinstance(scope,dict) and scope.get("historical") is True:
-            continue
         if result["strategy"] == "article":
             scope = "document"
         if scope is None:
             raise ValueError("record has no canonical source scope")
-        if result["strategy"] == "catalog" and result.get("options", {}).get("unified"):
+        if result["strategy"] == "catalog":
             fields = _reviewable_scalars(fields, Schema.model_validate(lease.state["selection"]["schemaTree"]).record_nodes,
                                         result.get("proposed", []), index)
         publish_values(lease, fields, scope, record=index, links=result.get("evidence", []), complete=True, field_ids={node["id"] for node in raw_nodes if node.get("valueSource") is None}, metadata=metadata, disagreements=result.get("disagreements", ()))

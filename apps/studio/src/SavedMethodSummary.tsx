@@ -33,11 +33,9 @@ export function SavedMethodSummary({ saved, method, conflict, onRefresh }: {
         )}
         <p className="text-secondary text-ink">{settingsHeadline(method.settings)}</p>
         <p className="text-compact text-ink-muted">{modelsLine(method.models)}</p>
-        {lines.length > 0 && (
-          <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-compact">
-            {lines.map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="text-ink">{line.value}</dd>])}
-          </dl>
-        )}
+        <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-compact">
+          {lines.map((line) => [<dt key={`${line.label}-t`} className="text-ink-muted">{line.label}</dt>, <dd key={`${line.label}-d`} className="text-ink">{line.value}</dd>])}
+        </dl>
         <p className="mt-1 text-overline text-ink-faint">Change them on the Model Configuration page’s Advanced tab.</p>
       </div>
     </details>

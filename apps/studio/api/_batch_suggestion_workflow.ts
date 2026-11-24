@@ -8,7 +8,7 @@ import { combineBatchSchemas, suggestBatchSource, type generateSchemaWithModel }
 import { ApiError } from './_http.js'
 import { schemaSourceWindows } from './_schema.js'
 import { reduceSchemas } from './_schema_reduction.js'
-import type { BatchSourceCoverage, SourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
+import type { BatchSourceCoverage } from '../shared/schemaSuggestionSource.contract.js'
 
 export const SUGGEST_SCHEMA_BATCH = 'suggestSchemaBatch'
 
@@ -100,7 +100,7 @@ function durableFailure(error: unknown): SuggestionFailure {
 }
 
 type SourceResult =
-  | { kind: 'definition'; sourceDocumentId: string; definition: SchemaDefinition; sourceCoverage: SourceCoverage }
+  | { kind: 'definition'; sourceDocumentId: string; definition: SchemaDefinition }
   | { kind: 'failure'; sourceDocumentId: string; failure: SuggestionFailure }
   | { kind: 'stopped' }
 type MergeResult =
@@ -152,7 +152,7 @@ async function suggestMemberFromWindows(
     for (let index = 0, count = 1; index < count; index += 1) {
       const window = await modelStep(`suggestSource:${sourceDocumentId}:window:${index + 1}`, async (caller, markdown, signal) => {
         const windows = schemaSourceWindows(markdown!)
-        const { definition } = await suggestBatchSource(caller, { markdown: windows[index]!, pageSpans: [] }, signal, generate, true)
+        const definition = await suggestBatchSource(caller, windows[index]!, signal, generate)
         return { count: windows.length, definition }
       }, true)
       count = window.count
@@ -163,7 +163,7 @@ async function suggestMemberFromWindows(
       (text, step) => modelStep(`suggestSource:${sourceDocumentId}:${step}`,
         (caller, _markdown, signal) => combineBatchSchemas(caller, 'union', text, signal, generate), false),
     )
-    return { kind: 'definition', sourceDocumentId, definition, sourceCoverage: { complete: true } }
+    return { kind: 'definition', sourceDocumentId, definition }
   } catch (error) {
     if (error instanceof MemberHalt) return error.result
     // Window suggestions that cannot be combined within one request's limit (`reduceSchemas`).
@@ -231,10 +231,10 @@ const SOURCES_FAILED: SuggestionFailure = {
   message: 'Fields could not be suggested for every selected Source Document.',
 }
 
-/** Every source's declaration, in member order: what its suggestion read of the source; the merge reads every
- *  suggestion. */
+/** Every source's declaration, in member order: its suggestion read every window of the source whole, and the merge
+ *  reads every suggestion. */
 function declaredSourceCoverage(definitions: readonly Extract<SourceResult, { kind: 'definition' }>[]): BatchSourceCoverage {
-  return definitions.map(({ sourceDocumentId, sourceCoverage }) => ({ sourceDocumentId, sourceCoverage, combined: true }))
+  return definitions.map(({ sourceDocumentId }) => ({ sourceDocumentId, sourceCoverage: { complete: true }, combined: true }))
 }
 
 /**

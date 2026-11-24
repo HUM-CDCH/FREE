@@ -1,5 +1,5 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
-import { canonicalPackageStore, pool } from 'db'
+import { createInternalProjectWorkerStore } from 'db'
 import { createDurableRepository, DurableInvalid, DurableNotFound } from 'extraction/durable'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import { persistenceUnavailable } from './_http.js'
@@ -43,9 +43,8 @@ export async function readResultToCorrect({ owner, extractionId, snapshotVersion
     page = await repository.page(extractionId, page.next)
     values.push(...page.values)
   }
-  const revision = (await pool.query('SELECT "artifactReference","artifactSha256" FROM public."sourceRepresentationRevision" WHERE id=$1', [head.sourceRevisionId])).rows[0]
-  if (!revision) throw new DurableInvalid('The pinned source is unavailable.')
-  const markdown = new TextDecoder().decode((await canonicalPackageStore.read(revision, 'markdown')).bytes)
+  const markdown = await createInternalProjectWorkerStore().readRevisionMarkdown(head.sourceRevisionId)
+  if (markdown === null) throw new DurableInvalid('The pinned source is unavailable.')
   return { extractionId, snapshotVersion, values, markdown }
 }
 

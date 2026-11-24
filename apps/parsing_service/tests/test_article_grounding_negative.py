@@ -55,7 +55,7 @@ def grid(lines: list[tuple[str, tuple[str, ...]]], page: int = 1):
 
 
 def ground(fields: dict, source, path: tuple, script, schema: Schema = SCHEMA):
-    """The real `grounding.semantic(..., projected=True)` on one claim (`path` below the record); the others skipped."""
+    """The real `grounding.semantic` on one claim (`path` below the record); the others skipped."""
     every = {("records", 0, *other) for other, _ in leaves(fields)}
     users: list[str] = []
 
@@ -63,7 +63,7 @@ def ground(fields: dict, source, path: tuple, script, schema: Schema = SCHEMA):
         users.append(user)
         return no_context(reply_schema) | script(system, user, reply_schema)
     links, _, issues = grounding.semantic(source, fields, schema, CountingChat(recording), record=0,
-        counter=LimitedCounter(WordCounter(), 8192), record_context="the whole document\n{}", projected=True,
+        counter=LimitedCounter(WordCounter(), 8192), record_context="the whole document\n{}",
         skip_paths=frozenset(every - {("records", 0, *path)}))
     return links, issues, users[0]  # the precise request; an unsupported claim is asked again with its table
 
@@ -381,7 +381,7 @@ def test_first_support_leaves_a_later_context_printing_the_value_unchecked_and_t
     links, _, issues, routes = verify_routed(contexts, fields, SCHEMA, CountingChat(labelling(users)), origins=origins,
         value_contexts=contexts, record=0, verifier=grounding.semantic,
         skip_paths=frozenset(("records", 0, *path) for path, _ in leaves(fields)) - {claimed},
-        counter=LimitedCounter(WordCounter(), 8192), record_context="the whole document\n{}", projected=True)
+        counter=LimitedCounter(WordCounter(), 8192), record_context="the whole document\n{}")
     (route,) = routes
     assert route["value_match_units"] == [0, 1] and route["order"] == [1, 0]
     assert [(link.path, link.segment, link.cell) for link in links] == [(claimed, "p2_s0", "r1_c3")] and not issues

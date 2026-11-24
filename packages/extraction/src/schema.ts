@@ -12,6 +12,7 @@ type SchemaNodeBase = {
   id: string
   name: string
   description?: string
+  descriptionSource?: 'suggested'
   valueSource?: ValueSource
   evidencePolicy?: EvidencePolicy
 }
@@ -29,6 +30,7 @@ const schemaNodeBaseShape = {
   id: z.string().min(1),
   name: z.string().trim().min(1),
   description: z.string().min(1).optional(),
+  descriptionSource: z.literal('suggested').optional(),
   valueSource: z.enum(['document', 'source-filename']).optional(),
   evidencePolicy: z.enum(['quoted', 'derived', 'unverified']).optional(),
 }
@@ -202,24 +204,24 @@ export function templateToNodes(value: unknown): SchemaNode[] {
  *  tokens cannot hold one, so a Schema Suggestion returns its notes beside the template. */
 export type FieldNote = { path: string[]; description: string }
 
-/** `notes` describe scalar fields of `value`; a note naming no scalar field of it is ignored. */
-export function templateToSchemaDefinition(value: unknown, notes: readonly FieldNote[] = []): SchemaDefinition {
+/** A Schema Suggestion supplies its sidecar, even when empty, to mark both scalar and group notes as suggested. */
+export function templateToSchemaDefinition(value: unknown, suggestedNotes?: readonly FieldNote[]): SchemaDefinition {
   if (!isRecord(value) || typeof value._description !== 'string')
     throw new Error('The Extraction Schema requires a root record description.')
+  const nodes = templateToNodes(value)
   return parseSchemaDefinition({
     recordDescription: value._description,
-    schemaNodes: withFieldNotes(templateToNodes(value), notes),
+    schemaNodes: suggestedNotes ? withSuggestedNotes(nodes, suggestedNotes) : nodes,
   })
 }
 
-function withFieldNotes(nodes: SchemaNode[], notes: readonly FieldNote[]): SchemaNode[] {
-  if (notes.length === 0) return nodes
+function withSuggestedNotes(nodes: SchemaNode[], notes: readonly FieldNote[]): SchemaNode[] {
   const byPath = new Map(notes.map(({ path, description }) => [fieldPathKey(path), description.trim()]))
   const apply = (level: SchemaNode[], parent: readonly string[]): SchemaNode[] => level.map((node) => {
     const path = [...parent, node.name]
-    if (node.children) return { ...node, children: apply(node.children, path) }
-    const description = byPath.get(fieldPathKey(path))
-    return description ? { ...node, description } : node
+    const described = node.children ? { ...node, children: apply(node.children, path) } : node
+    const description = node.children ? node.description : byPath.get(fieldPathKey(path))
+    return description ? { ...described, description, descriptionSource: 'suggested' } : described
   })
   return apply(nodes, [])
 }

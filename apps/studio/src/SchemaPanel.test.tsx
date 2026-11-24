@@ -478,6 +478,36 @@ describe.sequential('SchemaPanel template proposal review', () => {
     expect(setup.schema.snapshot().draft?.schemaNodes[0].description).toBe('Research rule\nSecond note')
   })
 
+  it('keeps a suggested note through name and type edits until its text changes', () => {
+    const setup = renderPanel({ panelNodes: [{
+      id: 'title', name: 'title', type: 'string', description: 'Suggested note', descriptionSource: 'suggested',
+    }] })
+    const field = () => setup.schema.snapshot().draft!.schemaNodes[0]
+    const save = () => fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit title' }))
+    fireEvent.change(screen.getByPlaceholderText('field_name'), { target: { value: 'heading' } })
+    fireEvent.change(screen.getByRole('combobox', { name: 'Field type' }), { target: { value: 'number' } })
+    save()
+    expect(field()).toMatchObject({ name: 'heading', type: 'number', descriptionSource: 'suggested' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add note to heading' }))
+    expect(screen.getByRole('textbox', { name: 'Field notes' })).toHaveValue('Suggested note')
+    save()
+    expect(field().descriptionSource).toBe('suggested')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add note to heading' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Field notes' }), { target: { value: 'Researcher note' } })
+    save()
+    expect(field().description).toBe('Researcher note')
+    expect(field()).not.toHaveProperty('descriptionSource')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add note to heading' }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Field notes' }), { target: { value: '   ' } })
+    save()
+    expect(field()).not.toHaveProperty('description')
+  })
+
   it('clears every accumulated note on a field in one action', async () => {
     const setup = renderPanel()
     fireEvent.click(screen.getByRole('button', { name: 'Add note to title' }))
@@ -1509,6 +1539,29 @@ describe('template header (redesign §5)', () => {
     chooseSchemaAction('Edit as code')
     expect((editor() as HTMLTextAreaElement).value).toContain('"title"')
     expect((editor() as HTMLTextAreaElement).value).not.toContain('report_title')
+  })
+
+  it('preserves a suggested note in a code edit unless its text changes', () => {
+    const setup = renderPanel({ panelNodes: [{
+      id: 'title', name: 'title', type: 'string', description: 'Suggested note', descriptionSource: 'suggested',
+    }] })
+    const save = (edit: (field: SchemaNode) => void) => {
+      chooseSchemaAction('Edit as code')
+      const editor = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Template code' })
+      const definition = JSON.parse(editor.value)
+      edit(definition.schemaNodes[0])
+      fireEvent.change(editor, { target: { value: JSON.stringify(definition) } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      return setup.schema.snapshot().draft!.schemaNodes[0]
+    }
+
+    expect(save(field => {
+      field.name = 'heading'
+      delete field.descriptionSource
+    })).toMatchObject({ name: 'heading', descriptionSource: 'suggested' })
+    const edited = save(field => { field.description = 'Researcher note' })
+    expect(edited.description).toBe('Researcher note')
+    expect(edited).not.toHaveProperty('descriptionSource')
   })
 
   it('refuses to save a code draft over field edits made since it was opened', async () => {

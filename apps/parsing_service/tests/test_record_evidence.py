@@ -30,7 +30,7 @@ def test_record_evidence_shares_the_source_and_reserves_the_complete_reply():
             return super().complete(**kwargs)
     def answer(system, user, reply_schema):
         return {key: [] if "items" in spec else "E1" for key, spec in reply_schema["properties"].items()}
-    links, calls, issues = grounding.verify(source, fields, AUTHORS, Chat(answer), record=0, projected=True,
+    links, calls, issues = grounding.verify(source, fields, AUTHORS, Chat(answer), record=0,
                                             counter=WordCounter())
     assert len(calls) == len(seen) == 1 and len(links) == 96 and not issues
     properties = seen[0]["schema"]["properties"]
@@ -54,7 +54,7 @@ def test_a_word_split_by_a_hyphen_is_cited_whole_whichever_half_the_model_choose
     for chosen in ("E1", "E3"):
         links, _, issues = grounding.verify([*first, *rest], {"yield": 20}, schema,
                                             CountingChat(lambda *_, chosen=chosen: {"C1": chosen}), record=0,
-                                            projected=True, located=True)
+                                            counter=WordCounter())
         assert not issues
         seen[chosen] = [(link.segment, link.verbatim, link.location and link.location["raw"], link.context)
                         for link in links]
@@ -74,8 +74,8 @@ def test_a_page_end_never_moves_the_models_evidence_to_another_subject_on_the_ne
         rest = passages(["Running Header", start], page=2)
         rest = [replace(rest[0], label="PageHeader"), replace(rest[1], label=label)]
         links, _, issues = grounding.verify([*first, *rest], {"fragments": 20}, schema,
-                                            CountingChat(lambda *_: {"C1": "E1"}), record=0, projected=True,
-                                            located=True)
+                                            CountingChat(lambda *_: {"C1": "E1"}), record=0,
+                                            counter=WordCounter())
         assert not issues
         return [(link.segment, link.verbatim, link.location, link.context) for link in links], first[0], rest[1]
     # A page end without a hyphen joins nothing: Sample B's sentence is neither primary nor context.
@@ -93,7 +93,8 @@ def test_a_word_break_never_crosses_content_or_a_heading_to_move_the_models_evid
     schema = Schema.model_validate({"recordDescription": "One sample", "schemaNodes": [
         {"id": "a", "name": "antibodies", "type": "number"}]})
     answer = lambda *_: {"C1": "E1"}
-    links, _, issues = grounding.verify(record, {"antibodies": 2}, schema, CountingChat(answer), record=0, projected=True)
+    links, _, issues = grounding.verify(record, {"antibodies": 2}, schema, CountingChat(answer), record=0,
+                                        counter=WordCounter())
     assert not issues and [(link.segment, link.verbatim, link.location, link.context) for link in links] == [
         (record[0].id, False, None, ())]
     # A heading between the halves is not the word's end either, even in lower case.
@@ -101,13 +102,14 @@ def test_a_word_break_never_crosses_content_or_a_heading_to_move_the_models_evid
     source[1] = replace(source[1], label="SectionHeader")
     cf = Schema.model_validate({"recordDescription": "One study", "schemaNodes": [
         {"id": "c", "name": "cf", "type": "number"}]})
-    links, _, issues = grounding.verify(source, {"cf": 34.51}, cf, CountingChat(answer), record=0, projected=True)
+    links, _, issues = grounding.verify(source, {"cf": 34.51}, cf, CountingChat(answer), record=0,
+                                        counter=WordCounter())
     assert not issues and [(link.segment, link.context) for link in links] == [(source[0].id, ())]
     # Nor is the second half, chosen itself, joined back across a heading or other content to the hyphen before them.
     for between in ("SectionHeader", "Text"):
         source[1] = replace(source[1], label=between)
         links, _, issues = grounding.verify(source, {"cf": 34.51}, cf, CountingChat(lambda *_: {"C1": "E3"}),
-                                            record=0, projected=True)
+                                            record=0, counter=WordCounter())
         assert not issues and [(link.segment, link.context) for link in links] == [(source[2].id, ())]
 
 
@@ -120,7 +122,7 @@ def test_a_cells_table_named_again_as_its_items_context_is_cited_once():
     # E1 is the whole table (offered for the title, which no cell prints), E4 and E5 the item's cells.
     reply = {"C1": "E1", "G1": ["E1"], "C2": "E4", "C3": "E5"}
     links, _, issues = grounding.verify([table], {"title": "Yields", "samples": [{"name": "A", "yield": 20}]},
-                                        schema, CountingChat(lambda *_: reply), record=0, projected=True)
+                                        schema, CountingChat(lambda *_: reply), record=0, counter=WordCounter())
     whole = {"segment": table.id, "start": 0, "end": len(table.text)}
     assert not issues and [(link.cell, link.context) for link in links] == [
         (None, ()), ("r1_c0", (whole,)), ("r1_c1", (whole,))]
@@ -132,8 +134,8 @@ def test_article_retains_an_items_identity_evidence_on_its_claims_and_no_context
     def answer(system, user, reply_schema):
         assert "attribute its claims to THIS list item" in system and 'G1 Within authors[0]: {"name": "Author A"' in user
         return {"G1": ["E1"], "C1": "E1", "C2": "E2"}
-    links, _, issues = grounding.verify(source, fields, AUTHORS, CountingChat(answer), record=0, projected=True,
-                                        located=True)
+    links, _, issues = grounding.verify(source, fields, AUTHORS, CountingChat(answer), record=0,
+                                        counter=WordCounter())
     # The item's context is kept on each claim it is not already the evidence of.
     assert not issues and [link_json(link).get("context") for link in links] == [
         None, [{"segment": source[0].id, "start": 0, "end": len(source[0].text)}]]
@@ -143,7 +145,7 @@ def test_article_retains_an_items_identity_evidence_on_its_claims_and_no_context
         return {"C1": "E1"}
     links, _, issues = grounding.verify(source, {"name": "Author A"}, Schema.model_validate({
         "recordDescription": "One author", "schemaNodes": [{"id": "n", "name": "name", "type": "string"}]}),
-        CountingChat(record_only), record=0, projected=True)
+        CountingChat(record_only), record=0, counter=WordCounter())
     assert not issues and links[0].context == ()
 
 
@@ -151,7 +153,7 @@ def test_unanswered_record_claim_remains_incomplete():
     schema = Schema.model_validate({"recordDescription": "One record", "schemaNodes": [
         {"id": "n", "name": "name", "type": "string"}]})
     links, _, issues = grounding.verify(passages(["Name A"]), {"name": "Name A"}, schema,
-                                       CountingChat(lambda *_: {}), record=0, projected=True)
+                                       CountingChat(lambda *_: {}), record=0, counter=WordCounter())
     assert not links
     assert [(issue.code, issue.path) for issue in issues] == [("missing_claim", ("records", 0, "name"))]
 
@@ -168,7 +170,7 @@ def test_article_context_reply_distinguishes_incomplete_checks_from_rejections(r
     path = ("records", 0, "authors", 0, "institution")
     links, _, issues = grounding.verify(
         passages(["Author A¹", "¹ Institute B"]), {"authors": [{"name": "Author A", "institution": "Institute B"}]},
-        AUTHORS, CountingChat(lambda *_: reply), record=0, projected=True,
+        AUTHORS, CountingChat(lambda *_: reply), record=0, counter=WordCounter(),
         skip_paths=frozenset({("records", 0, "authors", 0, "name")}))
     assert not links
     result = grounding_accounting({path}, set(), issues)
@@ -198,18 +200,19 @@ def test_heading_recovery_checks_intervening_source_even_when_discovery_misassig
     effective = unified._execution(source, schema, options, chat, counters)["effective"]
     runner = unified._Run(schema, unified._Budget(chat, counters, effective["stages"]), {"p1_s0": text}, effective)
     start = text.index("2.")
-    entry = {"ranges": [{"segment": "p1_s0", "start": start, "end": len(text)}],
-             "context": [{"segment": "p1_s0", "start": 0, "end": 10}]}
+    ranges = [{"segment": "p1_s0", "start": start, "end": len(text)}]
     units = [Unit("p1_s0", start, len(text))]
+    heading = (Unit("p1_s0", 0, 10),)  # "Jail North", the context discovery admitted for the second record
     work = unified._Work(found=[unified._Found(("jail",), "North", "Jail North", 0,
                                                kind="rejected", reason="quote_not_in_source")])
-    replies = runner._record_evidence(entry, [(Window(tuple(units)), {})], work, unified._view(units, runner.texts))
+    replies = runner._record_evidence(units, heading, False, [(Window(tuple(units)), {})], work,
+                                      unified._view(units, runner.texts))
     runner._verify(0, replies, work, owned=units)
     assert seen and (work.found[0].kind == "accepted") == accepted
     assert work.found[0].value == "North"
     if accepted:
-        link = unified._link(work.found[0], 0, {p.id: p for p in source.passages}, entry["ranges"])
-        assert link["context"] == entry["ranges"] and link["linked_by"] == "verification"
+        link = unified._link(work.found[0], 0, {p.id: p for p in source.passages}, ranges)
+        assert link["context"] == ranges and link["linked_by"] == "verification"
 
 
 def test_new_catalog_defaults_run_attachment_through_the_real_entry_path():
