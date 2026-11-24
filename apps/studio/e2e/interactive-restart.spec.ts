@@ -194,7 +194,8 @@ test('a planted key reaches no pg_dump, data volume or Studio log after a genera
   for (const probe of keyedProbes) expect(probe.authorization === `Bearer ${key}`, 'every probe after the key was typed carried it').toBe(true)
 
   // Both requests classify as edits. The first proposal is refused and the second can be applied.
-  stack.model.reply(EDIT_INTENT, refusal, EDIT_INTENT, { ...RENAME_TITLE, headers: echo })
+  const classifyEdit = { ...EDIT_INTENT, headers: echo }
+  stack.model.reply(classifyEdit, refusal, classifyEdit, { ...RENAME_TITLE, headers: echo })
   await requestEdit(page, 'Rename title to heading')
   await expect(page.getByText(/^(Request failed|Error):/).first()).toBeVisible({ timeout: 30_000 })
   await requestEdit(page, 'Rename title to heading')
