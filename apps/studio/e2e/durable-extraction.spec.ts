@@ -377,6 +377,69 @@ test('one ranked table cell approval survives reload and an independent owner se
   }
 })
 
+test('leaving a saved table review closes its historical detail', async ({ page }) => {
+  const fixture = await prepareInteractiveDocument(page, { hasKey: false })
+  try {
+    const columns = ['baseline', 'week12'].map(name => ({ id: name, name, type: 'integer' as const }))
+    const rows = [{ baseline: 22, week12: 12 }, { baseline: 21, week12: 22 }]
+    const { id } = await savedExtraction(fixture, [
+      { id: 'measurements', name: 'measurements', type: 'array', children: columns },
+    ], [rows])
+    const valueUrl = '/api/extractions/' + id + '/durable/values/measurements'
+    const paths = rows.flatMap((_, row) => columns.map(column => ['records', 0, 'measurements', row, column.id]))
+    const link = fixture.url + '?extractionId=' + id
+    const table = page.getByRole('table', { name: 'measurements', exact: true })
+    const first = table.getByRole('button', { name: /^measurements › #1 › baseline: 22,/ })
+    const approved = table.getByRole('button', { name: /, approved$/ })
+    const undo = page.getByRole('button', { name: 'Undo approval', exact: true })
+    const openTable = async () => {
+      await openRailView(page, 'Results')
+      await page.locator('button[aria-controls="expansion-measurements"]').click()
+      await expect(table).toBeVisible()
+    }
+
+    for (const [expectedRevision, path] of paths.entries()) {
+      const saved = await page.request.post(valueUrl + '/cells', {
+        headers: { Origin: E2E_ORIGIN },
+        data: { path, expectedRevision, snapshotVersion: 1, approved: true },
+      })
+      expect(saved.ok(), await saved.text()).toBe(true)
+    }
+    await page.goto(link)
+    await openRailView(page, 'Results')
+    await page.getByRole('button', { name: 'Save review', exact: true }).click()
+    await expect(page.getByText('Review saved.', { exact: true })).toBeVisible()
+
+    await page.goto(link)
+    await openTable()
+    await first.click()
+    await undo.click()
+    await expect.poll(async () => (await (await page.request.get(valueUrl)).json()).feedbackVersion).toBe(5)
+
+    await page.goto(link + '&snapshotVersion=1&feedbackVersion=4')
+    await openTable()
+    await first.click()
+    await expect(approved).toHaveCount(4)
+    await expect(undo).toHaveCount(0)
+
+    const writes: string[] = []
+    page.on('request', request => {
+      const path = new URL(request.url()).pathname
+      if (request.method() === 'POST' && path.startsWith('/api/extractions/' + id + '/durable/')) writes.push(path)
+    })
+    await page.getByRole('button', { name: 'Show the latest results', exact: true }).press('Enter')
+    await expect(table).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'More result actions', exact: true })).toBeFocused()
+    await page.getByRole('region', { name: 'Check first' })
+      .getByRole('button', { name: /^To check measurements › #1 › baseline 22/ }).click()
+    await expect(approved).toHaveCount(3)
+    await expect(first).toHaveAccessibleName('measurements › #1 › baseline: 22, to check')
+    expect(writes).toEqual([])
+  } finally {
+    await fixture.close()
+  }
+})
+
 test('whole typed edits preserve siblings and pending input adoption preserves producing history',async({page})=> {
   const fixture=await prepareInteractiveDocument(page,{hasKey:false})
   const nodes=[{id:'title',name:'title',type:'string' as const},{id:'flag',name:'flag',type:'boolean' as const},

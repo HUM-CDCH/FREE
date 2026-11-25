@@ -1827,6 +1827,31 @@ it('keeps the chosen historical cut when a live draft opens during its pending r
   expect(screen.queryByText('First title')).toBeNull()
 })
 
+it('preserves an editable draft when returning from a finalized history view', async () => {
+  const live = reviewPage(2, 1)
+  const historical = {
+    ...reviewPage(1),
+    finalization: { id: 'final', snapshotVersion: 1, feedbackVersion: 0 },
+  } as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({ state: { ...pausedState, snapshotVersion: 2 }, page: live } as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({
+    selections: [], snapshots: [], finalizations: [historical.finalization],
+  } as never)
+  vi.mocked(readValues).mockResolvedValue(historical)
+  render(<Results attempt={article} document={null} currentSchema={null} onEvidence={() => {}}
+    historySlot={historySlot()} historyShown />)
+
+  fireEvent.click(await screen.findByRole('button', { name: /^To check a First title/ }))
+  fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Reviewed value' }), { target: { value: 'My live draft' } })
+  fireEvent.click(await screen.findByRole('button', { name: 'Open finalized review of results 1' }))
+  await screen.findByText(/Showing saved results 1 · a saved review/)
+  fireEvent.click(screen.getByRole('button', { name: 'Show the latest results' }))
+
+  expect(screen.getByRole('textbox', { name: 'Reviewed value' })).toHaveValue('My live draft')
+  expect(durableRequest).not.toHaveBeenCalled()
+})
+
 it('protects decisions on a pinned live snapshot until its own read catches up, even when the latest read has observed them',async()=>{
   const latest=reviewPage(2),page=reviewPage(1)
   page.values[2]={...page.values[2]!,recordId:'second',path:['records',1,'c']}

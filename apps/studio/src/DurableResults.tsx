@@ -381,7 +381,14 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     return()=>{controller.abort();onPinnedDocument?.(id,null)}
   },[id,sourceRevisionId,documentRevisionId,onPinnedDocument])
   // While the inputs editor is open: the version of the editing acknowledgement that opened it, which fences its Save.
-  const [editing,setEditing]=useState<number|null>(null),[review,setReview]=useState<{value:Value;version:number;feedbackVersion:number;cutGeneration:number}|null>(null)
+  const [editing,setEditing]=useState<number|null>(null)
+  const [review,setReview]=useState<{
+    value:Value
+    version:number
+    feedbackVersion:number
+    cutGeneration:number
+    openedInHistory:boolean
+  }|null>(null)
   const [reprocess,setReprocess]=useState<Set<string>>(()=>new Set()),[notice,setNotice]=useState<string|null>(null)
   const [filter,setFilter]=useState<ValueFilter>('all')
   const [focus,setFocus]=useState(false),[detailsOpen,setDetailsOpen]=useState(false),[menuOpen,setMenuOpen]=useState(false)
@@ -479,11 +486,24 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     const generation=++selectedGeneration.current,cutGeneration=pinned?loadedCut?.generation??0:0
     const value=page?.values.find(each=>each.id===valueId)
     if(value)reveal(value.recordId)
-    if(value&&page)setReview(previous=>previous?.value.id===valueId&&previous.version===page.snapshotVersion&&(historical?previous.feedbackVersion===page.feedbackVersion:previous.feedbackVersion>=page.feedbackVersion)?{...previous,cutGeneration}:{value,version:page.snapshotVersion,feedbackVersion:page.feedbackVersion,cutGeneration})
+    if(value&&page){
+      const {snapshotVersion:version,feedbackVersion}=page
+      setReview(previous=>{
+        if(previous?.value.id===valueId&&previous.version===version){
+          const sameFeedback=previous.feedbackVersion===feedbackVersion
+          if(sameFeedback||(!historical&&previous.feedbackVersion>feedbackVersion))return {...previous,cutGeneration}
+        }
+        return {value,version,feedbackVersion,cutGeneration,openedInHistory:historical}
+      })
+    }
     else if(page&&id)void durableRequest<DurablePage>(`${durableRoot(id)}/values/${encodeURIComponent(valueId)}?snapshotVersion=${page.snapshotVersion}&feedbackVersion=${page.feedbackVersion}`).then(result=> {
       if(generation!==selectedGeneration.current)return
-      if(result.values[0]){reveal(result.values[0].recordId);setReview({value:result.values[0],version:result.snapshotVersion,feedbackVersion:result.feedbackVersion,cutGeneration})}
-      else setError('That value is not saved in this snapshot.')
+      const [savedValue]=result.values
+      if(savedValue){
+        reveal(savedValue.recordId)
+        setReview({value:savedValue,version:result.snapshotVersion,feedbackVersion:result.feedbackVersion,cutGeneration,
+          openedInHistory:historical})
+      }else setError('That value is not saved in this snapshot.')
     }).catch(error=>{if(generation===selectedGeneration.current)setError(error.message)})
   },[page,id,focus,pendingDecisions,blocked,historical,pinned,loadedCut])
   // Choosing a value in the list, or opening a link to it, shows its Evidence on the source once: in one-by-one the
@@ -631,7 +651,6 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     }
     catch(error){if(generation===readGenerations.current.snapshot)setError(error instanceof Error?error.message:'Unable to load the saved snapshot.');return null}
   }
-  const showLatest=()=>{pin(false);++readGenerations.current.snapshot;++selectedGeneration.current}
   // A saved decision moves one-by-one to the next value at once; the saved results and counts follow.
   const saved=(acknowledgement?:ReviewAcknowledgement)=> {
     if(acknowledgement)setAcknowledgements(previous=>new Map(previous).set(acknowledgement.valueId,acknowledgement))
@@ -645,6 +664,14 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     if(next)selectValue(next)
   }
   const closeReview=()=>{++selectedGeneration.current;pendingReveal.current=null;setPassageKeys([]);setReview(null);setFocus(false)}
+  const showLatest=()=>{
+    pin(false)
+    ++readGenerations.current.snapshot
+    if(historical&&review?.openedInHistory){
+      closeReview()
+      menuButton.current?.focus({preventScroll:true})
+    }else ++selectedGeneration.current
+  }
   const openNext=()=> {const next=nextToCheck(queue,activeQueueKey,blocked);if(next)selectValue(next);else setReview(null)}
   const finalize=()=> {
     // A cut opened while the review is being saved (History's Open, Show the latest results) stays shown.
