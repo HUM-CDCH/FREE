@@ -12,6 +12,7 @@ import { ModalDialog } from './ui'
 /** What each format holds, said beside it in words a researcher without a technical background reads. */
 export const WORKBOOK_NOTE = 'The values, plus where each one came from in the document and your review decisions.'
 export const CSV_NOTE = 'The values only. Opens in any spreadsheet app.'
+export const JSON_NOTE = 'The values nested as in the template: groups stay groups, lists stay lists.'
 
 type ExtractionResultExportControlProps = {
   /** The fields the export projects through: the saved values' own producing fields, or a batch's pinned schema. */
@@ -30,16 +31,17 @@ const rowsLabel = (option: { value: string; label: string }) =>
 const OTHER_LISTS: Record<OtherRepeatedFields, string> = { preserve: 'Keep them, one column per item', omit: 'Leave them out' }
 
 /**
- * The researcher's spreadsheet export options, in plain words: what one row is (each record, or each item of one of its
- * lists), what happens to the other lists in a row, then the format. The caller owns what is exported and how it runs,
+ * The researcher's export, in plain words: JSON, which keeps the template's nesting and needs no choice, then the
+ * spreadsheet's options (what one row is: each record, or each item of one of its lists; what happens to the other
+ * lists in a row) and its formats. The caller owns what is exported and how it runs,
  * so one Extraction's results, a whole Batch Extraction and the chat's export offer the same dialog. The choices
  * outlive a closed dialog, so a repeated export keeps them.
  */
 export default function ExtractionResultExportControl({ schemaNodes, open, returnFocusRef, onDismiss, onExport }: ExtractionResultExportControlProps) {
   const [rowsRepresent, setRowsRepresent] = useState(ROOT_ROWS)
   const [otherRepeatedFields, setOtherRepeatedFields] = useState<OtherRepeatedFields>('preserve')
-  const initialFocusRef = useRef<HTMLSelectElement>(null)
-  const rowsHintId = useId(), excelNoteId = useId(), csvNoteId = useId()
+  const initialFocusRef = useRef<HTMLButtonElement>(null)
+  const rowsHintId = useId(), excelNoteId = useId(), csvNoteId = useId(), jsonNoteId = useId()
   if (!open) return null
   const control = createExtractionResultExportControl(schemaNodes)
   const effectiveRows = control.rowsRepresent.options.some((option) => option.value === rowsRepresent) ? rowsRepresent : ROOT_ROWS
@@ -58,11 +60,15 @@ export default function ExtractionResultExportControl({ schemaNodes, open, retur
       returnFocusRef={returnFocusRef}
       onDismiss={onDismiss}
     >
-      <p className="mb-2 text-xs font-bold text-ink">Download the results as a spreadsheet</p>
+      <p className="mb-1 text-xs font-bold text-ink">Download the results</p>
+      <button ref={initialFocusRef} className={`${formatClass} mb-1`} type="button" aria-label="JSON file" aria-describedby={jsonNoteId} onClick={() => onExport('json', choices)}>
+        <span className="block text-[11px] font-semibold text-ink">JSON file</span>
+        <span id={jsonNoteId} className="block text-[11px] leading-snug text-ink-muted">{JSON_NOTE}</span>
+      </button>
+      <p className="mb-1 border-t border-line pt-2 text-[11px] font-bold text-ink">Or as a spreadsheet</p>
       <label className="mb-1 block text-[11px] font-semibold text-ink-muted">
         One row per
         <select
-          ref={initialFocusRef}
           aria-describedby={rowsHintId}
           className="mt-1 block w-full rounded border border-line bg-canvas px-2 py-1 text-ink"
           value={effectiveRows}

@@ -2,7 +2,7 @@ const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 const WINDOWS_ILLEGAL = /[<>:"/\\|?*]|\p{Cc}/gu;
 const MAX_NAME_LENGTH = 255;
 
-export type ExportFormat = "csv" | "xlsx";
+export type ExportFormat = "csv" | "xlsx" | "json";
 
 /** Builds `<source-name>-<suffix>.<format>` as a Windows-safe name. */
 export function createExportFilename(

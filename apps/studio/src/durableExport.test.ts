@@ -57,6 +57,27 @@ function stubDownloads() {
 }
 
 describe('durable exports', () => {
+  it('writes JSON with the template\'s nesting kept: lists of groups stay lists of objects, document fields once', async () => {
+    const blob = await durableExportBlob(fixed, values, 'json', { ...root, rowsRepresent: 'finds' }, 'Beretning.pdf')
+    expect(blob.type).toBe('application/json')
+    const read = JSON.parse(await blob.text())
+    expect(read).toMatchObject({ sourceDocument: 'Beretning.pdf', extractionId: 'extraction', resultsVersion: 1, decisionsVersion: 2, reviewed: false,
+      document: { catalogue: 'Fundkatalog Süd' } })
+    expect(read.records).toEqual([
+      { title: 'Corrected 8', site: '=1+1', year: 0, gilded: false, names: ['Ada', 'Bob'], finds: [{ name: 'Nadel', count: 2 }, { name: 'Ring', count: 1 }] },
+      { title: '第3号', site: 'Jade', year: null, gilded: true, names: [], finds: null },
+    ])
+  })
+  it('writes a batch\'s JSON as one entry per document, each with its own records', async () => {
+    const members = ['one', 'two'].map(id => ({ extractionId: id, sourceDocumentId: id, sourceDocumentName: `${id}.pdf`, sourceRevisionId: id, status: 'PAUSED' }))
+    const snapshots = members.map((member, index) => ({ fixed, member, values: [value(0, finds, Array.from({ length: index + 1 }, (_, n) => ({ name: `Find ${n}` })))] }))
+    const read = JSON.parse(await (await durableBatchExportBlob({ batchExtractionId: 'batch' }, members, snapshots, 'json', root)).text())
+    expect(read.documents.map((document: { sourceDocument: string; sourceDocumentId: string; batchExtractionId: string; records: unknown }) =>
+      [document.sourceDocument, document.sourceDocumentId, document.batchExtractionId, document.records])).toEqual([
+      ['one.pdf', 'one', 'batch', [{ finds: [{ name: 'Find 0', count: null }] }]],
+      ['two.pdf', 'two', 'batch', [{ finds: [{ name: 'Find 0', count: null }, { name: 'Find 1', count: null }] }]],
+    ])
+  })
   it('explains an unavailable batch row choice without silently changing the requested projection', async () => {
     const member = { extractionId: 'one', sourceDocumentId: 'one', sourceDocumentName: 'one.pdf', sourceRevisionId: 'one', status: 'PAUSED' };
     const snapshots = [{ fixed, member, values: [value(0, title, 'A title')] }];

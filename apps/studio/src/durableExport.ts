@@ -1,6 +1,6 @@
 import {
   buildDurableEvidenceTable, buildDurableDisagreementsTable, DISAGREEMENTS_SHEET, unusedColumn, buildExportTable, buildIdentityTable, createExportFilename, createFieldRegistry, createXlsxBlob,
-  downloadBlob, durableRecords, deriveRowsRepresentOptions, serializeCsv, EVIDENCE_SHEET, EXTRACTION_SHEET, ROOT_ROWS,
+  downloadBlob, durableJsonResults, durableRecords, deriveRowsRepresentOptions, serializeCsv, EVIDENCE_SHEET, EXTRACTION_SHEET, ROOT_ROWS,
   type CellValue, type CompanionSheet, type ExportChoices, type ExportFormat, type Table,
 } from 'extraction-result-export'
 import type { DurablePage, DurableRead } from 'extraction/durable-types'
@@ -24,6 +24,17 @@ const csvBlob=(table:Table)=>new Blob([serializeCsv(table)],{type:'text/csv;char
 const fitCell=(value:CellValue):CellValue=>typeof value==='string'&&value.length>CELL_LIMIT?`${value.slice(0,CELL_LIMIT)}… [cut: the full value is in Studio]`:value
 const fitTable=(table:Table):Table=>({...table,rows:table.rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key,fitCell(value)])))})
 const toneOf=(status:string)=>status.charAt(0)+status.slice(1).toLowerCase()
+const jsonBlob=(content:unknown)=>new Blob([JSON.stringify(content,null,2)],{type:'application/json'})
+
+/** One Source Document's results as JSON, the template's hierarchy kept (groups as objects, lists as lists), with
+ *  what identifies the cut it was read from. */
+export function durableJsonDocument(fixed:Fixed,values:DurablePage['values'],sourceName:string) {
+  return {
+    sourceDocument:sourceName,extractionId:fixed.state.extractionId,
+    resultsVersion:fixed.page.snapshotVersion,decisionsVersion:fixed.page.feedbackVersion,reviewed:Boolean(fixed.page.finalization),
+    ...durableJsonResults(values,createFieldRegistry(values,fixed.state.selection?.schemaTree?.schemaNodes)),
+  }
+}
 
 /** The tables of one fixed cut: the research table, the compact Extraction identity and the Evidence sheet. */
 export function durableExportTables(fixed:Fixed,values:DurablePage['values'],choices:ExportChoices,sourceName:string):{results:Table;extraction:Table;evidence:Table;disagreements:Table} {
@@ -53,8 +64,10 @@ export async function fixedDurableValues(fixed:Fixed,signal?:AbortSignal):Promis
   return page.values
 }
 
-/** CSV holds the research table alone; the workbook adds the Extraction and Evidence sheets. */
+/** CSV holds the research table alone; the workbook adds the Extraction and Evidence sheets; JSON keeps the values
+ *  nested as the template declares them (the row choices are a spreadsheet's and do not apply). */
 export async function durableExportBlob(fixed:Fixed,values:DurablePage['values'],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES,sourceName=fixed.state.extractionId):Promise<Blob> {
+  if(format==='json')return jsonBlob({...durableJsonDocument(fixed,values,sourceName),exportedAt:new Date().toISOString()})
   const tables=durableExportTables(fixed,values,choices,sourceName)
   if(format==='csv')return csvBlob(tables.results)
   return createXlsxBlob(fitTable(tables.results),[{sheet:EXTRACTION_SHEET,table:fitTable(tables.extraction)},{sheet:EVIDENCE_SHEET,table:fitTable(tables.evidence)},{sheet:DISAGREEMENTS_SHEET,table:fitTable(tables.disagreements)}])
@@ -90,6 +103,11 @@ export async function downloadDurableBatch(batch:{batchExtractionId:string;name:
 /** One table over every member, projected through the fields their values were produced with (one registry, so a
  * field produced under two types stays two named columns), with the member's Source Document on each row. */
 export async function durableBatchExportBlob(batch:{batchExtractionId:string},members:readonly BatchExportMember[],snapshots:readonly BatchExportSnapshot[],format:ExportFormat,choices:ExportChoices=DEFAULT_EXPORT_CHOICES):Promise<Blob> {
+  // JSON keeps each document's own records under it, each in the shape its own fields declare.
+  if(format==='json')return jsonBlob({exportedAt:new Date().toISOString(),documents:snapshots.map(({fixed,values,member})=>({
+    ...durableJsonDocument(fixed,values,member.sourceDocumentName),sourceDocumentId:member.sourceDocumentId,
+    ...((member.batchExtractionId??batch.batchExtractionId)?{batchExtractionId:member.batchExtractionId??batch.batchExtractionId}:{}),
+  }))})
   const registry=createFieldRegistry(snapshots.flatMap(snapshot=>snapshot.values),snapshots.flatMap(snapshot=>snapshot.fixed.state.selection?.schemaTree?.schemaNodes??[]))
   if(!deriveRowsRepresentOptions(registry.schemaNodes).some(option=>option.value===choices.rowsRepresent))
     throw new Error('These saved results have no such list to give its own rows. Choose “Each record”, or another list.')

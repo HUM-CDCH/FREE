@@ -840,7 +840,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {exportState.status==='failed'
         ? <p role="alert" className="m-0 text-danger [overflow-wrap:anywhere]">{exportState.message}</p>
         : <p role="status" aria-label="Export progress" className="m-0">
-          {exportState.status==='pending'?`Preparing ${exportState.format==='xlsx'?'Excel':'CSV'} export of results ${page.snapshotVersion}…`:'Download started. Check your browser’s downloads.'}
+          {exportState.status==='pending'?`Preparing ${({xlsx:'Excel',csv:'CSV',json:'JSON'} as const)[exportState.format]} export of results ${page.snapshotVersion}…`:'Download started. Check your browser’s downloads.'}
         </p>}
     </div>}
     {(detailsOpen||shownError||notice||state.pendingSelection||editing!==null||!latest||state.sourceRevisionId!==documentRevisionId)&&<div className="max-h-[60%] shrink-0 space-y-2 overflow-y-auto border-b border-line p-3">

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { SchemaNode } from 'extraction/schema'
-import ExtractionResultExportControl, { CSV_NOTE, WORKBOOK_NOTE } from './ExtractionResultExportControl'
+import ExtractionResultExportControl, { CSV_NOTE, JSON_NOTE, WORKBOOK_NOTE } from './ExtractionResultExportControl'
 
 const nodes: SchemaNode[] = [
   { id: 'title', name: 'title', type: 'string' },
@@ -43,6 +43,16 @@ describe('ExtractionResultExportControl', () => {
     expect(screen.queryByLabelText('Other lists in each row')).not.toBeInTheDocument()
     fireEvent(screen.getByRole('dialog'), new Event('cancel', { bubbles: true, cancelable: true }))
     expect(onDismiss).toHaveBeenCalledOnce()
+  })
+
+  it('offers JSON first, focused, with no row choice to make', async () => {
+    const onExport = vi.fn()
+    render(<ExtractionResultExportControl schemaNodes={nodes} open onDismiss={vi.fn()} onExport={onExport} />)
+    const json = screen.getByRole('button', { name: 'JSON file' })
+    expect(json).toHaveAccessibleDescription(JSON_NOTE)
+    await vi.waitFor(() => expect(json).toHaveFocus())
+    fireEvent.click(json)
+    expect(onExport).toHaveBeenLastCalledWith('json', { rowsRepresent: '$', otherRepeatedFields: 'preserve' })
   })
 
   it('falls back to root rows when the fields no longer declare the chosen path', () => {
