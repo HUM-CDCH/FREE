@@ -113,6 +113,15 @@ describe('POST /api/edit_schema', () => {
     expect(refused.enqueued).toEqual([])
   })
 
+  it('records a template change the chat decided on as direct, and nothing else as one', async () => {
+    const { enqueued, client } = operations()
+    expect((await createPostEditSchema(store(), () => client)(form({ ...base, direct: 'true' }))).status).toBe(200)
+    expect(enqueued[0]!.input).toMatchObject({ direct: true })
+    const plain = operations()
+    expect((await createPostEditSchema(store(), () => plain.client)(form({ ...base, direct: 'false' }))).status).toBe(200)
+    expect(plain.enqueued[0]!.input).not.toHaveProperty('direct')
+  })
+
   it('a missing operation_id is 422', async () => {
     const { enqueued, client } = operations()
     const without = Object.fromEntries(Object.entries(base).filter(([name]) => name !== 'operation_id'))

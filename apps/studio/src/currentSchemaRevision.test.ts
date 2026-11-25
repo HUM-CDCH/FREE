@@ -487,6 +487,17 @@ describe('generation lifecycle', () => {
     )
   })
 
+  it('saves a first generation with the Record Scope chosen before it, or restored with the one it was made for', async () => {
+    const chosen = setupDurable()
+    chosen.controller.setRecordScope('records')
+    await chosen.controller.generate(async () => ({ _description: 'One entry.', place: 'string' }))
+    expect(chosen.controller.snapshot().recordScope).toBe('records')
+
+    const restored = setupDurable()
+    expect(await restored.controller.restoreGeneration({ _description: 'One entry.', place: 'string' }, null, null, [], 'document')).toBe(true)
+    expect(restored.controller.snapshot().recordScope).toBe('document')
+  })
+
   it('joins the existing revision chain on later generations', async () => {
     const setup = setupDurable({ initial: revision(4, 'site'), debounceMs: 0 })
 

@@ -588,6 +588,7 @@ export function DocumentWorkspace({
           instruction,
           operationId,
           base: acknowledged && { extractionSchemaId: acknowledged.extractionSchemaId, schemaRevisionId: acknowledged.schemaRevisionId },
+          recordScope: schema.snapshot().recordScope,
         },
       )
       declareSourceCoverage(done.sourceCoverage)

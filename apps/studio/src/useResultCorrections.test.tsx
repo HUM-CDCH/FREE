@@ -28,6 +28,30 @@ function setup(target: CorrectionTarget | null = TARGET) {
   return { hook, say, onSaved }
 }
 
+it('hands a template change on with the conversation through the request, after the changes it can make now', async () => {
+  const say = vi.fn(), onTemplateChange = vi.fn()
+  const hook = renderHook(() => useResultCorrections({ target: TARGET, say, onSaved: vi.fn(), onTemplateChange }))
+  const history = [{ role: 'assistant' as const, text: 'Results ready.' }]
+  requestResultCorrections.mockResolvedValueOnce({ ...PROPOSAL, corrections: [], reply: null, templateChange: 'Add a field "parish" (text).' })
+  await act(() => hook.result.current.propose('Add the parish', history))
+  expect(hook.result.current.pending).toBeNull()
+  expect(say).not.toHaveBeenCalled()
+  expect(onTemplateChange).toHaveBeenCalledExactlyOnceWith('Add a field "parish" (text).', [...history, { role: 'user', text: 'Add the parish' }])
+  // Changes it can make now still wait for the researcher beside it.
+  requestResultCorrections.mockResolvedValueOnce({ ...PROPOSAL, templateChange: 'Add a field "parish" (text).' })
+  await act(() => hook.result.current.propose('Record 3 is 1854, and add the parish', []))
+  expect(hook.result.current.pending?.proposal.corrections).toHaveLength(2)
+  expect(onTemplateChange).toHaveBeenCalledTimes(2)
+})
+
+it('says the reply when there are no changes and nothing to hand on', async () => {
+  const say = vi.fn()
+  const hook = renderHook(() => useResultCorrections({ target: TARGET, say, onSaved: vi.fn(), onTemplateChange: vi.fn() }))
+  requestResultCorrections.mockResolvedValueOnce({ ...PROPOSAL, corrections: [], reply: 'Which record?', templateChange: null })
+  await act(() => hook.result.current.propose('fix it', []))
+  expect(say).toHaveBeenCalledExactlyOnceWith('Which record?')
+})
+
 it('holds a proposal for the result shown, with what the model said', async () => {
   requestResultCorrections.mockResolvedValueOnce(PROPOSAL)
   const { hook, say } = setup()

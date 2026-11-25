@@ -144,6 +144,14 @@ describe('proposeSchemaEditWorkflow', () => {
     expect((vi.mocked(propose).mock.calls[0]! as unknown as [unknown, string, unknown, { answerable?: boolean }])[3].answerable).toBe(true)
   })
 
+  it('a template change the chat decided on is proposed as it is, never read as a message first', async () => {
+    const { names, propose, ports: p } = ports()
+    vi.mocked(propose).mockResolvedValue({ status: 'proposed', fields: [], additions: [], issues: [] } as never)
+    await proposeSchemaEditWorkflow({ ...input, direct: true }, p)
+    expect(names).toEqual(['proposeSchemaEdit'])
+    expect((vi.mocked(propose).mock.calls[0]! as unknown as [unknown, string, unknown, { answerable?: boolean }])[3].answerable).toBe(false)
+  })
+
   it('a long source\'s question, first answered from excerpts, is answered again from every window and combined', async () => {
     const long: SchemaSource = { markdown: `${'a'.repeat(40_000)}\n\n${'b'.repeat(40_000)}`, pageSpans: [] }
     const answerWindow = vi.fn<(caller: unknown, window: { index: number }, question: unknown) => Promise<string>>(async (_caller, window) => `part ${window.index}`)

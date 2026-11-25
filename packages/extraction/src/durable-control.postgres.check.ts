@@ -68,7 +68,14 @@ test('boolean review requires decisions and finalizes without legacy grounding c
     assert.equal(remaining.reviewCounts.toCheck, 1)
     await assert.rejects(repository.finalize(id, {snapshotVersion: 1, feedbackVersion: remaining.feedbackVersion}), /Review each saved value/)
     await repository.saveCorrection(id, 'yes', {...correction, value: false}, async () => {})
+    // A value the model found nothing for is filled in by an edit, never approved or rejected, and stays out of the
+    // review counts and finalization.
+    for (const action of ['APPROVED', 'REJECTED'] as const)
+      await assert.rejects(repository.saveCorrection(id, 'unknown', {...correction, action}, async () => {}), /no value here to approve or reject/)
+    await assert.rejects(repository.saveCorrection(id, 'unknown', {...correction, value: null}, async () => {}), /Enter a value|does not fit/)
+    await repository.saveCorrection(id, 'unknown', {...correction, value: true}, async () => {})
     const reviewed = await repository.page(id)
+    assert.equal(reviewed.values.find(value => value.id === 'unknown')?.correction.decision.value, true)
     assert.deepEqual(reviewed.reviewCounts, {required: 4, toCheck: 0, approved: 1, edited: 2, rejected: 1})
     assert.equal(reviewed.values.find(value => value.id === 'yes')?.correction.decision.value, false)
     assert.equal(reviewed.values.find(value => value.id === 'no')?.correction.decision.value, false)

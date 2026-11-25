@@ -43,6 +43,7 @@ export function modelOperationOf(status: WorkflowStatus): ModelOperation | null 
   const generated = output?.ok ? output as SchemaGenerated : null
   return match[1] === 'suggestion'
     ? { kind: 'generation', ...common, baseSchemaRevisionId: input.baseSchemaRevisionId,
+        ...(input as SchemaGenerationInput).recordScope && { recordScope: (input as SchemaGenerationInput).recordScope },
         template: generated?.template ?? null,
         ...(generated?.fieldDescriptions && { fieldDescriptions: [...generated.fieldDescriptions] }),
         sourceCoverage: generated?.sourceCoverage ?? null }

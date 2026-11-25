@@ -24,3 +24,8 @@ export function reviewedValue(value: {readonly modelValue: unknown; readonly cor
   const decision = value.correction?.decision
   return decision?.action === 'EDITED' || decision?.choices ? decision.value : model
 }
+
+/** A value the model found nothing for (`absent`) that the researcher filled in: its edit is the value. A missing value
+ *  takes only a fill-in (an edit) or its undo, never an approval or a rejection. */
+export const filledIn = (value: {readonly processing: string; readonly correction?: {readonly decision: {readonly action: string}} | null}) =>
+  value.processing === 'absent' && value.correction?.decision.action === 'EDITED'

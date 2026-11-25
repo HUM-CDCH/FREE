@@ -1,6 +1,9 @@
 # 0035: The chat proposes corrections to results
 
-Date: 2026-11-19. Status: accepted; amends [0034](0034-the-chat-reads-what-a-message-asks-first.md).
+Date: 2026-11-19. Status: accepted; amends [0034](0034-the-chat-reads-what-a-message-asks-first.md); amended by
+[0036](0036-a-missing-value-can-be-filled-in.md), which lets a missing value be filled in, and by
+[0037](0037-a-correction-the-template-cannot-hold-becomes-a-template-change.md), which turns a request the template
+cannot hold into a template change and a run.
 
 ## Context
 

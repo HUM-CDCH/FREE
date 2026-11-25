@@ -100,6 +100,15 @@ describe('POST /api/generate_schema', () => {
     expect(foreign.enqueued).toEqual([])
   })
 
+  it('carries the Record Scope chosen before the suggestion; another value is refused and starts nothing', async () => {
+    const scoped = operations()
+    expect((await createPostGenerateSchema(store(), () => scoped.client)(form({ ...base, record_scope: 'records' }))).status).toBe(200)
+    expect(scoped.enqueued[0]!.input).toMatchObject({ recordScope: 'records' })
+    const refused = operations()
+    expect((await createPostGenerateSchema(store(), () => refused.client)(form({ ...base, record_scope: 'catalog' }))).status).toBe(400)
+    expect(refused.enqueued).toEqual([])
+  })
+
   it('a missing or non-canonical operation_id is 422', async () => {
     const { enqueued, client } = operations()
     const without = Object.fromEntries(Object.entries(base).filter(([name]) => name !== 'operation_id'))

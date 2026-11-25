@@ -13,6 +13,7 @@ export type StepAction =
   | 'generate'
   | 'stop-generation'
   | 'apply'
+  | 'apply-run'
   | 'review-schema'
   | 'continue'
   | 'restart'
@@ -112,7 +113,9 @@ export type GuideInput = {
   asking: boolean
   instructionCount: number
   sourceDocumentName: string
-  proposal: { added: number; removed: number; modified: number; unresolved: readonly string[]; canApply: boolean } | null
+  proposal: { added: number; removed: number; modified: number; unresolved: readonly string[]; canApply: boolean
+    /** A template change for a request to change results (ADR 0037): applying it may also run the extraction. */
+    reruns?: boolean } | null
   /** The saved Article/Catalog choice; undefined where the host has none to make. */
   recordScope: RecordScope | null | undefined
   revision: { id: string | null; number: number | null; fieldCount: number }
@@ -198,9 +201,9 @@ function controlStep(input: GuideInput): StepCard | null {
 }
 
 /**
- * The step the chat offers next, worked out from the workspace's state alone: generate a schema, review a proposal,
- * choose Article or Catalog, run the extraction, follow it, then review its values. The model never chooses a step: a
- * message is answered, proposes a schema change (ADR 0023) or asks for what a step or dialog offers (ADR 0034), and
+ * The step the chat offers next, worked out from the workspace's state alone: choose Article or Catalog, generate a
+ * schema for it, review a proposal, run the extraction, follow it, then review its values. The model never chooses a
+ * step: a message is answered, proposes a schema change (ADR 0023) or asks for what a step or dialog offers (ADR 0034), and
  * every action is still the researcher's, chosen from a step's options or with a "yes" said beside the step.
  */
 export function nextStep(input: GuideInput): StepCard | null {
@@ -565,32 +568,44 @@ function schemaStep(input: GuideInput): StepCard | null {
       busy: true, options: [{ action: 'stop-generation', label: 'Stop generating', tone: 'danger' }] }
   if (input.view === 'empty' || input.view === 'failed') {
     if (!input.canGenerate) return null
+    // Article or Catalog first: it says what one record of the template is, so the suggestion is made for it.
+    if (input.recordScope === null) return scopeStep(input, 'first')
     const kept = input.instructionCount > 0 ? ` (${plural(input.instructionCount, 'instruction')})` : ''
+    const other = input.recordScope === 'records' ? 'document' : 'records'
     return {
       // A new instruction asks again after "Not yet".
       key: `generate:${input.instructionCount}`,
       title: 'Generate template',
       question: input.view === 'failed' ? 'Try generating the template again?' : `Suggest a template from ${input.sourceDocumentName}?`,
-      detail: [['Instructions', input.instructionCount > 0 ? `${input.instructionCount} kept for generation` : 'none yet']],
+      detail: [
+        ...input.recordScope ? [['Strategy', strategyName(input.recordScope)] as const] : [],
+        ['Instructions', input.instructionCount > 0 ? `${input.instructionCount} kept for generation` : 'none yet'],
+      ],
       error: input.view === 'failed' ? input.generationError ?? undefined : undefined,
       options: [
         { action: 'generate', label: `Generate template${kept}`, tone: 'positive', disabled: input.asking },
+        ...input.recordScope ? [{ action: `scope:${other}`, label: `Use ${strategyName(other)} instead`, tone: 'secondary' } as const] : [],
         // Not like this: say how, in the step itself.
         { ...notYet, label: 'Tell me what to focus on, or ask about the document…' },
       ],
     }
   }
   if (input.proposal) {
-    const { added, removed, modified, unresolved, canApply } = input.proposal
+    const { added, removed, modified, unresolved, canApply, reruns } = input.proposal
     const counts = [added && `+${added} added`, removed && `−${removed} removed`, modified && `~${modified} changed`].filter(Boolean).join(' · ')
+    // A change for a request to change results is applied and run in one choice; the run still waits for it (ADR 0037).
+    const run = reruns && input.run ? input.run : null
     return {
       key: 'proposal',
       title: 'Proposed template change',
-      question: 'Apply these changes to the template?',
+      question: run ? 'Apply these changes and extract again?' : 'Apply these changes to the template?',
       detail: [['Changes', counts || 'none']],
       notice: unresolved.length > 0 ? unresolved.join(' ') : undefined,
       options: [
-        { action: 'apply', label: 'Apply changes', tone: 'positive', disabled: !canApply },
+        // While no run can start, applying alone leads.
+        ...run ? [{ action: 'apply-run', label: 'Apply and extract again', tone: run.available ? 'positive' : 'secondary', disabled: !canApply || !run.available,
+          description: run.unavailableReason ?? 'Saves the template and extracts this document again.' } as const] : [],
+        { action: 'apply', label: run ? 'Apply only' : 'Apply changes', tone: run?.available ? 'secondary' : 'positive', disabled: !canApply },
         { action: 'review-schema', label: 'Review in the Template view', hint: 'Accept or reject each change', tone: 'secondary' },
         { action: 'discard', label: 'Discard', tone: 'danger' },
       ],
@@ -610,19 +625,26 @@ function schemaStep(input: GuideInput): StepCard | null {
         { ...notYet, label: 'Or describe a change to the template…' },
       ],
     }
-  if (input.view === 'editing' && input.recordScope === null)
-    return {
-      key: 'scope',
-      title: 'Choose Record Scope',
-      question: 'Is each Source Document one record, or does it hold many?',
-      detail: [['Template', plural(input.revision.fieldCount, 'field')]],
-      options: [
-        { action: 'scope:records', label: 'Catalog: many records per document', hint: 'Each entry in the document becomes its own record', tone: 'secondary' },
-        { action: 'scope:document', label: 'Article: one record per document', hint: 'The whole document becomes one object', tone: 'secondary' },
-        ...viewTemplate(input),
-      ],
-    }
+  // A template made before the choice (imported, or suggested for several documents) still needs it before a run.
+  if (input.view === 'editing' && input.recordScope === null) return scopeStep(input, 'template')
   return null
+}
+
+const strategyName = (scope: RecordScope) => scope === 'records' ? 'Catalog' : 'Article'
+
+/** Article or Catalog: before the first template (`first`), or for a template that has none yet. */
+function scopeStep(input: GuideInput, when: 'first' | 'template'): StepCard {
+  return {
+    key: when === 'first' ? 'scope:first' : 'scope',
+    title: 'Choose Record Scope',
+    question: 'Is each Source Document one record, or does it hold many?',
+    ...when === 'template' && input.view === 'editing' ? { detail: [['Template', plural(input.revision.fieldCount, 'field')]] as const } : {},
+    options: [
+      { action: 'scope:records', label: 'Catalog: many records per document', hint: 'Each entry in the document becomes its own record', tone: 'secondary' },
+      { action: 'scope:document', label: 'Article: one record per document', hint: 'The whole document becomes one object', tone: 'secondary' },
+      ...when === 'template' ? viewTemplate(input) : [],
+    ],
+  }
 }
 
 /** Why the chat offers to run again: how the last run ended, unless it finished, and whether the template changed since,

@@ -52,6 +52,36 @@ it.each(['field', 'description'] as const)('refuses a late model response after 
   else expect(schema.snapshot().draft?.recordDescription).toBe('Researcher description.')
 })
 
+it('proposes a template change for a request to change results as the assistant\'s, directly, and offers to run with it', async () => {
+  requestSchemaEdit.mockResolvedValueOnce(proposal)
+  const { hook } = setup()
+  const history = [{ role: 'user' as const, text: 'Call the title a heading in every record' }]
+  await act(() => hook.result.current.proposeTemplateChange('Rename the field "title" to "heading".', history))
+  const call = requestSchemaEdit.mock.calls[0]!
+  expect(call[1]).toBe('Rename the field "title" to "heading".')
+  expect(call[4]).toEqual(history)
+  expect(call[6]).toBe(true)
+  expect(hook.result.current.messages).toContainEqual({ role: 'assistant', text: 'This needs a change to the template: Rename the field "title" to "heading".' })
+  expect(hook.result.current.messages.some(message => message.role === 'user')).toBe(false)
+  expect(hook.result.current.proposalReruns).toBe(true)
+  expect(hook.result.current.input).toBe('')
+  // A proposal the researcher asked for themselves runs nothing on its own.
+  act(() => hook.result.current.discard())
+  requestSchemaEdit.mockResolvedValueOnce(proposal)
+  await act(() => hook.result.current.send('Rename title to heading'))
+  expect(requestSchemaEdit.mock.calls[1]![6]).toBe(false)
+  expect(hook.result.current.proposalReview.pending).not.toBeNull()
+  expect(hook.result.current.proposalReruns).toBe(false)
+})
+
+it('says so when the template change leaves the template as it is', async () => {
+  requestSchemaEdit.mockResolvedValueOnce({ status: 'proposed', fields: {}, additions: [], issues: [] })
+  const { hook } = setup()
+  await act(() => hook.result.current.proposeTemplateChange('Keep the title.', []))
+  expect(hook.result.current.messages.at(-1)).toEqual({ role: 'assistant', text: 'The template already covers this. To extract again, use the step below.' })
+  expect(hook.result.current.proposalReruns).toBe(false)
+})
+
 it('each model request has its own operation identity', async () => {
   requestSchemaEdit.mockResolvedValue({ status: 'refused', message: 'No change.' })
   const { hook } = setup()

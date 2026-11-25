@@ -1,14 +1,25 @@
 import type { SourcePageSpan } from 'db'
+import type { RecordScope } from 'extraction/schema'
 import type { SourceCoverage, SourceOmission } from '../shared/schemaSuggestionSource.contract.js'
 import type { ChatHistory } from '../shared/schemaChat.contract.js'
 
-export function schemaPrompt(instruction: string): string {
+/** What one root record is under the Record Scope the researcher chose before the suggestion; nothing when none is
+ *  chosen (a schema suggested before the choice, or a batch suggestion). */
+export function recordScopeGuidance(recordScope: RecordScope | null | undefined): string {
+  if (recordScope === 'document')
+    return 'The researcher chose Article: the whole source document is ONE record. "_description" defines the document as that one record; what repeats inside it (entries, people, events) belongs in arrays within the record.\n\n'
+  if (recordScope === 'records')
+    return 'The researcher chose Catalog: the source document holds MANY records of the same kind (entries, items, rows), each extracted on its own. "_description" defines ONE such record and how to tell where each begins; the fields describe one record, never a list of all the records.\n\n'
+  return ''
+}
+
+export function schemaPrompt(instruction: string, recordScope?: RecordScope | null): string {
   const instructionText =
     instruction.trim().length === 0
       ? ''
       : `Additional instruction from the researcher:\n${instruction.trim()}\n\n`
 
-  return `${instructionText}Generate a compact JSON extraction schema for this source document. Return an object named "template". 
+  return `${instructionText}${recordScopeGuidance(recordScope)}Generate a compact JSON extraction schema for this source document. Return an object named "template". 
   
   Its first member must be "_description": one concise, explicit sentence defining what constitutes ONE root record in the source document. This record description must distinguish record boundaries (for example, one entry beginning at a numbered heading or one top-level numbered article section); field names alone are not a record definition. Field values should be simple type labels such as "verbatim-string", "string", "date", "number", "integer", "boolean", nested objects, or arrays.
 

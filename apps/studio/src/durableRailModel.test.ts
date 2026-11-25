@@ -188,7 +188,18 @@ it('marks a missing value as missing while the run goes on and after it, never a
     expect(row.kind).toBe('missing')
     expect(row.chip).toEqual({text:'missing',style:'neutral'})
     expect(row.evidence).toEqual({label:'No value',detail:'Nothing found in the document.'})
+    expect(row.retained).toMatchObject({reviewable:false,fillable:true})
   }
+})
+
+it('shows a missing value the researcher filled in as edited, with no source unless they linked one',()=> {
+  const correction={id:'c1',revision:1,decision:{action:'EDITED',value:true,evidence:[],included:false}} as unknown as RetainedValue['correction']
+  const row=durableRailRow(value({modelValue:null,processing:'absent',correction}),null)
+  expect(row.kind).toBe('edited')
+  expect(row.value).toBe(true)
+  expect(row.chip).toEqual({text:'no source',style:'neutral'})
+  expect(row.evidence).toEqual({label:'Filled in by you',detail:'No source linked.'})
+  expect(row.retained).toMatchObject({reviewable:false,fillable:true})
 })
 
 it('lists the records discovery found as queued or reading until their values are saved, nearest the start page first',()=> {

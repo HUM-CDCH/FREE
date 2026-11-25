@@ -26,6 +26,7 @@ const FIELDS = [
   'instruction',
   'history',
   'offer',
+  'direct',
   'temperature',
 ] as const
 
@@ -72,6 +73,8 @@ export function createPostEditSchema(
         instruction: instruction.trim(),
         history: formChatHistory(form),
         offer: formChatOffer(form),
+        // A template change the chat already decided on (ADR 0037): proposed as it is, never read as a message first.
+        ...(form.get('direct') === 'true' ? { direct: true } : {}),
         temperature,
       }
       const workflowID = `edit:${operationId}`

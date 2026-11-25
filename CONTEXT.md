@@ -65,7 +65,7 @@ An Extraction Strategy whose result is a collection of record objects (Record Sc
 _Avoid_: catalog mode, hierarchical extraction, schema-guided extraction
 
 **Record Scope**:
-The authoritative declaration, saved with a Schema Revision, of what one Extraction result is: `document` (one object per Source Document: Article) or `records` (a collection of records: Catalog). It is set only through the Article/Catalog selection, never inferred from array fields or model output, and checked when an Extraction is admitted and when its result is accepted (a `document` result has exactly one root). A Schema Revision without one cannot be extracted until the researcher chooses.
+The authoritative declaration, saved with a Schema Revision, of what one Extraction result is: `document` (one object per Source Document: Article) or `records` (a collection of records: Catalog). It is set only through the Article/Catalog selection, never inferred from array fields or model output, and checked when an Extraction is admitted and when its result is accepted (a `document` result has exactly one root). A Schema Revision without one cannot be extracted until the researcher chooses. The chat asks for it before the first template, so Schema Suggestion is asked for that scope and the first revision is saved with it (ADR 0038).
 _Avoid_: cardinality, extraction mode, document type
 
 **Schema Suggestion**:
@@ -123,7 +123,12 @@ approve one cell. The cell's path identifies the occurrence reviewed in the
 named result snapshot. A whole-value decision alone gives no evidence about
 which cells the researcher examined. The chat may propose edits and
 rejections of values the researcher names, checked against their fields; only
-the researcher's Save makes them decisions (ADR 0035).
+the researcher's Save makes them decisions (ADR 0035). What the template cannot
+hold becomes a proposed template change, applied and run in one choice of the
+researcher's (ADR 0037). A value the extraction
+found nothing for takes one decision only: an edit that fills it in, which can
+be undone; it is never approved or rejected, and review does not wait on it
+(ADR 0036).
 _Avoid_: status, vote, review draft
 
 **Value Disagreement**:

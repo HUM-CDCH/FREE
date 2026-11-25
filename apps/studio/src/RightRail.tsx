@@ -17,6 +17,7 @@ import RegenerateDialog from './RegenerateDialog'
 import { continuation, PAUSE_DESCRIPTION } from './extractionControl'
 import { useSchemaChat, type ChatScope } from './useSchemaChat'
 import { useResultCorrections } from './useResultCorrections'
+import type { ChatHistory } from '../shared/schemaChat.contract'
 import type { CurrentResultSchema } from './resultSchema'
 import { useDurableReading, type DurableReader } from './durableReader'
 import type { SavedReviewCut } from './durableReviewLinks'
@@ -229,10 +230,14 @@ function RightRail({
   const correctionTarget = useMemo(() => shownExtractionId && !inspection.readOnly
     ? { extractionId: shownExtractionId, snapshotVersion: shownSnapshot } : null, [shownExtractionId, shownSnapshot, inspection.readOnly])
   const shownReader = inspection.reader
+  // A request the template cannot hold is proposed as a template change (ADR 0037), with the chat as it is by then.
+  const proposeTemplateChange = useRef(chat.proposeTemplateChange)
+  useEffect(() => { proposeTemplateChange.current = chat.proposeTemplateChange })
   const corrections = useResultCorrections({
     target: correctionTarget,
     say: chat.appendMessage,
     onSaved: useCallback(() => { void shownReader?.refresh() }, [shownReader]),
+    onTemplateChange: useCallback((instruction: string, history: ChatHistory) => { void proposeTemplateChange.current(instruction, history) }, []),
   })
   // History lists the document's Extractions even when none is shown, e.g. all read an earlier source text.
   const historyAvailable = Boolean(shown || documentHistory)

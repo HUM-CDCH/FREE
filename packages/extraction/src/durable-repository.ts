@@ -87,13 +87,19 @@ async function valueInSnapshot(client: PoolClient, id: string, version: number, 
   return rows[0] ? durableValueSchema.array().parse(rows[0].values).find(value => value.id === valueId) : undefined
 }
 
+/** A value the model found nothing for (`absent`) is filled in by an edit, or set back by an undo (`PENDING`); it has
+ *  nothing to approve or reject, and no cells. */
+const fillsMissing = (action: string | undefined) => action === 'EDITED' || action === 'PENDING'
+
 async function lockedReviewTarget(client: PoolClient, owner: string, id: string, valueId: string,
-  input: {snapshotVersion: number; expectedRevision: number}) {
+  input: {snapshotVersion: number; expectedRevision: number; action?: string}) {
   const initial = await ownedHead(client,owner,id)
   const feedback = (await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1 FOR UPDATE', [initial.projectId])).rows[0]
   const head = await ownedHead(client,owner,id,true)
   const value = await valueInSnapshot(client,id,input.snapshotVersion,valueId)
-  if (!value || value.processing !== 'saved') throw new DurableInvalid('Choose a structurally valid saved value.')
+  if (value?.processing === 'absent' && !fillsMissing(input.action))
+    throw new DurableInvalid('There is no value here to approve or reject. Use Fill in to add one.')
+  if (!value || (value.processing !== 'saved' && value.processing !== 'absent')) throw new DurableInvalid('Choose a structurally valid saved value.')
   const revision = (await client.query('SELECT coalesce(max(revision),0) AS n FROM extraction_runtime.correction WHERE "extractionId"=$1 AND "valueId"=$2', [id,valueId])).rows[0].n
   if (revision !== input.expectedRevision) throw new DurableConflict('Another view saved a newer correction.')
   return {head,value,revision:revision+1,feedbackVersion:feedback.version+1}
@@ -370,6 +376,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const target = await lockedReviewTarget(client,owner,id,valueId,input)
         const {value}=target
         if (input.action === 'EDITED' && !correctionValueFits(value.node,input.value)) throw new DurableInvalid('The correction does not fit its producing field.')
+        if (value.processing === 'absent' && input.action === 'EDITED' && input.value === null) throw new DurableInvalid('Enter a value.')
         // Approving a Value Disagreement saves the reading chosen at each place and the value they make.
         const choosing = input.action === 'APPROVED' && (input.choices !== undefined || value.disagreement !== undefined)
         const decision = choosing ? {...input,value:resolvedValue(value,input.choices ?? [])} : input

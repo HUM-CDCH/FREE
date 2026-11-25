@@ -10,6 +10,14 @@ describe('schemaPrompt', () => {
     expect(prompt).toContain('defining what constitutes ONE root record')
     expect(prompt).toContain('field names alone are not a record definition')
   })
+
+  it('says what one root record is under the Record Scope chosen before the suggestion, and nothing without one', () => {
+    expect(schemaPrompt('', 'document')).toContain('The researcher chose Article: the whole source document is ONE record.')
+    expect(schemaPrompt('', 'records')).toContain('The researcher chose Catalog: the source document holds MANY records')
+    expect(schemaPrompt('')).not.toContain('The researcher chose')
+    // The researcher's own instruction still leads.
+    expect(schemaPrompt('Dates only', 'records').indexOf('Dates only')).toBeLessThan(schemaPrompt('Dates only', 'records').indexOf('chose Catalog'))
+  })
 })
 
 /** Pages written as `renderMarkdown` writes them: a blank line between, a final newline, and no marker; spans in UTF-8 bytes. */

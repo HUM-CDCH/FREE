@@ -1,6 +1,6 @@
 import { authenticatedFetch } from './auth/authenticatedFetch.ts'
 import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
-import type { FieldNote } from 'extraction/schema'
+import type { FieldNote, RecordScope } from 'extraction/schema'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
 import { schemaChatReplySchema, type ChatHistory, type SchemaChatReply } from '../shared/schemaChat.contract'
@@ -180,7 +180,7 @@ export type SchemaBase = { extractionSchemaId: string; schemaRevisionId: string 
 export async function requestSchema(
   context: SourceModelContext,
   signal: AbortSignal | undefined,
-  options: TemplateOptions & { operationId: string; base: SchemaBase | null },
+  options: TemplateOptions & { operationId: string; base: SchemaBase | null; recordScope?: RecordScope | null },
 ): Promise<Pick<SchemaDone, 'template' | 'fieldDescriptions' | 'sourceCoverage'>> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -192,6 +192,8 @@ export async function requestSchema(
     form.append('instruction', options.instruction.trim())
   // The operation ID makes the POST repeatable; the base tells a reloaded page whether the result may still be saved.
   form.append('operation_id', options.operationId)
+  // Chosen before the suggestion, Article or Catalog says what one record of the template is.
+  if (options.recordScope) form.append('record_scope', options.recordScope)
   if (options.base) {
     form.append('extraction_schema_id', options.base.extractionSchemaId)
     form.append('base_schema_revision_id', options.base.schemaRevisionId)
@@ -332,6 +334,8 @@ export async function requestSchemaEdit(
   operationId: string,
   history: ChatHistory = [],
   offer: string | null = null,
+  /** A template change the chat already decided on (ADR 0037): proposed as it is, never read as a message first. */
+  direct = false,
 ): Promise<SchemaEditResponse> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -345,6 +349,7 @@ export async function requestSchemaEdit(
   form.append('instruction', instruction)
   if (history.length) form.append('history', JSON.stringify(history))
   if (offer) form.append('offer', offer)
+  if (direct) form.append('direct', 'true')
   // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
   form.append('operation_id', operationId)
   return postModelForm('/edit_schema', form, decodeSchemaEdit, signal)

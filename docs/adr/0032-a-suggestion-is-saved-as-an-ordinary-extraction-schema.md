@@ -1,6 +1,7 @@
 # 0032: A suggestion is saved as an ordinary Extraction Schema
 
-Date: 2026-11-11. Status: proposed.
+Date: 2026-11-11. Status: proposed; amended by [0038](0038-article-or-catalog-is-chosen-before-the-template.md), which
+asks Article or Catalog before the first template.
 
 ## Context
 
@@ -39,7 +40,8 @@ recoverable.
 
 - Removed: `PATCH …/draft`, `POST …/run`, `updateBatchSchemaSuggestionDraft`, `persistSuggestedBatch` and
   `scheduleSuggestedBatch`, and the client's suggestion state machine and suggested-schema editor.
-- A suggested schema starts with no Record Scope: choosing Article or Catalog appends revision 2. It starts
+- A suggested schema starts with no Record Scope: choosing Article or Catalog appends revision 2. (Since 0038 the
+  chat's first template is saved with the scope chosen before it.) It starts
   unstabilised, so the existing gate applies to it as to any schema.
 - "Regenerate" becomes "Suggest again", which creates another schema.
 - A project now routinely holds several schemas, so a codebook import no longer initializes "the" schema (refused once

@@ -29,6 +29,9 @@ export type SchemaEditInput = Readonly<{
   history: ChatHistory
   /** What the chat offered beside the instruction (ADR 0034); absent from runs started before it. */
   offer?: string | null
+  /** The instruction is a template change the chat already decided on (ADR 0037): it is proposed as it is, never
+   *  answered, declined or heard as a request. */
+  direct?: boolean
   temperature: number | null
 }>
 export type SchemaEditProposed = { baseSchemaRevisionId: string; response: SchemaEditResponse }
@@ -81,7 +84,7 @@ export async function proposeSchemaEditWorkflow(
         generate: ports.generate,
         history: input.history,
         offer: input.offer ?? null,
-        answerable: true,
+        answerable: !input.direct,
         respond: ports.respond,
       })
       return { ok: true, baseSchemaRevisionId: input.baseSchemaRevisionId, response }

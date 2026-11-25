@@ -32,7 +32,8 @@ FREE's normative product and safety contract is:
    Repetition elsewhere does not make the linked passage uncertain. FREE derives
    no confidence score from this hint, and only a researcher's decision approves a
    value. Approve, reject and typed edit decisions are revisioned corrections
-   of stable saved values, saved in numbered Project decision versions. An
+   of stable saved values, saved in numbered Project decision versions; a value
+   the extraction found nothing for can only be filled in, by an edit. An
    individual table-cell approval belongs to its result snapshot and Decision
    Version. The researcher can reopen it in another browser. Other cells keep
    their own review state. A whole-table decision alone cannot establish

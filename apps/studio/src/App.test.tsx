@@ -27,6 +27,11 @@ function openRailView(view: 'Template' | 'Results' | 'History') {
   fireEvent.click(view === 'History' ? rail.getByRole('button', { name: 'History' })
     : rail.getByRole('button', { name: new RegExp(`^Open ${view.toLowerCase()}:`) }))
 }
+/** Before the first template the chat asks Article or Catalog, then offers Generate template. */
+function generateFirstTemplate(scope: 'Article' | 'Catalog' = 'Article') {
+  fireEvent.click(screen.getByRole('button', { name: scope === 'Article' ? 'Article: one record per document' : 'Catalog: many records per document' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+}
 /** The rail view shown: its header's title. */
 const shownRailView = () => railScope().getAllByRole('heading', { level: 2 })[0]!.textContent
 
@@ -1733,7 +1738,7 @@ describe('reopened Source Document workspace', () => {
     )
 
     openRailView('Template')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    generateFirstTemplate()
     // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
     openRailView('Template')
 
@@ -1793,7 +1798,7 @@ describe('reopened Source Document workspace', () => {
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    generateFirstTemplate()
     // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
     openRailView('Template')
 
@@ -1857,7 +1862,7 @@ describe('reopened Source Document workspace', () => {
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    generateFirstTemplate()
     // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
     openRailView('Template')
 
@@ -1932,7 +1937,7 @@ describe('reopened Source Document workspace', () => {
     render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} automaticRenameTimeoutMs={1_000} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    generateFirstTemplate()
     // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
     openRailView('Template')
 
@@ -2001,7 +2006,7 @@ describe('reopened Source Document workspace', () => {
     const generated = render(<DocumentWorkspace {...reopened} extractionSchema={null} persistedExtraction={null} />)
     await waitFor(() => expect(screen.queryByText('Indexing document…')).not.toBeInTheDocument())
     openRailView('Template')
-    fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
+    generateFirstTemplate()
     // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
     openRailView('Template')
 
@@ -2914,7 +2919,7 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByText(/Extraction failed/)).not.toBeInTheDocument()
     })
 
-    it('a template a suggestion initializes without a scope waits for the header\'s choice, saved before Run', async () => {
+    it('the scope chosen before the first template is asked of the suggestion and saved with its first revision', async () => {
       const written: Array<Record<string, unknown>> = []
       vi.stubGlobal(
         'fetch',
@@ -2954,25 +2959,26 @@ describe('reopened Source Document workspace', () => {
       expect(screen.queryByLabelText('Record scope')).not.toBeInTheDocument()
 
       openRailView('Template')
-      fireEvent.click(screen.getByRole('button', { name: 'Generate template' }))
-      // Generating moves the workflow on: the rail returns to the chat, and the template is opened again to see it.
+      // The chat asks Article or Catalog before it offers to generate; the suggestion is asked for that scope.
+      expect(screen.queryByRole('button', { name: 'Generate template' })).not.toBeInTheDocument()
+      generateFirstTemplate('Catalog')
+      const generation = await vi.waitFor(() => {
+        const call = vi.mocked(fetch).mock.calls.find(([url]) => String(url).endsWith('/api/generate_schema'))
+        if (!call) throw new Error('No generation request yet.')
+        return call
+      })
+      expect((generation[1]!.body as FormData).get('record_scope')).toBe('records')
       openRailView('Template')
       await waitFor(() => expect(written).toHaveLength(1))
-      expect(written[0]).not.toHaveProperty('recordScope')
+      // The first revision is saved with it: no second revision, and Run follows the template.
+      expect(written[0]).toMatchObject({ recordScope: 'records' })
       expect(await screen.findByRole('heading', { name: 'Beretning' })).toBeInTheDocument()
-      const selector = screen.getByLabelText('Record scope')
-      expect(selector).toHaveValue('')
-      // The chat asks for the scope before it offers Run.
-      expect(screen.queryByRole('button', { name: RUN_EXTRACTION })).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Record scope')).toHaveValue('records')
       // Each generation stops at Template ready until the researcher goes on.
       const ready = await screen.findByRole('region', { name: 'Template ready' })
       fireEvent.click(within(ready).getByRole('button', { name: /Continue/ }))
-
-      fireEvent.change(selector, { target: { value: 'document' } })
-      await waitFor(() => expect(written).toHaveLength(2))
-      expect(written[1]).toMatchObject({ expectedRevisionNumber: 1, recordScope: 'document' })
       await waitFor(() => expect(screen.getByRole('button', { name: RUN_EXTRACTION })).toBeEnabled())
-      expect(selector).toHaveValue('document')
+      expect(written).toHaveLength(1)
     })
   })
 

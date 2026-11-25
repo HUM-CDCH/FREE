@@ -1,7 +1,7 @@
 import { DBOS } from '@dbos-inc/dbos-sdk'
 import type { SchemaSource } from 'db'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
-import type { FieldNote } from 'extraction/schema'
+import type { FieldNote, RecordScope } from 'extraction/schema'
 import { combineSchemas, type generateSchemaWithModel, type SuggestedSchema } from './_schema_suggestion.js'
 import { suggestedFieldNotes } from './_schema_edit_output.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
@@ -24,6 +24,9 @@ export type SchemaGenerationInput = Readonly<{
   baseSchemaRevisionId: string | null
   instruction: string
   temperature: number | null
+  /** The Record Scope chosen before the suggestion, which says what one root record is; absent when none was chosen
+   *  (and from inputs recorded before the choice came first). */
+  recordScope?: RecordScope | null
 }>
 export type SchemaGenerated = {
   template: Record<string, unknown>
@@ -86,6 +89,7 @@ async function suggestFromWindows(
           instruction: input.instruction,
           window: true,
           ...(input.temperature === null ? {} : { temperature: input.temperature }),
+          ...(input.recordScope ? { recordScope: input.recordScope } : {}),
           signal,
         })
         // Only the model's text: never the provider's response, headers or metadata.
@@ -102,7 +106,7 @@ async function suggestFromWindows(
         schema: { template: suggestion.template, fieldDescriptions: suggestion.fieldDescriptions ?? [] },
       })),
       async (text, step) => recordedSuggestion(await modelStep(ports.steps, step, (signal) =>
-        combineSchemas(caller, 'union', text, signal, ports.generate, input.temperature ?? undefined))),
+        combineSchemas(caller, 'union', text, signal, ports.generate, input.temperature ?? undefined, input.recordScope))),
     )
     return {
       ok: true, template, fieldDescriptions, raw: suggestions.length === 1 ? suggestions[0]!.raw : JSON.stringify(template),

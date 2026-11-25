@@ -3,7 +3,7 @@ import { anchorText, type ParsedDocument } from 'extraction/parsed-document'
 import type { SchemaNode } from 'extraction/schema'
 import { tableCellReview } from 'extraction/table-cell-review'
 import type { EvidenceLink } from 'extraction/durable-types'
-import { originPages, partName, reviewedValue } from 'extraction/value-disagreement'
+import { filledIn, originPages, partName, reviewedValue } from 'extraction/value-disagreement'
 import { linkOrigin } from './linkOrigin'
 import type { DurableState } from './durableExtractionApi'
 import type { StatusLine } from './ResultsHeader'
@@ -165,7 +165,8 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
       value:alternative.value,pages:originPages(alternative.segments),
     })),
   }))
-  const kind = value.processing !== 'saved' ? value.processing === 'absent' ? 'missing' : 'not-reviewable'
+  const filled = filledIn(value)
+  const kind = filled ? 'edited' : value.processing !== 'saved' ? value.processing === 'absent' ? 'missing' : 'not-reviewable'
     : action === 'APPROVED' ? 'approved' : action === 'EDITED' ? 'edited' : action === 'REJECTED' ? 'rejected' : 'to-check'
   const checkedAction = action === 'PENDING' ? undefined : action
   const doubt = link ? reviewLinkDoubt(link, part ? part.value : linkedModelValue(value, link), document, checkedAction) : null
@@ -181,14 +182,16 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
     value: reviewedValue(value), extracted: value.modelValue,
     kind, link,
     // A missing value has no Evidence to check, during the run or after it.
-    chip: {text: disagreement ? 'different readings' : value.processing === 'absent' ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'
+    chip: {text: disagreement ? 'different readings' : value.processing === 'absent' && !filled ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'
       : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · not exact' : ''}${support ? ` · ${support.word}` : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},
-    evidence: disagreement ? {label:'Different readings',detail:'Pick one, or edit.'} : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'Source not found' : 'Not read yet',
+    evidence: disagreement ? {label:'Different readings',detail:'Pick one, or edit.'} : filled && !link
+      ? {label:'Filled in by you', detail:'No source linked.'}
+      : !link ? {label: value.processing === 'absent' ? 'No value' : value.processing === 'saved' ? 'Source not found' : 'Not read yet',
       detail: value.processing === 'saved' ? 'Please check it in the document.'
         : value.processing === 'absent' ? 'Nothing found in the document.' : 'Can be checked once it is read.'} : null,
     doubt, reason, priority, changed: false, disagreement, page,
-    retained: {reviewable: value.processing === 'saved',
+    retained: {reviewable: value.processing === 'saved', fillable: value.processing === 'absent',
       attribution: value.historicalCorrection ? 'Your earlier decision no longer fits this value.' : undefined},
   }
 }

@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { canonicalUuidSchema } from './projectContext.contract'
 import { schemaEditResponseSchema } from './schemaEdit.contract'
 import { sourceCoverageSchema } from './schemaSuggestionSource.contract'
+import { recordScopeSchema } from 'extraction/schema'
 
 /** A generation or edit operation's workflow ID (spec, *Workflows*); full match, no `m` flag. */
 export const MODEL_OPERATION_WORKFLOW_ID = new RegExp(`^(suggestion|edit):(${CANONICAL_UUID_PATTERN})$`)
@@ -28,6 +29,8 @@ export const modelOperationSchema = z.discriminatedUnion('kind', [
     kind: z.literal('generation'),
     ...common,
     baseSchemaRevisionId: canonicalUuidSchema.nullable(),
+    /** The Record Scope the suggestion was made for; a first generation's revision is saved with it. */
+    recordScope: recordScopeSchema.nullable().optional(),
     template: z.record(z.string(), z.unknown()).nullable(),
     /** The template's scalar field notes; absent while unfinished or when not recorded. */
     fieldDescriptions: z.array(fieldNoteSchema).optional(),

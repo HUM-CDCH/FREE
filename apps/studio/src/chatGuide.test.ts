@@ -26,10 +26,17 @@ const latest = (status: NonNullable<GuideInput['latest']>['status'], schemaRevis
 const actions = (input: Partial<GuideInput>) => nextStep({ ...base, ...input })?.options.map(({ action }) => action)
 
 describe('nextStep', () => {
-  it('offers Generate template before the first template, counting the kept instructions', () => {
-    const step = nextStep({ ...base, view: 'empty', instructionCount: 2 })
+  it('asks Article or Catalog before the first template, then offers Generate template for it, counting the kept instructions', () => {
+    const scope = nextStep({ ...base, view: 'empty', recordScope: null })
+    expect(scope).toMatchObject({ key: 'scope:first', title: 'Choose Record Scope' })
+    expect(scope?.options.map(({ action }) => action)).toEqual(['scope:records', 'scope:document'])
+    const step = nextStep({ ...base, view: 'empty', recordScope: 'records', instructionCount: 2 })
     expect(step?.options[0]).toMatchObject({ action: 'generate', label: 'Generate template (2 instructions)', tone: 'positive' })
-    expect(step?.options.map(({ action }) => action)).toEqual(['generate', 'dismiss'])
+    expect(step?.detail?.[0]).toEqual(['Strategy', 'Catalog'])
+    expect(step?.options.map(({ action, label }) => [action, label])).toEqual([
+      ['generate', 'Generate template (2 instructions)'], ['scope:document', 'Use Article instead'], ['dismiss', 'Tell me what to focus on, or ask about the document…']])
+    // A host with no Article/Catalog choice goes straight to generating.
+    expect(nextStep({ ...base, view: 'empty', recordScope: undefined })?.options[0]?.action).toBe('generate')
   })
 
   it('holds Generate while a question is answered, and shows a failed generation\'s error', () => {
@@ -47,6 +54,23 @@ describe('nextStep', () => {
     expect(step?.detail).toEqual([['Changes', '+2 added · −1 removed']])
     expect(step?.notice).toBe('“date” already exists.')
     expect(step?.options.map(({ action, disabled }) => [action, !!disabled])).toEqual([['apply', true], ['review-schema', false], ['discard', false]])
+  })
+
+  it('offers to apply and extract again in one choice for a template change a request to change results needs', () => {
+    const proposal = { added: 1, removed: 0, modified: 0, unresolved: [], canApply: true, reruns: true }
+    const step = nextStep({ ...base, latest: latest('COMPLETED'), proposal })
+    expect(step?.question).toBe('Apply these changes and extract again?')
+    expect(step?.options.map(({ action, tone, disabled }) => [action, tone, !!disabled])).toEqual([
+      ['apply-run', 'positive', false], ['apply', 'secondary', false], ['review-schema', 'secondary', false], ['discard', 'danger', false]])
+    // A "yes" beside it applies and runs.
+    expect(confirmedOption({ ...base, latest: latest('COMPLETED'), proposal }, step!)?.option.action).toBe('apply-run')
+    // While no run can start, applying alone leads, and the run says why it waits.
+    const waiting = nextStep({ ...base, proposal, run: { unavailableReason: 'The document is still being indexed', available: false } })
+    expect(waiting?.options.slice(0, 2).map(({ action, tone, disabled, description }) => [action, tone, !!disabled, description])).toEqual([
+      ['apply-run', 'secondary', true, 'The document is still being indexed'], ['apply', 'positive', false, undefined]])
+    // Any other proposal, or a host with no run, offers Apply alone.
+    expect(actions({ proposal: { ...proposal, reruns: false } })?.[0]).toBe('apply')
+    expect(actions({ proposal, run: null })?.[0]).toBe('apply')
   })
 
   it('stops at Template ready after a generation, before the Record Scope or a run', () => {

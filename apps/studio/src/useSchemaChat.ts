@@ -19,6 +19,10 @@ export const NO_ACTION_REPLY = 'If you need help, please use the chat box below.
 export const NO_TEMPLATE_REPLY = 'There is no template yet: generate one first, then extract.'
 /** The reply to a request to change results before there is a template, so before any result. */
 export const NO_TEMPLATE_RESULTS_REPLY = 'There are no results yet: generate a template and extract, then say which values to change.'
+/** How the chat says a template change it proposes for a request to change results (ADR 0037). */
+export const TEMPLATE_CHANGE_INTRO = 'This needs a change to the template: '
+/** The reply when that change leaves the template as it was. */
+export const TEMPLATE_CHANGE_NONE_REPLY = 'The template already covers this. To extract again, use the step below.'
 
 /** A message asked Studio to make the template (again), agreed to what the chat offered beside it (`offer`), or asked
  *  to change particular results (`correct`, with what was `said`): the request, until the page carries it out (ADR 0034,
@@ -80,6 +84,11 @@ export type SchemaChat = {
   /** Sends an edit request after the first schema: answered, a proposal to review, or a request for the page. `offer`
    *  is the step the chat shows beside it, which a "yes" agrees to. */
   send(text: string, offer?: ChatOffer | null): Promise<void>
+  /** Proposes a template change the chat decided a request to change results needs (ADR 0037): said as the
+   *  assistant's, sent with the conversation before it, and proposed as it is. Its proposal offers a run with it. */
+  proposeTemplateChange(instruction: string, history: ChatHistory): Promise<void>
+  /** The pending proposal is a template change for a request to change results: applying it may run the extraction. */
+  readonly proposalReruns: boolean
   /** Sends the instructions draft, or `message` from a step, before the first schema: a question is answered, a request
    *  is the page's, anything else kept. */
   ask(message?: string, offer?: ChatOffer | null): Promise<void>
@@ -87,7 +96,8 @@ export type SchemaChat = {
   stopAsking(): void
   /** Stops a running edit request: the message is taken back from the conversation into the composer. */
   cancel(): void
-  apply(): void
+  /** True when the proposal was applied. */
+  apply(): boolean
   discard(): void
   appendMessage(message: string): void
   appendStep(title: string, choice: string): void
@@ -258,19 +268,25 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     reset()
   }, [reset, replacementVersion])
 
-  async function send(text: string, offer?: ChatOffer | null) {
+  // A template change the chat decided on for a request to change results (ADR 0037): its proposal's workflow, whose
+  // step offers to run the extraction once it is applied.
+  const [rerunWorkflow, setRerunWorkflow] = useState<string | null>(null)
+
+  /** `direct`: a template change the chat decided on, said as the assistant's and proposed as it is, with the
+   *  conversation the request to change results was sent with. */
+  async function send(text: string, offer?: ChatOffer | null, direct?: { history: ChatHistory }) {
     if (!text.trim() || loading || pending) return
     setDrawerOpen(true)
     const userMsg = text.trim()
-    const sent: ChatMsg = { role: 'user', text: userMsg }
+    const sent: ChatMsg = direct ? { role: 'assistant', text: `${TEMPLATE_CHANGE_INTRO}${userMsg}` } : { role: 'user', text: userMsg }
     const shown = show([sent])
     // The conversation before the message as the model reads it, a turn to this document last.
-    const history = boundedHistory([...instructions.history, ...historyOf([...messages, ...shown.slice(0, -1)])])
+    const history = direct ? direct.history : boundedHistory([...instructions.history, ...historyOf([...messages, ...shown.slice(0, -1)])])
     // Kept once it is answered (or fails), ahead of its answer; a message taken back with Stop is never kept.
     let kept = false
     const keepSent = () => { if (!kept) { kept = true; keep(shown) } }
     const say = (message: string) => { keepSent(); appendMessage(message) }
-    setInput('')
+    if (!direct) setInput('')
     setLoading(true)
     const controller = new AbortController()
     abortRef.current = controller
@@ -297,6 +313,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
         operationId,
         history,
         offer ? offerText(offer.card) : null,
+        !!direct,
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -331,7 +348,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
       } else {
         const proposal = deriveSchemaProposal(original, response)
         if (proposal.changes.length === 0 && proposal.issues.length === 0) {
-          say('That leaves the template as it is: every field already fits it. To extract values, say so, or choose the step below.')
+          say(direct ? TEMPLATE_CHANGE_NONE_REPLY : 'That leaves the template as it is: every field already fits it. To extract values, say so, or choose the step below.')
         } else {
           keepSent()
           proposalReview.start(
@@ -341,6 +358,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
             originalSchemaRevisionId,
             `edit:${operationId}`,
           )
+          setRerunWorkflow(direct ? `edit:${operationId}` : null)
           // A pending proposal keeps the drawer open with its Apply / Discard bar, even if it was collapsed meanwhile.
           setDrawerOpen(true)
           reveal(schemaAncestorIds(proposal.reviewNodes, new Set(proposal.changes.map(({ id }) => id))))
@@ -354,10 +372,11 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
         'name' in err &&
         err.name === 'AbortError'
       ) {
-        // Stopped by the researcher: the message is taken back to edit and send again. A turn to this document stays.
+        // Stopped by the researcher: the message is taken back to edit and send again (a template change the chat
+        // proposed is dropped). A turn to this document stays.
         setMessages((current) => current.filter((message) => message !== sent))
         keep(shown.filter((message) => message !== sent))
-        setInput(userMsg)
+        if (!direct) setInput(userMsg)
       } else {
         // The sent message stays in the conversation above the error; the composer stays empty for the next one.
         say(`Error: ${err instanceof Error ? err.message : 'Request failed'}`)
@@ -467,11 +486,17 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     setDrawerOpen,
     revealed,
     send,
+    proposeTemplateChange: (instruction, history) => send(instruction, null, { history }),
+    proposalReruns: pending !== null && pending.workflowId !== null && pending.workflowId === rerunWorkflow,
     ask,
     stopAsking,
     cancel,
     // A refused or stale Apply keeps the drawer open: its explanation, and a refused proposal's review, stay in view.
-    apply: () => { if (proposalReview.apply()) setDrawerOpen(false) },
+    apply: () => {
+      const applied = proposalReview.apply()
+      if (applied) setDrawerOpen(false)
+      return applied
+    },
     discard: () => { proposalReview.discard(); setDrawerOpen(false) },
     appendMessage,
     appendStep,

@@ -107,8 +107,8 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
     const keys=(event:KeyboardEvent)=> {
       if(event.defaultPrevented||root.closest('[hidden]')||event.target instanceof HTMLElement&&event.target.closest('input,textarea,select,[contenteditable="true"]'))return
       const action=keyAction(event,{readable:true,saving:busy,editing:editing&&!exportOpen,dialog:exportOpen,drawer:detailsOpen,menu:menuOpen,
-        oneByOne:focus,approvable:part?.reviewable?!part.approved:canApproveWhole&&!row.disagreement,
-        canUndo:part?.reviewable?Boolean(part.approved):canUndoWhole&&row.kind!=='to-check',
+        oneByOne:focus,approvable:part?.reviewable?!part.approved:canApproveWhole&&!row.disagreement&&!row.retained?.fillable,
+        canUndo:part?.reviewable?Boolean(part.approved):canUndoWhole&&row.kind!=='to-check'&&row.kind!=='missing',
         current:row.kind==='to-check'||(event.key.toLowerCase()==='a'&&part?.reviewable&&!part.approved)?'open':'decided'})
       if(!action)return
       event.preventDefault();event.stopPropagation()
@@ -123,7 +123,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
       else if(action==='undo')send({type:'undo'})
       else if(action==='edit')setEditing(true)
       else if(action==='approve'&&part?.reviewable)void saveCell({part,approved:true})
-      else if(action==='approve'||action==='reject')decide(action==='approve'?'APPROVED':'REJECTED')
+      else if((action==='approve'||action==='reject')&&!row.retained?.fillable)decide(action==='approve'?'APPROVED':'REJECTED')
     }
     // The portal and body are disjoint DOM scopes, but share this single key policy.
     const scopes=headerSlot&&!root.contains(headerSlot)?[root,headerSlot]:[root]
@@ -135,7 +135,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
       {focus?<ReviewFocus {...common} article={article} current={row} part={part} queue={queue} blocked={blocked} order={order}
         recordLabel={recordLabel}
         headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo}/>
-        :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable)}
+        :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable||row.retained?.fillable)}
           saved={readOnly}/>}
       {editing&&!readOnly&&document&&<details className="mx-3 mb-2 text-secondary">
         <summary className="cursor-pointer text-compact text-ink-muted">Link Evidence for your edit (optional)</summary>

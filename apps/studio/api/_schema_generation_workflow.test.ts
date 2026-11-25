@@ -232,6 +232,16 @@ describe('suggestSchemaWorkflow, reading every window', () => {
     expect(unions.every((instruction) => !instruction.includes(input.instruction))).toBe(true)
   })
 
+  it('asks every window and every combination for the Record Scope chosen before it, and a Catalog union for one record', async () => {
+    const { steps } = checkpointedSteps(new Map())
+    const { generate, ports: p } = windowedPorts(steps)
+    await suggestSchemaWorkflow({ ...input, recordScope: 'records' }, p)
+
+    expect(generate.mock.calls.every(([, call]) => (call as { recordScope?: string }).recordScope === 'records')).toBe(true)
+    const unions = generate.mock.calls.map(([, call]) => call.instruction).filter((instruction) => instruction !== input.instruction)
+    expect(unions.every((instruction) => instruction.includes('one of the many records the document holds'))).toBe(true)
+  })
+
   it('a failing window is the typed outcome, never thrown', async () => {
     const { steps } = checkpointedSteps(new Map())
     const { generate, ports: p } = windowedPorts(steps)

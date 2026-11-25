@@ -80,7 +80,8 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const reviewable = row.retained?.reviewable ?? false
-  const linked = reviewable && row.link !== null
+  const fillable = row.retained?.fillable ?? false
+  const linked = (reviewable || fillable) && row.link !== null
   const decided = row.kind === 'approved' || row.kind === 'edited' || row.kind === 'rejected'
   const style = row.chip?.style ?? 'neutral'
   const support = supportNote(row)
@@ -111,14 +112,14 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
       {selected && (
         <div id={expansionId} className="flex flex-col gap-2 pr-2 pb-2.5 pl-8.5">
           {!editing && row.value !== null && typeof row.value === 'object' && <ReviewedValueDisplay node={node} value={row.value} path={row.resultPath} pick={pick} />}
-          {row.kind === 'edited' && <p className="m-0 text-secondary text-ink-muted [overflow-wrap:anywhere]">Original: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
+          {row.kind === 'edited' && !fillable && <p className="m-0 text-secondary text-ink-muted [overflow-wrap:anywhere]">Original: <s>{rowText({value: row.extracted, disagreement: row.disagreement})}</s></p>}
           {linked && row.doubt && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span>{row.doubt}</span></p>}
           {support && <p className="m-0 flex items-start gap-1.5 text-secondary text-ink"><DoubtGlyph /><span>{support.text}</span></p>}
           {!linked && row.evidence && (
             <>
               <p className="m-0 text-compact font-semibold text-ink">{row.evidence.label}</p>
               <p className="m-0 text-secondary text-ink">{row.evidence.detail}</p>
-              {!reviewable && <p className="m-0 text-secondary text-ink-muted">Not reviewed, exported as extracted.</p>}
+              {!reviewable && !fillable && <p className="m-0 text-secondary text-ink-muted">Not reviewed, exported as extracted.</p>}
             </>
           )}
           {row.retained?.attribution && <p className="m-0 text-compact text-ink-muted">{row.retained.attribution}</p>}
@@ -127,8 +128,12 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
             <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
               <ReviewedValueEditor node={node} initial={row.value} onCancel={onCancelEdit}
                 onTypedSave={onTypedEdit}
-                saveLabel="Save edit" onSave={(value) => onDecide('EDITED', value)} />
+                saveLabel={fillable ? 'Save value' : 'Save edit'} onSave={(value) => onDecide('EDITED', value)} />
             </fieldset>
+          ) : row.kind === 'missing' && fillable && canDecide ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="secondary" onClick={onEdit} aria-label={`Fill in ${fieldWords(row.name)}`}><EditedGlyph />Fill in</Button>
+            </div>
           ) : row.kind === 'to-check' && canDecide ? (
             <div className="flex flex-wrap items-center gap-2">
               <div role="group" aria-label={`Decision for ${fieldWords(row.name)}`} className="inline-flex h-7.5 overflow-hidden rounded-md border border-line bg-surface">

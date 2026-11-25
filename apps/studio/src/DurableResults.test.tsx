@@ -915,6 +915,29 @@ it.each(['ARTICLE','CATALOG'] as const)('keeps the only unchecked value reachabl
   expect(screen.getByRole('button',{name:/Approve and next/})).toBeEnabled()
 })
 
+it('fills in a value the model found nothing for, offers no Approve or Reject for it, and shows it edited after',async()=>{
+  const year={...reviewValue('year',''),node:{id:'year',name:'year',type:'integer'},modelValue:null,processing:'absent'}
+  const page={...reviewPage(),values:[year],total:1,reviewCounts:{required:0,toCheck:0,approved:0,edited:0,rejected:0}} as unknown as DurablePage
+  const state={...pausedState,status:'COMPLETED'}
+  vi.mocked(readDurable).mockResolvedValue({state,page} as never)
+  vi.mocked(durableRequest).mockResolvedValue({id:'correction',revision:1,feedbackVersion:1,included:true})
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:/^No value year/}))
+  expect(screen.queryByRole('button',{name:/^Approve/})).toBeNull()
+  expect(screen.queryByRole('button',{name:'Reject'})).toBeNull()
+  expect(screen.queryByText('Not reviewed, exported as extracted.')).toBeNull()
+  fireEvent.click(screen.getByRole('button',{name:'Fill in year'}))
+  fireEvent.change(screen.getByRole('spinbutton',{name:'Reviewed value'}),{target:{value:'1852'}})
+  const filled={...year,correction:{revision:1,decision:{action:'EDITED',value:1852,evidence:[],included:true}}}
+  vi.mocked(readDurable).mockResolvedValue({state,page:{...page,feedbackVersion:1,values:[filled]}} as never)
+  fireEvent.click(screen.getByRole('button',{name:'Save value'}))
+  await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith(expect.stringContaining('/values/year'),
+    expect.objectContaining({action:'EDITED',value:1852,expectedRevision:0,snapshotVersion:1})))
+  fireEvent.click(await screen.findByRole('button',{name:/^Edited year/}))
+  expect(screen.getByText('Filled in by you')).toBeVisible()
+  expect(screen.getByRole('button',{name:'Undo'})).toBeEnabled()
+})
+
 it('offers the unchecked list after saving and undoing an edit, then cancelling an invalid edit',async()=>{
   const samples={...reviewValue('samples',''),node:{id:'samples',name:'samples',type:'array',children:[
     {id:'specimen',name:'specimen',type:'string'},

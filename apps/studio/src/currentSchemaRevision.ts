@@ -315,6 +315,7 @@ export type SchemaEditorController = {
     baseSchemaRevisionId: string | null,
     sourceCoverage?: SourceCoverage | null,
     fieldDescriptions?: readonly FieldNote[],
+    recordScope?: RecordScope | null,
   ): Promise<boolean>
 
   confirmDefinition(definition: SchemaDefinition): Promise<void>
@@ -722,7 +723,7 @@ export function createSchemaEditorController(
     /** Saves a generation that finished while no tab waited for it (a reload or a restart), but only onto its base: the
      *  base is still the acknowledged revision of a clean draft, or no Extraction Schema exists yet. Anything else — and a
      *  conflict, meaning newer work landed first — drops it without an error (spec, *Generation*). */
-    async restoreGeneration(template, baseSchemaRevisionId, coverage = null, fieldDescriptions = []) {
+    async restoreGeneration(template, baseSchemaRevisionId, coverage = null, fieldDescriptions = [], recordScope = null) {
       if (disposed || generating || blocked()) return false
       const save = persistence.saveState() ?? null
       const onBase = baseSchemaRevisionId === null
@@ -736,6 +737,8 @@ export function createSchemaEditorController(
       } catch {
         return false
       }
+      // A first generation is saved with the Record Scope it was made for, which a reload forgot.
+      if (baseSchemaRevisionId === null && pendingRecordScope === null && recordScope) pendingRecordScope = recordScope
       try {
         const saved = await adoptGenerated(definition, coverage)
         publish()

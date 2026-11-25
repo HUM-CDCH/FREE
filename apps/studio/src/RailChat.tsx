@@ -121,6 +121,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       modified: pending.changes.filter((change) => change.kind === 'modified').length,
       unresolved: pending.changes.flatMap((change) => change.outcome === 'unresolved' && change.reason ? [change.reason] : []),
       canApply: proposalReview.canApply,
+      reruns: chat.proposalReruns,
     },
     recordScope: recordScope ? recordScope.value : undefined,
     revision: {
@@ -171,14 +172,12 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   function choose(card: StepCard, option: StepOption, text = '', ticks: ReadonlySet<string> | null = picked) {
     const ids = option.picks && card.picker && ticks ? card.picker.documents.map(({ id }) => id).filter((id) => ticks.has(id)) : []
     if (option.disabled || (option.picks && !pickable(card, ids.length))) return
-    // A choice that moves the workflow on, chosen under another view, returns to the conversation so the next step is
-    // in front of the researcher; one that opens a view goes there, and a run's controls leave the view as it is.
-    if (!STAYS.has(option.action)) reveal()
+    // A choice made under another view leaves the view as it is; the next step shows there, folded above the composer.
     // Past the step, something else said instead: the message itself joins the conversation, which answers it.
     const said = option.action === 'dismiss' ? text.trim() : ''
     if (said) {
       if (!canSay) return
-      reveal()
+      sentHere()
       void (preSchema ? chat.ask(said, offer(card)) : chat.send(said, offer(card)))
     } else {
       // Only a choice that does something is noted in the conversation.
@@ -200,7 +199,9 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     const act: Record<StepAction, () => void> = {
       generate: () => onGenerate?.(instructions.text),
       'stop-generation': () => schema.cancelGeneration(),
-      apply: chat.apply,
+      apply: () => { chat.apply() },
+      // The run saves the applied template first, as Run does (ADR 0037); a refused Apply runs nothing.
+      'apply-run': () => { if (chat.apply()) run?.start() },
       'review-schema': () => onShowView('schema'),
       continue: () => {},
       restart: () => {
@@ -246,8 +247,26 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   }, [chat.messages.length, instructions.items.length, chat.asking, pending, open])
   const dot = open ? null : recovery.running.length > 0 ? { title: 'An earlier request is still running' }
     : chat.messages.length > 0 || instructions.items.length > 0 || pending ? { title: 'Show conversation' } : null
-  // A message sent from another view is answered in the conversation: the home shows it.
-  const reveal = () => { if (mode === 'step') onShowView('chat') }
+  // A message sent from another view leaves that view as it is: a line above the composer says it is being answered,
+  // then shows the reply, which opens the conversation on a click.
+  const [sentFrom, setSentFrom] = useState<number | null>(null)
+  if (mode === 'full' && sentFrom !== null) setSentFrom(null)
+  const sentHere = () => { if (mode === 'step') setSentFrom(chat.messages.length) }
+  const proposing = corrections?.busy === 'proposing'
+  const working = chat.loading || chat.asking !== null || proposing
+  const reply = sentFrom === null ? undefined : chat.messages.slice(sentFrom).findLast((message) => message.role === 'assistant')
+  const sentLine = mode === 'step' && sentFrom !== null && (working ? (
+    <p role="status" className="m-0 flex items-center gap-2 text-compact text-ink-muted">
+      <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
+      {proposing ? 'Reading the results for the changes…' : 'Working on it…'}
+      {proposing && <button type="button" onClick={corrections?.stop} className="cursor-pointer rounded-md px-1 text-ink-muted outline-none hover:text-danger">Stop</button>}
+    </p>
+  ) : reply && 'text' in reply && (
+    <button type="button" onClick={() => onShowView('chat')} title="Show conversation"
+      className="cursor-pointer rounded-md text-left text-compact leading-snug text-ink-muted outline-none hover:text-ink focus-visible:text-ink">
+      <span className="line-clamp-2 [overflow-wrap:anywhere]">{reply.text}</span>
+    </button>
+  ))
   // A step with a way past it carries the composer as its last numbered option: sending from it says something else
   // instead, so it sets the step aside as choosing that option does.
   const composerRef = useRef<HTMLTextAreaElement>(null)
@@ -265,8 +284,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     else setDismissed((current) => new Set(current).add(step.key))
   }
   // The step goes with the message, as it was before sending set it aside.
-  const ask = () => { if (!instructions.draft.trim()) return; const offered = offer(step); reveal(); setAside(); void chat.ask(undefined, offered) }
-  const send = () => { if (!chat.input.trim()) return; const offered = offer(step); reveal(); setAside(); void chat.send(chat.input, offered) }
+  const ask = () => { if (!instructions.draft.trim()) return; const offered = offer(step); sentHere(); setAside(); void chat.ask(undefined, offered) }
+  const send = () => { if (!chat.input.trim()) return; const offered = offer(step); sentHere(); setAside(); void chat.send(chat.input, offered) }
 
   const blocked = !!pending || chat.loading || !!corrections?.busy
   // What is typed in place of a step goes where the composer's message would.
@@ -397,7 +416,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   return (
     <>
       <ChatDrawer open={open} fill={open} onCollapse={() => onShowView('chat')} onExpand={() => onShowView('chat')}
-        title="Conversation" label={shownCard || generate} dot={dot} actions={clear || undefined} bodyRef={bodyRef}
+        title="Conversation" label={sentLine || shownCard || generate ? <>{sentLine}{shownCard || generate}</> : undefined} dot={dot} actions={clear || undefined} bodyRef={bodyRef}
         bar={shownCard || generate || undefined} composer={sayInCard ? null : composer}>
         <ChatTranscript chat={chat} empty={preSchema ? PRE_SCHEMA_EMPTY : CONVERSATION_EMPTY} after={pendingAsk} />
       </ChatDrawer>
@@ -454,8 +473,6 @@ function storedMore(key: string | null): MoreDocuments {
     return value === 'adding' || value === 'done' ? value : 'ask'
   } catch { return 'ask' }
 }
-const STAYS: ReadonlySet<StepAction> = new Set<StepAction>(['review-schema', 'review', 'open-document',
-  'stop-generation', 'pause', 'stop', 'stop-batch', 'export'])
 
 /** A step folded to the card's title line (set aside, or under another view): the same left edge and ⏵, a summary, and
  *  its actions, which take further lines where the rail is narrow. The title brings the whole step back. */

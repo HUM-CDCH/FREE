@@ -20,7 +20,7 @@ function valueText(reading: Reading) {
 
 function decisionWord(reading: Reading) {
   const { processing, decision, decisionIncompatible } = reading
-  if (processing === 'absent') return 'Missing'
+  if (processing === 'absent') return decision?.action === 'EDITED' && !decisionIncompatible ? 'Filled in' : 'Missing'
   if (processing !== 'saved') return 'Not read'
   if (decisionIncompatible) return 'Earlier decision no longer fits'
   if (reading.disagreement && !reviewed(reading) && (!decision || decision.action === 'PENDING')) return 'Different readings'

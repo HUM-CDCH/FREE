@@ -1,6 +1,7 @@
 # 0024: The rail chat guides the researcher to an extraction
 
-Date: 2026-10-27. Status: accepted; builds on [0023](0023-schema-chat-answers-questions.md).
+Date: 2026-10-27. Status: accepted; builds on [0023](0023-schema-chat-answers-questions.md); amended by
+[0038](0038-article-or-catalog-is-chosen-before-the-template.md), which asks the Record Scope before Generate schema.
 
 ## Context
 

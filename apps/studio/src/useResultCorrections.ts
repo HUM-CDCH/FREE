@@ -32,12 +32,15 @@ const shown = (value: unknown) => value === null || value === undefined ? 'empty
  * revision the proposal read; a change that a newer correction overtook is refused and said, and the others stay saved.
  * The changes are not used to guide later Extractions until the researcher includes them, as any correction can be.
  */
-export function useResultCorrections({ target, say, onSaved }: {
+export function useResultCorrections({ target, say, onSaved, onTemplateChange }: {
   target: CorrectionTarget | null
   /** Says something in the conversation, as the assistant. */
   say: (message: string) => void
   /** Reads the result again once corrections are saved. */
   onSaved: () => void
+  /** Proposes the template change a request needs beyond the values it changes (ADR 0037), with the conversation
+   *  through the request. */
+  onTemplateChange?: (instruction: string, history: ChatHistory) => void
 }): ResultCorrections {
   const [pending, setPending] = useState<ResultCorrections['pending']>(null)
   const [busy, setBusy] = useState<ResultCorrections['busy']>(null)
@@ -64,11 +67,14 @@ export function useResultCorrections({ target, say, onSaved }: {
       const proposal = await requestResultCorrections(target, message, controller.signal, operationId, history)
       if (abortRef.current?.controller !== controller) return
       const notes = proposal.dropped.length ? `\n\nLeft out: ${proposal.dropped.join(' ')}` : ''
-      if (proposal.corrections.length === 0) say(`${proposal.reply ?? NOTHING_PROPOSED_REPLY}${notes}`)
+      const templateChange = onTemplateChange ? proposal.templateChange ?? null : null
+      if (proposal.corrections.length === 0 && !templateChange) say(`${proposal.reply ?? NOTHING_PROPOSED_REPLY}${notes}`)
       else {
         if (proposal.reply || notes) say(`${proposal.reply ?? ''}${notes}`.trim())
-        setPending({ request: requests.current += 1, proposal })
+        if (proposal.corrections.length > 0) setPending({ request: requests.current += 1, proposal })
       }
+      // What the template cannot hold is proposed as a template change, after any changes to the values themselves.
+      if (templateChange) onTemplateChange!(templateChange, [...history, { role: 'user', text: message }])
     } catch (err) {
       if (abortRef.current?.controller !== controller) return
       if (!(typeof err === 'object' && err !== null && 'name' in err && err.name === 'AbortError'))
@@ -79,7 +85,7 @@ export function useResultCorrections({ target, say, onSaved }: {
         setBusy(null)
       }
     }
-  }, [say, target])
+  }, [onTemplateChange, say, target])
 
   const save = useCallback(async () => {
     if (!pending || busy) return

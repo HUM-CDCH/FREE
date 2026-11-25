@@ -46,6 +46,11 @@ test("exports the reviewed value when edited, nothing when rejected or unsaved, 
   assert.equal(exportedValue(saved(0, title, "Model", { processing: "unprocessed" })), undefined);
 });
 
+test("exports a missing value the researcher filled in, and a set-back one as missing", () => {
+  assert.equal(exportedValue(saved(0, title, null, { processing: "absent", ...decided("EDITED", "Filled") })), "Filled");
+  assert.equal(exportedValue(saved(0, title, null, { processing: "absent", ...decided("PENDING", null) })), undefined);
+});
+
 test("projects one row per record with the producing schema's fields as columns, in schema order", () => {
   const values = [
     saved(0, title, "Grave 8"), saved(0, year, 0), saved(0, gilded, false), saved(0, names, ["Ada", "Bob"]),
@@ -154,6 +159,7 @@ test("the Evidence sheet keeps one row per field with its decision, reviewed val
     saved(0, finds, [{ name: "Nadel", count: 2 }], { historicalCorrection: { revision: 1 } }),
     saved(0, gilded, null, { processing: "absent" }),
     { ...saved(0, catalogue, "Fundkatalog"), recordId: "document" },
+    saved(1, gilded, null, { processing: "absent", ...decided("EDITED", true) }),
   ];
   const table = buildDurableEvidenceTable(values);
   assert.deepEqual(table.columns, ["Record", "Field", "Extracted value", "Decision",
@@ -166,6 +172,7 @@ test("the Evidence sheet keeps one row per field with its decision, reviewed val
     [1, "finds", '[{"name":"Nadel","count":2}]', "To check", null, "No Evidence linked", null, "An earlier correction does not fit this value; it stays saved and is not applied."],
     [1, "gilded", null, "No value", null, "No Evidence linked", null, null],
     ["Document", "catalogue", "Fundkatalog", "To check", null, "No Evidence linked", null, null],
+    [2, "gilded", null, "Filled in", true, "No correction Evidence linked", null, null],
   ]);
   assert.equal(table.rows.every((row) => row["Schema revision"] === "revision-1"), true);
   assert.equal(table.rows[0]["Extracted evidence anchors"], "a_p1_s1");

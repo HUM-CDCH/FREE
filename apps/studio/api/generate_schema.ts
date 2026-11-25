@@ -16,6 +16,15 @@ import {
   ownedSourceScope,
 } from './_schema_edit.js'
 import { SUGGEST_SCHEMA, type SchemaGenerated, type SchemaGenerationInput } from './_schema_generation_workflow.js'
+import { recordScopeSchema } from 'extraction/schema'
+
+/** The Record Scope chosen before the suggestion; absent when none is chosen yet. */
+function parseRecordScope(value: FormDataEntryValue | null) {
+  if (value === null) return null
+  const parsed = recordScopeSchema.safeParse(value)
+  if (!parsed.success) throw new ApiError(400, 'invalid_request', "'record_scope' must be 'document' or 'records'.")
+  return parsed.data
+}
 
 const FIELDS = [
   'project_context_id',
@@ -25,6 +34,7 @@ const FIELDS = [
   'operation_id',
   'instruction',
   'temperature',
+  'record_scope',
 ] as const
 
 type GenerateSchemaStore = Pick<
@@ -51,6 +61,7 @@ export function createPostGenerateSchema(
       const base = optionalSchemaBase(form)
       const instruction = parseInstruction(form.get('instruction'))
       const temperature = parseTemperature(form.get('temperature')) ?? null
+      const recordScope = parseRecordScope(form.get('record_scope'))
       const { sourceDocumentId } = await ownedSourceScope(store, projectContextId, sourceRepresentationRevisionId)
       if (base) await loadOwnedSchemaRevision(store, projectContextId, base.extractionSchemaId, base.schemaRevisionId)
       const input: SchemaGenerationInput = {
@@ -62,6 +73,7 @@ export function createPostGenerateSchema(
         baseSchemaRevisionId: base?.schemaRevisionId ?? null,
         instruction,
         temperature,
+        ...(recordScope ? { recordScope } : {}),
       }
       const workflowID = `suggestion:${operationId}`
       await startOrJoinOperation(operations(), {

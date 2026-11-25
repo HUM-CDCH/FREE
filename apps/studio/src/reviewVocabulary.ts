@@ -42,7 +42,9 @@ export type RailRow = {
   disagreement?: {part: string; path: string[]; alternatives: {value: unknown; pages: string | null}[]}[]
   page: number | null
   /** Retained values can be reviewed without a model Evidence link. */
-  retained?: { reviewable: boolean; attribution?: string }
+  retained?: { reviewable: boolean; attribution?: string
+    /** A value the model found nothing for: the researcher may fill it in (an edit), and undo that, but not decide it. */
+    fillable?: boolean }
 }
 
 export type RailRecord = {

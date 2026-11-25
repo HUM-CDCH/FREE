@@ -1,6 +1,6 @@
 import type { SchemaNode } from "extraction/schema";
 import type { DurableValue } from "extraction/durable-contract";
-import { originPages, partName, reviewedValue } from "extraction/value-disagreement";
+import { filledIn, originPages, partName, reviewedValue } from "extraction/value-disagreement";
 import { buildExportTable, type CellValue, type ExportChoices, type Table } from "./table.js";
 
 /**
@@ -39,8 +39,10 @@ export const EXTRACTION_SHEET = "Extraction";
 export const EVIDENCE_SHEET = "Evidence";
 export const DISAGREEMENTS_SHEET = "Disagreements";
 
-/** The value a researcher sees and exports: the edit when edited, nothing when rejected or never saved. */
+/** The value a researcher sees and exports: the edit when edited (a missing value filled in included), nothing when
+ *  rejected or never saved. */
 export function exportedValue(value: DurableExportValue): unknown {
+  if (filledIn(value)) return reviewedValue(value);
   if (value.processing !== "saved") return undefined;
   if (value.correction?.decision.action === "REJECTED") return null;
   return reviewedValue(value);
@@ -210,6 +212,7 @@ export function buildDurableExportTable(values: readonly DurableExportValue[], c
 }
 
 const decisionWords = (value: DurableExportValue): string => {
+  if (filledIn(value)) return "Filled in";
   if (value.processing !== "saved") return value.processing === "absent" ? "No value" : value.processing === "failed" ? "Failed" : "Not read";
   switch (value.correction?.decision.action) {
     case "APPROVED": return value.disagreement ? "Chosen" : "Approved";

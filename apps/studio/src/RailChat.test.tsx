@@ -254,7 +254,8 @@ describe('RailChat', () => {
     expect(start).not.toHaveBeenCalled()
   })
 
-  it('shows the step and the composer under another view, and returns home to answer a message', () => {
+  it('shows the step and the composer under another view, and answers a message there, leaving the view as it is', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline') }))
     const { onShowView } = renderChat({ mode: 'step', recordScope: { value: null, onChange: vi.fn() } })
     expect(screen.queryByRole('region', { name: 'Conversation' })).not.toBeInTheDocument()
     // The step is folded to its title line with its options, leaving the view the rail's height; its title unfolds
@@ -270,15 +271,22 @@ describe('RailChat', () => {
     const input = screen.getByPlaceholderText('Describe a change to the template…')
     fireEvent.change(input, { target: { value: 'Add a recipient' } })
     fireEvent.keyDown(input, { key: 'Enter' })
+    expect(screen.getByRole('status')).toHaveTextContent('Working on it…')
+    // The reply shows above the composer; the conversation opens only when it is clicked.
+    const reply = await screen.findByRole('button', { name: /^Error:/ })
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(onShowView).not.toHaveBeenCalled()
+    fireEvent.click(reply)
     expect(onShowView).toHaveBeenCalledExactlyOnceWith('chat')
+    vi.unstubAllGlobals()
   })
 
-  it('returns to the conversation for a choice that moves on under another view, never for one that opens a view', () => {
+  it('leaves the view as it is for a choice that moves on under another view, and opens the view a choice asks for', () => {
     const { onShowView } = renderChat({ mode: 'step', recordScope: { value: null, onChange: vi.fn() } })
     fireEvent.click(within(screen.getByRole('region', { name: 'Choose Record Scope' })).getByRole('button', { name: 'View template' }))
     expect(onShowView).toHaveBeenCalledExactlyOnceWith('schema')
     fireEvent.click(within(screen.getByRole('region', { name: 'Choose Record Scope' })).getByRole('button', { name: /Catalog: many records/ }))
-    expect(onShowView).toHaveBeenLastCalledWith('chat')
+    expect(onShowView).toHaveBeenCalledOnce()
   })
 
   it('leaves the view as it is for a run\'s controls', () => {
@@ -394,6 +402,24 @@ describe('changes to the results (ADR 0035)', () => {
     expect(results.discard).toHaveBeenCalledOnce()
     fireEvent.keyDown(step, { key: 'Escape' })
     expect(results.discard).toHaveBeenCalledTimes(2)
+  })
+
+  it('applies a template change for a request to change results and extracts again in one choice, and runs nothing when Apply is refused', () => {
+    const start = vi.fn()
+    function Rerun({ applies }: { applies: boolean }) {
+      const chat = useSchemaChat({ schema })
+      const pending = { changes: [{ id: 'parish', kind: 'added', outcome: 'ok' }] } as unknown as NonNullable<typeof chat.proposalReview.pending>
+      return <RailChat {...props} run={{ start, available: true, unavailableReason: null }} corrections={null}
+        chat={{ ...chat, proposalReruns: true, apply: () => applies, proposalReview: { ...chat.proposalReview, pending, canApply: true } }} />
+    }
+    const view = render(<Rerun applies={false} />)
+    const step = screen.getByRole('region', { name: 'Proposed template change' })
+    expect(within(step).getByText('Apply these changes and extract again?')).toBeVisible()
+    fireEvent.click(within(step).getByRole('button', { name: /Apply and extract again/ }))
+    expect(start).not.toHaveBeenCalled()
+    view.rerender(<Rerun applies />)
+    fireEvent.click(within(screen.getByRole('region', { name: 'Proposed template change' })).getByRole('button', { name: /Apply and extract again/ }))
+    expect(start).toHaveBeenCalledOnce()
   })
 
   it('saves the changes on a "yes" said beside them', () => {

@@ -18,6 +18,7 @@ import {
   parseBatchSuggestionDefinition,
   templateToSchemaDefinition,
   type FieldNote,
+  type RecordScope,
   type SchemaDefinition,
 } from 'extraction/schema'
 
@@ -36,6 +37,8 @@ export type SchemaModelInput = {
   readonly window?: boolean
   readonly temperature?: number
   readonly signal?: AbortSignal
+  /** The Record Scope chosen before the suggestion: what one root record is (`recordScopeGuidance`). */
+  readonly recordScope?: RecordScope | null
 }
 
 async function documentContentParts(document: DocumentInput): Promise<{
@@ -80,7 +83,7 @@ async function suggestSchema(
  *  intent is read before it (`classifyChatMessage`), so this request only ever returns a schema. */
 export async function suggestOnRoute(
   resolved: ExecutionTarget,
-  { document, instruction, edit, window, temperature, signal }: SchemaModelInput,
+  { document, instruction, edit, window, temperature, signal, recordScope }: SchemaModelInput,
   dependencies: ModelDependencies = {},
 ): Promise<SchemaSuggested> {
   const excerpts = document.markdown && !window ? schemaSourceExcerpts(document.markdown, document.pageSpans) : null
@@ -90,7 +93,7 @@ export async function suggestOnRoute(
       ? 'Revise the researcher\'s extraction schema. Return only one JSON object, with no Markdown or commentary: the complete compact schema in "template" and field note edits in "fieldDescriptions", with no extracted values.'
       : 'Propose a compact extraction schema grounded in the supplied source document. ' +
         'Return only one JSON object containing schema fields and type tokens, with no extracted values, Markdown, or commentary.',
-    guidance: edit ? schemaEditPrompt(instruction) : schemaPrompt(instruction),
+    guidance: edit ? schemaEditPrompt(instruction) : schemaPrompt(instruction, recordScope),
     documentParts: documentParts.parts,
     temperature,
     signal,
@@ -124,8 +127,11 @@ const DEFINITIONS =
 const MERGE_INSTRUCTION =
   'Return one compact Extraction Schema containing only fields present in every supplied Source Document suggestion. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.' + DEFINITIONS
 
-const UNION_INSTRUCTION =
-  'Return one compact Extraction Schema for one Source Document from the supplied schemas, each suggested from one part of it: keep every field found in any of them, folding fields that name the same thing into one field of one supported shape, and write one _description that defines a complete root record of the whole document. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.' + DEFINITIONS
+/** A Catalog's root record is one of the many the document holds; otherwise it is the whole document. */
+const unionInstruction = (recordScope: RecordScope | null | undefined) =>
+  'Return one compact Extraction Schema for one Source Document from the supplied schemas, each suggested from one part of it: keep every field found in any of them, folding fields that name the same thing into one field of one supported shape, and write one _description that defines ' +
+  (recordScope === 'records' ? 'one of the many records the document holds, and how to tell where each begins' : 'a complete root record of the whole document') +
+  '. Do not include extracted values, alternatives or merge notes; FREE records Evidence and its locations itself, so keep only fields that describe the content of the researcher\'s records.' + DEFINITIONS
 
 /**
  * One request of `reduceSchemas`: combine labelled schemas already within one request's length into one template —
@@ -138,12 +144,14 @@ export async function combineSchemas(
   signal: AbortSignal,
   generate: typeof generateSchemaWithModel = generateSchemaWithModel,
   temperature?: number,
+  recordScope?: RecordScope | null,
 ): Promise<SuggestedSchema> {
   const generated = await generate(caller, {
     document: { file: null, markdown: text, pages: null },
-    instruction: mode === 'union' ? UNION_INSTRUCTION : MERGE_INSTRUCTION,
+    instruction: mode === 'union' ? unionInstruction(recordScope) : MERGE_INSTRUCTION,
     window: true,
     ...(temperature === undefined ? {} : { temperature }),
+    ...(recordScope ? { recordScope } : {}),
     signal,
   })
   return { template: generated.template, fieldDescriptions: suggestedFieldNotes(generated.fieldDescriptions) }
