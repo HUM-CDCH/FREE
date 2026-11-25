@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import { supersededMember, type BatchExtraction, type BatchExtractionMember } from '../../shared/batchExtraction.contract'
+import { byMostMissing, supersededMember, type BatchExtraction, type BatchExtractionMember } from '../../shared/batchExtraction.contract'
 import {
   bulkApprovable, decided, finalizable, gridColumns, gridLayout, layoutValues, reviewable,
   type GridAction, type GridColumn, type GridLayout, type GridRecord, type GridValue,
@@ -156,7 +156,7 @@ type Row =
 const EMPTY_RECORD: GridRecord = { key: 'document', index: 0, values: new Map() }
 
 function gridRows(batch: BatchExtraction, members: ReadonlyMap<string, MemberGridState>): Row[] {
-  return batch.members.flatMap((member): Row[] => {
+  return byMostMissing(batch.members).flatMap((member): Row[] => {
     const state = members.get(member.extractionId)
     if (state?.status !== 'ready') return [{ kind: 'status', member, state }]
     const layout = gridLayout(state.page)

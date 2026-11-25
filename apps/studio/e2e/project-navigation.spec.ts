@@ -946,7 +946,7 @@ test.describe('rail navigation', () => {
       createdAt: '2026-08-14T10:42:00.000Z', trial: true,
       members: [{ extractionId: '00000000-0000-4000-8000-0000000001c4', sourceDocumentId: BERETNING,
         sourceRepresentationRevisionId: REPRESENTATIONS[BERETNING], executionStatus: 'COMPLETED',
-        completed: true, reviewable: true, currentReview: { snapshotVersion: 1, feedbackVersion: 0,
+        completed: true, reviewable: true, missingCount: 0, currentReview: { snapshotVersion: 1, feedbackVersion: 0,
           createdAt: '2026-08-14T11:00:00.000Z', schemaRevisionId: revisionId },
       }],
     })
@@ -995,6 +995,7 @@ test.describe('rail navigation', () => {
           sourceRepresentationRevisionId: REPRESENTATIONS[BERETNING],
           executionStatus: 'COMPLETED',
           reviewable: false,
+          missingCount: 0,
           completed: true,
           currentReview: null,
         },

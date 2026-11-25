@@ -113,6 +113,18 @@ describe('POST /api/edit_schema', () => {
     expect(refused.enqueued).toEqual([])
   })
 
+  it('records where the message was said, only when the page names it, and refuses an unknown view with 422', async () => {
+    const { enqueued, client } = operations()
+    expect((await createPostEditSchema(store(), () => client)(form({ ...base, view: 'results', results: 'true' }))).status).toBe(200)
+    expect((await createPostEditSchema(store(), () => client)(form({ ...base, view: 'template', operation_id: '00000000-0000-4000-8000-0000000000aa' }))).status).toBe(200)
+    expect((await createPostEditSchema(store(), () => client)(form({ ...base, operation_id: '00000000-0000-4000-8000-0000000000ab' }))).status).toBe(200)
+    expect(enqueued.map(({ input }) => (input as { where?: unknown }).where)).toEqual([{ view: 'results', results: true }, { view: 'template', results: false }, undefined])
+
+    const refused = operations()
+    expect((await createPostEditSchema(store(), () => refused.client)(form({ ...base, view: 'history' }))).status).toBe(422)
+    expect(refused.enqueued).toEqual([])
+  })
+
   it('records a template change the chat decided on as direct, and nothing else as one', async () => {
     const { enqueued, client } = operations()
     expect((await createPostEditSchema(store(), () => client)(form({ ...base, direct: 'true' }))).status).toBe(200)

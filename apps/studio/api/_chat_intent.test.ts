@@ -31,4 +31,14 @@ describe('chatIntentPrompt', () => {
     expect(prompt).toContain('The researcher\'s latest chat message:\nyes')
     expect(chatIntentPrompt({ message: 'hi', history: [] })).not.toContain('Studio has just offered:')
   })
+
+  it('says where the message was said, and reads one that could change the template or the results as a change to what is looked at', () => {
+    const at = (view: 'chat' | 'template' | 'results', results: boolean) => chatIntentPrompt({ message: 'the date is wrong', history: [], where: { view, results } })
+    expect(at('results', true)).toContain('The researcher is looking at the extracted results. Extracted results are shown whose values the message can change. A message that could be read either as "edit" or as "correct" is "correct".')
+    expect(at('template', true)).toContain('The researcher is looking at the template. Extracted results are shown whose values the message can change. A message that could be read either as "edit" or as "correct" is "edit".')
+    expect(at('chat', false)).toContain('The researcher is looking at the chat. No extracted results are shown, so there are no values the message can change. A message that could be read either as "edit" or as "correct" is "edit".')
+    // In the chat with a result shown, either reading stands: the message's words decide.
+    expect(at('chat', true)).not.toContain('could be read either')
+    expect(chatIntentPrompt({ message: 'hi', history: [] })).not.toContain('The researcher is looking at')
+  })
 })

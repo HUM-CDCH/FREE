@@ -2,6 +2,7 @@ import { useEffect, useEffectEvent, useId, useRef, useState, useSyncExternalStor
 import type { RecordScope } from 'extraction/schema'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
+import type { ChatWhere } from '../shared/schemaChat.contract'
 import ChatDrawer from './ChatDrawer'
 import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
@@ -156,6 +157,9 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const followingKey = following ? `${following.target.extractionId}:${following.name}` : null
   useEffect(() => { publishFollowing() }, [followingKey])
   useEffect(() => () => onReviewFollowing?.(null), [onReviewFollowing])
+  // Where a message is said (ADR 0040): a message that could change the template or the results shown is read as a
+  // change to the one the researcher looks at.
+  const where: ChatWhere = { view: resultsShown ? 'results' : templateShown ? 'template' : 'chat', results: !!corrections?.available }
   // Changes a message proposed to the results wait for the researcher first, as the latest message's answer (ADR 0035).
   const proposed = corrections?.pending ?? null
   const correcting = proposed && correctionStep(proposed.request, proposed.proposal.corrections.map(correctionLine), corrections?.busy === 'saving')
@@ -194,7 +198,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     if (said) {
       if (!canSay) return
       sentHere()
-      void (preSchema ? chat.ask(said, offer(card)) : chat.send(said, offer(card)))
+      void (preSchema ? chat.ask(said, offer(card)) : chat.send(said, offer(card), where))
     } else {
       // Only a choice that does something is noted in the conversation.
       if (!UNNOTED.has(option.action)) chat.appendStep(card.title, option.picks ? pickedLabel(option, ids.length) : option.label)
@@ -301,7 +305,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   }
   // The step goes with the message, as it was before sending set it aside.
   const ask = () => { if (!instructions.draft.trim()) return; const offered = offer(step); sentHere(); setAside(); void chat.ask(undefined, offered) }
-  const send = () => { if (!chat.input.trim()) return; const offered = offer(step); sentHere(); setAside(); void chat.send(chat.input, offered) }
+  const send = () => { if (!chat.input.trim()) return; const offered = offer(step); sentHere(); setAside(); void chat.send(chat.input, offered, where) }
 
   const blocked = !!pending || chat.loading || !!corrections?.busy
   // What is typed in place of a step goes where the composer's message would.
@@ -465,6 +469,18 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   )
 }
 
+/** The next step, folded or open, is one raised card with one badge, so it is told apart from the conversation and
+ *  found again in the same place: tinted where folded (its title line), the same tint heading it when open. */
+const STEP_CARD = 'rounded-md border border-accent/30 border-l-[3px] border-l-accent shadow-lift'
+function NextStepBadge({ busy = false }: { busy?: boolean }) {
+  return (
+    <span aria-hidden="true" className="flex shrink-0 items-center gap-1 rounded-[3px] bg-accent-soft px-1.5 py-px text-[10px] font-bold tracking-wide text-accent uppercase">
+      {busy && <span className="size-2.5 shrink-0 animate-spin rounded-full border-2 border-accent/30 border-t-accent" />}
+      Next step
+    </span>
+  )
+}
+
 const optionClass: Record<StepOption['tone'], string> = {
   positive: 'border-green bg-green text-white hover:brightness-108',
   secondary: 'border-line bg-surface text-ink hover:border-line-strong hover:bg-surface-muted',
@@ -491,8 +507,8 @@ function storedMore(key: string | null): MoreDocuments {
   } catch { return 'ask' }
 }
 
-/** A step folded to the card's title line (set aside, or under another view): the same left edge and ⏵, a summary, and
- *  its actions, which take further lines where the rail is narrow. The title brings the whole step back. */
+/** A step folded to the card's title line (set aside, or under another view): the same card and Next step badge, a
+ *  summary, and its actions, which take further lines where the rail is narrow. The title (⌃) brings the whole step back. */
 function SetAsideStepView({ title, label = `${title}, set aside`, busy = false, summary, description, live = false, expandLabel, onExpand, actions }: {
   /** `live`: the summary carries the step's notice, announced as it changes. */
   title: string; label?: string; busy?: boolean; summary: string; description?: string | null; live?: boolean; expandLabel: string; onExpand: () => void
@@ -500,13 +516,12 @@ function SetAsideStepView({ title, label = `${title}, set aside`, busy = false, 
 }) {
   const descriptionId = useId()
   return (
-    <section aria-label={label} className="mx-4 my-2 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface px-2.5 py-1">
+    <section aria-label={label} className={`mx-4 my-2 flex shrink-0 flex-wrap items-center gap-x-2 gap-y-1 bg-accent-ghost px-2.5 py-1.5 ${STEP_CARD}`}>
       <button type="button" aria-label={expandLabel} title={expandLabel} onClick={onExpand}
-        className="flex max-w-full min-w-0 cursor-pointer items-center gap-2 text-left outline-none">
-        {busy
-          ? <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
-          : <span aria-hidden="true" className="text-accent">⏵</span>}
-        <span className="truncate text-secondary font-bold text-ink">{title}</span>
+        className="group/open flex max-w-full min-w-0 cursor-pointer items-center gap-2 rounded-[3px] text-left outline-none">
+        <NextStepBadge busy={busy} />
+        <span className="truncate text-secondary font-bold text-ink group-hover/open:underline">{title}</span>
+        <span aria-hidden="true" className="shrink-0 text-compact leading-none text-accent">⌃</span>
       </button>
       {/* Outside the button, whose content is not announced; it also keeps the actions at the line's end. */}
       <span role={live ? 'status' : undefined} title={summary} className="min-w-0 flex-[1_1_4rem] truncate text-compact text-ink-faint">{summary && `· ${summary}`}</span>
@@ -540,7 +555,7 @@ function StepCardView({ card, scopeDisabled = false, scopeBlockedReason = null, 
       : option.picks ? { ...option, label: pickedLabel(option, count), disabled: option.disabled || !pickable(card, count) } : option)
   const dismiss = options.find(({ action }) => action === 'dismiss')
   return (
-    <section aria-label={card.title} className={`mx-4 shrink-0 rounded-[3px] border border-line-strong border-l-[3px] border-l-accent bg-surface ${dismiss ? 'mt-2 mb-3' : 'my-2'}`}
+    <section aria-label={card.title} className={`mx-4 shrink-0 overflow-hidden bg-surface ${STEP_CARD} ${dismiss ? 'mt-2 mb-3' : 'my-2'}`}
       onKeyDown={(event) => {
         // Typing goes to the field; only Esc still closes the step from there.
         if ((event.target as HTMLElement).matches('textarea, input') && event.key !== 'Escape') return
@@ -552,10 +567,8 @@ function StepCardView({ card, scopeDisabled = false, scopeBlockedReason = null, 
         if (option.action === 'dismiss' && !escape) onSay()
         else onChoose(option)
       }}>
-      <div className="flex items-center gap-2 border-b border-line px-2.5 py-1.5">
-        {card.busy
-          ? <span aria-hidden="true" className="size-3 shrink-0 animate-spin rounded-full border-2 border-line-strong border-t-ink" />
-          : <span aria-hidden="true" className="text-accent">⏵</span>}
+      <div className="flex items-center gap-2 border-b border-accent/20 bg-accent-ghost px-2.5 py-1.5">
+        <NextStepBadge busy={card.busy} />
         <span className="min-w-0 flex-1 truncate text-secondary font-bold text-ink" title={card.title}>{card.title}</span>
         {onFold && (
           <button type="button" aria-label="Fold the step" title="Fold" onClick={onFold}

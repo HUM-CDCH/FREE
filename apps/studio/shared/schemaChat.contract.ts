@@ -7,6 +7,11 @@ import { z } from 'zod'
  */
 export const chatRequestActionSchema = z.enum(['generate', 'extract', 'confirm', 'correct'])
 export type ChatRequestAction = z.infer<typeof chatRequestActionSchema>
+/** Where the researcher is when they send a message (ADR 0040): the view they look at, and whether a result is shown
+ *  whose values a message can change. A message that could ask for either is read as a change to what they look at. */
+export const chatViewSchema = z.enum(['chat', 'template', 'results'])
+export type ChatView = z.infer<typeof chatViewSchema>
+export type ChatWhere = Readonly<{ view: ChatView; results: boolean }>
 /** The longest description of what the chat offers beside a message: its step's title and question. */
 export const CHAT_OFFER_LIMIT = 2_000
 

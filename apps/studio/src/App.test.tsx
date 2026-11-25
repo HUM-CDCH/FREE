@@ -385,7 +385,7 @@ describe('reopened Source Document workspace', () => {
       pendingExtractionSourceDocumentCount: 4, currentSchemaRevisionId: reopened.extractionSchema!.schemaRevisionId,
       schemaStabilised: false, currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null, ...overrides })
     const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: sourceDocumentId.replace('-8001-', '-8006-'), sourceDocumentId,
-      sourceRepresentationRevisionId: sourceDocumentId.replace('-8001-', '-8002-'), executionStatus: 'COMPLETED', completed: true, reviewable: true,
+      sourceRepresentationRevisionId: sourceDocumentId.replace('-8001-', '-8002-'), executionStatus: 'COMPLETED', completed: true, reviewable: true, missingCount: 0,
       currentReview: reviewed ? { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: reopened.extractionSchema!.schemaRevisionId } : null })
     const batch = (members: ReturnType<typeof member>[], trial = false) => ({ batchExtractionId: '51000000-0000-4000-8007-000000000001',
       projectContextId: reopened.projectContextId, schemaRevisionId: reopened.extractionSchema!.schemaRevisionId,

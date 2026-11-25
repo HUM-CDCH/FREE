@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { SchemaNode } from 'extraction/schema'
 import { deleteModelOperation, requestSchemaChat, requestSchemaEdit } from './api'
-import type { ChatHistory } from '../shared/schemaChat.contract'
+import type { ChatHistory, ChatWhere } from '../shared/schemaChat.contract'
 import { offerText, type ChatOffer } from './chatGuide'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { deriveSchemaProposal } from '../shared/schemaChanges'
@@ -82,8 +82,8 @@ export type SchemaChat = {
   /** Groups to expand so a proposal's changes show; `seq` changes with every request. */
   readonly revealed: { seq: number; ids: ReadonlySet<string> }
   /** Sends an edit request after the first schema: answered, a proposal to review, or a request for the page. `offer`
-   *  is the step the chat shows beside it, which a "yes" agrees to. */
-  send(text: string, offer?: ChatOffer | null): Promise<void>
+   *  is the step the chat shows beside it, which a "yes" agrees to; `where` is where it was said (ADR 0040). */
+  send(text: string, offer?: ChatOffer | null, where?: ChatWhere | null): Promise<void>
   /** Proposes a template change the chat decided a request to change results needs (ADR 0037): said as the
    *  assistant's, sent with the conversation before it, and proposed as it is. Its proposal offers a run with it. */
   proposeTemplateChange(instruction: string, history: ChatHistory): Promise<void>
@@ -274,7 +274,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
 
   /** `direct`: a template change the chat decided on, said as the assistant's and proposed as it is, with the
    *  conversation the request to change results was sent with. */
-  async function send(text: string, offer?: ChatOffer | null, direct?: { history: ChatHistory }) {
+  async function send(text: string, offer?: ChatOffer | null, direct?: { history: ChatHistory }, where?: ChatWhere | null) {
     if (!text.trim() || loading || pending) return
     setDrawerOpen(true)
     const userMsg = text.trim()
@@ -314,6 +314,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
         history,
         offer ? offerText(offer.card) : null,
         !!direct,
+        where ?? null,
       )
       const currentAfterResponse = schema.snapshot()
       if (
@@ -485,7 +486,7 @@ export function useSchemaChat({ schema, sourceRepresentationId, scope = null }: 
     drawerOpen,
     setDrawerOpen,
     revealed,
-    send,
+    send: (text: string, offer?: ChatOffer | null, where?: ChatWhere | null) => send(text, offer, undefined, where),
     proposeTemplateChange: (instruction, history) => send(instruction, null, { history }),
     proposalReruns: pending !== null && pending.workflowId !== null && pending.workflowId === rerunWorkflow,
     ask,

@@ -317,7 +317,7 @@ describe('RailChat', () => {
 describe('the second trial', () => {
   afterEach(() => localStorage.clear())
   const member = (sourceDocumentId: string) => ({ extractionId: `extraction-${sourceDocumentId}`, sourceDocumentId,
-    sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true,
+    sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true, missingCount: 0,
     currentReview: { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: 'revision-2' } })
   const project = () => ({
     guide: {
@@ -390,6 +390,28 @@ describe('changes to the results (ADR 0035)', () => {
     return <RailChat {...props} corrections={results} chat={{ ...chat, heard, clearHeard: vi.fn() }} />
   }
   const said = { message: 'The year of record 3 is 1854', history: [{ role: 'user' as const, text: 'Run it' }] }
+
+  it('sends a message with where it was said: the view looked at, and whether a result can be changed (ADR 0040)', () => {
+    const send = vi.fn(async () => {})
+    function Where(shown: { resultsShown?: boolean; templateShown?: boolean; available: boolean }) {
+      const chat = useSchemaChat({ schema })
+      return <RailChat {...props} mode={shown.resultsShown || shown.templateShown ? 'step' : 'full'} resultsShown={shown.resultsShown} templateShown={shown.templateShown}
+        corrections={corrections({ available: shown.available })} chat={{ ...chat, send }} />
+    }
+    const say = (text: string) => {
+      const input = screen.getByRole('textbox', { name: /^Describe a change/ })
+      fireEvent.change(input, { target: { value: text } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+    }
+    const view = render(<Where resultsShown available />)
+    say('The date is wrong')
+    view.rerender(<Where templateShown available />)
+    say('The date is wrong')
+    view.rerender(<Where available={false} />)
+    say('The date is wrong')
+    expect(send.mock.calls.map(call => (call as unknown[])[2])).toEqual([
+      { view: 'results', results: true }, { view: 'template', results: true }, { view: 'chat', results: false }])
+  })
 
   it('says in the composer that a message can change the results shown as well as the template', () => {
     const view = render(<Heard heard={null} results={corrections({ available: true })} />)

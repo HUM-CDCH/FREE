@@ -107,6 +107,7 @@ describe('Batch Extraction contracts', () => {
     executionStatus,
     completed: executionStatus === 'COMPLETED',
     reviewable,
+    missingCount: 0,
     currentReview,
   })
   const review = { snapshotVersion: 1, feedbackVersion: 1, createdAt: '2026-09-26T10:05:00.000Z', schemaRevisionId }
@@ -140,7 +141,7 @@ describe('Batch Extraction contracts', () => {
     const [first] = batch.members
     for (const removed of [{ startedAt: null }, { executionFailureMessage: null }, { latestExtraction: null }, { durableExtractionId: first!.extractionId }])
       expect(batchExtractionSchema.safeParse({ ...batch, members: [{ ...first, ...removed }] }).success).toBe(false)
-    for (const required of ['extractionId', 'executionStatus', 'completed', 'reviewable', 'currentReview'] as const)
+    for (const required of ['extractionId', 'executionStatus', 'completed', 'reviewable', 'missingCount', 'currentReview'] as const)
       expect(batchExtractionSchema.safeParse({ ...batch, members: [without(first!, required)] }).success).toBe(false)
   })
 

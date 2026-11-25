@@ -23,7 +23,7 @@ import { generateSchemaWithModel } from './_schema_suggestion.js'
 import { respondToSchemaEdit } from './_schema_chat.js'
 import { withFieldDescriptions } from './_schema_edit_output.js'
 import { chatHistoryText } from './_schema.js'
-import { CHAT_OFFER_LIMIT, chatHistorySchema, type ChatHistory } from '../shared/schemaChat.contract.js'
+import { CHAT_OFFER_LIMIT, chatHistorySchema, chatViewSchema, type ChatHistory, type ChatWhere } from '../shared/schemaChat.contract.js'
 import { ApiError, persistenceUnavailable } from './_http.js'
 
 type SchemaEditOptions = {
@@ -40,6 +40,8 @@ type SchemaEditOptions = {
   history?: ChatHistory
   /** What the chat offered beside the message: its step's title and question (ADR 0034). */
   offer?: string | null
+  /** Where the message was said: the view, and whether a result with values to change is shown (ADR 0040). */
+  where?: ChatWhere | null
 }
 
 export { parseSchemaNodes } from 'extraction/schema'
@@ -110,6 +112,15 @@ export function formChatOffer(form: FormData): string | null {
   return value.trim() || null
 }
 
+/** The form's `view` and `results`: where the message was said (ADR 0040); null when no view is named. */
+export function formChatWhere(form: FormData): ChatWhere | null {
+  const view = form.get('view')
+  if (view === null) return null
+  const parsed = chatViewSchema.safeParse(view)
+  if (!parsed.success) throw new ApiError(422, 'invalid_request', 'view must be chat, template or results.')
+  return { view: parsed.data, results: form.get('results') === 'true' }
+}
+
 /** A generation's base, when the form names one: both fields or neither (422 otherwise). */
 export function optionalSchemaBase(form: FormData): { extractionSchemaId: string; schemaRevisionId: string } | null {
   const hasSchema = form.get('extraction_schema_id') !== null
@@ -178,7 +189,7 @@ export async function proposeSchemaEdit(
   try {
     if (options.answerable) {
       const reply = await (options.respond ?? respondToSchemaEdit)(
-        options.caller, input, { message: instruction, context: schemaChatContext(definition), history: options.history ?? [], offer: options.offer ?? null })
+        options.caller, input, { message: instruction, context: schemaChatContext(definition), history: options.history ?? [], offer: options.offer ?? null, where: options.where ?? null })
       if ('answer' in reply) return { status: 'answered', answer: reply.answer }
       if ('action' in reply)
         return reply.action === 'none' ? { status: 'declined' } : { status: 'requested', action: reply.action, focus: reply.focus }

@@ -38,6 +38,8 @@ export type DerivedAttempt = Readonly<{
   completed: boolean
   /** Whether its current result cut holds saved values to review. */
   reviewable: boolean
+  /** How many values its current result cut found nothing for (`absent`): where a review is likely to find most to do. */
+  missing: number
   /** A finalization of its current cut whose values share one producing schema (guided pilot progress). */
   currentReview: (FinalizedReview & Readonly<{ schemaRevisionId: string }>) | null
 }>
@@ -59,7 +61,7 @@ const summaryValuesSchema = z.array(z.object({
  * producing schema. Historical or mixed-schema reviews never unlock an
  * adopted revision. */
 export async function readDurableSummaries(orm: DatabaseOrm, heads: ReadonlyMap<string, DurableHead>) {
-  const summaries = new Map<string, { reviewable: boolean; review: DerivedAttempt['currentReview']; finalizedReview: FinalizedReview | null }>()
+  const summaries = new Map<string, { reviewable: boolean; missing: number; review: DerivedAttempt['currentReview']; finalizedReview: FinalizedReview | null }>()
   if (heads.size === 0) return summaries
   const finalizations = await orm.extraction_runtime.Finalization.where(row => row.extractionId.in([...heads.keys()]))
     .select('extractionId', 'snapshotVersion', 'feedbackVersion', 'createdAt').orderBy(row => row.createdAt.desc()).all()
@@ -73,7 +75,7 @@ export async function readDurableSummaries(orm: DatabaseOrm, heads: ReadonlyMap<
   // poll never queues one pool checkout per member, and never reads historical snapshot payloads.
   const groups = new Map<number, string[]>()
   for (const head of heads.values()) {
-    summaries.set(head.id, { reviewable: false, review: null, finalizedReview: latest.get(head.id) ?? null })
+    summaries.set(head.id, { reviewable: false, missing: 0, review: null, finalizedReview: latest.get(head.id) ?? null })
     if (head.snapshotVersion === 0) continue
     const group = groups.get(head.snapshotVersion) ?? []
     group.push(head.id)
@@ -83,9 +85,11 @@ export async function readDurableSummaries(orm: DatabaseOrm, heads: ReadonlyMap<
     const snapshots = await orm.extraction_runtime.Snapshot.where(row => row.extractionId.in(ids))
       .where({ version }).select('extractionId', 'values').all()
     for (const snapshot of snapshots) {
-      const values = summaryValuesSchema.parse(snapshot.values).filter(value => value.processing === 'saved')
+      const all = summaryValuesSchema.parse(snapshot.values)
+      const values = all.filter(value => value.processing === 'saved')
       const summary = summaries.get(snapshot.extractionId)!
       summary.reviewable = values.length > 0
+      summary.missing = all.filter(value => value.processing === 'absent').length
       const schemaRevisionId = values[0]?.schemaRevisionId, finalized = current.get(snapshot.extractionId)
       if (schemaRevisionId && finalized && values.every(value => value.schemaRevisionId === schemaRevisionId))
         summary.review = { ...finalized, schemaRevisionId }
@@ -113,6 +117,7 @@ export async function deriveAttempts(
       finalizedReview: summaries.get(row.id)?.finalizedReview ?? null,
       completed: head.acknowledgement === 'COMPLETED' || completed.has(row.id),
       reviewable: summaries.get(row.id)?.reviewable ?? false,
+      missing: summaries.get(row.id)?.missing ?? 0,
       currentReview: summaries.get(row.id)?.review ?? null,
     })
   }

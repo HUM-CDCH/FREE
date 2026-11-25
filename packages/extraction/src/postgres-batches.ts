@@ -90,13 +90,14 @@ export async function loadBatches(
     if (!schema || !owner) throw new Error('Stored Batch Extraction pins are unavailable.')
     const members: BatchExtractionMemberSnapshot[] = durableMembers
       .sort((left, right) => left.row.sourceDocumentId.localeCompare(right.row.sourceDocumentId))
-      .map(({ row, head, completed, reviewable, currentReview }) => ({
+      .map(({ row, head, completed, reviewable, missing, currentReview }) => ({
         extractionId: row.id,
         sourceDocumentId: row.sourceDocumentId,
         sourceRepresentationRevisionId: row.sourceRepresentationRevisionId,
         executionStatus: durableStatus(head),
         completed,
         reviewable,
+        missingCount: missing,
         // Pilot progress counts a finalized current cut produced by this batch's own Schema Revision only.
         currentReview: currentReview?.schemaRevisionId === batch.schemaRevisionId ? currentReview : null,
       }))

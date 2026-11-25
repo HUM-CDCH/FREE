@@ -221,8 +221,8 @@ describe('nextStep in a project', () => {
     currentSchemaRevisionReviewed: false, lastActivityAt: '2026-11-01T00:00:00.000Z', runningBatch: null, ...overrides,
   })
   const documents = ['a', 'b', 'c', 'd'].map((id) => ({ id, name: `${id}.pdf` }))
-  const member = (sourceDocumentId: string, reviewed = false) => ({ extractionId: `extraction-${sourceDocumentId}`, sourceDocumentId,
-    sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true,
+  const member = (sourceDocumentId: string, reviewed = false, missingCount = 0) => ({ extractionId: `extraction-${sourceDocumentId}`, sourceDocumentId,
+    sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true, missingCount,
     currentReview: reviewed ? { snapshotVersion: 1, feedbackVersion: 0, createdAt: '2026-11-01T00:00:00.000Z', schemaRevisionId: 'revision-2' } : null })
   const batch = (members: BatchExtraction['members'], schemaRevisionId = 'revision-2', trial = true): BatchExtraction => ({
     batchExtractionId: `batch-${schemaRevisionId}`, projectContextId: 'project', schemaRevisionId, extractionSchemaId: 'schema',
@@ -265,6 +265,16 @@ describe('nextStep in a project', () => {
     // Reviewed here, the round's next document after this one, round the round.
     expect(step({ ...pilot, batches: [batch([member('a'), member('b', true), member('c')])] })).toMatchObject({
       key: 'review-next:extraction-c', question: 'This document is reviewed. Open c.pdf next?' })
+  })
+
+  it('goes on to the waiting document with the most missing values, the first after this one of equal counts', () => {
+    const round = (members: BatchExtraction['members']) => ({ summary: summary({ extractedSourceDocumentCount: 4 }), batches: [batch(members)] })
+    // From b: c and d wait, d with more missing.
+    const ranked = round([member('a', true), member('b', false, 1), member('c', false, 2), member('d', false, 5)])
+    expect(step(ranked)?.following).toMatchObject({ name: 'd.pdf' })
+    // Opened elsewhere, or reviewed here: the one with the most missing, before this one in the round or not.
+    expect(step({ ...round([member('a', false, 4), member('b', true), member('c', false, 1)]) })).toMatchObject({ key: 'review-next:extraction-a' })
+    expect(step({ ...ranked, currentDocumentId: 'z' })).toMatchObject({ key: 'review-next:extraction-d' })
   })
 
   it('keeps leading a pilot round\'s review after the template changed, however this document was opened', () => {
@@ -420,7 +430,10 @@ describe('nextStep in a project', () => {
     const later = { ...batch([{ ...member('b'), extractionId: 'b-again' }, member('c', true)]), batchExtractionId: 'later', createdAt: '2026-11-02T00:00:00.000Z' }
     expect(step({ summary: done, batches: [pilot, later] })).toMatchObject({ key: 'export:revision-2', title: 'Export results',
       picker: { documents: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], initial: ['a', 'b', 'c'], limit: 3 },
-      options: [{ action: 'export', label: 'Export {n}…', picks: true }, { action: 'dismiss' }] })
+      options: [{ action: 'export', label: 'Export {n}…', picks: true }, { action: 'upload', label: 'Upload more documents', tone: 'secondary' },
+        { action: 'dismiss' }] })
+    expect(step({ summary: done, batches: [pilot, later], uploading: true })).toMatchObject({ notice: 'Reading the new documents…',
+      options: [{ action: 'export' }, { action: 'upload', disabled: true }, { action: 'dismiss' }] })
     // b's newer result is not reviewed: its reviewed pilot result is exported.
     const results = exportableResults(project({ summary: done, batches: [pilot, later] }))
     expect([...results].map(([id, { extractionId, batchExtractionId }]) => [id, extractionId, batchExtractionId])).toEqual([

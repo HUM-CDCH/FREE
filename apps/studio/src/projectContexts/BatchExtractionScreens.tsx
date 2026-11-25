@@ -4,7 +4,9 @@ import type { SchemaNode } from 'extraction/schema'
 import ExtractionResultExportControl from '../ExtractionResultExportControl'
 import {
   batchExtractionProgress,
+  byMostMissing,
   currentBatch,
+  reviewableMember,
   supersededMember,
   type BatchExtraction,
 } from '../../shared/batchExtraction.contract'
@@ -376,7 +378,7 @@ export function BatchExtractionMembers({
         <span className="hidden w-3 sm:block" />
       </div>
       <ul className="divide-y divide-line" aria-label="Batch Extraction members">
-        {batch.members.map((member) => {
+        {byMostMissing(batch.members).map((member) => {
           const memberState = memberStatus(member)
           // A document run again since: said here, and opened on that newer run, the one to review.
           const superseded = supersededMember(member, newest)
@@ -396,6 +398,9 @@ export function BatchExtractionMembers({
                     <span className="min-w-0 truncate text-[12.5px] font-semibold text-ink" title={documentName(member.sourceDocumentId)}>
                       {documentName(member.sourceDocumentId)}
                     </span>
+                    {member.missingCount > 0 && reviewableMember(member) && (
+                      <span className="shrink-0 text-[11px] text-ink-muted">{member.missingCount} missing</span>
+                    )}
                   </span>
                   {message && (
                     <span

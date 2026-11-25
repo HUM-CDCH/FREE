@@ -82,6 +82,7 @@ const batch = {
       executionStatus: 'FAILED' as BatchExtractionMember['executionStatus'],
       completed: false,
       reviewable: false,
+      missingCount: 0,
       currentReview: null as BatchExtractionMember['currentReview'],
     },
     {
@@ -91,6 +92,7 @@ const batch = {
       executionStatus: 'STOPPED' as BatchExtractionMember['executionStatus'],
       completed: false,
       reviewable: false,
+      missingCount: 0,
       currentReview: null as BatchExtractionMember['currentReview'],
     },
   ],

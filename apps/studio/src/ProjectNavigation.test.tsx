@@ -1409,6 +1409,7 @@ describe('Project Context navigation', () => {
           executionStatus: 'COMPLETED',
           completed: true,
           reviewable: false,
+          missingCount: 0,
           currentReview: null,
         },
       ],

@@ -69,6 +69,7 @@ function batchDto(batch: BatchExtractionSnapshot): BatchExtraction {
       executionStatus: member.executionStatus,
       extractionId: member.extractionId,
       reviewable: member.reviewable,
+      missingCount: member.missingCount,
       completed: member.completed,
       currentReview: member.currentReview && { ...member.currentReview, createdAt: member.currentReview.createdAt.toISOString() },
     })),
@@ -159,6 +160,7 @@ function batchFixture(nested = false): {
     executionStatus: finished ? ('COMPLETED' as const) : ('QUEUED' as const),
     extractionId,
     reviewable: finished,
+    missingCount: 0,
     completed: finished,
     currentReview: null,
   })

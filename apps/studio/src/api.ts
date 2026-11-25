@@ -3,7 +3,7 @@ import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import type { FieldNote, RecordScope } from 'extraction/schema'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
-import { schemaChatReplySchema, type ChatHistory, type SchemaChatReply } from '../shared/schemaChat.contract'
+import { schemaChatReplySchema, type ChatHistory, type ChatWhere, type SchemaChatReply } from '../shared/schemaChat.contract'
 import { resultCorrectionProposalSchema, type ResultCorrectionProposal } from '../shared/resultCorrection.contract'
 import {
   extractionRequestSchema,
@@ -336,6 +336,8 @@ export async function requestSchemaEdit(
   offer: string | null = null,
   /** A template change the chat already decided on (ADR 0037): proposed as it is, never read as a message first. */
   direct = false,
+  /** Where the message was said (ADR 0040), which settles a message that could change the template or the results. */
+  where: ChatWhere | null = null,
 ): Promise<SchemaEditResponse> {
   const form = new FormData()
   form.append('project_context_id', context.projectContextId)
@@ -350,6 +352,10 @@ export async function requestSchemaEdit(
   if (history.length) form.append('history', JSON.stringify(history))
   if (offer) form.append('offer', offer)
   if (direct) form.append('direct', 'true')
+  if (where) {
+    form.append('view', where.view)
+    if (where.results) form.append('results', 'true')
+  }
   // The operation ID makes the POST repeatable and names the proposal a reloaded page can reopen.
   form.append('operation_id', operationId)
   return postModelForm('/edit_schema', form, decodeSchemaEdit, signal)

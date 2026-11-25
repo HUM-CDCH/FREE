@@ -102,7 +102,9 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
     const node=ARTICLE_TREE.schemaNodes[0]
     const value={id:'value',recordId:'record',fieldId:node.id,path:['records',0,node.name],selectionId:head.selectionId,
       schemaRevisionId:history.revisions.article,node,modelValue:'Saved value',evidence:[],grounding:'ungrounded',processing:'saved',lineage:[]}
-    const values=index===1?[value,{...value,id:'second-value',schemaRevisionId:history.revisions.catalog}]:[value]
+    // The batch member's cut also found nothing for one value: its summary counts it as missing.
+    const values=index===1?[value,{...value,id:'second-value',schemaRevisionId:history.revisions.catalog}]
+      :index===2?[value,{...value,id:'missing-value',modelValue:null,processing:'absent'}]:[value]
     if(index===0) await admin.query(`INSERT INTO extraction_runtime.snapshot
       (id,"extractionId",version,"selectionId",digest,values,coverage) VALUES ($1,$2,1,$3,$4,$5,'{}')`,
       [randomUUID(),extractionId,head.selectionId,'a'.repeat(64),JSON.stringify([{historical:'not summary metadata'}])])
@@ -128,6 +130,7 @@ test('durable readers ignore head-less rows, conceal another researcher\'s Extra
   assert.equal(summaries.get(id)?.finalizedReview?.snapshotVersion,1)
   assert.equal(summaries.get(admitted!.extraction.extractionId)?.reviewable,true)
   assert.equal(summaries.get(admitted!.extraction.extractionId)?.review,null)
+  assert.deepEqual(nativeIds.map(each=>summaries.get(each)?.missing),[0,0,1])
   // History's list counts each snapshot's values without loading them; the audit's full history still holds them.
   const durable=createDurableRepository(history.accountId,source)
   const versions=await durable.historySummary(id)

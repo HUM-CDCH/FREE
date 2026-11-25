@@ -111,6 +111,8 @@ export type BatchExtractionMemberSnapshot = Readonly<{
   completed: boolean
   /** Whether its current result cut holds saved values to review. */
   reviewable: boolean
+  /** How many values its current result cut found nothing for: the review queue leads with the most. */
+  missingCount: number
   /** A finalization of its current result cut, produced by the batch's own Schema Revision; null otherwise. */
   currentReview: (FinalizedReview & Readonly<{ schemaRevisionId: string }>) | null
 }>

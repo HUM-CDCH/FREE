@@ -19,7 +19,7 @@ const batch: BatchExtraction = {
     sourceRepresentationRevisionId: `51000000-0000-4000-8002-00000000000${index + 1}`,
     executionStatus: executionStatus as BatchExtraction['members'][number]['executionStatus'],
     completed: executionStatus === 'COMPLETED',
-    reviewable: true, currentReview: null,
+    reviewable: true, missingCount: 0, currentReview: null,
   })),
 }
 
@@ -39,6 +39,7 @@ it('marks a round Trial as the server says, whatever its size', () => {
       executionStatus: 'COMPLETED' as const,
       completed: true,
       reviewable: true,
+      missingCount: 0,
       currentReview: null,
     }))
 

@@ -11,11 +11,11 @@ import { chatHistoryText, schemaSourceExcerpts } from './_schema.js'
 import { answerOf, suggestOnRoute, type SchemaModelInput } from './_schema_suggestion.js'
 import { classifyChatMessage } from './_chat_intent.js'
 import { traceModelCall } from '../server/tracing.js'
-import type { ChatHistory, ChatRequestAction } from '../shared/schemaChat.contract.js'
+import type { ChatHistory, ChatRequestAction, ChatWhere } from '../shared/schemaChat.contract.js'
 
 /** A schema chat message: the researcher's text, the chat before it, after the first schema that schema as the model
- *  reads it, and what the chat offers beside the message (its step's title and question). */
-export type SchemaChatQuestion = Readonly<{ message: string; context: string | null; history: ChatHistory; offer?: string | null }>
+ *  reads it, what the chat offers beside the message (its step's title and question), and where it was said (ADR 0040). */
+export type SchemaChatQuestion = Readonly<{ message: string; context: string | null; history: ChatHistory; offer?: string | null; where?: ChatWhere | null }>
 /** What a chat message asks Studio to do instead of an answer or a change: nothing (`none`), or a request with what a
  *  template asked for should hold (ADR 0034). */
 export type ChatRequest = { readonly action: 'none' } | { readonly action: ChatRequestAction; readonly focus: string | null }

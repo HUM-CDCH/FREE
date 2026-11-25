@@ -443,6 +443,19 @@ describe('requestSchemaEdit', () => {
       operation_id: '51000000-0000-4000-8009-0000000000f3',
     })
   })
+
+  it('says where the message was said: the view, and results only when a result can be changed (ADR 0040)', async () => {
+    const bodies: FormData[] = []
+    vi.stubGlobal('fetch', vi.fn().mockImplementation((_url: string, init: RequestInit) => {
+      bodies.push(init.body as FormData)
+      return Promise.resolve(jsonResponse({ status: 'proposed', fields: {}, additions: [], issues: [] }))
+    }))
+    const context = { projectContextId: '51000000-0000-4000-8000-000000000001', extractionSchemaId: '51000000-0000-4000-8003-000000000001',
+      schemaRevisionId: '51000000-0000-4000-8004-000000000001' }
+    await requestSchemaEdit(context, 'The date is wrong', undefined, '51000000-0000-4000-8009-0000000000f4', [], null, false, { view: 'results', results: true })
+    await requestSchemaEdit(context, 'The date is wrong', undefined, '51000000-0000-4000-8009-0000000000f5', [], null, false, { view: 'template', results: false })
+    expect(bodies.map(body => [body.get('view'), body.get('results')])).toEqual([['results', 'true'], ['template', null]])
+  })
 })
 
 describe('decoders', () => {

@@ -11,6 +11,7 @@ import { awaitOperation, startOrJoinOperation, type ModelOperationClient } from 
 import {
   formChatHistory,
   formChatOffer,
+  formChatWhere,
   formContextIdentity,
   loadOwnedSchemaRevision,
   ownedSourceScope,
@@ -26,6 +27,8 @@ const FIELDS = [
   'instruction',
   'history',
   'offer',
+  'view',
+  'results',
   'direct',
   'temperature',
 ] as const
@@ -63,6 +66,7 @@ export function createPostEditSchema(
       const source = sourceRepresentationRevisionId === null
         ? null
         : { sourceRepresentationRevisionId, ...(await ownedSourceScope(store, projectContextId, sourceRepresentationRevisionId)) }
+      const where = formChatWhere(form)
       const input: SchemaEditInput = {
         operationId,
         owner: store.researcherAccountId,
@@ -73,6 +77,8 @@ export function createPostEditSchema(
         instruction: instruction.trim(),
         history: formChatHistory(form),
         offer: formChatOffer(form),
+        // Where the message was said (ADR 0040): only when the page names it.
+        ...(where ? { where } : {}),
         // A template change the chat already decided on (ADR 0037): proposed as it is, never read as a message first.
         ...(form.get('direct') === 'true' ? { direct: true } : {}),
         temperature,

@@ -3,7 +3,7 @@ import type { SchemaSource } from 'db'
 import { parseSchemaDefinition } from 'extraction/schema'
 import type { WorkflowSteps } from 'extraction/workflow-steps'
 import type { SchemaEditResponse } from '../shared/schemaEdit.contract.js'
-import type { ChatHistory } from '../shared/schemaChat.contract.js'
+import type { ChatHistory, ChatWhere } from '../shared/schemaChat.contract.js'
 import { persistenceUnavailable } from './_http.js'
 import { MODEL_OPERATION_TIMEOUT_MS, operationFailureOf, type OperationResult } from './_model_operation.js'
 import { schemaChatContext, type proposeSchemaEdit } from './_schema_edit.js'
@@ -29,6 +29,8 @@ export type SchemaEditInput = Readonly<{
   history: ChatHistory
   /** What the chat offered beside the instruction (ADR 0034); absent from runs started before it. */
   offer?: string | null
+  /** Where the instruction was said (ADR 0040); absent from runs started before it, read as before. */
+  where?: ChatWhere | null
   /** The instruction is a template change the chat already decided on (ADR 0037): it is proposed as it is, never
    *  answered, declined or heard as a request. */
   direct?: boolean
@@ -84,6 +86,7 @@ export async function proposeSchemaEditWorkflow(
         generate: ports.generate,
         history: input.history,
         offer: input.offer ?? null,
+        where: input.where ?? null,
         answerable: !input.direct,
         respond: ports.respond,
       })

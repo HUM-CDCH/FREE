@@ -98,7 +98,7 @@ describe('proposeSchemaEdit', () => {
     const respond = vi.fn().mockResolvedValueOnce({ action: 'generate', focus: 'the dates' })
     await expect(proposeSchemaEdit(definition, 'Start over, focusing on the dates', SOURCE, { caller: CALLER, generate, answerable: true, respond, offer: 'Run extraction' }))
       .resolves.toEqual({ status: 'requested', action: 'generate', focus: 'the dates' })
-    expect(respond.mock.calls[0]![2]).toMatchObject({ offer: 'Run extraction' })
+    expect(respond.mock.calls[0]![2]).toMatchObject({ offer: 'Run extraction', where: null })
     expect(generate).not.toHaveBeenCalled()
   })
 

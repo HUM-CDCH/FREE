@@ -64,6 +64,8 @@ const batchExtractionMemberSchema = z
     executionStatus: z.enum(['QUEUED', 'RUNNING', 'PAUSING', 'PAUSED', 'STOPPING', 'STOPPED', 'COMPLETED', 'FAILED']),
     completed: z.boolean(),
     reviewable: z.boolean(),
+    /** How many values its current result cut found nothing for (`absent`): the review queue leads with the most. */
+    missingCount: z.number().int().nonnegative(),
     currentReview: z.object({ snapshotVersion: z.number().int().positive(), feedbackVersion: z.number().int().nonnegative(),
       createdAt: z.iso.datetime(), schemaRevisionId: canonicalUuidSchema }).strict().nullable(),
   })
@@ -130,6 +132,11 @@ export const projectExtractionsResponseSchema = batchExtractionListResponseSchem
 
 /** A member's run has settled for now: paused, stopped, failed or completed, so its saved values hold still. */
 const SETTLED: ReadonlySet<BatchExtractionMember['executionStatus']> = new Set(['PAUSED', 'STOPPED', 'FAILED', 'COMPLETED'])
+
+/** A round's members in review order: the most values found missing first, where a review likely finds most to do;
+ *  equal counts keep their order. */
+export const byMostMissing = (members: readonly BatchExtractionMember[]) =>
+  members.toSorted((left, right) => right.missingCount - left.missingCount)
 
 /** Whether a member's saved values can be reviewed: it holds some, and its run completed once or has settled. This is
  *  what the document's Results, the chat's review step and the batch's review grid all review; a member stopped or

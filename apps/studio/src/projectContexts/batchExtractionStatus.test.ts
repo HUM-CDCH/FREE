@@ -9,6 +9,7 @@ const member: BatchExtractionMember = {
   executionStatus: 'QUEUED',
   completed: false,
   reviewable: false,
+  missingCount: 0,
   currentReview: null,
 }
 

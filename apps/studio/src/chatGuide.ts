@@ -492,7 +492,8 @@ export function exportableResults(project: ProjectGuideInput): Map<string, Expor
   return results
 }
 
-/** The finished project's dataset: the documents with a result to tick, then the export's own options and format. */
+/** The finished project's dataset: the documents with a result to tick, then the export's own options and format; or
+ *  more documents uploaded, which the project then extracts (the batch step) before they are exported with the rest. */
 function exportStep(project: ProjectGuideInput): StepCard | null {
   if (project.batches === null) return null
   const results = exportableResults(project)
@@ -502,10 +503,13 @@ function exportStep(project: ProjectGuideInput): StepCard | null {
     key: `export:${project.summary.currentSchemaRevisionId}`,
     title: 'Export results',
     question: 'Every document is extracted and reviewed. Export the results?',
+    notice: project.uploading ? 'Reading the new documents…' : undefined,
     error: project.error ?? undefined,
     picker: { documents, initial: documents.map(({ id }) => id), limit: documents.length },
     options: [{ action: 'export', label: 'Export {n}…', tone: 'positive', picks: true, disabled: project.busy,
-      description: 'Then choose JSON, Excel or CSV' }, notYet],
+      description: 'Then choose JSON, Excel or CSV' },
+    { action: 'upload', label: 'Upload more documents', tone: 'secondary', disabled: project.uploading,
+      description: 'Add PDFs to this project; the template then extracts them for review' }, notYet],
   }
 }
 
@@ -530,7 +534,14 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
     // A run alone of an older template is its document's to run again, not to review.
     ...(project.latest?.extractions ?? []).filter((run) => run.batchExtractionId === null && run.completed && !run.review
       && run.schemaRevisionId === project.summary.currentSchemaRevisionId && counts(run) && shown(run.sourceDocumentId, run.extractionId))
-      .map((run) => ({ ...run, currentReview: null, waits: true }))]
+      .map((run) => ({ ...run, currentReview: null, missingCount: null, waits: true }))]
+  // The waiting document with the most values found missing, where a review likely finds most to do; of equal counts the
+  // first after this one, round the queue. A run alone, whose count is not read, comes after every round member.
+  const nextWaiting = (from: number, skip: (sourceDocumentId: string) => boolean) => {
+    const around = [...queue.slice(from + 1), ...queue.slice(0, from + 1)].filter(({ waits, sourceDocumentId }) => waits && !skip(sourceDocumentId))
+    const most = (entry: (typeof around)[number]) => entry.missingCount ?? -1
+    return around.reduce<(typeof around)[number] | undefined>((best, entry) => !best || most(entry) > most(best) ? entry : best, undefined)
+  }
   if (!queue.some(({ waits }) => waits)) return null
   // Before the schema's approval every review is its pilot's.
   // The round says whether it was a trial; a document run alone is one before the template's approval.
@@ -542,10 +553,8 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
   const here = mine.find(({ waits }) => waits) ?? mine[0]
   const nameOf = (sourceDocumentId: string) => project.documents.find(({ id }) => id === sourceDocumentId)?.name ?? 'the next document'
   if (here?.waits) {
-    // Another document waiting after this one, round the queue: where saving this review may go on to.
-    const index = queue.indexOf(here)
-    const after = [...queue.slice(index + 1), ...queue.slice(0, index)]
-      .find(({ waits, sourceDocumentId }) => waits && sourceDocumentId !== project.currentDocumentId)
+    // Another document waiting: where saving this review may go on to.
+    const after = nextWaiting(queue.indexOf(here), (sourceDocumentId) => sourceDocumentId === project.currentDocumentId)
     return {
       key: `review:${here.extractionId}`,
       title,
@@ -560,9 +569,7 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
         target: { sourceDocumentId: after.sourceDocumentId, extractionId: after.extractionId, batchExtractionId: after.batchExtractionId } },
     }
   }
-  // The next one after this document, round the queue.
-  const index = here ? queue.indexOf(here) : -1
-  const next = [...queue.slice(index + 1), ...queue.slice(0, index + 1)].find(({ waits }) => waits)!
+  const next = nextWaiting(here ? queue.indexOf(here) : -1, () => false)!
   const name = nameOf(next.sourceDocumentId)
   return {
     key: `review-next:${next.extractionId}`,

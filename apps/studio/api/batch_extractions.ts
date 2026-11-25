@@ -45,6 +45,7 @@ function batchDto(batch: BatchExtractionSnapshot) {
       sourceRepresentationRevisionId: member.sourceRepresentationRevisionId,
       executionStatus: member.executionStatus,
       reviewable: member.reviewable,
+      missingCount: member.missingCount,
       completed: member.completed,
       currentReview: member.currentReview && { ...member.currentReview, createdAt: member.currentReview.createdAt.toISOString() },
     })),

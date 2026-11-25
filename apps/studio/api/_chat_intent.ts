@@ -2,7 +2,7 @@ import { executeSchemaSuggestion } from './_model_execution.js'
 import type { GeneralExecutionTarget } from './_provider.js'
 import { parseJsonObject } from './_model_output.js'
 import { chatHistoryText } from './_schema.js'
-import type { ChatHistory } from '../shared/schemaChat.contract.js'
+import type { ChatHistory, ChatWhere } from '../shared/schemaChat.contract.js'
 
 /**
  * What a chat message asks for (ADR 0034), the same in every state of the workspace: Studio decides what each does
@@ -14,19 +14,33 @@ export type ChatIntent = (typeof CHAT_INTENTS)[number]
 /** A message's intent, and for `generate` what the template should hold, in the researcher's words. */
 export type ClassifiedMessage = Readonly<{ intent: ChatIntent; focus: string | null }>
 
-/** The message to classify: its text, the chat before it, and what the chat offers beside it (its step's title and
- *  question), which a `confirm` or `none` answers. */
-export type ChatMessageToClassify = Readonly<{ message: string; history: ChatHistory; offer?: string | null }>
+/** The message to classify: its text, the chat before it, what the chat offers beside it (its step's title and
+ *  question), which a `confirm` or `none` answers, and where the researcher is (ADR 0040). */
+export type ChatMessageToClassify = Readonly<{ message: string; history: ChatHistory; offer?: string | null; where?: ChatWhere | null }>
+
+const VIEW_WORDS: Record<ChatWhere['view'], string> = {
+  chat: 'the chat',
+  template: 'the template',
+  results: 'the extracted results',
+}
+/** Where the researcher is, said to the classifier, and how it settles a message that could be "edit" or "correct". */
+function whereText(where: ChatWhere): string {
+  const leaning = where.results && where.view === 'results' ? '"correct"' : !where.results || where.view === 'template' ? '"edit"' : null
+  return `\nThe researcher is looking at ${VIEW_WORDS[where.view]}. ${where.results
+    ? 'Extracted results are shown whose values the message can change.'
+    : 'No extracted results are shown, so there are no values the message can change.'}${leaning
+    ? ` A message that could be read either as "edit" or as "correct" is ${leaning}.` : ''}\n`
+}
 
 const INSTRUCTIONS = 'Classify the researcher\'s chat message. Return only one JSON object, with no Markdown fences or commentary.'
 /** Read when nothing else is: a message is a change to the template, or before it an instruction, as it always was. */
 const FALLBACK: ClassifiedMessage = { intent: 'edit', focus: null }
 
 /** The classification request: one fixed list of intents, whatever the state; no document, no schema. */
-export function chatIntentPrompt({ message, history, offer }: ChatMessageToClassify): string {
+export function chatIntentPrompt({ message, history, offer, where }: ChatMessageToClassify): string {
   const conversation = chatHistoryText(history)
   return `The researcher is in a chat about extracting data from a source document with an extraction schema, which Studio shows them as the "template".
-${conversation ? `\n${conversation}\n` : ''}${offer?.trim() ? `\nStudio has just offered: ${offer.trim()}\n` : ''}
+${conversation ? `\n${conversation}\n` : ''}${offer?.trim() ? `\nStudio has just offered: ${offer.trim()}\n` : ''}${where ? whereText(where) : ''}
 The researcher's latest chat message:
 ${message.trim()}
 
