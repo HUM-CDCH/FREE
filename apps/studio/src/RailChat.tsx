@@ -5,7 +5,7 @@ import { countTemplateFields } from '../shared/template'
 import ChatDrawer from './ChatDrawer'
 import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { confirmedOption, correctionStep, extractStep, nextStep, type ChatOffer, type GuideInput, type ProjectGuideInput, type StepAction,
+import { confirmedOption, correctionStep, extractStep, nextStep, reviewFollowing, type ChatOffer, type GuideInput, type ProjectGuideInput, type StepAction,
   type StepCard, type StepOption } from './chatGuide'
 import { correctionLine, NO_RESULTS_REPLY, type ResultCorrections } from './useResultCorrections'
 import { ChatTranscript } from './SchemaChatParts'
@@ -59,16 +59,24 @@ export type RailChatProps = {
   templateShown?: boolean
   onShowView: (view: 'chat' | 'schema' | 'results') => void
   /** `full`: the rail's home, the whole conversation filling it. `step`: under another view, the next step and the
-   *  composer; sending, or the conversation's dot, returns to the home to show the reply. */
+   *  composer; a reply shows above the composer, and the conversation's dot returns to the home. */
   mode?: 'full' | 'step'
+  /** While this document's review waits, the next document waiting after it, and opening it; null when none. */
+  onReviewFollowing?: (following: NextReview | null) => void
 }
+
+/** The composer's hint while a result is shown, whose values a message can change too. */
+const RESULTS_HINT = 'Describe a change to the results or the template…'
+
+/** The next document to review, as Results' Mark as reviewed dialog offers it. */
+export type NextReview = { name: string; open: () => void }
 
 /**
  * The workspace's chat, the rail's home: the schema chat's conversation (instructions and answers before the first
  * schema, edit requests and proposals after) and the next step with its numbered options. Under another rail view the
  * next step and the composer stay in view, so the way on is always the chat's.
  */
-export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, onRegenerate, recordScope, run = null, corrections = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full' }: RailChatProps) {
+export default function RailChat({ chat, schema, sourceDocumentName, onGenerate, onRegenerate, recordScope, run = null, corrections = null, control = null, project = null, latest, readOnly = false, resultsShown = false, templateShown = false, onShowView, mode = 'full', onReviewFollowing }: RailChatProps) {
   const snap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const { instructions, proposalReview, recovery } = chat
   const pending = proposalReview.pending
@@ -140,6 +148,14 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     dismissed,
     project: project ? { ...project.guide, moreDocuments: moreKey ? more.value : undefined } : null,
   }
+  // Results offers to mark the review and go on to the next document: which one, as the review step has it.
+  const following = project ? reviewFollowing(guide) : null
+  const publishFollowing = useEffectEvent(() => {
+    onReviewFollowing?.(following && project ? { name: following.name, open: () => project.open(following.target) } : null)
+  })
+  const followingKey = following ? `${following.target.extractionId}:${following.name}` : null
+  useEffect(() => { publishFollowing() }, [followingKey])
+  useEffect(() => () => onReviewFollowing?.(null), [onReviewFollowing])
   // Changes a message proposed to the results wait for the researcher first, as the latest message's answer (ADR 0035).
   const proposed = corrections?.pending ?? null
   const correcting = proposed && correctionStep(proposed.request, proposed.proposal.corrections.map(correctionLine), corrections?.busy === 'saving')
@@ -366,7 +382,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   // In a card the composer is its way past the step, and says so; else what the conversation takes now.
   const composerHint = sayInCard && (preSchema || editable) ? sayOption!.label
     : preSchema ? 'Add a generation instruction (e.g. "Focus on names, dates, and locations"), or ask about the document…'
-      : editable ? 'Describe a change to the template…' : 'The chat continues once the template is ready.'
+      // With a result shown, a message may change its values as well as the template (ADR 0035).
+      : editable ? corrections?.available ? RESULTS_HINT : 'Describe a change to the template…' : 'The chat continues once the template is ready.'
   const rows = mode === 'step' ? 1 : sayInCard ? 2 : 3
   const composer = preSchema ? (
     <>

@@ -254,6 +254,14 @@ export function durableRailModel(page: DurablePage, document: ParsedDocument | n
 }
 
 /** The status line for a durable Extraction: its lifecycle, and how far the run is. */
+/** Where the shown results stand with their review: marked reviewed (its review names this cut, or an earlier cut whose
+ *  decisions here are unchanged), changed since it was marked, or not marked. The Decision Version is the Project's, so
+ *  a later cut that only other documents changed keeps the review. */
+export function reviewState(page: Pick<DurablePage,'finalization'> & {review?: DurablePage['review'] | undefined}): 'reviewed' | 'changed' | 'none' {
+  if (page.finalization) return 'reviewed'
+  return page.review ? page.review.changed ? 'changed' : 'reviewed' : 'none'
+}
+
 export function statusLine(state:DurableState,model:RailModel,article:boolean,finalized:boolean):StatusLine {
   // Until discovery ends the records listed are those found so far (a pipelined run reads them meanwhile): no total.
   const planned=state.recordsFinal?state.records?.length??null:null,read=model.records.filter(record=>record.state==='finished').length
@@ -271,7 +279,7 @@ export function statusLine(state:DurableState,model:RailModel,article:boolean,fi
       :read>0?`· ${read} ${read===1?'record':'records'} read`:''}
     case 'STOPPED': return {mark:'stopped',word:'Stopped',rest:kept?'· its saved values stay':'· nothing to review'}
     case 'FAILED': return {mark:'failed',word:'Failed',rest:'',failure:'Its saved values stay; Retry continues the unfinished work.'}
-    default: return finalized?{mark:'saved',word:'Review saved',rest:''}
+    default: return finalized?{mark:'saved',word:'Reviewed',rest:''}
       :{mark:'completed',word:'Completed',rest:article?'· Article':`· Catalog · ${read===0?'no records found':`${read} ${read===1?'record':'records'}`}`}
   }
 }

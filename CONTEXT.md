@@ -160,7 +160,12 @@ snapshot version and its Project's Decision Version. It is refused until every
 saved value of that snapshot has an approve, edit or reject decision as of that
 Decision Version. It never finalizes implicitly, never freezes later work, and
 a deliberately older pair may be finalized when it is clearly named. "Latest
-reviewed" opens the most recently finalized pair.
+reviewed" opens the most recently finalized pair. Studio offers it as *Mark as
+reviewed*: the results stay shown and editable, and the marked pair opens from
+History. Since the Decision Version is the Project's, a later cut of the same
+snapshot still counts as reviewed while this Extraction's decisions are the ones
+the review named (its decision digest); once one changes, the results are
+*changed after review* and are to be marked again (ADR 0039).
 _Avoid_: saved review, accepted result
 
 **Evidence**:

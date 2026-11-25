@@ -13,7 +13,7 @@ import type { ExtractionAttempt } from '../shared/extraction.contract'
 import * as paneScrolling from './scrollWithinPane'
 import type { ParsedDocument } from 'extraction/parsed-document'
 /** The chat's composer: its own hint, or the way past the step whose card carries it. */
-const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
+const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the results or the template…|Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
 
 // The run action is "▶ Run extraction" until the document has an Extraction, then "↻ Re-run extraction".
 const RUN_EXTRACTION = /^(▶ Run|↻ Re-run) extraction$/

@@ -1,7 +1,7 @@
 import DisagreementChoice from './DisagreementChoice'
 import type { Ref } from 'react'
 import type { SchemaNode } from 'extraction/schema'
-import { type ReviewAction, fieldWords, rowText, stateLabel, reviewedValueSummary, supportNote, type RailRow } from './reviewVocabulary'
+import { type ReviewAction, fieldWords, itemCount, rowText, stateLabel, reviewedValueSummary, supportNote, type RailRow } from './reviewVocabulary'
 import {
   ApprovedGlyph, ContestedGlyph, DoubtGlyph, EditedGlyph, EvidenceGlyph, MissingGlyph, NotReviewableGlyph,
   RejectedGlyph, SpinnerGlyph, ToCheckGlyph, UndoGlyph,
@@ -85,6 +85,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   const decided = row.kind === 'approved' || row.kind === 'edited' || row.kind === 'rejected'
   const style = row.chip?.style ?? 'neutral'
   const support = supportNote(row)
+  const composite = row.value !== null && typeof row.value === 'object'
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
       <button ref={rowRef} type="button" disabled={locked} aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
@@ -97,8 +98,12 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
           <span className="flex items-baseline gap-1.5 text-compact text-ink-faint">
             {row.link && <span aria-hidden="true" className="size-2 shrink-0 rounded-sm bg-ev" />}
             <span className={`min-w-0 first-letter:uppercase ${selected ? '[overflow-wrap:anywhere]' : 'truncate'}`}>{fieldWords(row.name)}</span>
+            {itemCount(row.value) && <span className="shrink-0">· {itemCount(row.value)}</span>}
           </span>
-          <span className={`text-content font-medium text-ink [overflow-wrap:anywhere] ${selected ? 'block' : 'line-clamp-2'}`}>{row.value && typeof row.value === 'object' ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
+          {/* A list or group shows its contents here; opened, they are laid out in full below instead. */}
+          {!(selected && composite && !editing) && (
+            <span className={`text-content font-medium text-ink [overflow-wrap:anywhere] ${selected ? 'block' : 'line-clamp-2'}`}>{composite ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
+          )}
           {!selected && row.kind === 'to-check' && row.reason && <span className="flex items-start gap-1 text-compact text-stale-ink"><DoubtGlyph /><span>{row.reason}</span></span>}
           {pinned && <span className="block text-compact text-ink-muted italic">outside the current filter</span>}
           {row.changed && <span className="block text-compact text-stale-ink">Changed since you checked it, please check again</span>}

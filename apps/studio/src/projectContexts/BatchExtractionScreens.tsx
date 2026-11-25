@@ -166,7 +166,7 @@ function batchOutcome(batch: BatchExtraction, newest: ReadonlySet<string> | null
       detail: `Open a failed or stopped document to see why, or Run again. The rest can be reviewed meanwhile.${empty}` }
   if (progress.needsReview > 0)
     return { done: false, title: `${progress.reviewed} of ${progress.reviewable} documents reviewed`,
-      detail: `Open each document not yet marked Reviewed, check its values against the source, and Save review. Then export.${empty}` }
+      detail: `Open each document not yet marked Reviewed, check its values against the source, and mark it as reviewed. Then export.${empty}` }
   return { done: true, title: 'Batch Extraction complete',
     detail: `Every document is extracted and reviewed. Export the saved values as your dataset.${empty}` }
 }

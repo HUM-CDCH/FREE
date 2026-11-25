@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest'
 import booleanLiterals from '../../parsing_service/tests/fixtures/boolean-literals.json'
-import { evidenceCheck, fieldWords } from './reviewVocabulary'
+import { evidenceCheck, fieldWords, itemCount, reviewedValueSummary } from './reviewVocabulary'
+import type { SchemaNode } from 'extraction/schema'
 
 it('an uncertain passage is non-verbatim', () => {
   expect(evidenceCheck({ verbatim: false })).toBe('Not an exact match, please double check')
@@ -23,4 +24,20 @@ it('reads a field name as words, leaving its path, its acronyms and its capitals
   expect(fieldWords('ISBN')).toBe('ISBN')
   expect(fieldWords('journalID')).toBe('journalID')
   expect(fieldWords('title')).toBe('title')
+})
+
+it('shows a list or group by its contents, with a list\'s count beside its name', () => {
+  const people: SchemaNode = { id: 'people', name: 'people', type: 'array', children: [
+    { id: 'name', name: 'name', type: 'string' }, { id: 'born', name: 'born', type: 'integer' }, { id: 'note', name: 'note', type: 'string' }] }
+  expect(reviewedValueSummary(people, [{ name: 'Anna Jensen', born: 1852, note: null }, { name: 'Peter', born: null, note: '' }]))
+    .toBe('Anna Jensen · 1852; Peter')
+  expect(reviewedValueSummary({ id: 'tags', name: 'tags', type: 'array', itemType: 'string' }, ['oak', 'ash'])).toBe('oak, ash')
+  expect(reviewedValueSummary(people, [])).toBe('No value')
+  const place: SchemaNode = { id: 'place', name: 'place', type: 'object', children: [
+    { id: 'parish_name', name: 'parish_name', type: 'string' }, { id: 'farms', name: 'farms', type: 'array', itemType: 'string' }] }
+  expect(reviewedValueSummary(place, { parish_name: 'Vor Frue', farms: ['Nørgaard'] })).toBe('parish name: Vor Frue · farms: Nørgaard')
+  expect(itemCount(['oak', 'ash'])).toBe('2 items')
+  expect(itemCount(['oak'])).toBe('1 item')
+  expect(itemCount([])).toBeNull()
+  expect(itemCount({ a: 1 })).toBeNull()
 })

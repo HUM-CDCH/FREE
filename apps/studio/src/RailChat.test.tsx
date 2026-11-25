@@ -353,6 +353,17 @@ describe('the second trial', () => {
     expect(screen.getByRole('region', { name: 'Approve template' })).toBeInTheDocument()
   })
 
+  it('tells Results the next document to review while this one waits, and opens it', () => {
+    const shown = project()
+    const waiting = (id: string) => ({ ...member(id), currentReview: null })
+    const guide = { ...shown.guide, batches: [{ ...shown.guide.batches[0]!, members: [waiting('a'), waiting('b')] }] }
+    const onReviewFollowing = vi.fn()
+    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: { ...shown, guide }, onReviewFollowing })
+    expect(onReviewFollowing).toHaveBeenLastCalledWith({ name: 'b.pdf', open: expect.any(Function) })
+    onReviewFollowing.mock.lastCall![0].open()
+    expect(shown.open).toHaveBeenCalledExactlyOnceWith({ sourceDocumentId: 'b', extractionId: 'extraction-b', batchExtractionId: 'trial-1' })
+  })
+
   it('goes on to the approval when the researcher declines', () => {
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: project() })
     fireEvent.click(within(screen.getByRole('region', { name: 'Try more documents?' })).getByRole('button', { name: /No, go on to approval/ }))
@@ -379,6 +390,13 @@ describe('changes to the results (ADR 0035)', () => {
     return <RailChat {...props} corrections={results} chat={{ ...chat, heard, clearHeard: vi.fn() }} />
   }
   const said = { message: 'The year of record 3 is 1854', history: [{ role: 'user' as const, text: 'Run it' }] }
+
+  it('says in the composer that a message can change the results shown as well as the template', () => {
+    const view = render(<Heard heard={null} results={corrections({ available: true })} />)
+    expect(screen.getByPlaceholderText('Describe a change to the results or the template…')).toBeInTheDocument()
+    view.rerender(<Heard heard={null} results={corrections({ available: false })} />)
+    expect(screen.getByPlaceholderText('Describe a change to the template…')).toBeInTheDocument()
+  })
 
   it('proposes the changes a message asked for on the result shown, and says when there is none', () => {
     const results = corrections()

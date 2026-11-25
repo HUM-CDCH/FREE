@@ -875,7 +875,7 @@ it.each(['ARTICLE', 'CATALOG'] as const)('reviews ungrounded true and false valu
     currentSchema={null} onEvidence={() => {}} />)
   expect(await screen.findByRole('button', {name: /To check leather material false/})).toBeVisible()
   expect(screen.getByRole('button', {name: /To check painted true/})).toBeVisible()
-  expect(screen.queryByRole('button', {name: 'Save review'})).toBeNull()
+  expect(screen.queryByRole('button', {name: 'Mark as reviewed'})).toBeNull()
   fireEvent.click(screen.getByRole('button', {name: /To check leather material/}))
   expect(within(screen.getByRole('region', {name: 'Review leather material'})).getByText('Source not found')).toBeVisible()
   fireEvent.click(screen.getByRole('button', {name: 'Edit'}))
@@ -888,18 +888,45 @@ it.each(['ARTICLE', 'CATALOG'] as const)('reviews ungrounded true and false valu
   await waitFor(() => expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/values/leather_material',
     {expectedRevision: 0, snapshotVersion: 1, action: 'EDITED', value: true, included: true, evidence: []}))
   expect(await screen.findByRole('button', {name: /Edited leather material true/})).toBeVisible()
-  expect(screen.queryByRole('button', {name: 'Save review'})).toBeNull()
+  expect(screen.queryByRole('button', {name: 'Mark as reviewed'})).toBeNull()
   fireEvent.click(screen.getByRole('button', {name: /To check painted/}))
   page = {...page, feedbackVersion: 2, values: [{...painted, correction: {revision: 1,
     decision: {action: 'APPROVED', value: true, included: false, evidence: []}}}, page.values[1]!],
     reviewCounts: {required: 2, toCheck: 0, approved: 1, edited: 1, rejected: 0}}
   fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
-  expect(await screen.findByRole('button', {name: 'Save review'})).toBeEnabled()
+  // The last value checked here: a dialog asks to save the review, which is saved only when chosen.
+  const ask = await screen.findByRole('dialog', {name: 'All values checked'})
   expect(durableRequest).not.toHaveBeenCalledWith(expect.stringMatching(/finalize$/), expect.anything())
+  // Not yet leaves it to the header's Save review.
+  fireEvent.click(within(ask).getByRole('button', {name: 'Not yet'}))
+  expect(screen.queryByRole('dialog', {name: 'All values checked'})).toBeNull()
   vi.mocked(readValues).mockResolvedValue({...page, finalization: {id: 'saved', snapshotVersion: 1, feedbackVersion: 2}} as never)
-  fireEvent.click(screen.getByRole('button', {name: 'Save review'}))
+  fireEvent.click(screen.getByRole('button', {name: 'Mark as reviewed'}))
   await waitFor(() => expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/finalize', {snapshotVersion: 1, feedbackVersion: 2}))
-  expect(await screen.findByText('Review saved.')).toBeVisible()
+  expect(await screen.findByText('Marked as reviewed.')).toBeVisible()
+})
+
+it('offers to save the review and open the next document once the last value is checked, and opens it once saved', async () => {
+  const title = {...reviewValue('title', 'First title'), correctionCompatibility: 'compatible'} as unknown as DurablePage['values'][number]
+  let page: DurablePage = {...reviewPage(), values: [title], total: 1, reviewCounts: {required: 1, toCheck: 1, approved: 0, edited: 0, rejected: 0}}
+  vi.mocked(readDurable).mockImplementation(async () => ({state: {...pausedState, status: 'COMPLETED'}, page}) as never)
+  vi.mocked(durableRequest).mockResolvedValue({revision: 1})
+  const open = vi.fn()
+  render(<Results attempt={{extractionId: 'extraction', strategy: 'ARTICLE'} as ExtractionAttempt} document={null}
+    currentSchema={null} onEvidence={() => {}} nextReview={{name: 'b.pdf', open}} />)
+  // Nothing left to check when it opens would ask nothing: only checking the last value here does.
+  expect(screen.queryByRole('dialog')).toBeNull()
+  fireEvent.click(await screen.findByRole('button', {name: /To check title/}))
+  page = {...page, feedbackVersion: 1, values: [{...title, correction: {revision: 1, decision: {action: 'APPROVED', value: 'First title', included: false, evidence: []}}}],
+    reviewCounts: {required: 1, toCheck: 0, approved: 1, edited: 0, rejected: 0}}
+  fireEvent.click(screen.getByRole('button', {name: 'Approve'}))
+  const ask = await screen.findByRole('dialog', {name: 'All values checked'})
+  expect(within(ask).getByText('Mark this document as reviewed?')).toBeVisible()
+  vi.mocked(readValues).mockResolvedValue({...page, finalization: {id: 'saved', snapshotVersion: 1, feedbackVersion: 1}} as never)
+  fireEvent.click(within(ask).getByRole('button', {name: 'Yes, and open b.pdf'}))
+  await waitFor(() => expect(open).toHaveBeenCalledOnce())
+  expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/finalize', {snapshotVersion: 1, feedbackVersion: 1})
+  expect(screen.queryByRole('dialog', {name: 'All values checked'})).toBeNull()
 })
 
 it.each(['ARTICLE','CATALOG'] as const)('keeps the only unchecked value reachable when entering one-by-one from an open %s row',async(strategy)=>{
@@ -1100,20 +1127,37 @@ it('saves the review of the latest results once nothing is left to check',async(
   page.values=page.values.map(value=>({...value,correction:{revision:1,feedbackVersion:1,decision:{action:'APPROVED'}}} as never))
   const latest={...page,feedbackVersion:2,reviewCounts:{required:3,toCheck:0,approved:2,edited:1,rejected:0},
     values:page.values.map((value,index)=>index===1?{...value,correction:{revision:2,feedbackVersion:2,decision:{action:'EDITED',value:'Correction from another session'}}}:value)} as never as DurablePage
-  vi.mocked(readDurable).mockResolvedValueOnce({state:pausedState,page} as never).mockResolvedValue({state:{...pausedState,feedbackVersion:2},page:latest} as never)
-  vi.mocked(durableRequest).mockResolvedValue({})
-  vi.mocked(readValues).mockResolvedValue({...latest,finalization:{id:'final',snapshotVersion:1,feedbackVersion:2}} as never)
+  let marked=false
+  vi.mocked(readDurable).mockResolvedValueOnce({state:pausedState,page} as never).mockImplementation(async()=>({state:{...pausedState,feedbackVersion:2},
+    page:marked?{...latest,finalization:{id:'final',snapshotVersion:1,feedbackVersion:2}}:latest}) as never)
+  vi.mocked(durableRequest).mockImplementation((async(url:string)=>{if(url.endsWith('/finalize'))marked=true;return {}}) as never)
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
-  expect(await screen.findByRole('button',{name:'Save review'})).toBeVisible()
+  expect(await screen.findByRole('button',{name:'Mark as reviewed'})).toBeVisible()
   // A settled view is read again when the researcher comes back to it: another session's correction shows, and saving
   // names the decisions shown.
   await waitFor(()=>{fireEvent.focus(window);expect(readDurable).toHaveBeenCalledTimes(2)})
   expect(await screen.findByText('Correction from another session')).toBeVisible()
-  fireEvent.click(screen.getByRole('button',{name:'Save review'}))
+  fireEvent.click(screen.getByRole('button',{name:'Mark as reviewed'}))
   await waitFor(()=>expect(durableRequest).toHaveBeenCalledWith('/api/extractions/extraction/durable/finalize',{snapshotVersion:1,feedbackVersion:2}))
-  expect(await screen.findByText('Review saved.')).toBeVisible()
-  expect(screen.getByText(/checked · review saved/)).toBeVisible()
-  expect(screen.queryByRole('button',{name:'Save review'})).toBeNull()
+  expect(await screen.findByText('Marked as reviewed.')).toBeVisible()
+  // The latest results stay shown, editable, now reviewed: no view-only copy of the marked cut opens.
+  expect(await screen.findByText(/checked · reviewed/)).toBeVisible()
+  expect(screen.queryByRole('button',{name:'Mark as reviewed'})).toBeNull()
+  expect(readValues).not.toHaveBeenCalled()
+  expect(screen.queryByText(/Showing saved results/)).toBeNull()
+})
+
+it('keeps a review another document\'s correction leaves as it was, and asks to mark it again once a value here changes',async()=> {
+  const page={...reviewPage(1,3),reviewCounts:{required:3,toCheck:0,approved:3,edited:0,rejected:0},
+    review:{id:'final',snapshotVersion:1,feedbackVersion:2,createdAt:'2026-11-25T09:00:00.000Z',changed:false}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValueOnce({state:pausedState,page} as never)
+    .mockResolvedValue({state:pausedState,page:{...page,feedbackVersion:4,review:{...page.review!,changed:true}}} as never)
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  expect(await screen.findByText(/checked · reviewed/)).toBeVisible()
+  expect(screen.queryByRole('button',{name:'Mark as reviewed'})).toBeNull()
+  await waitFor(()=>{fireEvent.focus(window);expect(readDurable).toHaveBeenCalledTimes(2)})
+  expect(await screen.findByText(/checked · changed after review/)).toBeVisible()
+  expect(screen.getByRole('button',{name:'Mark as reviewed'})).toBeVisible()
 })
 
 it('keeps a cut the researcher opens while the review is being saved',async()=> {
@@ -1125,13 +1169,13 @@ it('keeps a cut the researcher opens while the review is being saved',async()=> 
   vi.mocked(readValues).mockImplementation(async(_id,query)=>query.snapshotVersion===1?reviewPage(1,1):{...page,finalization:{id:'final',snapshotVersion:2,feedbackVersion:1}} as never)
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}
     onReviewFinalized={onReviewFinalized} historySlot={historySlot()} historyShown/>)
-  fireEvent.click(await screen.findByRole('button',{name:'Save review'}))
+  fireEvent.click(await screen.findByRole('button',{name:'Mark as reviewed'}))
   openDetails(await screen.findByText('This extraction'))
   fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
   expect(await screen.findByText(/Showing saved results 1/)).toBeVisible()
   const reads=vi.mocked(readDurable).mock.calls.length
   await act(async()=>finalized.resolve({}))
-  expect(await screen.findByText('Review saved.')).toBeVisible()
+  expect(await screen.findByText('Marked as reviewed.')).toBeVisible()
   expect(onReviewFinalized).toHaveBeenCalledOnce()
   expect(screen.getByText(/Showing saved results 1/)).toBeVisible()
   expect(readValues).toHaveBeenCalledOnce()
@@ -1145,9 +1189,9 @@ it('opens an explicit finalized cut and names the later live work beside it',asy
   vi.mocked(readValues).mockResolvedValue(historical)
   render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} initialCut={{snapshotVersion:1,feedbackVersion:2}}
     document={null} currentSchema={null} onEvidence={()=>{}} readOnly/>)
-  expect(await screen.findByText(/checked · review saved/)).toBeVisible()
+  expect(await screen.findByText(/checked · reviewed/)).toBeVisible()
   expect(readValues).toHaveBeenCalledWith('extraction',{snapshotVersion:1,feedbackVersion:2},expect.any(AbortSignal))
-  expect(screen.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+  expect(screen.getByText(/Showing saved results 1 · reviewed/)).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:'Show the latest results'}))
   expect(screen.queryByText(/Showing saved results/)).toBeNull()
 })
@@ -1387,11 +1431,11 @@ it.each([['the list',false],['one-by-one review',true]] as const)('keeps the sav
   approveCell(nrCell)
   await waitFor(()=>expect(saves).toHaveLength(1))
   await act(async()=>historicalRead.resolve(historical as DurablePage))
-  await screen.findByText(/Showing saved results 1 · a saved review/)
+  await screen.findByText(/Showing saved results 1 · reviewed/)
   await act(async()=>gate.resolve())
   await waitFor(()=>expect(readValues).toHaveBeenCalledTimes(2))
   await act(async()=>{})
-  expect(screen.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+  expect(screen.getByText(/Showing saved results 1 · reviewed/)).toBeVisible()
   expect(screen.queryByRole('heading',{name:'Second title'})).toBeNull()
 })
 
@@ -1814,9 +1858,9 @@ it('keeps an explicitly opened historical decision cut when a correction finishe
   fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
   await screen.findByText('Saving your decision…')
   fireEvent.click(await screen.findByRole('button',{name:'Open finalized review of results 1'}))
-  await screen.findByText(/Showing saved results 1 · a saved review/)
+  await screen.findByText(/Showing saved results 1 · reviewed/)
   await act(async()=>save.resolve({id:'correction-a',revision:1,feedbackVersion:1,included:false}))
-  expect(screen.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+  expect(screen.getByText(/Showing saved results 1 · reviewed/)).toBeVisible()
   expect(readValues).toHaveBeenCalledOnce()
   expect(readValues).toHaveBeenCalledWith('extraction',{snapshotVersion:1,feedbackVersion:0})
   fireEvent.click(screen.getByRole('button',{name:'Show the latest results'}))
@@ -1839,9 +1883,9 @@ it('keeps the chosen historical cut when a live draft opens during its pending r
   fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
   await screen.findByText('Saving your decision…')
   await act(async()=>historicalRead.resolve(historical as DurablePage))
-  await screen.findByText(/Showing saved results 1 · a saved review/)
+  await screen.findByText(/Showing saved results 1 · reviewed/)
   await act(async()=>save.resolve({id:'correction-a',revision:1,feedbackVersion:1,included:false}))
-  expect(screen.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+  expect(screen.getByText(/Showing saved results 1 · reviewed/)).toBeVisible()
   expect(readValues).toHaveBeenCalledOnce()
   expect(readValues).toHaveBeenCalledWith('extraction',{snapshotVersion:1,feedbackVersion:0})
   fireEvent.click(screen.getByRole('button',{name:'Show the latest results'}))
@@ -1868,7 +1912,7 @@ it('preserves an editable draft when returning from a finalized history view', a
   fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
   fireEvent.change(screen.getByRole('textbox', { name: 'Reviewed value' }), { target: { value: 'My live draft' } })
   fireEvent.click(await screen.findByRole('button', { name: 'Open finalized review of results 1' }))
-  await screen.findByText(/Showing saved results 1 · a saved review/)
+  await screen.findByText(/Showing saved results 1 · reviewed/)
   fireEvent.click(screen.getByRole('button', { name: 'Show the latest results' }))
 
   expect(screen.getByRole('textbox', { name: 'Reviewed value' })).toHaveValue('My live draft')

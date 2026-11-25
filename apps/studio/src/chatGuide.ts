@@ -73,7 +73,12 @@ export type StepCard = {
   /** The project's documents to tick for the options that pick them, first ticked `initial`, at most `limit`. */
   picker?: { documents: readonly ProjectDocument[]; initial: readonly string[]; limit: number }
   options: readonly StepOption[]
+  /** A review step's next document to review after this one, for Results' Mark as reviewed dialog. */
+  following?: ReviewFollowing
 }
+
+/** The next document waiting for review, by name, and where opening it goes. */
+export type ReviewFollowing = { name: string; target: NonNullable<StepOption['target']> }
 
 /** The project around the open document, where the host knows it: its workflow's next step is the chat's too. */
 export type ProjectGuideInput = {
@@ -235,6 +240,12 @@ export function confirmedOption(input: GuideInput, card: StepCard): { card: Step
   const step = now?.key === card.key ? now : SET_ASIDE_STOPS.some((prefix) => card.key.startsWith(prefix)) ? card : null
   const option = step?.options.find(({ tone, disabled }) => tone === 'positive' && !disabled)
   return step && option ? { card: step, option } : null
+}
+
+/** While this document's review waits, the next document waiting after it, whether or not its step is set aside. */
+export function reviewFollowing(input: GuideInput): ReviewFollowing | null {
+  const step = currentStep(input)
+  return step?.key.startsWith('review:') ? step.following ?? null : null
 }
 
 function currentStep(input: GuideInput): StepCard | null {
@@ -529,22 +540,30 @@ function reviewStep(input: GuideInput, project: ProjectGuideInput, counts: (run:
   const detail: [string, string][] | undefined = progress && [['Progress', `${progress.reviewed} of ${plural(progress.reviewable, 'document')} reviewed`]]
   const mine = queue.filter(({ sourceDocumentId }) => sourceDocumentId === project.currentDocumentId)
   const here = mine.find(({ waits }) => waits) ?? mine[0]
-  if (here?.waits)
+  const nameOf = (sourceDocumentId: string) => project.documents.find(({ id }) => id === sourceDocumentId)?.name ?? 'the next document'
+  if (here?.waits) {
+    // Another document waiting after this one, round the queue: where saving this review may go on to.
+    const index = queue.indexOf(here)
+    const after = [...queue.slice(index + 1), ...queue.slice(0, index)]
+      .find(({ waits, sourceDocumentId }) => waits && sourceDocumentId !== project.currentDocumentId)
     return {
       key: `review:${here.extractionId}`,
       title,
-      question: input.resultsShown ? undefined : 'Check each value against its source in Results, then save the review.',
-      notice: input.resultsShown ? 'Check each value against its highlighted source, then save the review.' : undefined,
+      question: input.resultsShown ? undefined : 'Check each value against its source in Results, then mark it as reviewed.',
+      notice: input.resultsShown ? 'Check each value against its highlighted source, then mark it as reviewed.' : undefined,
       detail,
       options: [...input.resultsShown ? [] : [{ action: 'review', label: 'Open Results', tone: 'positive' } as const],
         // A run alone keeps its re-run: one that saved no values can never be reviewed.
         ...here.batchExtractionId === null && input.run ? [{ action: 'run', label: RERUN_LABEL, tone: 'secondary', disabled: !input.run.available,
           description: runDescription(input, true) } as const] : [], ...also ? [also] : []],
+      following: after && { name: nameOf(after.sourceDocumentId),
+        target: { sourceDocumentId: after.sourceDocumentId, extractionId: after.extractionId, batchExtractionId: after.batchExtractionId } },
     }
+  }
   // The next one after this document, round the queue.
   const index = here ? queue.indexOf(here) : -1
   const next = [...queue.slice(index + 1), ...queue.slice(0, index + 1)].find(({ waits }) => waits)!
-  const name = project.documents.find(({ id }) => id === next.sourceDocumentId)?.name ?? 'the next document'
+  const name = nameOf(next.sourceDocumentId)
   return {
     key: `review-next:${next.extractionId}`,
     title,

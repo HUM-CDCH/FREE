@@ -1649,11 +1649,13 @@ describe('field rows (redesign §6)', () => {
     expect(actions.className).toMatch(/\bbg-surface\b/)
     expect(actions.className).toMatch(/(^|\s)opacity-0\b/)
     expect(actions.className).toMatch(/group-hover:opacity-100/)
-    expect(actions.className).toMatch(/group-focus-within:opacity-100/)
+    // Keyboard focus shows it; a field or note clicked keeps focus but not the actions over its note.
+    expect(actions.className).toMatch(/group-has-\[:focus-visible:not\(\[data-row-pill\]\)\]:opacity-100/)
+    expect(actions.className).not.toMatch(/focus-within/)
     // Hidden, it takes no hits: a tap at the row's right end at rest never reaches an unseen action.
     expect(actions.className).toMatch(/(^|\s)pointer-events-none(\s|$)/)
     expect(actions.className).toMatch(/(^|\s)group-hover:pointer-events-auto(\s|$)/)
-    expect(actions.className).toMatch(/(^|\s)group-focus-within:pointer-events-auto(\s|$)/)
+    expect(actions.className).toMatch(/(^|\s)group-has-\[:focus-visible:not\(\[data-row-pill\]\)\]:pointer-events-auto(\s|$)/)
     // At least the 140px the pills keep clear, wider when a fallback font or a larger text size needs it (never wrapping
     // a word or overflowing leftwards).
     expect(actions.className).toMatch(/(^|\s)w-max(\s|$)/)
@@ -1721,9 +1723,8 @@ describe('field rows (redesign §6)', () => {
     const edit = within(row).getByRole('button', { name: 'Edit title' })
     edit.focus()
     expect(edit).toHaveFocus()
-    // What `group-focus-within:` and `focus-within:` match: the overlay shows while one of its actions has focus.
-    expect(row.matches(':focus-within')).toBe(true)
-    expect(edit.parentElement!.matches(':focus-within')).toBe(true)
+    // What `group-has-[:focus-visible…]` matches: the overlay shows while one of its actions has keyboard focus.
+    expect(row.matches(':has(:focus)')).toBe(true)
     // While a pill has keyboard focus the overlay steps aside instead of covering it.
     expect(within(row).getByTitle('Type: string — click to edit')).toHaveAttribute('data-row-pill')
     expect(edit.parentElement!.className).toMatch(/group-has-\[\[data-row-pill\]:focus-visible\]:opacity-0/)
@@ -1780,16 +1781,20 @@ describe('field rows (redesign §6)', () => {
     expect(screen.queryByText('nyt_felt')).not.toBeInTheDocument()
   })
 
-  it('a note shows on one line beside its field, opens in full on a click and then opens the note form', () => {
+  it('a note shows on one line beside its field, opens in full where it is on a click and then opens the note form', () => {
     renderPanel()
     const row = screen.getByRole('listitem', { name: 'title' })
     const closed = within(row).getByRole('button', { name: 'Research rule', expanded: false })
     expect(closed).toHaveAttribute('title', 'Research rule')
     expect(closed.className.split(/\s+/)).toContain('truncate')
+    // At rest the note runs on to the row's right edge, under the actions that show over it on hover.
+    expect(closed.className.split(/\s+/)).toContain('-mr-[140px]')
     expect(closed.closest('[data-row-content]')).not.toBeNull()
     fireEvent.click(closed)
-    const open = within(row).getByRole('button', { name: 'Research rule' })
-    expect(open.closest('[data-row-content]')).toBeNull()
+    // Opened where it was, beside the field: it wraps instead of moving below.
+    const open = within(row).getByRole('button', { name: 'Research rule', expanded: true })
+    expect(open.closest('[data-row-content]')).toBe(closed.closest('[data-row-content]'))
+    expect(open.className.split(/\s+/)).not.toContain('truncate')
     expect(screen.queryByRole('textbox', { name: 'Field notes' })).not.toBeInTheDocument()
     fireEvent.click(open)
     expect(screen.getByRole('textbox', { name: 'Field notes' })).toBeInTheDocument()

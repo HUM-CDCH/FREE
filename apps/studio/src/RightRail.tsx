@@ -11,8 +11,8 @@ import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
 import type { PinnedExtractionSource, DurableReviewProgress } from './durableExtractionApi'
 import { DurableResults } from './DurableResults'
-import { durableRailModel, statusLine } from './durableRailModel'
-import RailChat, { type RailChatProps } from './RailChat'
+import { durableRailModel, reviewState, statusLine } from './durableRailModel'
+import RailChat, { type NextReview, type RailChatProps } from './RailChat'
 import RegenerateDialog from './RegenerateDialog'
 import { continuation, PAUSE_DESCRIPTION } from './extractionControl'
 import { useSchemaChat, type ChatScope } from './useSchemaChat'
@@ -216,7 +216,7 @@ function RightRail({
   const latestPage = latestReading?.latestPage?.extractionId === latestAttempt?.extractionId ? latestReading?.latestPage ?? null : null
   const latestModel = useMemo(() => latestPage ? durableRailModel(latestPage, null) : null, [latestPage])
   const latestStatus = latestReading?.state && latestModel && latestAttempt
-    ? statusLine(latestReading.state, latestModel, latestAttempt.strategy === 'ARTICLE', Boolean(latestPage?.finalization))
+    ? statusLine(latestReading.state, latestModel, latestAttempt.strategy === 'ARTICLE', latestPage ? reviewState(latestPage) === 'reviewed' : false)
     : null
   const schemaSnap = useSyncExternalStore(schema.subscribe, schema.snapshot)
   const schemaReady = schemaSnap.view === 'editing'
@@ -256,6 +256,8 @@ function RightRail({
   // this document's extraction. What blocks one is said on it.
   const readOnly = inspection.readOnly
   const [regenerating, setRegenerating] = useState<number | null>(null)
+  // The next document waiting for review, as the chat's review step has it: Results offers it once a review is done.
+  const [nextReview, setNextReview] = useState<NextReview | null>(null)
   const generateAction: WorkflowAction | null = !onGenerateInstructions || readOnly ? null
     : schemaSnap.generating
       ? { label: 'Stop', name: 'Stop the template generation', tone: 'danger', disabled: false, reason: null, run: () => schema.cancelGeneration() }
@@ -402,6 +404,7 @@ function RightRail({
           historyShown={open && activeView === 'history'}
           onShowResults={() => onViewChange('results')}
           onShowHistory={() => onViewChange('history')}
+          nextReview={nextReview}
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
           <p className="m-0 text-content font-semibold text-ink">No results yet</p>
           <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">
@@ -441,6 +444,7 @@ function RightRail({
         templateShown={open && activeView === 'schema'}
         onShowView={onViewChange}
         mode={activeView === 'chat' ? 'full' : 'step'}
+        onReviewFollowing={setNextReview}
       />
       {regenerating === schemaSnap.replacementVersion && onGenerateInstructions && schemaReady && (
         <RegenerateDialog instructions={chat.instructions} nodes={schemaSnap.draft!.schemaNodes} generating={schemaSnap.generating}

@@ -44,12 +44,13 @@ const PILL_FIT = 'min-w-0 max-w-full'
 /** The actions overlay the right end of the row's first line, at least 140px: "Edit", "Note" and "Delete" measure
  *  37 + 40 + 49px, 4px apart after a 4px lead (138px). A fallback font or a larger text size widens it to fit its words
  *  (`w-max`), never wrapping or overflowing them, though then past the pills' 140px reserve. Shown, and only then hit by
- *  a pointer, on hover and focus within the row; at rest a tap there reaches the row, never an unseen action. While a
- *  pill has keyboard focus the overlay steps aside as well. */
-const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-max min-w-[140px] items-center justify-end gap-1 rounded-[3px] bg-surface pl-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
+ *  a pointer, on hover and on keyboard focus in the row (`:focus-visible`: a field or note clicked keeps focus, and
+ *  would otherwise keep the actions over its note until a click elsewhere); at rest a tap there reaches the row, never an
+ *  unseen action. While a pill has keyboard focus the overlay steps aside as well. A note running under it fades out at its left edge. */
+const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-max min-w-[140px] items-center justify-end gap-1 rounded-[3px] bg-surface pl-1 before:absolute before:inset-y-0 before:right-full before:w-6 before:bg-linear-to-l before:from-surface before:to-transparent @max-[240px]:before:hidden opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-visible:pointer-events-auto group-focus-visible:opacity-100 group-has-[:focus-visible:not([data-row-pill])]:pointer-events-auto group-has-[:focus-visible:not([data-row-pill])]:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
 /** On a row line under 240px (the 264px rail, where a 140px overlay would cover the name and reach the disclosure) the
  *  actions are no overlay: they take their own line in the pills' flow, below the pills, shown (and hit) on hover and
- *  focus within like the overlay. The line keeps its place at rest: collapsing it would move every row below whenever a
+ *  keyboard focus like the overlay. The line keeps its place at rest: collapsing it would move every row below whenever a
  *  row lost hover or focus, and a click there could land on another control than the one pressed. It keeps its place
  *  during a drag too: from the grip's press every row's actions are hidden (`invisible`, which keeps the box and takes no
  *  pointer hits) and `inert` (no focus, out of the accessibility tree), never unmounted, so no row or drop slot moves
@@ -66,9 +67,16 @@ const ACTIONS_IN_FLOW = '@max-[240px]:static @max-[240px]:basis-full @max-[240px
 const CLEAR_OF_ACTIONS = 'pr-[140px] @max-[296px]:pr-0'
 const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_140px)] @max-[296px]:max-w-full @max-[296px]:basis-full @min-[240px]:@max-[296px]:min-h-7 @min-[240px]:@max-[296px]:leading-7'
 const NOTE_INDENT = 'pl-[46px]'
-/** A closed note: one line in the pills' flow, after them, ellipsized (its full text is its title). It keeps at least
- *  96px beside them, else wraps to its own line below them; it stays clear of the actions like the pills. */
-const NOTE_INLINE = 'min-w-24 flex-1 basis-0 cursor-pointer truncate text-left text-secondary leading-snug text-ink-muted outline-none hover:text-ink'
+/** A note in the pills' flow, after them: closed, one line, ellipsized (its full text is its title); opened, in full in
+ *  the same place, its further lines wrapping under its first, so opening it never moves it. It keeps at least 96px
+ *  beside the pills, else wraps to its own line below them; it stays clear of the actions like the pills. */
+const NOTE_INLINE = 'min-w-24 flex-1 basis-0 text-left text-secondary leading-snug text-ink-muted outline-none hover:text-ink'
+/** The note, unlike the pills, runs on under the actions to the row's right edge: they show over its end only on hover
+ *  and focus, so at rest the line is the note's. Where the pills already start below the actions' line (under 296px)
+ *  there is no reserve to run into. */
+const NOTE_UNDER_ACTIONS = '-mr-[140px] @max-[296px]:mr-0'
+const NOTE_CLOSED = `${NOTE_INLINE} cursor-pointer truncate`
+const NOTE_OPEN = `${NOTE_INLINE} whitespace-pre-line [overflow-wrap:anywhere]`
 
 function ChangeBadge({ change, outcome }: { change: Change | undefined; outcome?: ReplayOutcome }) {
   if (outcome === 'rejected') return (
@@ -181,8 +189,9 @@ function CollapseArrow({ expanded }: { expanded: boolean }) {
 
 /** One schema field's row (§6): grip, disclosure, then the name with its type and values pills (wrapping under the name
  *  when the line is too narrow), its note on one line, and proposal badges; the actions overlay the right edge on hover
- *  and focus-within. A click on the note opens it in full below, where a further click edits it (reading is not editing:
- *  it opens while editing is disabled too). The panel owns recursion, drag targets and edit forms. */
+ *  and keyboard focus. A click on the note opens it in full where it is, where a further click edits it (reading is not
+ *  editing: it opens while editing is disabled too). The line's items share a baseline, so a note opened onto more lines
+ *  moves nothing beside it. The panel owns recursion, drag targets and edit forms. */
 export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, change, outcome, impliedRemoved, acceptance, readOnly, editDisabled, dragging, dragActive = false, intoGroup, onStartDrag, onEdit, onEditValues, onAddNote, onMove, onDelete, onMouseEnter, onMouseLeave }: FieldRowProps) {
   const dragOrigin = useRef({ x: 0, y: 0 })
   const [noteOpen, setNoteOpen] = useState(false)
@@ -236,7 +245,7 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
             <CollapseArrow expanded={expanded} />
           </button>
         ) : <span className="w-6 shrink-0" />}
-        <div data-row-content className={`flex min-h-[30px] min-w-0 flex-1 flex-wrap items-center gap-x-1 gap-y-0.5 py-[3px] ${hasActions ? CLEAR_OF_ACTIONS : ''}`}>
+        <div data-row-content className={`flex min-h-[30px] min-w-0 flex-1 flex-wrap items-baseline gap-x-1 gap-y-0.5 py-[3px] ${hasActions ? CLEAR_OF_ACTIONS : ''}`}>
           <FieldChangeLabel node={node} change={change} impliedRemoved={impliedRemoved} underActions={hasActions} />
           {!isDiff && (
             <button type="button" data-row-pill className={PILL_BUTTON}
@@ -255,12 +264,24 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
               <Pill outline size="compact">{valuesWords}</Pill>
             </button>
           ))}
-          {node.description && !isDiff && !noteOpen && (
-            <button type="button" className={NOTE_INLINE} title={node.description} aria-expanded={false}
+          {node.description && !isDiff && (noteOpen ? (
+            // Read-only, a further click closes it; else it opens the note form.
+            readOnly ? (
+              <button type="button" className={`${NOTE_OPEN} ${hasActions ? NOTE_UNDER_ACTIONS : ''} cursor-pointer`} aria-expanded onClick={() => setNoteOpen(false)}>
+                {node.description}
+              </button>
+            ) : (
+              <button type="button" className={`${NOTE_OPEN} ${hasActions ? NOTE_UNDER_ACTIONS : ''} cursor-text disabled:cursor-default disabled:hover:text-ink-muted`} aria-expanded
+                disabled={editDisabled} onClick={onAddNote}>
+                {node.description}
+              </button>
+            )
+          ) : (
+            <button type="button" className={`${NOTE_CLOSED} ${hasActions ? NOTE_UNDER_ACTIONS : ''}`} title={node.description} aria-expanded={false}
               onClick={() => setNoteOpen(true)}>
               {node.description}
             </button>
-          )}
+          ))}
           <ChangeBadge change={change} outcome={outcome} />
           {intoGroup && !isDiff && (
             <span className="min-w-0 max-w-full truncate rounded-full bg-accent px-2.5 py-0.5 font-sans text-overline font-semibold tracking-wide text-white" title={`into ${node.name}`}>into {node.name}</span>
@@ -295,17 +316,6 @@ export default function FieldRow({ node, isGroup, expanded, onToggleExpanded, ch
           )}
         </div>
       )}
-      {node.description && !isDiff && noteOpen && (readOnly ? (
-        <button type="button" aria-expanded onClick={() => setNoteOpen(false)}
-          className={`block w-full cursor-pointer pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere] outline-none hover:text-ink`}>
-          {node.description}
-        </button>
-      ) : (
-        <button type="button" onClick={onAddNote} disabled={editDisabled}
-          className={`inline-flex min-h-6 w-full cursor-text items-center pb-1 ${NOTE_INDENT} text-left text-secondary leading-snug text-ink-muted whitespace-pre-line [overflow-wrap:anywhere] outline-none hover:text-ink disabled:cursor-default disabled:hover:text-ink-muted`}>
-          {node.description}
-        </button>
-      ))}
     </div>
   )
 }

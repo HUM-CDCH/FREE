@@ -45,7 +45,7 @@ export type HeaderActions = {
  * status line is drawn in the rail's own header (`slot`).
  */
 export default function ResultsHeader({
-  status, counts, running, reviewSaved = false, readOnlyNote, actions, chips, filter, onFilter,
+  status, counts, running, reviewSaved = false, changedAfterReview = false, readOnlyNote, actions, chips, filter, onFilter,
   detailsOpen, menuOpen, menuRef, slot = null, onDetails, onMenu, onShowDetails,
   onOneByOne, onSaveReview, onList,
 }: {
@@ -54,6 +54,8 @@ export default function ResultsHeader({
   running: boolean
   /** The review of the results shown is saved: said beside the count, whatever the run's own status. */
   reviewSaved?: boolean
+  /** A value changed since the review was marked: it is to be marked again. */
+  changedAfterReview?: boolean
   /** In the saved and read-only states the number line gives way to this note; null hides the count's number line. */
   readOnlyNote: string | null | undefined
   actions: HeaderActions
@@ -74,7 +76,7 @@ export default function ResultsHeader({
 }) {
   const fraction = (count: number) => counts.required === 0 ? 0 : count / counts.required * 100
   const checked = counts.approved + counts.edited + counts.rejected
-  const progress = `of ${checked + counts.toCheck} checked${running ? ' so far' : ''}${reviewSaved ? ' · review saved' : ''}`
+  const progress = `of ${checked + counts.toCheck} checked${running ? ' so far' : ''}${reviewSaved ? ' · reviewed' : changedAfterReview ? ' · changed after review' : ''}`
   // A filter with nothing behind it is not offered, unless it is the one in use.
   const chipList = ([
     { value: 'check', label: 'To check' },

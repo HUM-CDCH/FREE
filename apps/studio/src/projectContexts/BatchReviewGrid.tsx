@@ -15,6 +15,7 @@ import {
 import ReviewedValueEditor from '../ui/ReviewedValueEditor'
 import { memberStatus } from './batchExtractionStatus'
 import { StatusPill } from './BatchExtractionScreens'
+import { reviewState } from '../durableRailModel'
 
 // Additive percent steps; the floor lets a template with many fields fit the pane without a horizontal scrollbar.
 const ZOOM_MIN = 20
@@ -208,12 +209,12 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
   const toCheckCount = ready.reduce((total, [, state]) => total + state.page.reviewCounts.toCheck, 0)
   const reviewed = batch.members.filter((member) => member.currentReview !== null).length
   const outside = batch.members.filter((member) => !gridMember(member) || superseded.has(member.extractionId)).length
-  const needsReview = (row: Row) => row.kind === 'values' ? row.state.page.finalization === null
+  const needsReview = (row: Row) => row.kind === 'values' ? reviewState(row.state.page) !== 'reviewed'
     : row.member.currentReview === null && !superseded.has(row.member.extractionId)
   const rows = gridRows(batch, grid.members).filter((row) => filter === 'all' || needsReview(row))
   const needsReviewCount = batch.members.filter((member) => {
     const state = grid.members.get(member.extractionId)
-    return state?.status === 'ready' ? state.page.finalization === null
+    return state?.status === 'ready' ? reviewState(state.page) !== 'reviewed'
       : gridMember(member) && !superseded.has(member.extractionId) && member.currentReview === null
   }).length
 
@@ -332,13 +333,13 @@ export default function BatchReviewGrid({ batch, schemaNodes, documentName, onBa
                       </div>
                       {row.first && (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[10.5px]">
-                          {page.finalization ? <StatusPill tone="success" label="Reviewed" />
+                          {reviewState(page) === 'reviewed' ? <StatusPill tone="success" label="Reviewed" />
                             : <span className="text-ink-muted">{page.reviewCounts.toCheck} of {page.reviewCounts.required} to check</span>}
                           {state.saving && <span role="status" className="text-ink-muted">Saving…</span>}
-                          {!page.finalization && (
+                          {reviewState(page) !== 'reviewed' && (
                             <Button size="sm" variant="positive" disabled={busy || !finalizable(page)}
-                              title={finalizable(page) ? 'Finalize this document’s shown results and decisions' : 'Decide every value first'}
-                              onClick={() => void grid.finalize(id)}>Save review</Button>
+                              title={finalizable(page) ? 'Mark this document’s results as reviewed' : 'Decide every value first'}
+                              onClick={() => void grid.finalize(id)}>Mark as reviewed</Button>
                           )}
                         </div>
                       )}

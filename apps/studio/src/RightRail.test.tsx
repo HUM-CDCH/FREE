@@ -23,7 +23,7 @@ import {
   type SchemaEditorController,
 } from './currentSchemaRevision'
 /** The chat's composer: its own hint, or the way past the step whose card carries it. */
-const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
+const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change to the results or the template…|Describe a change to the template…|Something else\? Say what to do instead…|Or describe a change to the template…)$/ })
 
 vi.mock('./DurableResults', () => ({ DurableResults: vi.fn(() => <p>Durable results</p>) }))
 vi.mock('./api', async (importOriginal) => ({ ...await importOriginal<typeof import('./api')>(), requestSchemaEdit: vi.fn() }))

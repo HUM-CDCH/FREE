@@ -255,7 +255,10 @@ describe('nextStep in a project', () => {
   it('leads a pilot round\'s review: this document\'s Results, else the next document to review', () => {
     const pilot = { summary: summary({ extractedSourceDocumentCount: 3 }), batches: [batch([member('a', true), member('b'), member('c')])] }
     expect(step(pilot)).toMatchObject({ key: 'review:extraction-b', title: 'Review the trial results', detail: [['Progress', '1 of 3 documents reviewed']], options: [{ action: 'review' }] })
-    expect(step(pilot, { resultsShown: true })).toMatchObject({ options: [], notice: expect.stringContaining('save the review') })
+    // The next document waiting after this one, for Results to go on to once this review is saved.
+    expect(step(pilot)?.following).toEqual({ name: 'c.pdf', target: { sourceDocumentId: 'c', extractionId: 'extraction-c', batchExtractionId: 'batch-revision-2' } })
+    expect(step({ ...pilot, batches: [batch([member('a', true), member('b'), member('c', true)])] })?.following).toBeUndefined()
+    expect(step(pilot, { resultsShown: true })).toMatchObject({ options: [], notice: expect.stringContaining('mark it as reviewed') })
     expect(step({ ...pilot, currentDocumentId: 'd' })).toMatchObject({ key: 'review-next:extraction-b', options: [
       { action: 'open-document', label: 'Next document · b.pdf', target: { sourceDocumentId: 'b', extractionId: 'extraction-b', batchExtractionId: 'batch-revision-2' } },
       { action: 'dismiss' }] })

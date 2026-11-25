@@ -1,6 +1,7 @@
 import type { DurablePage } from 'extraction/durable-types'
 import type { SchemaNode } from 'extraction/schema'
 import { reviewDraft, reviewRevision } from './durableReviewMachine'
+import { reviewState } from './durableRailModel'
 
 /** One saved value of a member's latest results, as the durable reader returns it. */
 export type GridValue = DurablePage['values'][number]
@@ -82,6 +83,7 @@ export function decisionBody(value: GridValue, snapshotVersion: number, action: 
   }
 }
 
-/** Whether a member's latest results can be finalized now: every saved value decided, and not finalized already. */
+/** Whether a member's latest results can be marked reviewed now: every saved value decided, and not reviewed as they
+ *  stand (`reviewState`: changed since it was marked counts as not reviewed). */
 export const finalizable = (page: DurablePage) =>
-  page.finalization === null && page.total > 0 && page.reviewCounts.toCheck === 0
+  reviewState(page) !== 'reviewed' && page.total > 0 && page.reviewCounts.toCheck === 0

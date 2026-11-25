@@ -82,6 +82,14 @@ async function cutCorrections(client: PoolClient, id: string, snapshotVersion: n
   [id,feedbackVersion,snapshotVersion,valueId??null])).rows
 }
 
+/** The decisions a Finalized Review of this cut names, as `finalize` digests them. */
+async function cutDecisions(client: PoolClient, id: string, snapshotVersion: number, feedbackVersion: number) {
+  return (await cutCorrections(client,id,snapshotVersion,feedbackVersion))
+    .filter(correction=>correction.id)
+    .map(({reviewRevision: _reviewRevision,cutApprovedCells,...correction})=>
+      cutApprovedCells===null ? correction : {...correction,decision:{...correction.decision,approvedCells:cutApprovedCells}})
+}
+
 async function valueInSnapshot(client: PoolClient, id: string, version: number, valueId: string) {
   const {rows} = await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2', [id,version])
   return rows[0] ? durableValueSchema.array().parse(rows[0].values).find(value => value.id === valueId) : undefined
@@ -337,6 +345,15 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         if (!Number.isInteger(offset) || offset < 0 || !Number.isInteger(limit) || limit < 1) throw new DurableInvalid('Invalid result page.')
         const finalization = (await client.query(`SELECT id,"snapshotVersion","feedbackVersion","createdAt" FROM extraction_runtime.finalization
           WHERE "extractionId"=$1 AND "snapshotVersion"=$2 AND "feedbackVersion"=$3`, [id,snapshotVersion,feedbackVersion])).rows[0] ?? null
+        // The latest review of this snapshot named at or before this cut: the Decision Version is the Project's, so a later
+        // cut names no review of its own when only other documents' values changed. It still stands here while this
+        // Extraction's decisions are the ones it named (its digest); `changed` once one of them changed.
+        const named = finalization ? {...finalization,decisionDigest:null} : (await client.query(`SELECT id,"snapshotVersion","feedbackVersion","createdAt","decisionDigest"
+          FROM extraction_runtime.finalization WHERE "extractionId"=$1 AND "snapshotVersion"=$2 AND "feedbackVersion"<=$3
+          ORDER BY "feedbackVersion" DESC LIMIT 1`, [id,snapshotVersion,feedbackVersion])).rows[0] ?? null
+        const review = named && {id:named.id as string,snapshotVersion:named.snapshotVersion as number,feedbackVersion:named.feedbackVersion as number,
+          createdAt:named.createdAt as Date,
+          changed:named.decisionDigest!==null && hash(await cutDecisions(client,id,snapshotVersion,feedbackVersion))!==named.decisionDigest}
         const projected = allValues.map(value => {
             const links=value.evidence.map(({anchorId,producer}) => {
               if ('support' in producer) return unifiedEvidenceLink(producer,anchorId)
@@ -356,7 +373,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
         const selected=input.valueId?projected.filter(value=>value.id===input.valueId):projected
         const schemaRevisionId: string = snapshot?.schemaRevisionId ?? (await client.query(
           'SELECT "schemaRevisionId" FROM extraction_runtime.selection WHERE id=$1 AND "extractionId"=$2', [head.selectionId,id])).rows[0].schemaRevisionId
-        return { extractionId:id,snapshotVersion,feedbackVersion,finalization,reviewCounts,status:durableStatus(head),coverage:snapshot?.coverage??null,
+        return { extractionId:id,snapshotVersion,feedbackVersion,finalization,review,reviewCounts,status:durableStatus(head),coverage:snapshot?.coverage??null,
           schemaRevisionId,schemaRevisions:await resultSchemaRevisions(client,head),
           total:selected.length,values:selected.slice(offset,offset+limit),
           next:offset+limit < selected.length ? {snapshotVersion,feedbackVersion,offset:offset+limit,limit} : null }
@@ -515,10 +532,7 @@ export function createDurableRepository(owner: string, source: Pool = sharedPool
       const snapshot=(await client.query('SELECT values FROM extraction_runtime.snapshot WHERE "extractionId"=$1 AND version=$2',[id,input.snapshotVersion])).rows[0]
       const feedback=(await client.query('SELECT version FROM extraction_runtime."feedbackHead" WHERE id=$1',[head.projectId])).rows[0]
       if(!snapshot || !Number.isInteger(input.feedbackVersion) || input.feedbackVersion<0 || input.feedbackVersion>feedback.version) throw new DurableInvalid('Choose a committed review snapshot.')
-      const decisions=(await cutCorrections(client,id,input.snapshotVersion,input.feedbackVersion))
-        .filter(correction=>correction.id)
-        .map(({reviewRevision: _reviewRevision,cutApprovedCells,...correction})=>
-          cutApprovedCells===null ? correction : {...correction,decision:{...correction.decision,approvedCells:cutApprovedCells}})
+      const decisions=await cutDecisions(client,id,input.snapshotVersion,input.feedbackVersion)
       const reviewable=durableValueSchema.array().parse(snapshot.values).filter(v=>v.processing==='saved')
       if(reviewable.some(v=>!decisions.some(c=>c.valueId===v.id && c.decision.action!=='PENDING' && reviewFits(c,v))))
         throw new DurableInvalid('Review each saved value in this snapshot before finalizing.')

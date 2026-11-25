@@ -111,7 +111,7 @@ it('approves only values still To check with one reading, then saves the memberâ
   expect(durableRequest).toHaveBeenCalledTimes(1)
   expect(vi.mocked(durableRequest).mock.calls[0]![0]).toBe('/api/extractions/first/durable/values/t0')
 
-  const save = await screen.findByRole('button', { name: 'Save review' })
+  const save = await screen.findByRole('button', { name: 'Mark as reviewed' })
   await waitFor(() => expect(save).toBeEnabled())
   vi.mocked(readDurable).mockResolvedValueOnce({ state: {} as never, page: page(before.map((each) => ({ ...each, correction: approved }) as GridValue), { id: 'f' }) })
   fireEvent.click(save)

@@ -9,6 +9,7 @@ import { durableRequest, durableRoot, readDurableHistory, readDurableHistorySumm
 import { transientReadError, useDurableReading, type DurableReader } from './durableReader'
 import { durableReviewMachine, reviewRevision, type ReviewAcknowledgement } from './durableReviewMachine'
 import Button from './ui/Button'
+import ModalDialog from './ui/ModalDialog'
 import { DurableInputs } from './DurableInputs'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ReviewRow from './ReviewRow'
@@ -20,7 +21,7 @@ import ResultsMenu, { type MenuItem } from './ResultsMenu'
 import { RunDiagnostics } from './RunDiagnostics'
 import { ResultSchemaNotice } from './ResultSchemaNotice'
 import { quietRevision, resultSchemaLabel, type CurrentResultSchema } from './resultSchema'
-import { durableRailModel, durableRailRow, evidenceColorVars, fieldColor, markValueId, partKey, statusLine, valueEvidenceLink, valueParts, type ReviewEvidenceLink, type RunProgress, type ValuePart } from './durableRailModel'
+import { durableRailModel, durableRailRow, reviewState, evidenceColorVars, fieldColor, markValueId, partKey, statusLine, valueEvidenceLink, valueParts, type ReviewEvidenceLink, type RunProgress, type ValuePart } from './durableRailModel'
 import { provisionalMarks } from './provisionalMarks'
 import { recordBlocks, type RecordBlock } from './recordBlocks'
 import type { MarkInfo } from './useEvidenceOverlays'
@@ -314,7 +315,7 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail: the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,menuItems,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,headerSlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null,onValueHistory}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,menuItems,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,headerSlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null,onValueHistory,nextReview=null}:{attempt:ExtractionAttempt|null;
   /** The workspace's reader of `attempt`: its state and latest results; null until the workspace has made it. */
   reader:DurableReader|null;
   /** The rail's banner already reports this reader's connection. */
@@ -339,6 +340,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   onOpenLatest?:(()=>void)|null;
   /** Opens one value's history, followed from this Extraction. */
   onValueHistory?:(extractionId:string,valueId:string,name:string)=>void;
+  /** The next document waiting for review: once every value here is checked, saving the review may go on to it. */
+  nextReview?:{name:string;open:()=>void}|null;
 }) {
   const id=attempt?.extractionId
   const article=attempt?.strategy==='ARTICLE'
@@ -415,6 +418,16 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     const ahead=read&&!historical?[...pendingDecisions.values()].filter(ack=>ack.reread?.version===read.snapshotVersion&&!holds(read,ack)):[]
     return read&&ahead.length?{...read,values:read.values.map(value=>ahead.find(ack=>ack.valueId===value.id)?.reread!.value??value)}:read
   },[read,historical,pendingDecisions])
+  // The last value to check checked here, the document not marked reviewed: a dialog asks to mark it (and go on to the
+  // next document), once each time. Opened with nothing left to check, the header's Mark as reviewed is the way.
+  const toCheckNow=page&&reviewState(page)!=='reviewed'&&page.total>0?page.reviewCounts.toCheck:null
+  const [checkedBefore,setCheckedBefore]=useState({id,toCheck:toCheckNow})
+  const [askSave,setAskSave]=useState(false)
+  if(checkedBefore.id!==id||checkedBefore.toCheck!==toCheckNow){
+    setCheckedBefore({id,toCheck:toCheckNow})
+    if(checkedBefore.id===id&&(checkedBefore.toCheck??0)>0&&toCheckNow===0&&!readOnly&&!historical)setAskSave(true)
+    else if(toCheckNow!==0&&askSave)setAskSave(false)
+  }
   // Only explicit decision cuts bypass protection; a pinned snapshot can still follow live decisions.
   const blocked=useMemo(()=>new Set(historical?[]:[...pendingDecisions].filter(([,ack])=>!(ack.reread&&holds(page,ack))).map(([key])=>key)),
     [historical,pendingDecisions,page])
@@ -600,7 +613,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   },[followKey,selection])
   useEffect(()=> {
     if(id&&page)onReviewProgress?.({extractionId:id,snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion,
-      required:page.reviewCounts.required,toCheck:page.reviewCounts.toCheck,finalized:Boolean(page.finalization)})
+      required:page.reviewCounts.required,toCheck:page.reviewCounts.toCheck,finalized:reviewState(page)==='reviewed'})
   },[id,page,onReviewProgress])
   useEffect(()=>()=>onReviewProgress?.(null),[onReviewProgress])
   useEffect(()=> {
@@ -673,14 +686,19 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     }else ++selectedGeneration.current
   }
   const openNext=()=> {const next=nextToCheck(queue,activeQueueKey,blocked);if(next)selectValue(next);else setReview(null)}
-  const finalize=()=> {
-    // A cut opened while the review is being saved (History's Open, Show the latest results) stays shown.
+  /** Marks the shown results reviewed (a Finalized Review of their cut). They stay shown and editable, now reviewed; the
+   *  marked cut itself is History's to open. `then`: once marked, e.g. the next document to review opened. */
+  const finalize=(then?:()=>void)=> {
+    setAskSave(false)
+    // A cut opened while it is being marked (History's Open, Show the latest results) stays shown.
     const generation=readGenerations.current.snapshot
-    void durableRequest(`${durableRoot(id)}/finalize`,{snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}).then(async()=>{
-      if(generation===readGenerations.current.snapshot)await selectPage({snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion})
-      else void reader.refresh()
-      setError(null);setNotice('Review saved.')
+    const cut={snapshotVersion:page.snapshotVersion,feedbackVersion:page.feedbackVersion}
+    void durableRequest(`${durableRoot(id)}/finalize`,cut).then(async()=>{
+      if(pinnedRef.current&&generation===readGenerations.current.snapshot)await selectPage(historical?cut:{snapshotVersion:cut.snapshotVersion})
+      else await reader.refresh()
+      setError(null);setNotice('Marked as reviewed.')
       onReviewFinalized?.()
+      then?.()
     }).catch(error=>setError(error.message))
   }
   // The ordinary research table of the cut shown: built from the values already read, so a long run's saved history
@@ -703,10 +721,11 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   }
   const counts={...model.counts,...page.reviewCounts}
   const quiet=quietRevision({page,state,current:currentSchema,controlled,readOnly})
-  const canSave=!readOnly&&!active&&!page.finalization&&page.total>0&&page.reviewCounts.toCheck===0
+  const reviewed=reviewState(page)
+  const canSave=!readOnly&&!active&&reviewed!=='reviewed'&&page.total>0&&page.reviewCounts.toCheck===0
   const latest=latestPage.snapshotVersion===page.snapshotVersion&&latestPage.feedbackVersion===page.feedbackVersion
   // An earlier cut names itself in the status line: the run's word and details stay the latest state's.
-  const status=statusLine(state,model,article,Boolean(page.finalization))
+  const status=statusLine(state,model,article,reviewed==='reviewed')
   // The header says only that a completed run is completed: its list shows the records. The chat keeps the whole line.
   if(status.mark==='completed'&&(article||model.records.some(record=>record.state==='finished')))status.rest=''
   if(page.snapshotVersion<latestPage.snapshotVersion)status.rest=[status.rest,`· Results ${page.snapshotVersion} of ${latestPage.snapshotVersion}`].filter(Boolean).join(' ')
@@ -784,12 +803,12 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   return <div ref={keyboardRoot} className="relative flex h-full min-h-0 flex-col"
     onKeyDown={event=>{if((!focus||readOnly||!review)&&event.key==='Escape'&&menuOpen&&!event.defaultPrevented&&!event.repeat&&!event.altKey&&!event.ctrlKey&&!event.metaKey&&!event.currentTarget.closest('[hidden]')){event.preventDefault();setMenuOpen(false)}}}>
     <ResultsHeader status={status} slot={headerSlot}
-      counts={counts} running={active} reviewSaved={Boolean(page.finalization)} readOnlyNote={readOnly?'Saved review, view only.':undefined}
+      counts={counts} running={active} reviewSaved={reviewed==='reviewed'} changedAfterReview={reviewed==='changed'} readOnlyNote={readOnly?'Saved review, view only.':undefined}
       actions={{oneByOne:!readOnly&&!focus?{disabled:queue.length===0?(active?'Available once a record is read':'Nothing to review here'):nextToCheck(queue,null,blocked)===null?'Nothing left to check here':null}:null,
-        saveReview:canSave?'Save review':null,list:focus}}
+        saveReview:canSave?'Mark as reviewed':null,list:focus}}
       chips={!focus} filter={filter} onFilter={setFilter} detailsOpen={detailsOpen} menuOpen={menuOpen} menuRef={menuButton}
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onShowDetails={()=>setDetailsOpen(true)}
-      onOneByOne={openOneByOne} onSaveReview={finalize} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
+      onOneByOne={openOneByOne} onSaveReview={()=>finalize()} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
     {(blocks.length>0||previews.length>0)&&<p role="note" className="m-0 shrink-0 border-b border-line px-3 py-1 text-compact text-ink-muted">
       {blocks.length>0&&<span>Dashed outline: a record still being found, its limits may change. Solid outline: a record with settled limits. Highlights are Evidence. </span>}
       {previews.length>0&&<span>Preview highlights show matching text. Citations are still being checked.</span>}</p>}
@@ -805,6 +824,16 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       ...(quiet?[{label:`Template revision ${quiet.revisionNumber}`,onSelect:()=>{setMenuOpen(false);setDetailsOpen(true)}}]:[]),
       ...(menuItems??[]).map(item=>({...item,onSelect:()=>{setMenuOpen(false);item.onSelect()}})),
     ]}/>}
+    {askSave&&canSave&&<ModalDialog className="m-auto w-[min(92vw,360px)] rounded-card border border-line bg-surface p-4 text-ink" labelledBy={`${id}-save-review`}
+      onDismiss={()=>setAskSave(false)}>
+      <h3 id={`${id}-save-review`} className="m-0 text-content font-semibold">All values checked</h3>
+      <p className="mt-1 mb-0 text-secondary text-ink-muted">Mark this document as reviewed?</p>
+      <div className="mt-4 flex flex-col gap-2">
+        {nextReview&&<Button variant="positive" size="md" onClick={()=>finalize(nextReview.open)}>Yes, and open {nextReview.name}</Button>}
+        <Button variant={nextReview?'secondary':'positive'} size="md" onClick={()=>finalize()}>{nextReview?'Yes, stay here':'Yes'}</Button>
+        <Button variant="ghost" size="md" onClick={()=>setAskSave(false)}>Not yet</Button>
+      </div>
+    </ModalDialog>}
     <ExtractionResultExportControl open={exportOpen} schemaNodes={exportFields} returnFocusRef={menuButton} onDismiss={()=>setExportOpen(false)}
       onExport={(format,choices)=>{setExportOpen(false);void exportSaved(format,choices)}}/>
     {exportState&&<div className="shrink-0 border-b border-line p-3 text-secondary">
@@ -835,7 +864,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {reconnect}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
       {state.sourceRevisionId!==documentRevisionId&&<p className="text-secondary">Review uses the Source Representation saved with this Extraction.</p>}
-      {!latest&&<p role="status" className="m-0 text-secondary">Showing saved results {page.snapshotVersion}{page.finalization?' · a saved review':''}.{' '}
+      {!latest&&<p role="status" className="m-0 text-secondary">Showing saved results {page.snapshotVersion}{page.finalization?' · reviewed':''}.{' '}
         <button type="button" className={linkClass} onClick={showLatest}>Show the latest results</button></p>}
     </div>}
     <div ref={resultsContainer} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-canvas p-2">

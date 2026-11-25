@@ -89,15 +89,34 @@ export const shownValue = (value: unknown) =>
   value === null || value === undefined || value === '' ? 'No value'
     : typeof value === 'object' ? JSON.stringify(value) : String(value)
 
-/** A compact label for a composite value, with the full value in its expansion. */
+const filled = (value: unknown) => value !== null && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0)
+
+/** One item of a list of objects: its filled values in its fields' order, e.g. "Anna Jensen · 1852". */
+function itemText(children: readonly SchemaNode[] | undefined, item: Record<string, unknown>): string {
+  const values = children ? children.map(child => item[child.name]) : Object.values(item)
+  return values.filter(filled).map(value => Array.isArray(value) ? value.map(shownValue).join(', ') : shownValue(value)).join(' · ')
+}
+
+/** A composite value in one line, its contents first: a list's items ("Anna, Peter"; an object item its filled values),
+ *  an object's fields with their values. The full value is in its expansion. */
 export function reviewedValueSummary(node: SchemaNode | null, value: unknown): string {
-  if (Array.isArray(value)) return `${value.length} ${value.length === 1 ? 'item' : 'items'}`
+  if (Array.isArray(value)) {
+    if (value.length === 0) return shownValue(null)
+    const objects = value.some(each => each !== null && typeof each === 'object' && !Array.isArray(each))
+    return value.map(each => each !== null && typeof each === 'object' && !Array.isArray(each)
+      ? itemText(node?.children, each as Record<string, unknown>) || shownValue(null) : shownValue(each)).join(objects ? '; ' : ', ')
+  }
   if (node?.type === 'object' && value && typeof value === 'object') {
     const fields = value as Record<string, unknown>
-    return node.children.map(child => `${child.name}: ${reviewedValueSummary(child, fields[child.name])}`).join(' · ')
+    return node.children.filter(child => filled(fields[child.name]))
+      .map(child => `${fieldWords(child.name)}: ${reviewedValueSummary(child, fields[child.name])}`).join(' · ') || shownValue(null)
   }
   return shownValue(value)
 }
+
+/** How many items a list holds, said beside its field's name; null for any other value. */
+export const itemCount = (value: unknown) =>
+  Array.isArray(value) && value.length > 0 ? `${value.length} ${value.length === 1 ? 'item' : 'items'}` : null
 
 export function rowText(row: Pick<RailRow, 'value' | 'disagreement'>): string {
   const root = row.disagreement?.find(entry => entry.part === '')

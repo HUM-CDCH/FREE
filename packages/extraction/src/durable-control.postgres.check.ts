@@ -86,6 +86,16 @@ test('boolean review requires decisions and finalizes without legacy grounding c
     const finalized = await repository.page(id)
     assert.equal(finalized.finalization?.snapshotVersion, cut.snapshotVersion)
     assert.equal(finalized.finalization?.feedbackVersion, cut.feedbackVersion)
+    assert.deepEqual({...finalized.review, createdAt: null}, {...finalized.finalization, createdAt: null, changed: false})
+    // Another document's correction raises the Project's Decision Version: the later cut names no review of its own, and
+    // this one still stands, unchanged. A changed decision here makes it changed.
+    await admin.query('UPDATE extraction_runtime."feedbackHead" SET version=version+1 WHERE id=$1', [head.projectId])
+    const later = await repository.page(id)
+    assert.equal(later.finalization, null)
+    assert.equal(later.review?.id, finalized.finalization?.id)
+    assert.equal(later.review?.changed, false)
+    await repository.saveCorrection(id, 'yes', {...correction, expectedRevision: 1, value: true}, async () => {})
+    assert.equal((await repository.page(id)).review?.changed, true)
     // A changed boolean needs a new decision; its earlier explicit review remains attached to the earlier cut.
     await admin.query(`INSERT INTO extraction_runtime.snapshot (id,"extractionId",version,"selectionId",digest,values,coverage)
       VALUES ($1,$2,2,$3,$4,$5,'{}')`, [randomUUID(), id, head.selectionId, 'b'.repeat(64), JSON.stringify(values.map(value => value.id === 'no' ? {...value, modelValue: true} : value))])

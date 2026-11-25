@@ -22,6 +22,8 @@ export type ResultCorrections = {
   discard(): void
   /** Stops a proposal being asked for. */
   stop(): void
+  /** Results shows a result a message can change (ADR 0035). */
+  readonly available?: boolean
 }
 
 const shown = (value: unknown) => value === null || value === undefined ? 'empty' : typeof value === 'string' ? `“${value}”` : JSON.stringify(value)
@@ -125,7 +127,7 @@ export function useResultCorrections({ target, say, onSaved, onTemplateChange }:
     running.controller.abort()
   }, [])
 
-  return { pending, busy, propose, save, discard, stop }
+  return { pending, busy, propose, save, discard, stop, available: target !== null }
 }
 
 /** One proposed change as the chat's step shows it: where, and what it becomes. */
