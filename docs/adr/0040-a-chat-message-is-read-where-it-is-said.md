@@ -1,7 +1,8 @@
 # 0040: A chat message is read where it is said
 
 Date: 2026-11-25. Status: accepted; amends [0034](0034-the-chat-reads-what-a-message-asks-first.md) and
-[0035](0035-the-chat-proposes-corrections-to-results.md).
+[0035](0035-the-chat-proposes-corrections-to-results.md); its leaning between `edit` and `correct` is superseded by
+[0043](0043-a-message-about-the-results-is-routed-by-its-facts.md), which keeps where a message is said as context.
 
 ## Context
 

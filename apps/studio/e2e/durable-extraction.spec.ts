@@ -254,9 +254,8 @@ test('saved live review survives reload, rejects another owner and exports its f
     await expect(extractionStep.getByRole('button',{name:'▶ Resume extraction',exact:true})).toBeVisible()
     await extractionStep.getByRole('button',{name:'■ Stop',exact:true}).click()
     // Stopped, the step and its controls go and the chat leads the project again: with this document's review saved,
-    // the second trial is offered, and declining it leaves the template's approval next.
-    await page.getByRole('button',{name:'No, go on to approval',exact:true}).click()
-    await expect(page.getByRole('button',{name:'Approve template',exact:true})).toBeVisible()
+    // the approval asks whether the template is good for batch extraction (ADR 0041).
+    await expect(page.getByRole('region',{name:'Approve template',exact:true}).getByRole('button',{name:'Yes',exact:true})).toBeVisible()
     await expect(extractionStep).toHaveCount(0)
     await expect(page.getByRole('button',{name:'▶ Resume extraction',exact:true})).toHaveCount(0)
     const stopped=await (await page.request.get(`/api/extractions/${id}/durable`)).json()

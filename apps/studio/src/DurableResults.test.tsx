@@ -1989,3 +1989,33 @@ it.each(['pending','failed'] as const)('keeps the shown live page protected whil
   fireEvent.click(screen.getByRole('button',{name:/Previous/}))
   expect(screen.getByRole('heading',{name:'Historical first title'})).toBeVisible()
 })
+
+it('shows the changes the chat proposes on their values, opening their record, until they are saved or discarded (ADR 0035)', async () => {
+  vi.mocked(readDurable).mockResolvedValue({state: pausedState, page: reviewPage()} as never)
+  const attempt = {extractionId: 'extraction', strategy: 'CATALOG'} as ExtractionAttempt
+  const shown = (proposed: ComponentProps<typeof DurableResults>['proposed']) =>
+    <Results attempt={attempt} document={null} currentSchema={null} onEvidence={() => {}} proposed={proposed}/>
+  const view = render(shown(null))
+  expect(await screen.findByText('Second title')).toBeVisible()
+  // In document order the researcher folds the record away; a proposal opens it again.
+  fireEvent.click(screen.getByRole('button', {name: 'Use document order'}))
+  const record = screen.getByRole('button', {expanded: true, name: /Record 1/})
+  fireEvent.click(record)
+  expect(screen.queryByText('Second title')).toBeNull()
+  const changes = new Map([
+    ['b', {action: 'EDITED' as const, current: 'Second title', value: 'Changed title'}],
+    ['c', {action: 'REJECTED' as const, current: 'Third title'}],
+  ])
+  view.rerender(shown({key: 1, extractionId: 'extraction', changes}))
+  expect(screen.getByText('Second title', {selector: 's'})).toHaveClass('text-danger')
+  expect(screen.getByText('Changed title')).toHaveClass('text-green')
+  expect(screen.getByText('Third title', {selector: 's'})).toBeVisible()
+  expect(screen.getByText('rejected')).toBeVisible()
+  expect(screen.getByRole('button', {name: /To check a First title/})).toBeVisible()
+  // Another Extraction's proposal, or none, shows nothing.
+  view.rerender(shown({key: 1, extractionId: 'other', changes}))
+  expect(screen.queryByText('Changed title')).toBeNull()
+  view.rerender(shown(null))
+  expect(screen.queryByText('rejected')).toBeNull()
+  expect(screen.getByText('Second title')).not.toHaveClass('text-danger')
+})

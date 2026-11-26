@@ -44,6 +44,31 @@ it('hands a template change on with the conversation through the request, after 
   expect(onTemplateChange).toHaveBeenCalledTimes(2)
 })
 
+it('offers a new run for what the template holds but the values cannot take, after the changes, until it is set aside (ADR 0042)', async () => {
+  const { hook, say } = setup()
+  requestResultCorrections.mockResolvedValueOnce({ ...PROPOSAL, corrections: [], reply: 'Record 12 was missed.', rerun: 'Record 12 is not in the results.' })
+  await act(() => hook.result.current.propose('Record 12 is missing', []))
+  expect(say).toHaveBeenCalledExactlyOnceWith('Record 12 was missed.')
+  expect(hook.result.current.pending).toBeNull()
+  expect(hook.result.current.rerun).toMatchObject({ reason: 'Record 12 is not in the results.' })
+  act(() => hook.result.current.dismissRerun!())
+  expect(hook.result.current.rerun).toBeNull()
+  // Beside changes it can make now; another result shown ends it.
+  requestResultCorrections.mockResolvedValueOnce({ ...PROPOSAL, rerun: 'Record 12 is not in the results.' })
+  await act(() => hook.result.current.propose('Record 3 is 1854, and record 12 is missing', []))
+  expect(hook.result.current.pending?.proposal.corrections).toHaveLength(2)
+  expect(hook.result.current.rerun).not.toBeNull()
+  hook.rerender({ target: { extractionId: 'extraction-2', snapshotVersion: null } })
+  expect(hook.result.current.rerun).toBeNull()
+})
+
+it('asks with where the message was said (ADR 0043)', async () => {
+  const { hook } = setup()
+  requestResultCorrections.mockResolvedValueOnce(PROPOSAL)
+  await act(() => hook.result.current.propose('the date is wrong', [], 'template'))
+  expect(requestResultCorrections).toHaveBeenCalledWith(TARGET, 'the date is wrong', expect.any(AbortSignal), expect.any(String), [], 'template')
+})
+
 it('says the reply when there are no changes and nothing to hand on', async () => {
   const say = vi.fn()
   const hook = renderHook(() => useResultCorrections({ target: TARGET, say, onSaved: vi.fn(), onTemplateChange: vi.fn() }))
@@ -78,14 +103,14 @@ it('says there is nothing to change without a result, and asks for nothing', asy
   expect(say).toHaveBeenCalledExactlyOnceWith(NO_RESULTS_REPLY)
 })
 
-it('saves each change as Results saves a correction, unincluded and without Evidence, and reads the result again', async () => {
+it('saves each change as Results saves a correction, guiding later Extractions as one does, without Evidence and with only the saved value (no chat text or reason), and reads the result again', async () => {
   requestResultCorrections.mockResolvedValueOnce(PROPOSAL)
   const { hook, say, onSaved } = setup()
   await act(() => hook.result.current.propose('fix record 3', []))
   await act(() => hook.result.current.save())
   expect(durableRequest.mock.calls).toEqual([
-    ['/api/extractions/extraction-1/durable/values/v%2Fyear', { expectedRevision: 0, snapshotVersion: 3, action: 'EDITED', value: 1854, evidence: [], included: false }],
-    ['/api/extractions/extraction-1/durable/values/v-name', { expectedRevision: 2, snapshotVersion: 3, action: 'REJECTED', evidence: [], included: false }],
+    ['/api/extractions/extraction-1/durable/values/v%2Fyear', { expectedRevision: 0, snapshotVersion: 3, action: 'EDITED', value: 1854, evidence: [], included: true }],
+    ['/api/extractions/extraction-1/durable/values/v-name', { expectedRevision: 2, snapshotVersion: 3, action: 'REJECTED', evidence: [], included: true }],
   ])
   expect(onSaved).toHaveBeenCalledOnce()
   expect(hook.result.current.pending).toBeNull()

@@ -26,5 +26,8 @@ export const resultCorrectionProposalSchema = z.object({
   /** What the message asks that the current template cannot hold, as one instruction for a template change (ADR
    *  0037): the chat proposes that change, and a run with it. Absent from proposals made before it. */
   templateChange: z.string().nullable().optional(),
+  /** Why running the extraction again, with the template as it is, may meet what the values cannot (ADR 0042): records
+   *  or entries the results missed, or a value the chat could not find in the source. Never beside a template change. */
+  rerun: z.string().nullable().optional(),
 }).strict()
 export type ResultCorrectionProposal = z.infer<typeof resultCorrectionProposalSchema>

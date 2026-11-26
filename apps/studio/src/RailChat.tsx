@@ -6,9 +6,9 @@ import type { ChatWhere } from '../shared/schemaChat.contract'
 import ChatDrawer from './ChatDrawer'
 import { DeleteDialog } from './ui'
 import type { SchemaEditorController } from './currentSchemaRevision'
-import { confirmedOption, correctionStep, extractStep, nextStep, reviewFollowing, type ChatOffer, type GuideInput, type ProjectGuideInput, type StepAction,
+import { confirmedOption, correctionStep, extractStep, rerunOfferStep, nextStep, reviewFollowing, type ChatOffer, type GuideInput, type ProjectGuideInput, type StepAction,
   type StepCard, type StepOption } from './chatGuide'
-import { correctionLine, NO_RESULTS_REPLY, type ResultCorrections } from './useResultCorrections'
+import { NO_RESULTS_REPLY, type ResultCorrections } from './useResultCorrections'
 import { ChatTranscript } from './SchemaChatParts'
 import { useSameTemplateAsRun } from './useSameTemplateAsRun'
 import { chatMessageClass } from './chatMessageClass'
@@ -40,11 +40,11 @@ export type RailChatProps = {
     /** Stops the project's running Batch Extraction: every member still at work. */
     stopBatch: () => void
     open: (target: NonNullable<StepOption['target']>) => void
-    /** Exports the ticked documents' results, once their options and format are chosen. */
-    export: (sourceDocumentIds: readonly string[]) => void
-    /** The project's identity, which keeps the answer to the second trial's question. */
+    /** Opens the project page, where an approved template's batch is extracted, reviewed and exported (ADR 0041). */
+    openProject: () => void
+    /** The project's identity, which keeps whether the researcher is trying the template on more documents. */
     id?: string
-    /** Adds PDFs to the project, where the workspace can: the second trial's upload. */
+    /** Adds PDFs to the project, where the workspace can: the upload of the trial on more documents. */
     addDocuments?: (files: readonly File[]) => void
   } | null
   /** The chat's corrections of the result Results shows (ADR 0035), where the workspace has one to correct. */
@@ -102,8 +102,9 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     setResultsReady(latest?.status === 'COMPLETED' && seenRun?.id === latest.extractionId ? latest.extractionId
       : latest?.extractionId === resultsReady ? resultsReady : null)
   }
-  // The second trial's answer, kept with the project in this browser so another document does not ask again.
-  const moreKey = project?.addDocuments && project.id ? `free.more-documents.${project.id}` : null
+  // Whether the researcher chose to try the template on more documents, kept with the project in this browser so
+  // another document goes on with it.
+  const moreKey = project?.id ? `free.more-documents.${project.id}` : null
   const [more, setMoreState] = useState(() => ({ key: moreKey, value: storedMore(moreKey) }))
   if (more.key !== moreKey) setMoreState({ key: moreKey, value: storedMore(moreKey) })
   const setMore = (value: MoreDocuments) => {
@@ -147,7 +148,7 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     templateReady,
     resultsReady: resultsReady !== null && resultsReady === latest?.extractionId,
     dismissed,
-    project: project ? { ...project.guide, moreDocuments: moreKey ? more.value : undefined } : null,
+    project: project ? { ...project.guide, moreDocuments: more.value, canUpload: !!project.addDocuments } : null,
   }
   // Results offers to mark the review and go on to the next document: which one, as the review step has it.
   const following = project ? reviewFollowing(guide) : null
@@ -162,10 +163,13 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
   const where: ChatWhere = { view: resultsShown ? 'results' : templateShown ? 'template' : 'chat', results: !!corrections?.available }
   // Changes a message proposed to the results wait for the researcher first, as the latest message's answer (ADR 0035).
   const proposed = corrections?.pending ?? null
-  const correcting = proposed && correctionStep(proposed.request, proposed.proposal.corrections.map(correctionLine), corrections?.busy === 'saving')
+  const correcting = proposed && correctionStep(proposed.request, proposed.proposal.corrections.length, corrections?.busy === 'saving')
+  // What the values could not meet but the template holds is offered as a new run, after the changes (ADR 0042).
+  const offeredRun = corrections?.rerun && !readOnly ? rerunOfferStep(guide, corrections.rerun.request, corrections.rerun.reason) : null
   // A message that asked to extract is answered by its own step until the researcher chooses; else the next step.
   const next = correcting && !dismissed.has(correcting.key) ? correcting
-    : chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
+    : offeredRun && !dismissed.has(offeredRun.key) ? offeredRun
+      : chat.extractRequest !== null && !readOnly ? extractStep(guide, chat.extractRequest) : nextStep(guide)
   // Finish answering the researcher before asking for scope; an edit may produce a proposal to review first.
   const step = next?.key === 'scope' && (chat.loading || chat.asking !== null) ? null : next
   // The documents ticked in the step's picker: its own initial ones until the researcher changes them.
@@ -216,6 +220,8 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     }
     // Proposed changes set aside unsaid are discarded; with something said instead they wait, so a "yes" can save them.
     if (card.key.startsWith('correct:') && option.action === 'dismiss' && !said) corrections?.discard()
+    // The offered run answers one request: running, or setting it aside unsaid, ends it.
+    if (card.key.startsWith('rerun-offer:') && !said) corrections?.dismissRerun?.()
     const act: Record<StepAction, () => void> = {
       generate: () => onGenerate?.(instructions.text),
       'stop-generation': () => schema.cancelGeneration(),
@@ -239,19 +245,18 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
       stop: () => control?.command('stop'),
       'stop-batch': () => project?.stopBatch(),
       pilot: () => {
-        // The second trial starts: after its review the chat asks for the approval.
-        if (card.key.startsWith('more-trial:')) setMore('done')
+        // The trial on more documents starts: after its review the chat asks for the approval again.
+        if (card.key.startsWith('more-trial:')) setMore('ask')
         project?.start('pilot', ids)
       },
       'more-documents': () => setMore('adding'),
       upload: () => fileInput?.click(),
-      'skip-more': () => setMore('done'),
+      'skip-more': () => setMore('ask'),
       'save-corrections': () => void corrections?.save(),
       'discard-corrections': () => corrections?.discard(),
-      batch: () => project?.start('batch', ids),
       approve: () => project?.approve(),
       'open-document': () => option.target && project?.open(option.target),
-      export: () => project?.export(ids),
+      'open-project': () => project?.openProject(),
       dismiss: () => setDismissed((current) => new Set(current).add(card.key)),
     }
     act[option.action]()
@@ -329,14 +334,16 @@ export default function RailChat({ chat, schema, sourceDocumentName, onGenerate,
     // A change to particular results is proposed for the result Results shows, where there is one (ADR 0035); the
     // proposal itself says when there is none.
     if (request.action === 'correct') {
-      if (corrections && request.said) void corrections.propose(request.said.message, request.said.history)
+      if (corrections && request.said) void corrections.propose(request.said.message, request.said.history, where.view)
       else appendMessage(NO_RESULTS_REPLY)
       return
     }
-    // A "yes" beside proposed changes saves them, while they are still the ones it was said beside.
-    if (request.offer && correcting && request.offer.card.key === correcting.key) {
-      const save = correcting.options.find(({ tone, disabled }) => tone === 'positive' && !disabled)
-      if (save) choose(correcting, save)
+    // A "yes" beside proposed changes saves them, while they are still the ones it was said beside; beside the offered
+    // run, it runs.
+    const beside = [correcting, offeredRun].find((card) => card && request.offer?.card.key === card.key)
+    if (beside) {
+      const lead = beside.options.find(({ tone, disabled }) => tone === 'positive' && !disabled)
+      if (lead) choose(beside, lead)
       else appendMessage(NOTHING_TO_CONFIRM_REPLY)
       return
     }
@@ -496,14 +503,15 @@ const pickable = (card: StepCard, count: number) => count > 0 && count <= (card.
  *  export, whose dialog opens over it). Every other choice moves the workflow on and returns to the conversation. */
 /** The choices that change nothing, so the conversation does not note them: setting a step aside, going on past a
  *  stop, opening a view or another document, and the export's dialog (the export itself is its own). */
-const UNNOTED: ReadonlySet<StepAction> = new Set<StepAction>(['dismiss', 'continue', 'review-schema', 'review', 'open-document', 'export', 'upload'])
+const UNNOTED: ReadonlySet<StepAction> = new Set<StepAction>(['dismiss', 'continue', 'review-schema', 'review', 'open-document', 'open-project', 'upload'])
 
-type MoreDocuments = 'ask' | 'adding' | 'done'
-/** The second trial's answer kept for a project; `ask` when none is, or storage is unavailable. */
+type MoreDocuments = 'ask' | 'adding'
+/** Whether the researcher is trying the template on more documents, kept for a project; `ask` when not, or storage is
+ *  unavailable. */
 function storedMore(key: string | null): MoreDocuments {
   try {
     const value = key ? localStorage.getItem(key) : null
-    return value === 'adding' || value === 'done' ? value : 'ask'
+    return value === 'adding' ? value : 'ask'
   } catch { return 'ask' }
 }
 

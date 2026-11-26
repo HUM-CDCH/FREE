@@ -78,7 +78,8 @@ export async function readChatMessage(
   call: SchemaChatCall = {},
 ): Promise<string | ChatRequest | null> {
   const { intent, focus } = await classifyChatMessage(target, question, call)
-  if (intent === 'edit') return null
+  // With no result to change, what is said about the results is said about the template (ADR 0043).
+  if (intent === 'edit' || (intent === 'correct' && !question.where?.results)) return null
   if (intent === 'none') return { action: 'none' }
   if (intent !== 'question') return { action: intent, focus }
   const text = source ? schemaSourceExcerpts(source.markdown, source.pageSpans).text : NO_SOURCE

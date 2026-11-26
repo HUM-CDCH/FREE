@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { deleteModelOperation, requestResultCorrections } from './api'
 import { durableRequest, durableRoot } from './durableExtractionApi'
-import type { ChatHistory } from '../shared/schemaChat.contract'
+import type { ChatHistory, ChatView } from '../shared/schemaChat.contract'
 import type { ResultCorrectionProposal } from '../shared/resultCorrection.contract'
 
 /** The result a chat message corrects: the Extraction Results shows, at the snapshot it shows (null: its latest). */
@@ -16,7 +16,8 @@ export type ResultCorrections = {
   readonly pending: { request: number; proposal: ResultCorrectionProposal } | null
   /** A proposal is being asked for, or saved. */
   readonly busy: 'proposing' | 'saving' | null
-  propose(message: string, history: ChatHistory): Promise<void>
+  /** `view` is where the message was said (ADR 0043). */
+  propose(message: string, history: ChatHistory, view?: ChatView | null): Promise<void>
   /** Saves every proposed change as the researcher's correction of its value, as Results' own save does. */
   save(): Promise<void>
   discard(): void
@@ -24,15 +25,18 @@ export type ResultCorrections = {
   stop(): void
   /** Results shows a result a message can change (ADR 0035). */
   readonly available?: boolean
+  /** What the values could not meet but the template already holds, offered as a new run (ADR 0042): why, with the
+   *  request it answers. Held until the researcher chooses, another proposal is asked for, or another result shows. */
+  readonly rerun?: { request: number; reason: string } | null
+  dismissRerun?(): void
 }
-
-const shown = (value: unknown) => value === null || value === undefined ? 'empty' : typeof value === 'string' ? `“${value}”` : JSON.stringify(value)
 
 /**
  * The chat's corrections of the result Results shows (ADR 0035): a message's proposed changes, held until the
  * researcher saves or discards them. Saving goes through the correction save of Results, one value at a time, with the
  * revision the proposal read; a change that a newer correction overtook is refused and said, and the others stay saved.
- * The changes are not used to guide later Extractions until the researcher includes them, as any correction can be.
+ * A saved edit guides later Extractions in the project as an edit made in Results does: only the value the researcher
+ * saved, never the conversation or the model's reasons.
  */
 export function useResultCorrections({ target, say, onSaved, onTemplateChange }: {
   target: CorrectionTarget | null
@@ -46,6 +50,7 @@ export function useResultCorrections({ target, say, onSaved, onTemplateChange }:
 }): ResultCorrections {
   const [pending, setPending] = useState<ResultCorrections['pending']>(null)
   const [busy, setBusy] = useState<ResultCorrections['busy']>(null)
+  const [rerun, setRerun] = useState<ResultCorrections['rerun']>(null)
   const requests = useRef(0)
   const abortRef = useRef<{ controller: AbortController; operationId: string } | null>(null)
   useEffect(() => () => abortRef.current?.controller.abort(), [])
@@ -55,26 +60,31 @@ export function useResultCorrections({ target, say, onSaved, onTemplateChange }:
   if (proposedFor !== extractionId) {
     setProposedFor(extractionId)
     setPending(null)
+    setRerun(null)
   }
 
-  const propose = useCallback(async (message: string, history: ChatHistory) => {
+  const propose = useCallback(async (message: string, history: ChatHistory, view: ChatView | null = null) => {
     if (!target) { say(NO_RESULTS_REPLY); return }
     abortRef.current?.controller.abort()
     const controller = new AbortController()
     const operationId = crypto.randomUUID()
     abortRef.current = { controller, operationId }
     setPending(null)
+    setRerun(null)
     setBusy('proposing')
     try {
-      const proposal = await requestResultCorrections(target, message, controller.signal, operationId, history)
+      const proposal = await requestResultCorrections(target, message, controller.signal, operationId, history, view)
       if (abortRef.current?.controller !== controller) return
       const notes = proposal.dropped.length ? `\n\nLeft out: ${proposal.dropped.join(' ')}` : ''
       const templateChange = onTemplateChange ? proposal.templateChange ?? null : null
-      if (proposal.corrections.length === 0 && !templateChange) say(`${proposal.reply ?? NOTHING_PROPOSED_REPLY}${notes}`)
+      const again = templateChange ? null : proposal.rerun ?? null
+      if (proposal.corrections.length === 0 && !templateChange && !again) say(`${proposal.reply ?? NOTHING_PROPOSED_REPLY}${notes}`)
       else {
         if (proposal.reply || notes) say(`${proposal.reply ?? ''}${notes}`.trim())
         if (proposal.corrections.length > 0) setPending({ request: requests.current += 1, proposal })
       }
+      // What the values cannot meet but the template already holds is offered as a new run, after the changes.
+      if (again) setRerun({ request: requests.current += 1, reason: again })
       // What the template cannot hold is proposed as a template change, after any changes to the values themselves.
       if (templateChange) onTemplateChange!(templateChange, [...history, { role: 'user', text: message }])
     } catch (err) {
@@ -102,7 +112,7 @@ export function useResultCorrections({ target, say, onSaved, onTemplateChange }:
           action: correction.action,
           ...(correction.action === 'EDITED' ? { value: correction.value } : {}),
           evidence: [],
-          included: false,
+          included: true,
         })
       } catch (err) {
         failed.push(`${correction.label}: ${err instanceof Error ? err.message : 'not saved'}`)
@@ -118,6 +128,7 @@ export function useResultCorrections({ target, say, onSaved, onTemplateChange }:
   }, [busy, onSaved, pending, say])
 
   const discard = useCallback(() => { setPending(null) }, [])
+  const dismissRerun = useCallback(() => { setRerun(null) }, [])
   const stop = useCallback(() => {
     const running = abortRef.current
     if (!running) return
@@ -127,11 +138,5 @@ export function useResultCorrections({ target, say, onSaved, onTemplateChange }:
     running.controller.abort()
   }, [])
 
-  return { pending, busy, propose, save, discard, stop, available: target !== null }
-}
-
-/** One proposed change as the chat's step shows it: where, and what it becomes. */
-export function correctionLine(correction: ResultCorrectionProposal['corrections'][number]): readonly [string, string] {
-  const to = correction.action === 'REJECTED' ? 'rejected' : shown(correction.value)
-  return [correction.label, `${shown(correction.current)} → ${to}`.slice(0, 300)]
+  return { pending, busy, propose, save, discard, stop, available: target !== null, rerun, dismissRerun }
 }

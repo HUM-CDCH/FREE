@@ -490,6 +490,8 @@ export default function ProjectContextPage({
     name: string
   } | null>(null)
   const [dragging, setDragging] = useState(false)
+  // The status's Extract or Review in grid, handed to Runs & exports once it is open (ADR 0041).
+  const [guidedRequest, setGuidedRequest] = useState<'batch' | 'review' | null>(null)
   // How new uploads are read: scanned two-page spreads are split into book
   // pages; everything else is read page by page. Born-digital PDFs are read
   // natively whatever is chosen.
@@ -894,6 +896,14 @@ export default function ProjectContextPage({
             summary={projectSummary}
             sourcesInFlight={sourcesInFlight}
             onContinue={continueDocument ? () => onOpenSourceDocument(projectContextId, continueDocument.sourceDocumentId, continueDocument.name) : null}
+            batch={{
+              // Extracting and reviewing open in Runs & exports, where the batch's preparation and grid are.
+              extract: () => { setGuidedRequest('batch'); onNavigate({ kind: 'project', projectContextId, tab: 'extractions' }) },
+              review: () => { setGuidedRequest('review'); onNavigate({ kind: 'project', projectContextId, tab: 'extractions' }) },
+              upload: () => fileInput.current?.click(),
+              exported: { projectContextId, name: project?.name ?? 'Project',
+                documents: allSourceDocuments.map(({ sourceDocumentId, name }) => ({ id: sourceDocumentId, name })) },
+            }}
           />
         )}
 
@@ -1685,6 +1695,8 @@ export default function ProjectContextPage({
                 : null
             }
             summary={projectSummary ?? null}
+            guidedRequest={guidedRequest}
+            onGuidedRequestHandled={() => setGuidedRequest(null)}
             onNavigate={onNavigate}
             onProgressChange={refreshProjects}
           />

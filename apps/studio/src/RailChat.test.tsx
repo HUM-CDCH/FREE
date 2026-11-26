@@ -314,7 +314,7 @@ describe('RailChat', () => {
   })
 })
 
-describe('the second trial', () => {
+describe('the approval and the trial on more documents (ADR 0041)', () => {
   afterEach(() => localStorage.clear())
   const member = (sourceDocumentId: string) => ({ extractionId: `extraction-${sourceDocumentId}`, sourceDocumentId,
     sourceRepresentationRevisionId: `source-${sourceDocumentId}`, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true, missingCount: 0,
@@ -330,27 +330,41 @@ describe('the second trial', () => {
         createdAt: '2026-11-01T00:00:00.000Z', trial: true, members: [member('a'), member('b')] }],
       latest: null, roundId: null, busy: false, error: null,
     },
-    start: vi.fn(), approve: vi.fn(), stopBatch: vi.fn(), open: vi.fn(), export: vi.fn(), id: 'project-1', addDocuments: vi.fn(),
+    start: vi.fn(), approve: vi.fn(), stopBatch: vi.fn(), open: vi.fn(), openProject: vi.fn(), id: 'project-1', addDocuments: vi.fn(),
   })
 
-  it('asks after the first trial\'s review, uploads and tries more documents, then asks for the approval, once per project', () => {
+  it('asks whether the template is good for batch extraction; no tries it on more documents, uploaded or ticked, then asks again', () => {
     const shown = project()
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: shown })
-    fireEvent.click(within(screen.getByRole('region', { name: 'Try more documents?' })).getByRole('button', { name: /Yes, try more documents/ }))
+    const approval = screen.getByRole('region', { name: 'Approve template' })
+    expect(within(approval).getByText(/Is this template good for batch extraction\?/)).toBeInTheDocument()
+    fireEvent.click(within(approval).getByRole('button', { name: /No, try it on more documents/ }))
     const trial = screen.getByRole('region', { name: 'Try template on more documents' })
     expect(within(trial).getByRole('checkbox', { name: /c\.pdf/ })).toBeChecked()
+    // Another document of the project goes on with the trial.
+    cleanup()
+    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: shown })
+    expect(screen.getByRole('region', { name: 'Try template on more documents' })).toBeInTheDocument()
     // Upload opens the file picker; the files chosen go to the project.
     const file = new File(['%PDF'], 'd.pdf', { type: 'application/pdf' })
     fireEvent.change(screen.getByTestId('chat-upload'), { target: { files: [file] } })
     expect(shown.addDocuments).toHaveBeenCalledExactlyOnceWith([file])
-    fireEvent.click(within(trial).getByRole('button', { name: /Try on 1 document/ }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Try template on more documents' })).getByRole('button', { name: /Try on 1 document/ }))
     expect(shown.start).toHaveBeenCalledExactlyOnceWith('pilot', ['c'])
+    // Started: the approval asks again once the trial is reviewed.
     expect(screen.getByRole('region', { name: 'Approve template' })).toBeInTheDocument()
-    // Another document of the project does not ask again.
+  })
+
+  it('approves on yes, and once approved points to the project page', () => {
+    const shown = project()
+    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: shown })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Approve template' })).getByRole('button', { name: 'Yes' }))
+    expect(shown.approve).toHaveBeenCalledOnce()
     cleanup()
-    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: project() })
-    expect(screen.queryByRole('region', { name: 'Try more documents?' })).not.toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Approve template' })).toBeInTheDocument()
+    const approved = { ...shown, guide: { ...shown.guide, summary: { ...shown.guide.summary, phase: 'batch' as const, schemaStabilised: true } } }
+    renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: approved })
+    fireEvent.click(within(screen.getByRole('region', { name: 'Batch extraction' })).getByRole('button', { name: /Open project page/ }))
+    expect(shown.openProject).toHaveBeenCalledOnce()
   })
 
   it('tells Results the next document to review while this one waits, and opens it', () => {
@@ -364,9 +378,10 @@ describe('the second trial', () => {
     expect(shown.open).toHaveBeenCalledExactlyOnceWith({ sourceDocumentId: 'b', extractionId: 'extraction-b', batchExtractionId: 'trial-1' })
   })
 
-  it('goes on to the approval when the researcher declines', () => {
+  it('goes back to the approval from the trial on more documents', () => {
     renderChat({ recordScope: { value: 'records', onChange: vi.fn() }, project: project() })
-    fireEvent.click(within(screen.getByRole('region', { name: 'Try more documents?' })).getByRole('button', { name: /No, go on to approval/ }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Approve template' })).getByRole('button', { name: /No, try it on more documents/ }))
+    fireEvent.click(within(screen.getByRole('region', { name: 'Try template on more documents' })).getByRole('button', { name: /Back to the approval/ }))
     expect(screen.getByRole('region', { name: 'Approve template' })).toBeInTheDocument()
   })
 })
@@ -424,19 +439,18 @@ describe('changes to the results (ADR 0035)', () => {
     const results = corrections()
     const view = render(<Heard heard={null} results={results} />)
     view.rerender(<Heard heard={{ action: 'correct', offer: null, said }} results={results} />)
-    expect(results.propose).toHaveBeenCalledExactlyOnceWith(said.message, said.history)
+    expect(results.propose).toHaveBeenCalledExactlyOnceWith(said.message, said.history, 'chat')
     view.rerender(<Heard heard={{ action: 'correct', offer: null, said }} results={null} />)
     expect(screen.getByText(NO_RESULTS_REPLY)).toBeInTheDocument()
   })
 
-  it('shows each proposed change as it is and as it would be, and saves or discards them', () => {
+  it('counts the proposed changes, which Results shows on their values, and saves or discards them', () => {
     const results = corrections({ pending: { request: 1, proposal: PROPOSAL } })
     render(<Heard heard={null} results={results} />)
     const step = screen.getByRole('region', { name: 'Change results' })
-    expect(within(step).getByText('Save these 2 changes to the results?')).toBeVisible()
-    expect(within(step).getByText('1845 → 1854')).toBeVisible()
-    expect(within(step).getByText('“Ane” → rejected')).toBeVisible()
-    fireEvent.click(within(step).getByRole('button', { name: /Save 2 changes/ }))
+    expect(within(step).getByText('Save 2 changes?')).toBeVisible()
+    expect(within(step).queryByText(/→/)).not.toBeInTheDocument()
+    fireEvent.click(within(step).getByRole('button', { name: /^Save/ }))
     expect(results.save).toHaveBeenCalledOnce()
     fireEvent.click(within(step).getByRole('button', { name: /Discard/ }))
     expect(results.discard).toHaveBeenCalledOnce()
@@ -468,5 +482,38 @@ describe('changes to the results (ADR 0035)', () => {
     const card = { key: 'correct:4', title: 'Change results', options: [] }
     view.rerender(<Heard heard={{ action: 'confirm', offer: { card, picked: [] } }} results={results} />)
     expect(results.save).toHaveBeenCalledOnce()
+  })
+
+  it('offers a new run for what the template holds but no value can take, after the changes, and runs on a choice or a "yes" (ADR 0042)', () => {
+    const start = vi.fn()
+    function Offered({ results, heard = null, available = true }: { results: ResultCorrections; heard?: HeardRequest | null; available?: boolean }) {
+      const chat = useSchemaChat({ schema })
+      return <RailChat {...props} run={{ start, available, unavailableReason: available ? null : 'Another extraction is running.' }}
+        corrections={results} chat={{ ...chat, heard, clearHeard: vi.fn() }} />
+    }
+    const rerun = { request: 2, reason: 'Record 12 is not in the results.' }
+    // The changes lead; the run waits behind them.
+    const view = render(<Offered results={corrections({ pending: { request: 1, proposal: PROPOSAL }, rerun, dismissRerun: vi.fn() })} />)
+    expect(screen.getByRole('region', { name: 'Change results' })).toBeInTheDocument()
+    const results = corrections({ rerun, dismissRerun: vi.fn() })
+    view.rerender(<Offered results={results} />)
+    const step = screen.getByRole('region', { name: 'Run extraction again' })
+    expect(within(step).getByText('The template can hold this, but the results have no value to change for it. Run the extraction again?')).toBeVisible()
+    expect(within(step).getByText('Record 12 is not in the results.')).toBeVisible()
+    fireEvent.click(within(step).getByRole('button', { name: /Re-run extraction/ }))
+    expect(start).toHaveBeenCalledOnce()
+    expect(results.dismissRerun).toHaveBeenCalledOnce()
+    // A "yes" beside it runs as well.
+    const again = corrections({ rerun: { ...rerun, request: 3 }, dismissRerun: vi.fn() })
+    view.rerender(<Offered results={again} />)
+    const card = { key: 'rerun-offer:3', title: 'Run extraction again', options: [] }
+    view.rerender(<Offered results={again} heard={{ action: 'confirm', offer: { card, picked: [] } }} />)
+    expect(start).toHaveBeenCalledTimes(2)
+    cleanup()
+    // A run that cannot start says why.
+    render(<Offered results={corrections({ rerun: { ...rerun, request: 4 }, dismissRerun: vi.fn() })} available={false} />)
+    const blocked = screen.getByRole('region', { name: 'Run extraction again' })
+    expect(within(blocked).getByText('Another extraction is running.')).toBeVisible()
+    expect(within(blocked).getByRole('button', { name: /Re-run extraction/ })).toBeDisabled()
   })
 })

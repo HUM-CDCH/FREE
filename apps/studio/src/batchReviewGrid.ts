@@ -52,6 +52,12 @@ export function gridLayout(page: DurablePage): GridLayout {
 /** A saved value a decision applies to: reviewable, unlike a missing or unread one. */
 export const reviewable = (value: GridValue) => value.processing === 'saved'
 
+/** A value the model found nothing for: filled in by an edit, or emptied again (`PENDING`), as in the document. */
+export const fillable = (value: GridValue) => value.processing === 'absent'
+
+/** A missing value the researcher filled in. */
+export const filledIn = (value: GridValue) => fillable(value) && value.correction?.decision.action === 'EDITED'
+
 /** A reviewable value with no decision yet (or one set back to To check). */
 export const toCheck = (value: GridValue) =>
   reviewable(value) && (!value.correction || value.correction.decision.action === 'PENDING')

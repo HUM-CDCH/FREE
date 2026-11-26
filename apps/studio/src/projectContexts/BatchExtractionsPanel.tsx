@@ -500,32 +500,17 @@ export default function BatchExtractionsPanel({
   // happening and offers its own way out), so it's left out entirely here.
   const isPilotPrepare = preparing?.kind === 'pilot'
 
-  /** Opens the batch's first member still waiting for review, with the way
-   *  back here and on to the next member. */
-  const reviewBatch = (batch: BatchExtraction) => {
-    const member = batch.members.find(
-      (candidate) => candidate.reviewable && !candidate.currentReview,
-    )
-    onNavigate(
-      member
-        ? {
-            kind: 'document',
-            projectContextId,
-            sourceDocumentId: member.sourceDocumentId,
-            extractionId: member.extractionId,
-            fromBatchExtractionId: batch.batchExtractionId,
-          }
-        : {
-            kind: 'project',
-            projectContextId,
-            tab: 'extractions',
-            batchExtractionId: batch.batchExtractionId,
-          },
-    )
-  }
+  /** Opens the batch's review grid (ADR 0041): each document opens from there where its source is needed. */
+  const reviewBatch = (batch: BatchExtraction) =>
+    onNavigate({ kind: 'project', projectContextId, tab: 'extractions', batchExtractionId: batch.batchExtractionId, view: 'grid' })
 
-  const prepareCollectionRun = (revisionId: string) =>
-    startPreparing('batch', revisionId, sourceDocumentIds.length > BATCH_EXTRACTION_SELECTION_LIMIT ? [] : sourceDocumentIds)
+  // The approved revision's batch ticks the documents it has no result for yet: completed or reviewed ones keep theirs.
+  const prepareCollectionRun = (revisionId: string) => {
+    const covered = new Set((batches.value ?? []).filter((batch) => batch.schemaRevisionId === revisionId)
+      .flatMap((batch) => batch.members.filter((member) => member.completed || member.currentReview).map((member) => member.sourceDocumentId)))
+    const left = sourceDocumentIds.filter((id) => !covered.has(id))
+    startPreparing('batch', revisionId, left.slice(0, BATCH_EXTRACTION_SELECTION_LIMIT))
+  }
 
   // The workflow bar's Next lands here once what it opens has loaded.
   const batchesRead = batches.value !== null
@@ -536,7 +521,8 @@ export default function BatchExtractionsPanel({
       return
     }
     if (handledGuidedRequest.current === guidedRequest) return
-    if (guidedRequest === 'review' ? !batchesRead : !hasSourceDocuments) return
+    // The batch ticks the documents left, so it waits for the batches too.
+    if (guidedRequest === 'pilot' ? !hasSourceDocuments : !batchesRead || (guidedRequest === 'batch' && !hasSourceDocuments)) return
     handledGuidedRequest.current = guidedRequest
     onGuidedRequestHandled?.()
     const revisionId = summary?.currentSchemaRevisionId ?? null

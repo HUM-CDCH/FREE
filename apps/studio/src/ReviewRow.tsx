@@ -9,6 +9,7 @@ import {
 import { Button } from './ui'
 import ReviewedValueEditor from './ui/ReviewedValueEditor'
 import ReviewedValueDisplay, { type PartPick } from './ui/ReviewedValueDisplay'
+import ProposedValueChange, { type ProposedChange } from './ProposedValueChange'
 
 export function RowGlyph({ row }: { row: RailRow }) {
   switch (row.kind) {
@@ -72,11 +73,13 @@ export type ReviewRowProps = {
   canUndoWhole?: boolean
   /** A decision is saving or the review is a saved one: the row and its edit wait, picking a part never does. */
   locked?: boolean
+  /** The change the chat proposes to this value, shown in place of the value until saved or discarded (ADR 0035). */
+  proposed?: ProposedChange | null
 }
 
 /** One value, and when selected its expansion: one tinted surface, no card. */
 export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, canDecide, saved, editing, node,
-  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onTypedEdit, pick, canApproveWhole = true, canUndoWhole = true, locked = false }: ReviewRowProps) {
+  onDecide, onChoose, onEdit, onCancelEdit, onUndo, onTypedEdit, pick, canApproveWhole = true, canUndoWhole = true, locked = false, proposed = null }: ReviewRowProps) {
   if (row.kind === 'reading' || row.kind === 'checking' || row.kind === 'queued') return <ProgressRow row={row} />
   const expansionId = `expansion-${row.key}`
   const reviewable = row.retained?.reviewable ?? false
@@ -89,7 +92,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
       <button ref={rowRef} type="button" disabled={locked} aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
-        aria-label={`${stateLabel(row)} ${fieldWords(row.name)} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${!selected && row.kind === 'to-check' && row.reason ? `, ${row.reason}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}`}
+        aria-label={`${stateLabel(row)} ${fieldWords(row.name)} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${!selected && row.kind === 'to-check' && row.reason ? `, ${row.reason}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}${proposed ? ', change proposed in the chat' : ''}`}
         className={`${grid} min-h-7.5 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
@@ -101,7 +104,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
             {itemCount(row.value) && <span className="shrink-0">· {itemCount(row.value)}</span>}
           </span>
           {/* A list or group shows its contents here; opened, they are laid out in full below instead. */}
-          {!(selected && composite && !editing) && (
+          {proposed ? <ProposedValueChange node={node} change={proposed} /> : !(selected && composite && !editing) && (
             <span className={`text-content font-medium text-ink [overflow-wrap:anywhere] ${selected ? 'block' : 'line-clamp-2'}`}>{composite ? reviewedValueSummary(node, row.value) : rowText(row)}</span>
           )}
           {!selected && row.kind === 'to-check' && row.reason && <span className="flex items-start gap-1 text-compact text-stale-ink"><DoubtGlyph /><span>{row.reason}</span></span>}

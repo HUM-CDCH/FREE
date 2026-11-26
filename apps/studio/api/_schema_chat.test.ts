@@ -127,6 +127,15 @@ describe('respondToSchemaEdit', () => {
     expect(sent(0)).toContain('Studio has just offered: Run extraction: Run it?')
   })
 
+  it('hands what is said about the results back to Studio where a result is shown, and changes the template where none is (ADR 0043)', async () => {
+    replies(intent('correct'))
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'the dates should only be years', where: { view: 'results', results: true } }, general))
+      .resolves.toEqual({ action: 'correct', focus: null })
+    replies(intent('correct'), JSON.stringify({ template: { _description: 'One burial.', year: 'integer' } }))
+    await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'the dates should only be years', where: { view: 'template', results: false } }, general))
+      .resolves.toMatchObject({ template: { year: 'integer' } })
+  })
+
   it('reads a reply that names no intent as a change, as every message was before', async () => {
     replies('Sure, here is a schema.', '{"_description":"One burial.","name":"string"}')
     await expect(respondToSchemaEdit(CALLER, input, { ...question, message: 'Add a name field' }, general))

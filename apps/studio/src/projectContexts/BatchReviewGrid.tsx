@@ -2,7 +2,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Reac
 import type { SchemaNode } from 'extraction/schema'
 import { byMostMissing, supersededMember, type BatchExtraction, type BatchExtractionMember } from '../../shared/batchExtraction.contract'
 import {
-  bulkApprovable, decided, finalizable, gridColumns, gridLayout, layoutValues, reviewable,
+  bulkApprovable, decided, fillable, filledIn, finalizable, gridColumns, gridLayout, layoutValues, reviewable,
   type GridAction, type GridColumn, type GridLayout, type GridRecord, type GridValue,
 } from '../batchReviewGrid'
 import { durableRailRow } from '../durableRailModel'
@@ -95,7 +95,8 @@ function BulkBadge({ label, count, tone, onClick, children }: {
 }
 
 /** One value of one record: its decision glyph and shown value, and when open its decisions. A Value Disagreement is
- *  approved by choosing a reading, in the document's review; here it can be edited or rejected. */
+ *  approved by choosing a reading, in the document's review; here it can be edited or rejected. A missing value can be
+ *  filled in, and a filled-in one edited or emptied again, as in the document. */
 function GridCell({ value, open, editing, locked, onOpen, onClose, onDecide, onEdit, onOpenDocument }: {
   value: GridValue; open: boolean; editing: boolean; locked: boolean
   onOpen(): void; onClose(): void; onDecide(action: GridAction, edited?: unknown): void; onEdit(): void; onOpenDocument(): void
@@ -104,6 +105,7 @@ function GridCell({ value, open, editing, locked, onOpen, onClose, onDecide, onE
   const text = row.value && typeof row.value === 'object' ? reviewedValueSummary(value.node, row.value) : rowText(row)
   const missing = row.value === null || row.value === undefined || row.value === ''
   const canDecide = reviewable(value) && !locked
+  const fill = fillable(value)
   const shown = (
     <span className="flex min-w-0 items-center gap-1.5">
       <span className="flex shrink-0 items-center"><CellGlyph kind={row.kind} /></span>
@@ -111,13 +113,13 @@ function GridCell({ value, open, editing, locked, onOpen, onClose, onDecide, onE
       {row.disagreement && <span className="shrink-0 text-[10px] text-ink-muted">different readings</span>}
     </span>
   )
-  if (!reviewable(value))
+  if (!reviewable(value) && !fill)
     return <div className="max-w-[16rem] px-3 py-2 text-ink-faint" aria-label={`${value.node.name}: ${stateLabel(row)}`}>{shown}</div>
   if (editing)
     return (
       <div className="w-[16rem] px-2 py-1.5">
         <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0">
-          <ReviewedValueEditor node={value.node} initial={row.value} saveLabel="Save edit"
+          <ReviewedValueEditor node={value.node} initial={row.value} saveLabel={fill ? 'Save value' : 'Save edit'}
             onSave={(edited) => onDecide('EDITED', edited)} onTypedSave={(edited) => onDecide('EDITED', edited)} onCancel={onClose} />
         </fieldset>
       </div>
@@ -130,6 +132,15 @@ function GridCell({ value, open, editing, locked, onOpen, onClose, onDecide, onE
         onClick={open ? onClose : onOpen}>
         {shown}
       </button>
+      {open && fill && !locked && (
+        <div className="mt-1.5 flex flex-wrap gap-1" role="group" aria-label={`Fill in ${value.node.name}`}>
+          {filledIn(value) ? <>
+            <span className="self-center text-[10.5px] font-semibold text-ink">Filled in</span>
+            <Button size="sm" variant="pill" onClick={onEdit}>Edit</Button>
+            <Button size="sm" variant="pill" onClick={() => onDecide('PENDING')}>Remove value</Button>
+          </> : <Button size="sm" variant="pill" onClick={onEdit}>Fill in</Button>}
+        </div>
+      )}
       {open && canDecide && (
         <div className="mt-1.5 flex flex-wrap gap-1" role="group" aria-label={`Decision for ${value.node.name}`}>
           {row.kind === 'to-check' ? <>

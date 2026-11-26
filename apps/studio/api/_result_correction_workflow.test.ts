@@ -36,7 +36,11 @@ describe('proposeResultCorrectionsWorkflow', () => {
     expect(readResult).toHaveBeenCalledExactlyOnceWith(input)
     expect(names).toEqual(['proposeCorrections'])
     expect((propose.mock.calls[0] as unknown[]).slice(0, 3))
-      .toEqual([{ researcherAccountId: OWNER }, RESULT, { message: input.message, history: input.history }])
+      .toEqual([{ researcherAccountId: OWNER }, RESULT, { message: input.message, history: input.history, view: null }])
+    // Where the message was said goes with it (ADR 0043).
+    const said = ports()
+    await proposeResultCorrectionsWorkflow({ ...input, view: 'template' }, said.ports)
+    expect((said.propose.mock.calls[0] as unknown[])[2]).toMatchObject({ view: 'template' })
   })
 
   it('a result the researcher cannot read is not found, and no model is asked', async () => {

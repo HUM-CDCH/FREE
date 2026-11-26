@@ -6,8 +6,9 @@ import type { ChatHistory, ChatWhere } from '../shared/schemaChat.contract.js'
 
 /**
  * What a chat message asks for (ADR 0034), the same in every state of the workspace: Studio decides what each does
- * where it is. `edit` changes the template, or says what it should hold; `correct` changes particular extracted values
- * (ADR 0035).
+ * where it is. `edit` changes the template's structure and names no extracted value; `correct` is anything said about
+ * what was extracted (ADR 0043): its next step reads the template and the values and decides between changing values,
+ * running again and changing the template, so a message that could be either is `correct`.
  */
 export const CHAT_INTENTS = ['question', 'generate', 'edit', 'correct', 'extract', 'confirm', 'none'] as const
 export type ChatIntent = (typeof CHAT_INTENTS)[number]
@@ -23,13 +24,12 @@ const VIEW_WORDS: Record<ChatWhere['view'], string> = {
   template: 'the template',
   results: 'the extracted results',
 }
-/** Where the researcher is, said to the classifier, and how it settles a message that could be "edit" or "correct". */
+/** Where the researcher is, said to the classifier as context. It no longer settles "edit" against "correct" (ADR
+ *  0043): what follows "correct" reads the template and the values, and decides. */
 function whereText(where: ChatWhere): string {
-  const leaning = where.results && where.view === 'results' ? '"correct"' : !where.results || where.view === 'template' ? '"edit"' : null
   return `\nThe researcher is looking at ${VIEW_WORDS[where.view]}. ${where.results
-    ? 'Extracted results are shown whose values the message can change.'
-    : 'No extracted results are shown, so there are no values the message can change.'}${leaning
-    ? ` A message that could be read either as "edit" or as "correct" is ${leaning}.` : ''}\n`
+    ? 'Extracted results are shown.'
+    : 'No extracted results are shown.'}\n`
 }
 
 const INSTRUCTIONS = 'Classify the researcher\'s chat message. Return only one JSON object, with no Markdown fences or commentary.'
@@ -47,12 +47,12 @@ ${message.trim()}
 Return only {"intent":"<intent>","focus":<text or null>}, with the one intent the message has:
 - "question": asks something about the source document, the template or the results, to be answered.
 - "generate": asks for a template to be made from the document, or made again ("give me a template of this doc", "suggest a template", "start the template over", "生成模板").
-- "edit": asks to change the template, or says what it should hold or leave out ("add a date field", "focus on names and places", "把 length 改成整数").
-- "correct": says that particular extracted values in the results are wrong, or asks to change, fill in or remove them ("the year of record 3 should be 1854", "grave 8 is 1.80 m long, not 1.72", "删掉第二条的作者", "this title is wrong").
+- "edit": changes the template's structure and says nothing about what was extracted: add, remove or rename fields, change a field's type or allowed values, say what the template should cover or leave out ("add a date field", "remove the notes field", "focus on names and places", "把 length 改成整数", "rename author to writer").
+- "correct": says anything about what was extracted: a value is wrong, missing or should not be there, records or entries were missed or are extra, a field was read wrongly (in one value or in all of them), or how values should be read ("the year of record 3 should be 1854", "this title is wrong", "record 12 is missing", "grave 8 is 1.80 m long, not 1.72", "删掉第二条的作者", "日期都读成了日月年", "the dates should only be years", "作者漏了").
 - "extract": asks to run the extraction with the template as it is, to get the values or results, from this document or others ("run it", "extract all the documents", "提取数据", "跑一下").
 - "confirm": agrees to what Studio has just offered and asks for nothing else ("yes", "ok", "go ahead", "好的", "继续").
 - "none": declines what was offered and asks for nothing else ("no", "not now", "no thanks", "不用了", "算了").
-A message that says how a field should be read from now on, or for every value, is "edit"; one that fixes particular values is "correct". A message that asks for a change and also to run the extraction is "edit". For "generate", "focus" is what the template should hold if the message says so, in its words; otherwise "focus" is null.`
+A message that could be "edit" or "correct" is "correct": what follows it reads the template and the values, and changes the template where that is what the message needs. A message that changes the template's structure and also asks to run the extraction is "edit". For "generate", "focus" is what the template should hold if the message says so, in its words; otherwise "focus" is null.`
 }
 
 /** The classification of a reply `{"intent": …, "focus": …}` (the intent in any case); null for any other reply. */

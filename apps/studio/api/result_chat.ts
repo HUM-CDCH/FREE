@@ -5,8 +5,9 @@ import { ApiError, apiErrorResponse, assertFormFields, json, parseFormRequest, p
 import { awaitOperation, startOrJoinOperation, type ModelOperationClient } from './_model_operation.js'
 import { PROPOSE_RESULT_CORRECTIONS, type ResultCorrectionInput, type ResultCorrectionProposed } from './_result_correction_workflow.js'
 import { formChatHistory, formContextIdentity } from './_schema_edit.js'
+import { chatViewSchema, type ChatView } from '../shared/schemaChat.contract.js'
 
-const FIELDS = ['extraction_id', 'snapshot_version', 'operation_id', 'message', 'history', 'temperature'] as const
+const FIELDS = ['extraction_id', 'snapshot_version', 'operation_id', 'message', 'history', 'temperature', 'view'] as const
 
 type ResultHead = Readonly<{ projectId: string; snapshotVersion: number; feedbackVersion: number }>
 
@@ -21,6 +22,15 @@ function snapshotOf(form: FormData, head: ResultHead): number {
   if (!Number.isSafeInteger(version) || version < 1 || version > head.snapshotVersion)
     throw new ApiError(422, 'invalid_request', 'snapshot_version must name a saved result snapshot.')
   return version
+}
+
+/** Where the message was said (ADR 0040), if the page says: a hint whether it is about a field or a value (ADR 0043). */
+function formView(form: FormData): ChatView | null {
+  const view = form.get('view')
+  if (view === null || view === '') return null
+  const parsed = chatViewSchema.safeParse(view)
+  if (!parsed.success) throw new ApiError(422, 'invalid_request', 'view must be chat, template or results.')
+  return parsed.data
 }
 
 /**
@@ -55,6 +65,7 @@ export function createPostResultChat(
         message: message.trim(),
         history: formChatHistory(form),
         temperature: parseTemperature(form.get('temperature')) ?? null,
+        view: formView(form),
       }
       const workflowID = `correct:${operationId}`
       await startOrJoinOperation(operations(), {

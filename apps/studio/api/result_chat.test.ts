@@ -47,9 +47,18 @@ describe('POST /api/result_chat', () => {
       },
       input: {
         operationId: OPERATION, owner: ACCOUNT, extractionId: EXTRACTION, snapshotVersion: 4, feedbackVersion: 9,
-        message: 'The year of record 3 should be 1854', history: [{ role: 'user', text: 'Run it' }], temperature: null,
+        message: 'The year of record 3 should be 1854', history: [{ role: 'user', text: 'Run it' }], temperature: null, view: null,
       },
     }])
+  })
+
+  it('takes where the message was said, and refuses a view that is none (ADR 0043)', async () => {
+    const said = operations()
+    expect((await createPostResultChat(ACCOUNT, async () => head, () => said.client)(form({ ...base, view: 'template' }))).status).toBe(200)
+    expect(said.enqueued[0]!.input).toMatchObject({ view: 'template' })
+    const refused = operations()
+    expect((await createPostResultChat(ACCOUNT, async () => head, () => refused.client)(form({ ...base, view: 'sidebar' }))).status).toBe(422)
+    expect(refused.enqueued).toEqual([])
   })
 
   it('pins a snapshot named, and refuses one that is not saved', async () => {

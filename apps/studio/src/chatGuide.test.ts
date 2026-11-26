@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { confirmedOption, exportableResults, extractStep, nextStep, offerText, type GuideInput, type ProjectGuideInput } from './chatGuide'
+import { confirmedOption, extractStep, nextStep, offerText, RERUN_LABEL, type GuideInput, type ProjectGuideInput } from './chatGuide'
+import { exportableResults } from './projectContexts/projectExport'
 import type { BatchExtraction } from '../shared/batchExtraction.contract'
 import type { ProjectContextActivitySummary } from './projectContexts/transport'
 import { guidedWorkflow } from './projectContexts/guidedWorkflow'
@@ -311,9 +312,9 @@ describe('nextStep in a project', () => {
       expect(step(half)).toMatchObject({ key: 'review-next:extraction-a', title: 'Review the trial results', detail: [['Progress', '1 of 2 documents reviewed']] })
       expect(options(step(half))).toEqual(['open-document:positive', 'approve:secondary', 'dismiss:dismiss'])
       expect(step({ summary: approve(), batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({
-        key: 'approve:revision-2', question: 'Every trial document is reviewed. Approve the template for the whole project?' })
+        key: 'approve:revision-2', question: 'Every trial document is reviewed. Is this template good for batch extraction?' })
       // Unread rounds may still wait: no claim that every pilot document is reviewed.
-      expect(step({ ...half, batches: null })?.question).toBe('Approve the template for the whole project?')
+      expect(step({ ...half, batches: null })?.question).toBe('Is this template good for batch extraction?')
     })
 
     it('reviews a trial member stopped or failed partway with its saved values, never one still running', () => {
@@ -339,30 +340,32 @@ describe('nextStep in a project', () => {
       expect(step({ summary: approve({ schemaStabilised: true }), batches: [{ ...batch(waiting), trial: true }] })?.title).toBe('Review the trial results')
     })
 
-    it('offers a second trial, which can be skipped, between the first trial\'s review and the approval', () => {
-      const reviewed = { summary: approve(), batches: [batch([member('a', true), member('b', true)])] }
-      // Not asked yet: whether to try more documents, before the approval.
-      expect(step({ ...reviewed, moreDocuments: 'ask' })).toMatchObject({ key: 'more-documents:revision-2', title: 'Try more documents?' })
-      expect(step({ ...reviewed, moreDocuments: 'ask' })?.options.map(({ action, label }) => [action, label])).toEqual([
-        ['more-documents', 'Yes, try more documents'], ['skip-more', 'No, go on to approval'], ['dismiss', expect.any(String)]])
-      // Chosen: the documents not tried yet (c and d) to tick, with the upload beside them.
+    it('asks whether the template is good for batch extraction, or tries it on more documents first, at every approval (ADR 0041)', () => {
+      const reviewed = { summary: approve(), batches: [batch([member('a', true), member('b', true)])], canUpload: true }
+      expect(step({ ...reviewed, moreDocuments: 'ask' })?.options.map(({ action, label, tone }) => [action, label, tone])).toEqual([
+        ['approve', 'Yes', 'positive'], ['more-documents', 'No, try it on more documents', 'secondary'], ['dismiss', expect.any(String), 'dismiss']])
+      // No: the documents not tried yet (c and d) to tick, with the upload beside them, and the way back.
       const adding = step({ ...reviewed, moreDocuments: 'adding' })
       expect(adding).toMatchObject({ key: 'more-trial:revision-2', picker: { initial: ['c', 'd'], limit: 5 } })
       expect(adding?.picker?.documents.map(({ id }) => id)).toEqual(['c', 'd'])
-      expect(options(adding)).toEqual(['pilot:positive', 'upload:secondary', 'skip-more:secondary', 'dismiss:dismiss'])
+      expect(adding?.options.map(({ action, label }) => [action, label]).slice(0, 3)).toEqual([
+        ['pilot', 'Try on {n}'], ['upload', 'Upload documents'], ['skip-more', 'Back to the approval']])
+      // Where the host cannot upload, the documents alone.
+      expect(options(step({ ...reviewed, canUpload: false, moreDocuments: 'adding' }))).toEqual(['pilot:positive', 'skip-more:secondary', 'dismiss:dismiss'])
       // Every document tried: the upload leads, and waits while new ones are read.
-      const all = { summary: approve(), batches: [batch(['a', 'b', 'c', 'd'].map((id) => member(id, true)))] }
-      expect(step({ ...all, moreDocuments: 'ask' })?.options[0]).toMatchObject({ label: 'Yes, upload more documents' })
+      const all = { summary: approve(), batches: [batch(['a', 'b', 'c', 'd'].map((id) => member(id, true)))], canUpload: true }
       expect(options(step({ ...all, moreDocuments: 'adding' }))).toEqual(['upload:positive', 'skip-more:secondary', 'dismiss:dismiss'])
       expect(step({ ...all, moreDocuments: 'adding', uploading: true })).toMatchObject({ key: 'more-upload:revision-2', busy: true,
         notice: 'Reading the new documents…', options: [{ action: 'upload', disabled: true }, { action: 'skip-more' }, { action: 'dismiss' }] })
-      // Run or skipped: the approval.
-      expect(step({ ...reviewed, moreDocuments: 'done' })?.key).toBe('approve:revision-2')
-      // A round still to review comes first, and a re-approval never asks.
-      expect(step({ summary: approve(), batches: [batch([member('a'), member('b', true)])], moreDocuments: 'ask' })?.key).toBe('review-next:extraction-a')
+      // A round still to review comes first.
+      expect(step({ summary: approve(), batches: [batch([member('a'), member('b', true)])], moreDocuments: 'adding' })?.key).toBe('review-next:extraction-a')
+      // A re-approval asks the same, and offers the same trial.
       const reapproval = approve({ phase: 'review', currentSchemaRevisionId: 'revision-3' })
       expect(guidedWorkflow(reapproval).next?.label).toBe('Re-approve template')
-      expect(step({ summary: reapproval, batches: all.batches, moreDocuments: 'ask' })?.key).toBe('approve:revision-3')
+      expect(step({ summary: reapproval, batches: all.batches, moreDocuments: 'ask' })).toMatchObject({ key: 'approve:revision-3', title: 'Re-approve template',
+        question: 'The template changed since its approval. Is this template good for batch extraction?',
+        options: [{ action: 'approve', label: 'Yes' }, { action: 'more-documents' }, { action: 'dismiss' }] })
+      expect(step({ summary: reapproval, batches: all.batches, moreDocuments: 'adding' })?.key).toBe('more-trial:revision-3')
     })
 
     it('never strands the approval behind a pilot member re-run since, which can no longer be reviewed', () => {
@@ -393,14 +396,27 @@ describe('nextStep in a project', () => {
     })
   })
 
-  it('follows a running batch, then asks for the approval, then extracts the documents left', () => {
+  it('follows a running batch, asks for the approval, then points to the project page for the batch (ADR 0041)', () => {
     expect(step({ summary: summary({ runningBatch: { completedMemberCount: 1, memberCount: 3 } }) })).toMatchObject({ busy: true, notice: 'Extraction running · 1/3' })
     expect(step({ summary: summary({ phase: 'approve', currentSchemaRevisionReviewed: true }) })).toMatchObject({
-      key: 'approve:revision-2', options: [{ action: 'approve', label: 'Approve template' }, { action: 'dismiss' }] })
-    const approved = summary({ phase: 'batch', schemaStabilised: true, currentSchemaRevisionReviewed: true })
-    expect(step({ summary: approved, batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({
-      question: 'Extract the 2 documents left with the approved template?', picker: { initial: ['c', 'd'], limit: 50 }, options: [{ action: 'batch', picks: true }, { action: 'dismiss' }] })
-    expect(step({ summary: approved, batches: null })).toMatchObject({ busy: true })
+      key: 'approve:revision-2', options: [{ action: 'approve', label: 'Yes' }, { action: 'more-documents' }, { action: 'dismiss' }] })
+    const approved = summary({ phase: 'batch', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 2 })
+    expect(step({ summary: approved, batches: [batch([member('a', true), member('b', true)])] })).toMatchObject({ key: 'project-page:batch:revision-2',
+      question: 'The template is approved. Extract the 2 documents left, review the results and export them on the project page.',
+      options: [{ action: 'open-project', label: 'Open project page' }, { action: 'dismiss' }] })
+    // An approved template's running batch is followed there too.
+    expect(step({ summary: { ...approved, runningBatch: { completedMemberCount: 1, memberCount: 2 } } })?.options.map(({ action }) => action))
+      .toEqual(['open-project'])
+    // Its results are reviewed in the grid there, and a finished project is exported there.
+    const reviewingBatch = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
+      extractedSourceDocumentCount: 4, reviewedSourceDocumentCount: 2 })
+    expect(step({ summary: reviewingBatch, batches: [batch([member('a'), member('b', true)], 'revision-2', false)] })?.key).toBe('project-page:review:revision-2')
+    expect(step({ summary: { ...reviewingBatch, reviewedSourceDocumentCount: 4 } })).toMatchObject({ key: 'project-page:done:revision-2',
+      question: 'Every document is extracted and reviewed. Export the results, or add more documents, on the project page.' })
+    // This document's own results and its run again stay beside the project page.
+    expect(step({ summary: { ...reviewingBatch, reviewedSourceDocumentCount: 4 } }, { latest: { ...latest('COMPLETED'), toCheck: 0 } })?.options
+      .map(({ action, label, tone }) => [action, label, tone])).toEqual([['open-project', 'Open project page', 'positive'],
+      ['review', 'Open Results', 'secondary'], ['run', RERUN_LABEL, 'secondary'], ['dismiss', expect.any(String), 'dismiss']])
   })
 
   it('asked to extract, offers this document alone or the project\'s ticked documents, as a pilot before the approval', () => {
@@ -409,9 +425,11 @@ describe('nextStep in a project', () => {
         { action: 'run', label: 'Only this document', disabled: false },
         { action: 'pilot', label: 'Documents in this project · {n}', picks: true, disabled: false },
         { action: 'dismiss' }] })
+    // Approved, the project's documents are the project page's (ADR 0041).
     const approved = summary({ phase: 'batch', schemaStabilised: true, currentSchemaRevisionReviewed: true })
-    expect(extractStep({ ...base, project: project({ summary: approved, batches: [batch([member('a', true)])] }) }, 2)).toMatchObject({
-      picker: { initial: ['b', 'c', 'd'], limit: 50 }, options: [{ action: 'run' }, { action: 'batch', picks: true }, { action: 'dismiss' }] })
+    const after = extractStep({ ...base, project: project({ summary: approved, batches: [batch([member('a', true)])] }) }, 2)
+    expect(after.picker).toBeUndefined()
+    expect(after.options).toMatchObject([{ action: 'run' }, { action: 'open-project', label: 'Documents in this project' }, { action: 'dismiss' }])
   })
 
   it('asked to extract, says why nothing can run: a running batch, the host\'s reason, or no template yet', () => {
@@ -423,17 +441,11 @@ describe('nextStep in a project', () => {
       notice: 'Nothing can be extracted until the template is ready.', options: [{ action: 'dismiss' }] })
   })
 
-  it('offers a finished project\'s results to export, every document with one ticked, each its newest reviewed result', () => {
+  it('exports each document\'s newest reviewed result', () => {
     const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
       extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 3 })
     const pilot = { ...batch([member('a', true), member('b', true)]), batchExtractionId: 'pilot', createdAt: '2026-11-01T00:00:00.000Z' }
     const later = { ...batch([{ ...member('b'), extractionId: 'b-again' }, member('c', true)]), batchExtractionId: 'later', createdAt: '2026-11-02T00:00:00.000Z' }
-    expect(step({ summary: done, batches: [pilot, later] })).toMatchObject({ key: 'export:revision-2', title: 'Export results',
-      picker: { documents: [{ id: 'a' }, { id: 'b' }, { id: 'c' }], initial: ['a', 'b', 'c'], limit: 3 },
-      options: [{ action: 'export', label: 'Export {n}…', picks: true }, { action: 'upload', label: 'Upload more documents', tone: 'secondary' },
-        { action: 'dismiss' }] })
-    expect(step({ summary: done, batches: [pilot, later], uploading: true })).toMatchObject({ notice: 'Reading the new documents…',
-      options: [{ action: 'export' }, { action: 'upload', disabled: true }, { action: 'dismiss' }] })
     // b's newer result is not reviewed: its reviewed pilot result is exported.
     const results = exportableResults(project({ summary: done, batches: [pilot, later] }))
     expect([...results].map(([id, { extractionId, batchExtractionId }]) => [id, extractionId, batchExtractionId])).toEqual([
@@ -447,8 +459,8 @@ describe('nextStep in a project', () => {
   // The project's read: each document's latest Extraction as its summary counts it, and the newest each document shows.
   const read = (extractions: (typeof a2)[], newest = ['extraction-a2', 'extraction-b', 'extraction-c', 'extraction-d']) =>
     ({ extractions, reviewed: extractions.filter(({ review }) => review), newest })
-  const reviewing = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
-    extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 2 })
+  // A pilot round's review, which the chat leads (the batch's is the project page's, ADR 0041).
+  const reviewing = summary({ extractedSourceDocumentCount: 3, reviewedSourceDocumentCount: 2 })
 
   it('exports each document\'s newest review at its finalized cut, never unreviewed values', () => {
     const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
@@ -488,7 +500,7 @@ describe('nextStep in a project', () => {
     // Before the approval, a pilot whose only waiting member a shows no more claims no fully reviewed pilot.
     const approve = summary({ phase: 'approve', currentSchemaRevisionReviewed: true, extractedSourceDocumentCount: 2, reviewedSourceDocumentCount: 1 })
     expect(step({ summary: approve, batches: [batch([member('a'), member('b', true)])], latest: stopped })).toMatchObject({
-      key: 'approve:revision-2', question: 'Approve the template for the whole project?' })
+      key: 'approve:revision-2', question: 'Is this template good for batch extraction?' })
   })
 
   it('offers a finished run of a document alone, which no round holds, for review with the rounds\' members', () => {
@@ -507,11 +519,8 @@ describe('nextStep in a project', () => {
       { latest: { ...latest('COMPLETED', 'revision-1'), extractionId: 'extraction-a2' } })?.key).toBe('run:extraction-a2')
   })
 
-  it('keeps this document\'s own run controls ahead of the project, and a finished project to this document', () => {
+  it('keeps this document\'s own run controls ahead of the project', () => {
     expect(actions({ project: project(), latest: latest('RUNNING') })).toEqual(['pause', 'stop'])
-    const done = summary({ phase: 'review', schemaStabilised: true, currentSchemaRevisionReviewed: true, pendingExtractionSourceDocumentCount: 0,
-      extractedSourceDocumentCount: 4, reviewedSourceDocumentCount: 4 })
-    expect(step({ summary: done })?.key).toBe('run:first')
   })
 })
 

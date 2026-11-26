@@ -4,7 +4,7 @@ import { providerTable, type GeneralExecutionTarget } from './_provider.js'
 import type { ModelConnection } from '../shared/modelConfig.contract.js'
 
 /**
- * The chat's intent evaluation (ADR 0034): labelled messages, some beside what the chat offered, classified by a live
+ * The chat's intent evaluation (ADR 0034, 0043): labelled messages, some beside what the chat offered, classified by a live
  * model. It prints every misread message and fails below FREE_CHAT_INTENT_MIN_ACCURACY (default 0.8). Add a case for
  * every misread found in use before changing the prompt.
  */
@@ -50,7 +50,16 @@ const CASES: readonly Case[] = [
   say('把 length_m 改成整数', 'edit'),
   say('yes, but first add a burial date field', 'edit', { offer: RUN }),
   say('Add a site name field, then run it', 'edit'),
-  say('Years should always be written with four digits', 'edit', { offer: RESULTS_READY }),
+  say('remove the notes field', 'edit'),
+  say('rename author to writer', 'edit', { where: { view: 'template', results: true } }),
+  // Anything said about what was extracted is "correct" (ADR 0043), however general: its next step decides.
+  say('Years should always be written with four digits', 'correct', { offer: RESULTS_READY }),
+  say('日期都读成了日月年，应该只要年份', 'correct', { where: { view: 'results', results: true } }),
+  say('the dates should only be years', 'correct', { where: { view: 'template', results: true } }),
+  say('the date is wrong', 'correct', { where: { view: 'template', results: true } }),
+  say('record 12 is missing', 'correct', { where: { view: 'results', results: true } }),
+  say('作者漏了', 'correct', { where: { view: 'results', results: true } }),
+  say('there are two records for grave 8, one is a duplicate', 'correct', { where: { view: 'results', results: true } }),
   say('The year of record 3 should be 1854, not 1845', 'correct'),
   say('grave 8 is 1.80 m long', 'correct', { offer: RESULTS_READY }),
   say('第二条记录的名字错了，应该是 Anne Hansen', 'correct'),

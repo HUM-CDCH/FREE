@@ -3,7 +3,9 @@
 Date: 2026-11-19. Status: accepted; amends [0034](0034-the-chat-reads-what-a-message-asks-first.md); amended by
 [0036](0036-a-missing-value-can-be-filled-in.md), which lets a missing value be filled in, and by
 [0037](0037-a-correction-the-template-cannot-hold-becomes-a-template-change.md), which turns a request the template
-cannot hold into a template change and a run.
+cannot hold into a template change and a run, and by
+[0042](0042-what-the-values-cannot-take-is-run-again.md), which offers a new run for what the template holds but no
+value can take.
 
 ## Context
 
@@ -43,9 +45,13 @@ and review*), so the model may propose a correction but never save one.
 - **Studio checks every change before showing it.** An alias not listed, an edit that does not fit its field
   (`correctionValueFits`, as the save checks it), a second change to one value, or a change that leaves the value as
   it is is left out; what was left out is said. No value is saved by the workflow.
-- **The researcher saves them.** The chat shows the changes as a *Change results* step, each value as it is and as
-  it would be, with *Save N changes*, *Discard*, and the composer. Saving goes through Results' own correction save,
-  one value at a time, with the revision the proposal read, no Evidence and `included: false`; a change a newer
+- **The researcher saves them.** The changes show on their values in Results, as a proposed template change shows in
+  the Template view: the value as it is struck through in red, what it would be in green (a missing value filled in
+  shows only the green; a rejection strikes the value and says *rejected*). A proposal opens Results unless it is
+  already shown, and there shows every value, opens each changed value's record and brings the first change into
+  view. The chat's *Change results* step only counts them ("Save N changes?"), with *Save*, *Discard*, and the
+  composer; saving or discarding clears the marks. Saving goes through Results' own correction save,
+  one value at a time, with the revision the proposal read, no Evidence and `included: true`; a change a newer
   correction overtook is refused and said, the others stay saved, and the result is read again. A "yes" beside the
   step saves them as the option does. Setting the step aside unsaid discards them; saying something else instead
   only sets it aside.
@@ -53,7 +59,9 @@ and review*), so the model may propose a correction but never save one.
 ## Consequences
 
 - A correction from the chat is an ordinary correction: Results, History, review counts, finalization and exports
-  read it as any other. It carries no Evidence and does not guide later Extractions until the researcher includes it.
+  read it as any other. It carries no Evidence. An
+  edit guides later Extractions in the project as an edit made in Results does (a rejection guides none): only the
+  value the researcher saved and its source context, never the chat's text or the model's reasons.
 - A wrong value costs two model requests (the classification, then the proposal); a misread `correct` costs a step
   the researcher discards, never a saved value.
 - Values past the table's budget cannot be changed from the chat; Results still can. Rows are listed in result order,

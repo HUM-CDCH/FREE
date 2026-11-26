@@ -27,7 +27,7 @@ const approved = { revision: 1, decision: { action: 'APPROVED', included: true, 
 
 const member = (extractionId: string, sourceDocumentId: string, extra: Partial<BatchExtraction['members'][number]> = {}) => ({
   extractionId, sourceDocumentId, sourceRepresentationRevisionId: '00000000-0000-4000-8000-000000000009',
-  executionStatus: 'COMPLETED' as const, completed: true, reviewable: true, currentReview: null, ...extra,
+  executionStatus: 'COMPLETED' as const, completed: true, reviewable: true, missingCount: 0, currentReview: null, ...extra,
 })
 const batch = {
   batchExtractionId: 'batch', projectContextId: 'project', schemaRevisionId: 'schema', extractionSchemaId: 'family',
@@ -96,6 +96,28 @@ it('saves one cell’s decision at once and reads the member again', async () =>
     { expectedRevision: 0, snapshotVersion: 4, action: 'APPROVED', value: 'title 0', included: true, evidence: [] }))
   expect(await screen.findByRole('button', { name: 'Approved title title 0' })).toBeVisible()
   expect(readDurable).toHaveBeenCalledTimes(2)
+})
+
+it('fills in a missing value, and empties a filled-in one again, as the document does (ADR 0041)', async () => {
+  const missing = value('y0', 'year', 0, { processing: 'absent', modelValue: null })
+  const filled = { revision: 1, decision: { action: 'EDITED', value: '1854', included: true, evidence: [] } }
+  vi.mocked(readDurable).mockResolvedValueOnce({ state: {} as never, page: page([value('t0', 'title', 0, { correction: approved }), missing]) })
+    .mockResolvedValue({ state: {} as never, page: page([value('t0', 'title', 0, { correction: approved }), { ...missing, correction: filled } as unknown as GridValue]) })
+  vi.mocked(durableRequest).mockResolvedValue({})
+  renderGrid()
+  fireEvent.click(await screen.findByRole('button', { name: 'No value year No value' }))
+  fireEvent.click(within(screen.getByRole('group', { name: 'Fill in year' })).getByRole('button', { name: 'Fill in' }))
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: '1854' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Save value' }))
+  await waitFor(() => expect(durableRequest).toHaveBeenCalledWith('/api/extractions/first/durable/values/y0',
+    expect.objectContaining({ expectedRevision: 0, snapshotVersion: 4, action: 'EDITED', value: '1854' })))
+  // Filled in: it can be edited, or emptied again.
+  fireEvent.click(await screen.findByRole('button', { name: /^\S.* year 1854$/ }))
+  const group = screen.getByRole('group', { name: 'Fill in year' })
+  expect(within(group).getByText('Filled in')).toBeInTheDocument()
+  fireEvent.click(within(group).getByRole('button', { name: 'Remove value' }))
+  await waitFor(() => expect(durableRequest).toHaveBeenLastCalledWith('/api/extractions/first/durable/values/y0',
+    { expectedRevision: 1, snapshotVersion: 4, action: 'PENDING', value: null, included: false, evidence: [] }))
 })
 
 it('approves only values still To check with one reading, then saves the member’s review by name', async () => {

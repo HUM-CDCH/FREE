@@ -27,12 +27,22 @@ const chatInput = () => screen.getByRole('textbox', { name: /^(Describe a change
 
 vi.mock('./DurableResults', () => ({ DurableResults: vi.fn(() => <p>Durable results</p>) }))
 vi.mock('./api', async (importOriginal) => ({ ...await importOriginal<typeof import('./api')>(), requestSchemaEdit: vi.fn() }))
+// A proposal the chat's corrections hold, set by a test; the hook is otherwise its own.
+const proposal = vi.hoisted(() => ({ pending: null as unknown }))
+vi.mock('./useResultCorrections', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./useResultCorrections')>()
+  return { ...real, useResultCorrections: (options: Parameters<typeof real.useResultCorrections>[0]) => {
+    const corrections = real.useResultCorrections(options)
+    return proposal.pending ? { ...corrections, pending: proposal.pending as typeof corrections.pending } : corrections
+  } }
+})
 
 afterEach(() => {
   cleanup()
   vi.unstubAllEnvs()
   vi.mocked(DurableResults).mockClear()
   vi.mocked(requestSchemaEdit).mockReset()
+  proposal.pending = null
 })
 
 const defaultController: ExtractionController = {
@@ -155,6 +165,22 @@ describe('RightRail Results', () => {
     const cut = { snapshotVersion: 1, feedbackVersion: 2 }
     renderRail({ view: 'results', inspection: { ...defaultInspection, attempt, cut, readOnly: true } })
     expect(vi.mocked(DurableResults).mock.lastCall![0]).toMatchObject({ attempt, initialCut: cut, readOnly: true })
+  })
+
+  it('shows the changes the chat proposes on their values in Results, opening Results unless it is shown', () => {
+    const change = { valueId: 'value-1', label: 'Record 1 › year', action: 'EDITED', current: 1845, value: 1854, expectedRevision: 0, reason: null }
+    proposal.pending = { request: 1, proposal: { extractionId: 'extraction-1', snapshotVersion: 1, corrections: [change], reply: null, dropped: [] } }
+    const onViewChange = vi.fn()
+    const { setView } = renderRail({ view: 'chat', onViewChange, extraction: { ...defaultController, attempt } })
+    expect(onViewChange).toHaveBeenCalledExactlyOnceWith('results')
+    setView('results')
+    expect(results().proposed).toMatchObject({ key: 1, extractionId: 'extraction-1' })
+    expect([...results().proposed!.changes]).toEqual([['value-1', change]])
+    cleanup()
+    // Already in Results: no view changes.
+    onViewChange.mockClear()
+    renderRail({ view: 'results', onViewChange, extraction: { ...defaultController, attempt } })
+    expect(onViewChange).not.toHaveBeenCalled()
   })
 
   it('gives guidance and saved versions their own History view, only when there is an Extraction', () => {
@@ -461,7 +487,7 @@ describe('RightRail asked to extract in the chat', () => {
     vi.mocked(requestSchemaEdit).mockResolvedValue({ status: 'requested', action: 'extract' })
     const run = { start: vi.fn(), available: true }
     const project = { guide: { summary, documents, currentDocumentId: 'here', batches: [], latest: null, roundId: null, busy: false, error: null },
-      start: vi.fn(), approve: vi.fn(), stopBatch: vi.fn(), open: vi.fn(), export: vi.fn() }
+      start: vi.fn(), approve: vi.fn(), stopBatch: vi.fn(), open: vi.fn(), openProject: vi.fn() }
     renderRail({ schema, run, project })
 
     let step = await ask('Generate the results')

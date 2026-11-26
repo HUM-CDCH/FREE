@@ -40,11 +40,9 @@ import { createThumbnailRenderer } from './PageThumbnails'
 import PagePager from './PagePager'
 import { AnnotationEditorType, AnnotationMode } from 'pdfjs-dist'
 import type { DocumentSnapshot, ProjectContextActivitySummary } from './projectContexts/transport'
-import { BatchRequestError, listProjectExtractions, openBatchExtraction, projectLatest } from './projectContexts/batchExtractions'
+import { BatchRequestError, openBatchExtraction } from './projectContexts/batchExtractions'
 import ApproveSchemaDialog from './projectContexts/ApproveSchemaDialog'
-import { exportableResults, type ProjectDocument } from './chatGuide'
-import ExtractionResultExportControl from './ExtractionResultExportControl'
-import type { ExportChoices, ExportFormat } from 'extraction-result-export'
+import type { ProjectDocument } from './chatGuide'
 import { useProjectBatches } from './useProjectBatches'
 import { batchStoppable, stopBatchExtraction } from './stopBatchExtraction'
 import { renameExtractionSchema } from './schemaRevisions'
@@ -947,43 +945,10 @@ export function DocumentWorkspace({
   const [projectBusy, setProjectBusy] = useState(false)
   const [projectError, setProjectError] = useState<string | null>(null)
   const [approvingSchema, setApprovingSchema] = useState(false)
-  // The documents the chat's export step ticked, while the export's options and format are chosen.
-  const [exporting, setExporting] = useState<readonly string[] | null>(null)
   // A revision saved here can move the project's phase (schema -> pilot): read its summary again.
   const refreshProject = project?.refresh
   const savedRevisionId = schemaSnap.extractableSchemaRevisionId
   useEffect(() => { if (savedRevisionId) refreshProject?.() }, [savedRevisionId, refreshProject])
-
-  /** Downloads the ticked documents' results as one table: each its newest reviewed result on the Current Template
-   *  Revision at its reviewed cut (else its newest completed one, at its latest), named by its document and Batch
-   *  Extraction. The project is read again first: a result reviewed since the chat's last read is the one exported. */
-  async function exportProjectResults(sourceDocumentIds: readonly string[], format: ExportFormat, choices: ExportChoices) {
-    if (!project || !sourceDocumentId) return
-    setProjectBusy(true)
-    setProjectError(null)
-    try {
-      const read = await listProjectExtractions(projectContextId)
-      const latest = projectLatest(read)
-      const results = exportableResults({ summary: project.summary, documents: project.documents, currentDocumentId: sourceDocumentId,
-        batches: read.batchExtractions, latest, roundId: project.roundId, busy: false, error: null })
-      const name = (id: string) => project.documents.find((document) => document.id === id)?.name ?? id
-      // A ticked document is exported or the export fails: its review may have changed since the export was opened.
-      const missing = sourceDocumentIds.filter((id) => !results.has(id))
-      if (missing.length > 0)
-        throw new Error(`No reviewed result of ${missing.map(name).join(', ')} on this template now. Reload the page and export again.`)
-      const members = sourceDocumentIds.map((id) => {
-        const result = results.get(id)!
-        return { extractionId: result.extractionId, sourceDocumentId: id, batchExtractionId: result.batchExtractionId ?? undefined,
-          sourceDocumentName: name(id), sourceRevisionId: result.sourceRepresentationRevisionId, review: result.review ?? undefined }
-      })
-      const { downloadDurableBatch } = await import('./durableExport')
-      await downloadDurableBatch({ batchExtractionId: '', name: schemaName ?? 'Extraction results' }, members, format, choices)
-    } catch (error) {
-      setProjectError(error instanceof Error ? error.message : 'Unable to export saved values.')
-    } finally {
-      setProjectBusy(false)
-    }
-  }
 
   /** Saves the schema, re-reads the saved method and opens a Batch Extraction over the ticked documents, as a run
    *  does (ADR 0015): a `method_changed` refusal re-reads once. A pilot then opens its first document to review. */
@@ -1149,7 +1114,7 @@ export function DocumentWorkspace({
           stopBatch: () => void stopProjectBatch(),
           open: (target) => onNavigate?.({ kind: 'document', projectContextId, sourceDocumentId: target.sourceDocumentId,
             extractionId: target.extractionId, fromBatchExtractionId: target.batchExtractionId ?? undefined }),
-          export: (ids) => setExporting(ids),
+          openProject: () => onNavigate?.({ kind: 'project', projectContextId, tab: 'sources' }),
           id: projectContextId,
           addDocuments: project.addDocuments,
         } : null}
@@ -1182,16 +1147,6 @@ export function DocumentWorkspace({
       {/* Portalled into DocumentTabBar's (AppFrame.tsx) own tab-strip row, so the open Source Document's run action costs
           no extra vertical space. */}
       {/* The open document's tab carries the review's progress as a ring, and says it. */}
-      <ExtractionResultExportControl
-        open={exporting !== null}
-        schemaNodes={schemaSnap.draft?.schemaNodes ?? []}
-        onDismiss={() => setExporting(null)}
-        onExport={(format, choices) => {
-          const ids = exporting ?? []
-          setExporting(null)
-          void exportProjectResults(ids, format, choices)
-        }}
-      />
       {approvingSchema && project?.summary.currentSchemaRevisionId && (
         <ApproveSchemaDialog
           projectContextId={projectContextId}

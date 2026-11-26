@@ -9,7 +9,7 @@ import type { GeneralExecutionTarget } from './_provider.js'
 import { chatHistoryText, schemaSourceExcerpts } from './_schema.js'
 import { schemaChatRoutes } from './_schema_chat.js'
 import { traceModelCall } from '../server/tracing.js'
-import type { ChatHistory } from '../shared/schemaChat.contract.js'
+import type { ChatHistory, ChatView } from '../shared/schemaChat.contract.js'
 import type { ProposedCorrection, ResultCorrectionProposal } from '../shared/resultCorrection.contract.js'
 
 /** One saved value of a result page, as Results reads it: the model's value, with the researcher's latest decision. */
@@ -21,14 +21,15 @@ export type ResultToCorrect = Readonly<{
   values: readonly CorrectableValue[]
   markdown: string
 }>
-export type CorrectionRequest = Readonly<{ message: string; history: ChatHistory }>
+/** The message, the chat before it, and where it was said (ADR 0040), which hints whether it is about a field or a value. */
+export type CorrectionRequest = Readonly<{ message: string; history: ChatHistory; view?: ChatView | null }>
 export type CorrectionCall = Readonly<{ temperature?: number; signal?: AbortSignal }>
 
 /** The most of the value table one request carries; values past it are said to be left out and cannot be changed. */
 export const VALUE_TABLE_BUDGET = 40_000
 
 const INSTRUCTIONS =
-  'Propose corrections to the extracted values the researcher names. Return only one JSON object, with no Markdown fences or commentary.'
+  'Report what the researcher\'s message asks about the extracted results. Return only one JSON object, with no Markdown fences or commentary.'
 
 /** Where a value is, as Results shows it: a Catalog record by its number (`Record 3`), or the document for an Article. */
 export function valueLabel(value: Pick<CorrectableValue, 'path' | 'node'>): string {
@@ -86,93 +87,155 @@ export function valueTable(values: readonly CorrectableValue[], budget = VALUE_T
     lines.push(line)
     length += line.length + 1
   }
-  return { aliases, text: lines.join('\n'), omitted: correctable.length - aliases.size }
+  // Every field the values were read with, listed or not: what a request can name although no listed value has it.
+  const fields = new Map(values.map((value) => [value.node.name, value.node] as const))
+  return { aliases, fields, text: lines.join('\n'), omitted: correctable.length - aliases.size }
 }
 
-export function resultCorrectionPrompt(table: ReturnType<typeof valueTable>, { message, history }: CorrectionRequest): string {
+/** The template's fields as the model is told them, by name: each top-level field the result's values were read with. */
+function fieldsText(fields: ReadonlyMap<string, SchemaNode>): string {
+  return [...fields.values()].map((node) => JSON.stringify({ field: node.name, type: typeText(node), ...(node.description ? { description: node.description } : {}) })).join('\n')
+}
+
+const VIEW_HINT: Record<ChatView, string> = {
+  results: 'The researcher said this while looking at the extracted results.',
+  template: 'The researcher said this while looking at the template: a message there about a field is more likely about how the field is read than about one value.',
+  chat: 'The researcher said this in the chat.',
+}
+
+/**
+ * The request for the facts of a message about the results (ADR 0043): for each thing it asks, which value or field it
+ * is about, whether it is about one value or how a field is read, and the value it should hold and where that comes
+ * from. The model reports; `routeFacts` decides what Studio does with each.
+ */
+export function resultCorrectionPrompt(table: ReturnType<typeof valueTable>, { message, history, view }: CorrectionRequest): string {
   const conversation = chatHistoryText(history)
-  return `${conversation ? `${conversation}\n\n` : ''}The researcher's latest chat message:
+  return `${conversation ? `${conversation}\n\n` : ''}${view ? `${VIEW_HINT[view]}\n` : ''}The researcher's latest chat message:
 ${message.trim()}
+
+The template's fields follow, one JSON object per line.
+FIELDS:
+${fieldsText(table.fields) || '(none)'}
 
 The extracted values of this document's results follow, one JSON object per line: "id" names the value, "where" its record (or the whole document), "field" its field, "type" the field's type, "value" the value as it stands now (null when empty), "decision" the researcher's last decision on it, if any, "missing" true when the extraction found no value for it, and "quote" the source text it was read from, if any.
 VALUES:
 ${table.text || '(none)'}${table.omitted ? `\n(${table.omitted} more values are not listed; they cannot be changed here.)` : ''}
 
-Change only the values the researcher's message names or clearly means. For each, give its "id" and either "action":"edit" with the corrected value in "value", of the field's type (a list for a list field, an object with the field's parts for an object field), or "action":"reject" when the researcher says the value should not be there at all. A missing value is filled in with "edit" and is never rejected. Take the corrected value from the message, or from the source document when the message only says the value is wrong or missing. Never change a value the message does not name.
-Some requests cannot be met by changing listed values: the field the message names is not in the template, the value it gives cannot be held by the field's type or allowed values, or it asks for records or entries the results do not have. Never force such a request into a correction: say what the template must change in "templateChange", as one instruction for the template, in the language of the message, that names the fields to add or change and says, for each, how it is to be read from the document. Return "templateChange": null when changing the listed values is enough. Changes to listed values the message also asks for are still returned in "corrections".
-Return only {"corrections":[{"id":"<id>","action":"edit","value":<value>,"reason":"<why, in a few words>"}],"templateChange":null,"reply":"<one or two sentences to the researcher, in the language of their message>"}. When the message names no value you can find, or it is unclear which one is meant, and no template change would meet it, return no corrections and ask in "reply".`
+Report the facts of each thing the message asks about the results, one item each; do not decide what to do about it. Each item has:
+- "about": what it asks, in a few words, in the language of the message.
+- "value": the "id" of the listed value it is about; null when no listed value is (a record or entry the results do not have, or a field the template lacks).
+- "field": the name of the template field it concerns, as FIELDS names it; null when no field in FIELDS is for it.
+- "scope": "value" when particular values are wrong; "field" when the field is read wrongly in general (the same mistake in all or most of its values) or the message says how the field is to be read from now on.
+- "remove": true when the message says the value should not be there at all; otherwise false.
+- "desired": the value it should hold, as the field's type would hold it if it can (a list for a list field, an object with the field's parts for an object field), else as the message or the source says it; null when you do not know it.
+- "from": "message" when the message gives that value, "source" when you read it from the source document, null when "desired" is null.
+- "quote": when "from" is "source", the text of the source the value is read from, copied exactly; otherwise null.
+- "template": when FIELDS has no field for it, or "scope" is "field", one instruction for the template, in the language of the message, naming the fields to add, change or remove and saying for each how it is to be read from the document; otherwise null.
+Never report a value the message does not name or clearly mean. Return only {"items":[{"about":"…","value":"<id>","field":"<name>","scope":"value","remove":false,"desired":<value>,"from":"message","quote":null,"template":null}],"reply":"<one or two sentences to the researcher, in the language of their message>"}. When it is unclear what the message is about, return no items and ask in "reply".`
 }
 
-/** The instruction for a template change when every change the model proposed was left out for not fitting its field
- *  and it named no template change itself: the message, said as what the template must be able to hold. */
+/** The instruction for a template change when a value the researcher wants cannot be held by its field and the model
+ *  named no template change itself: the message, said as what the template must be able to hold. */
 export const misfitTemplateChange = (message: string) =>
   `Change the template so that the extraction can hold what the researcher asked for: “${message.trim()}”. Say in each changed field's description how it is to be read.`
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
+/** Text as it is compared to find a quote in the source: lower case, without Markdown marks, with its spaces folded. */
+const plain = (text: string) => text.toLowerCase().replace(/[*_`#|>]/g, ' ').replace(/\s+/g, ' ').trim()
+/** A quote the model read a value from is in the source: else the value is not taken as read. */
+export const quoted = (quote: unknown, markdown: string) =>
+  typeof quote === 'string' && plain(quote).length >= 3 && plain(markdown).includes(plain(quote))
+const text = (field: unknown) => typeof field === 'string' && field.trim() ? field.trim() : null
+
+/** What the model reports of one thing the message asks (ADR 0043). */
+type Fact = Readonly<{ about: string | null; value: unknown; field: string | null; scope: unknown; remove: unknown; desired: unknown;
+  from: unknown; quote: unknown; template: string | null }>
 
 /**
- * The proposal a reply makes of a result: each change to a listed value, checked as `saveCorrection` will check it (an
- * edit must fit its field), and each one left out, said. A change that leaves a value as it is is no change.
+ * What Studio does with each fact (ADR 0043), whatever the message's wording:
+ * - no template field for it, or a field read wrongly in general, or a value its field cannot hold: a template change;
+ * - a listed value whose wanted value is known (given by the message, or read from the source with a quote found in
+ *   it) and fits: a change to that value, or its rejection;
+ * - otherwise, the template holds it but no listed value can take it (a record the results do not have, a value whose
+ *   right value was not found): a new run (ADR 0042).
+ * A template change goes first: it is extracted again anyway, so no run is offered beside it.
  */
-export async function correctionProposalOf(
-  response: string,
-  result: Pick<ResultToCorrect, 'extractionId' | 'snapshotVersion'>,
-  aliases: ReadonlyMap<string, CorrectableValue>,
-  /** The researcher's message: what the template must hold when every proposed change was left out as a misfit. */
+export function routeFacts(
+  facts: readonly Fact[],
+  table: Pick<ReturnType<typeof valueTable>, 'aliases' | 'fields'>,
+  markdown: string,
   message?: string,
-): Promise<ResultCorrectionProposal> {
-  const parsed = await parseUnknownJson(response, 'Model returned invalid JSON.')
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-    throw new ApiError(502, 'invalid_model_output', 'The model returned no corrections.')
-  const { corrections: raw, reply, templateChange } = parsed as Record<string, unknown>
+) {
   const corrections: ProposedCorrection[] = []
   const dropped: string[] = []
-  let misfit = false
-  for (const entry of Array.isArray(raw) ? raw : []) {
-    if (typeof entry !== 'object' || entry === null) continue
-    const { id, action, value: proposed, reason } = entry as Record<string, unknown>
-    const value = typeof id === 'string' ? aliases.get(id.trim()) : undefined
-    if (!value) { dropped.push(`A change to ${JSON.stringify(id)}, which is not a listed value.`); continue }
-    const label = valueLabel(value)
-    if (corrections.some((correction) => correction.valueId === value.id)) { dropped.push(`A second change to ${label}.`); continue }
-    const current = currentValue(value)
-    const why = typeof reason === 'string' && reason.trim() ? reason.trim() : null
-    const expectedRevision = (value.correction ?? value.historicalCorrection)?.revision ?? 0
-    if (action === 'reject') {
+  const templates: string[] = []
+  const reruns: string[] = []
+  const toTemplate = (fact: Fact, fallback: string) => { const instruction = fact.template ?? fallback; if (!templates.includes(instruction)) templates.push(instruction) }
+  for (const fact of facts) {
+    const alias = typeof fact.value === 'string' ? fact.value.trim() : null
+    const value = alias ? table.aliases.get(alias) : undefined
+    if (alias && !value) { dropped.push(`A change to ${JSON.stringify(alias)}, which is not a listed value.`); continue }
+    const node = value?.node ?? (fact.field ? table.fields.get(fact.field) : undefined)
+    const asked = fact.about ?? message?.trim() ?? 'the request'
+    if (!node) { toTemplate(fact, misfitTemplateChange(message ?? asked)); continue }
+    if (fact.scope === 'field') { toTemplate(fact, `Change how the field "${node.name}" is read: ${asked}. Say in its description how it is to be read.`); continue }
+    const label = value ? valueLabel(value) : null
+    if (value && corrections.some((correction) => correction.valueId === value.id)) { dropped.push(`A second change to ${label}.`); continue }
+    const current = value ? currentValue(value) : null
+    const expectedRevision = value ? (value.correction ?? value.historicalCorrection)?.revision ?? 0 : 0
+    if (value && fact.remove === true) {
       if (missing(value)) {
         if (current !== null) dropped.push(`${label}: to remove a value you filled in, use Undo in Results.`)
         continue
       }
       if (value.correction?.decision.action === 'REJECTED') continue
-      corrections.push({ valueId: value.id, label, action: 'REJECTED', current, expectedRevision, reason: why })
-    } else if (action === 'edit') {
-      if (proposed === undefined || !correctionValueFits(value.node, proposed)) {
-        dropped.push(`${label}: ${JSON.stringify(proposed ?? null)} does not fit its field (${typeText(value.node)}).`)
-        misfit = true
-        continue
-      }
-      if (same(proposed, current)) continue
-      if (missing(value) && proposed === null) {
-        dropped.push(`${label}: to remove a value you filled in, use Undo in Results.`)
-        continue
-      }
-      corrections.push({ valueId: value.id, label, action: 'EDITED', current, value: proposed, expectedRevision, reason: why })
-    } else dropped.push(`${label}: ${JSON.stringify(action ?? null)} is neither an edit nor a rejection.`)
+      corrections.push({ valueId: value.id, label: label!, action: 'REJECTED', current, expectedRevision, reason: fact.about })
+      continue
+    }
+    const wanted = fact.desired !== undefined && fact.desired !== null
+    const known = wanted && (fact.from === 'message' || (fact.from === 'source' && quoted(fact.quote, markdown)))
+    if (known && !correctionValueFits(node, fact.desired)) { toTemplate(fact, misfitTemplateChange(message ?? asked)); continue }
+    if (value && known) {
+      if (same(fact.desired, current)) continue
+      corrections.push({ valueId: value.id, label: label!, action: 'EDITED', current, value: fact.desired, expectedRevision, reason: fact.about })
+      continue
+    }
+    // The template holds it, yet no listed value can take it.
+    const reason = value ? `${label}: its right value was not found in the source shown to the chat.` : `Not in the results: ${asked}.`
+    if (!reruns.includes(reason)) reruns.push(reason)
   }
+  const templateChange = templates.length ? templates.join('\n').slice(0, 2000) : null
+  return { corrections, dropped, templateChange, rerun: templateChange === null && reruns.length ? reruns.join(' ').slice(0, 500) : null }
+}
+
+/** The proposal a reply makes of a result: its facts (ADR 0043), routed by `routeFacts`. */
+export async function correctionProposalOf(
+  response: string,
+  result: Pick<ResultToCorrect, 'extractionId' | 'snapshotVersion' | 'markdown'>,
+  table: Pick<ReturnType<typeof valueTable>, 'aliases' | 'fields'>,
+  /** The researcher's message: what the template must hold when a wanted value does not fit its field. */
+  message?: string,
+): Promise<ResultCorrectionProposal> {
+  const parsed = await parseUnknownJson(response, 'Model returned invalid JSON.')
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+    throw new ApiError(502, 'invalid_model_output', 'The model returned no corrections.')
+  const { items, reply } = parsed as Record<string, unknown>
+  const facts: Fact[] = (Array.isArray(items) ? items : []).flatMap((item) => {
+    if (typeof item !== 'object' || item === null) return []
+    const { about, value, field, scope, remove, desired, from, quote, template } = item as Record<string, unknown>
+    return [{ about: text(about), value, field: text(field), scope, remove, desired, from, quote, template: text(template) }]
+  })
   return {
     extractionId: result.extractionId,
     snapshotVersion: result.snapshotVersion,
-    corrections,
-    reply: typeof reply === 'string' && reply.trim() ? reply.trim() : null,
-    dropped,
-    templateChange: typeof templateChange === 'string' && templateChange.trim() ? templateChange.trim().slice(0, 2000)
-      : misfit && corrections.length === 0 && message ? misfitTemplateChange(message) : null,
+    reply: text(reply),
+    ...routeFacts(facts, table, result.markdown, message),
   }
 }
 
 /** One request on a general route: the values and the message in the guidance, the source (excerpted past
- *  `EXCERPT_THRESHOLD`) as the document. */
-async function proposeCorrectionsOnRoute(
+ *  `EXCERPT_THRESHOLD`) as the document. Exported for the live evaluation of its routing. */
+export async function proposeCorrectionsOnRoute(
   target: GeneralExecutionTarget,
   result: ResultToCorrect,
   request: CorrectionRequest,
@@ -186,7 +249,7 @@ async function proposeCorrectionsOnRoute(
     temperature: call.temperature,
     signal: call.signal,
   })
-  return correctionProposalOf(response, result, table.aliases, request.message)
+  return correctionProposalOf(response, result, table, request.message)
 }
 
 /**

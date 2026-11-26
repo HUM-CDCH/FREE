@@ -7,7 +7,7 @@ import { operationFailureOf, type OperationResult } from './_model_operation.js'
 import type { CorrectableValue, proposeResultCorrections, ResultToCorrect } from './_result_correction.js'
 import { modelStep, StepFailure } from './_schema_generation_workflow.js'
 import type { ResultCorrectionProposal } from '../shared/resultCorrection.contract.js'
-import type { ChatHistory } from '../shared/schemaChat.contract.js'
+import type { ChatHistory, ChatView } from '../shared/schemaChat.contract.js'
 
 export const PROPOSE_RESULT_CORRECTIONS = 'proposeResultCorrections'
 
@@ -23,6 +23,8 @@ export type ResultCorrectionInput = Readonly<{
   message: string
   history: ChatHistory
   temperature: number | null
+  /** Where the message was said (ADR 0043); absent from operations started before it. */
+  view?: ChatView | null
 }>
 export type ResultCorrectionProposed = { proposal: ResultCorrectionProposal }
 
@@ -67,7 +69,7 @@ export async function proposeResultCorrectionsWorkflow(
   }
   try {
     const proposal = await modelStep(ports.steps, 'proposeCorrections', (signal) =>
-      ports.propose({ researcherAccountId: input.owner }, result, { message: input.message, history: input.history },
+      ports.propose({ researcherAccountId: input.owner }, result, { message: input.message, history: input.history, view: input.view ?? null },
         { ...(input.temperature === null ? {} : { temperature: input.temperature }), signal }))
     return { ok: true, proposal }
   } catch (error) {

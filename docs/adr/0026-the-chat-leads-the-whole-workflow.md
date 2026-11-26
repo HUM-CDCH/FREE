@@ -1,6 +1,6 @@
 # 0026: The chat leads the whole workflow
 
-Date: 2026-11-01. Status: accepted; supersedes parts of [0024](0024-rail-chat-guides-to-extraction.md).
+Date: 2026-11-01. Status: accepted; supersedes parts of [0024](0024-rail-chat-guides-to-extraction.md); the batch, its review and the export are the project page's since [0041](0041-the-batch-is-the-project-pages.md).
 
 ## Context
 

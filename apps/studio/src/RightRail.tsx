@@ -5,7 +5,7 @@ import type { SelectionChannel } from './selectionChannel'
 import PanelToggleIcon from './PanelToggleIcon'
 import { Button } from './ui'
 import SchemaPanel, { type SchemaPanelProps } from './SchemaPanel'
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
 import type { SchemaEditorController } from './currentSchemaRevision'
 import { nodesToTemplate } from 'extraction/schema'
 import { countTemplateFields } from '../shared/template'
@@ -242,6 +242,14 @@ function RightRail({
   // History lists the document's Extractions even when none is shown, e.g. all read an earlier source text.
   const historyAvailable = Boolean(shown || documentHistory)
   const activeView: RailView = (!showDeveloperUi && view === 'evidence') || (!historyAvailable && view === 'history') ? 'chat' : view
+  // The changes the chat proposes show on their values in Results, as a template change shows in the Template view;
+  // a new proposal opens Results unless it is already shown.
+  const pendingCorrections = corrections.pending
+  const proposed = useMemo(() => pendingCorrections && { key: pendingCorrections.request, extractionId: pendingCorrections.proposal.extractionId,
+    changes: new Map(pendingCorrections.proposal.corrections.map((correction) => [correction.valueId, correction] as const)) }, [pendingCorrections])
+  const proposalRequest = pendingCorrections?.request ?? null
+  const showProposal = useEffectEvent(() => { if (activeView !== 'results') onViewChange('results') })
+  useEffect(() => { if (proposalRequest !== null) showProposal() }, [proposalRequest])
   // Results renders its guidance and saved versions into the History view's body.
   const [historySlot, setHistorySlot] = useState<HTMLDivElement | null>(null)
   // Results draws its status line and ⓘ ⋯ in the header's free width, where they stand in for the view's title.
@@ -405,6 +413,7 @@ function RightRail({
           onShowResults={() => onViewChange('results')}
           onShowHistory={() => onViewChange('history')}
           nextReview={nextReview}
+          proposed={proposed}
         /> : <div className="flex h-full min-h-0 flex-col items-center justify-center px-6 text-center">
           <p className="m-0 text-content font-semibold text-ink">No results yet</p>
           <p className="mt-1.5 mb-0 max-w-[34ch] text-compact leading-snug text-ink-muted">

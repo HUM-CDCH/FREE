@@ -3,7 +3,7 @@ import { ensureModelKeysSent } from './modelKeys/modelKeyHandoff'
 import type { FieldNote, RecordScope } from 'extraction/schema'
 import { isRecord } from '../shared/template'
 import { schemaEditResponseSchema, type SchemaEditResponse } from '../shared/schemaEdit.contract'
-import { schemaChatReplySchema, type ChatHistory, type ChatWhere, type SchemaChatReply } from '../shared/schemaChat.contract'
+import { schemaChatReplySchema, type ChatHistory, type ChatView, type ChatWhere, type SchemaChatReply } from '../shared/schemaChat.contract'
 import { resultCorrectionProposalSchema, type ResultCorrectionProposal } from '../shared/resultCorrection.contract'
 import {
   extractionRequestSchema,
@@ -233,9 +233,12 @@ export async function requestResultCorrections(
   signal: AbortSignal | undefined,
   operationId: string,
   history: ChatHistory = [],
+  /** Where the message was said (ADR 0043). */
+  view: ChatView | null = null,
 ): Promise<ResultCorrectionProposal> {
   const form = new FormData()
   form.append('extraction_id', target.extractionId)
+  if (view) form.append('view', view)
   if (target.snapshotVersion !== null) form.append('snapshot_version', String(target.snapshotVersion))
   form.append('message', message)
   if (history.length) form.append('history', JSON.stringify(history))

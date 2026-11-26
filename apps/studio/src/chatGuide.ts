@@ -1,5 +1,5 @@
 import type { RecordScope } from 'extraction/schema'
-import { BATCH_EXTRACTION_SELECTION_LIMIT, PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, currentBatch, reviewableMember, type BatchExtraction,
+import { PILOT_BATCH_SELECTION_LIMIT, batchExtractionProgress, currentBatch, reviewableMember, type BatchExtraction,
   type BatchExtractionMember, type LatestExtraction } from '../shared/batchExtraction.contract'
 import type { ExtractionExecutionStatus } from '../shared/extraction.contract'
 import { CHAT_OFFER_LIMIT } from '../shared/schemaChat.contract'
@@ -28,13 +28,12 @@ export type StepAction =
   | 'stop'
   | 'stop-batch'
   | 'pilot'
-  | 'batch'
   | 'approve'
   | 'open-document'
-  | 'export'
   | 'more-documents'
   | 'upload'
   | 'skip-more'
+  | 'open-project'
   | 'save-corrections'
   | 'discard-corrections'
   | 'dismiss'
@@ -97,10 +96,11 @@ export type ProjectGuideInput = {
   busy: boolean
   /** Why the last batch start failed. */
   error: string | null
-  /** Before the first approval, after the first trial is reviewed, the chat offers a second trial on more documents:
-   *  `ask` until answered, `adding` once the researcher chose it, `done` once it ran or was skipped. Undefined where
-   *  the host cannot add documents, which goes straight to the approval. */
-  moreDocuments?: 'ask' | 'adding' | 'done'
+  /** The approval's other answer (ADR 0041): `adding` once the researcher chose to try the template on more documents,
+   *  until a trial starts or they go back to the approval; `ask` otherwise. */
+  moreDocuments?: 'ask' | 'adding'
+  /** The host can add documents here: the trial on more documents offers their upload. */
+  canUpload?: boolean
   /** Documents added here are still being uploaded or read. */
   uploading?: boolean
 }
@@ -288,18 +288,18 @@ export function extractStep(input: GuideInput, request: number): StepCard {
   const schemaReady = input.view === 'editing' && input.recordScope !== null && input.revision.id !== null
   let picker: StepCard['picker']
   if (project && schemaReady) {
-    const { summary, documents, batches, currentDocumentId } = project
-    const approved = summary.schemaStabilised
-    // Approved, every document without a result on the revision yet; before, a pilot from this document on.
-    const covered = new Set((batches ?? []).filter((batch) => batch.schemaRevisionId === summary.currentSchemaRevisionId)
-      .flatMap((batch) => batch.members.filter((member) => member.completed || member.currentReview).map((member) => member.sourceDocumentId)))
-    const initial = approved
-      ? documents.map(({ id }) => id).filter((id) => !covered.has(id)).slice(0, BATCH_EXTRACTION_SELECTION_LIMIT)
-      : [currentDocumentId, ...documents.map(({ id }) => id).filter((id) => id !== currentDocumentId)].slice(0, 3)
-    picker = { documents, initial, limit: approved ? BATCH_EXTRACTION_SELECTION_LIMIT : PILOT_BATCH_SELECTION_LIMIT }
-    options.push({ action: approved ? 'batch' : 'pilot', label: 'Documents in this project · {n}', tone: 'positive', picks: true,
-      hint: approved ? undefined : `Until the template is approved, try it on at most ${plural(PILOT_BATCH_SELECTION_LIMIT, 'document')}`,
-      disabled: project.busy || summary.runningBatch !== null })
+    const { summary, documents, currentDocumentId } = project
+    // Approved, the project's documents are extracted on the project page (ADR 0041); before, a pilot from this
+    // document on.
+    if (summary.schemaStabilised)
+      options.push({ action: 'open-project', label: 'Documents in this project', hint: 'Extracted and reviewed on the project page', tone: 'positive' })
+    else {
+      picker = { documents, initial: [currentDocumentId, ...documents.map(({ id }) => id).filter((id) => id !== currentDocumentId)].slice(0, 3),
+        limit: PILOT_BATCH_SELECTION_LIMIT }
+      options.push({ action: 'pilot', label: 'Documents in this project · {n}', tone: 'positive', picks: true,
+        hint: `Until the template is approved, try it on at most ${plural(PILOT_BATCH_SELECTION_LIMIT, 'document')}`,
+        disabled: project.busy || summary.runningBatch !== null })
+    }
   }
   const blocked = options.every(({ disabled }) => disabled)
   return {
@@ -315,20 +315,39 @@ export function extractStep(input: GuideInput, request: number): StepCard {
 }
 
 /**
- * The changes a chat message proposed to the results (ADR 0035), each value's as it is and as it would be, until the
- * researcher saves or discards them. `lines` are the changes as `correctionLine` gives them.
+ * What a request to change results needs that no listed value can take, though the template holds it (ADR 0042):
+ * records the extraction missed, or a value the chat could not find in the source. Offered as this document's run again,
+ * with the template as it is; a template that is wrong for it is proposed as a template change instead (ADR 0037).
  */
-export function correctionStep(request: number, lines: readonly (readonly [string, string])[], saving: boolean): StepCard {
-  const count = lines.length
+export function rerunOfferStep(input: GuideInput, request: number, reason: string): StepCard {
+  const run = input.run
+  return {
+    key: `rerun-offer:${request}`,
+    title: 'Run extraction again',
+    question: 'The template can hold this, but the results have no value to change for it. Run the extraction again?',
+    detail: [['Why', reason]],
+    notice: !run ? 'This document cannot be extracted here.' : run.unavailableReason ?? undefined,
+    options: [
+      { action: 'run', label: RERUN_LABEL, tone: 'positive', disabled: !run?.available, description: runDescription(input, true) },
+      notYet,
+    ],
+  }
+}
+
+/**
+ * The changes a chat message proposed to the results (ADR 0035), until the researcher saves or discards them. Each
+ * value's change shows on the value itself in Results, as a template change shows in the Template view, so the step
+ * only counts them.
+ */
+export function correctionStep(request: number, count: number, saving: boolean): StepCard {
   return {
     key: `correct:${request}`,
     title: 'Change results',
-    question: count === 1 ? 'Save this change to the results?' : `Save these ${count} changes to the results?`,
-    detail: lines,
+    question: `Save ${plural(count, 'change')}?`,
     busy: saving,
     options: [
-      { action: 'save-corrections', label: count === 1 ? 'Save the change' : `Save ${count} changes`, tone: 'positive', disabled: saving,
-        description: 'Saved as your corrections of these values, as editing them in Results does; they guide later extractions only once you include them.' },
+      { action: 'save-corrections', label: 'Save', tone: 'positive', disabled: saving,
+        description: 'Saved as your corrections of these values, as editing them in Results does; like those, the saved values guide later extractions in this project.' },
       { action: 'discard-corrections', label: 'Discard', tone: 'secondary', disabled: saving },
       notYet,
     ],
@@ -348,14 +367,24 @@ function projectStep(input: GuideInput): StepCard | null {
   if (workflow.waiting) {
     const running = (batches ?? []).filter(batchStoppable)
     return { key: 'project-running', title: 'Batch extraction', notice: workflow.waiting, busy: true, error: project.error ?? undefined,
-      options: running.length === 0 ? [] : [{ action: 'stop-batch', label: '■ Stop batch extraction', tone: 'danger', disabled: project.busy,
-        description: 'Stop every document still being extracted; finished ones keep their results' }] }
+      options: [
+        // An approved template's batch is followed on the project page (ADR 0041); a trial round, here.
+        ...summary.schemaStabilised ? [{ action: 'open-project', label: 'Open project page', tone: 'secondary' } as const] : [],
+        ...running.length === 0 ? [] : [{ action: 'stop-batch', label: '■ Stop batch extraction', tone: 'danger', disabled: project.busy,
+          description: 'Stop every document still being extracted; finished ones keep their results' } as const]] }
   }
   const schemaReady = input.view === 'editing' && input.recordScope !== null && input.revision.id !== null
   // A schema saved here moves the phase on before the project's summary is read again.
   const next = workflow.next?.step === 'schema' && schemaReady ? { step: 'pilot' as const, label: 'Try template on a few documents', action: 'pilot' as const } : workflow.next
   // Every document extracted and reviewed: what is left is the dataset.
-  if (!next) return exportStep(project)
+  if (!next) {
+    const page = projectPageStep(project, `done:${summary.currentSchemaRevisionId}`,
+      'Every document is extracted and reviewed. Export the results, or add more documents, on the project page.')
+    // The dataset is the project page's; this document's own run (its results, a run again) stays the chat's, beside it.
+    const own = runStep(input)
+    return !own ? page : { ...page, notice: own.notice,
+      options: [page.options[0]!, ...own.options.filter(({ action }) => action !== 'dismiss').map((option) => ({ ...option, tone: 'secondary' as const })), notYet] }
+  }
   const revisionId = summary.currentSchemaRevisionId
   if (next.step === 'pilot' && next.action === 'pilot') {
     // A round of this revision with values to review leads before another pilot: a revision piloted after the server's
@@ -381,7 +410,7 @@ function projectStep(input: GuideInput): StepCard | null {
       ],
     }
   }
-  if (next.step === 'pilot' || next.step === 'review')
+  if (next.step === 'pilot')
     // Every round's review counts, of an older template too, as the project page's count of results to review does.
     return reviewStep(input, project, () => true)
   if (next.step === 'approve') {
@@ -389,33 +418,37 @@ function projectStep(input: GuideInput): StepCard | null {
     // The server's phase turns to the approval at the pilot's first review: the round's review leads, with the approval
     // beside it, since a member re-run since can never be reviewed.
     return reviewStep(input, project, (batch) => batch.schemaRevisionId === revisionId, { ...approve, tone: 'secondary' })
-      ?? (next.label === 'Approve template' ? moreDocumentsStep(project, revisionId) : null) ?? {
+      ?? moreDocumentsStep(project, revisionId) ?? {
+      // The approval asks whether the template is ready for the batch (ADR 0041); not yet, it is tried on more documents.
       key: `approve:${revisionId}`,
       title: next.label,
-      question: next.label === 'Re-approve template'
-        ? 'The template changed since its approval. Approve the current revision for the whole project?'
+      question: `${next.label === 'Re-approve template' ? 'The template changed since its approval. '
         // Unread rounds may still wait for review, and a pilot document's latest Extraction may be its own, unreviewed.
-        : `${batches === null || summary.extractedSourceDocumentCount > summary.reviewedSourceDocumentCount ? ''
-          : 'Every trial document is reviewed. '}Approve the template for the whole project?`,
-      options: [{ ...approve, tone: 'positive' }, notYet],
+        : batches === null || summary.extractedSourceDocumentCount > summary.reviewedSourceDocumentCount ? ''
+          : 'Every trial document is reviewed. '}Is this template good for batch extraction?`,
+      options: [{ ...approve, label: 'Yes', tone: 'positive',
+        description: 'Approves it for the whole project; the batch is extracted and reviewed on the project page' },
+      { action: 'more-documents', label: 'No, try it on more documents', tone: 'secondary' }, notYet],
     }
   }
-  if (next.step === 'batch') {
-    if (batches === null) return { key: 'batch-reading', title: 'Batch extraction', notice: 'Reading the project’s extractions…', busy: true, options: [] }
-    // Every document without a result on the approved revision yet.
-    const covered = new Set(batches.filter((batch) => batch.schemaRevisionId === revisionId)
-      .flatMap((batch) => batch.members.filter((member) => member.completed || member.currentReview).map((member) => member.sourceDocumentId)))
-    const left = documents.filter(({ id }) => !covered.has(id)).map(({ id }) => id)
-    return {
-      key: `batch:${revisionId}:${left.length}`,
-      title: 'Batch extraction',
-      question: `Extract ${left.length === documents.length ? 'every document' : `the ${plural(left.length, 'document')} left`} with the approved template?`,
-      error: project.error ?? undefined,
-      picker: { documents, initial: left.slice(0, BATCH_EXTRACTION_SELECTION_LIMIT), limit: BATCH_EXTRACTION_SELECTION_LIMIT },
-      options: [{ action: 'batch', label: 'Extract {n}', tone: 'positive', picks: true, disabled: project.busy }, notYet],
-    }
-  }
+  // After the approval the project page carries the work (ADR 0041): extracting the rest, reviewing it in the grid, and
+  // exporting. The chat points there.
+  if (next.step === 'batch') return projectPageStep(project, `batch:${revisionId}`, `The template is approved. Extract ${
+    summary.pendingExtractionSourceDocumentCount > 0 ? `the ${plural(summary.pendingExtractionSourceDocumentCount, 'document')} left` : 'the documents'
+  }, review the results and export them on the project page.`)
+  if (next.step === 'review') return projectPageStep(project, `review:${revisionId}`, 'Review the batch results in the project page’s grid, then export them there.')
   return null
+}
+
+/** The project page's step after the approval: extracting, reviewing in the grid and exporting happen there (ADR 0041). */
+function projectPageStep(project: ProjectGuideInput, stage: string, question: string): StepCard {
+  return {
+    key: `project-page:${stage}`,
+    title: 'Batch extraction',
+    question,
+    error: project.error ?? undefined,
+    options: [{ action: 'open-project', label: 'Open project page', tone: 'positive' }, notYet],
+  }
 }
 
 /** The documents with no Extraction on the revision yet, in the project's order: neither in a round of it nor run alone
@@ -429,24 +462,15 @@ function untried(project: ProjectGuideInput, revisionId: string | null): string[
 }
 
 /**
- * The optional second trial, between the first trial's review and the first approval: whether to try the template on
- * more documents; once chosen, the documents not tried yet to tick, or the upload of new ones. Skipping it, or starting
- * it, leads to the approval (after its review).
+ * The approval's "No, try it on more documents" (ADR 0041): the documents not tried on this revision yet to tick, or
+ * the upload of new ones. Starting the trial, or going back, leads to the approval again (after the trial's review).
  */
 function moreDocumentsStep(project: ProjectGuideInput, revisionId: string | null): StepCard | null {
-  if (project.moreDocuments === undefined || project.moreDocuments === 'done' || project.batches === null) return null
+  if (project.moreDocuments !== 'adding' || project.batches === null) return null
   const left = untried(project, revisionId)
-  const skip: StepOption = { action: 'skip-more', label: 'No, go on to approval', tone: 'secondary' }
-  if (project.moreDocuments === 'ask')
-    return {
-      key: `more-documents:${revisionId}`,
-      title: 'Try more documents?',
-      question: 'Try the template on a few more documents before approving it?',
-      options: [{ action: 'more-documents', label: left.length > 0 ? 'Yes, try more documents' : 'Yes, upload more documents', tone: 'positive' },
-        skip, notYet],
-    }
-  const upload: StepOption = { action: 'upload', label: 'Upload documents', tone: left.length > 0 ? 'secondary' : 'positive',
-    disabled: project.uploading, description: 'Add PDFs to this project' }
+  const skip: StepOption = { action: 'skip-more', label: 'Back to the approval', tone: 'secondary' }
+  const upload: StepOption[] = project.canUpload ? [{ action: 'upload', label: 'Upload documents', tone: left.length > 0 ? 'secondary' : 'positive',
+    disabled: project.uploading, description: 'Add PDFs to this project' }] : []
   if (left.length > 0)
     return {
       key: `more-trial:${revisionId}`,
@@ -456,60 +480,16 @@ function moreDocumentsStep(project: ProjectGuideInput, revisionId: string | null
       error: project.error ?? undefined,
       picker: { documents: project.documents.filter(({ id }) => left.includes(id)), initial: left.slice(0, PILOT_BATCH_SELECTION_LIMIT),
         limit: PILOT_BATCH_SELECTION_LIMIT },
-      options: [{ action: 'pilot', label: 'Try on {n}', tone: 'positive', picks: true, disabled: project.busy }, upload,
-        { ...skip, label: 'Skip, go on to approval' }, notYet],
+      options: [{ action: 'pilot', label: 'Try on {n}', tone: 'positive', picks: true, disabled: project.busy }, ...upload, skip, notYet],
     }
   return {
     key: `more-upload:${revisionId}`,
     title: 'Try template on more documents',
-    question: project.uploading ? undefined : 'Upload the documents to try the template on.',
+    question: project.uploading ? undefined : upload.length ? 'Every document has been tried. Upload more to try the template on.'
+      : 'Every document has been tried. Add more on the project page to try the template on.',
     notice: project.uploading ? 'Reading the new documents…' : undefined,
     busy: project.uploading,
-    options: [upload, { ...skip, label: 'Skip, go on to approval' }, notYet],
-  }
-}
-
-type ExportableResult = Pick<LatestExtraction, 'extractionId' | 'sourceRepresentationRevisionId' | 'batchExtractionId' | 'review'>
-
-/** Each document's result to export: only a reviewed one, at its finalized cut, on the Current Template Revision. Its
- *  newest review, as the project's read has it (a run of the document alone included); else, from a server without that
- *  read, its newest reviewed round member, which only offers the export: the export itself refuses without the read. */
-export function exportableResults(project: ProjectGuideInput): Map<string, ExportableResult> {
-  const results = new Map<string, ExportableResult>()
-  const revisionId = project.summary.currentSchemaRevisionId
-  if (project.latest) {
-    for (const reviewed of project.latest.reviewed)
-      if (reviewed.schemaRevisionId === revisionId) results.set(reviewed.sourceDocumentId, reviewed)
-    return results
-  }
-  const newestFirst = (project.batches ?? []).filter((batch) => batch.schemaRevisionId === revisionId)
-    .toSorted((left, right) => right.createdAt.localeCompare(left.createdAt))
-  for (const batch of newestFirst)
-    for (const { currentReview, ...member } of batch.members)
-      if (!results.has(member.sourceDocumentId) && currentReview)
-        results.set(member.sourceDocumentId, { ...member, batchExtractionId: batch.batchExtractionId,
-          review: { snapshotVersion: currentReview.snapshotVersion, feedbackVersion: currentReview.feedbackVersion } })
-  return results
-}
-
-/** The finished project's dataset: the documents with a result to tick, then the export's own options and format; or
- *  more documents uploaded, which the project then extracts (the batch step) before they are exported with the rest. */
-function exportStep(project: ProjectGuideInput): StepCard | null {
-  if (project.batches === null) return null
-  const results = exportableResults(project)
-  const documents = project.documents.filter(({ id }) => results.has(id))
-  if (documents.length === 0) return null
-  return {
-    key: `export:${project.summary.currentSchemaRevisionId}`,
-    title: 'Export results',
-    question: 'Every document is extracted and reviewed. Export the results?',
-    notice: project.uploading ? 'Reading the new documents…' : undefined,
-    error: project.error ?? undefined,
-    picker: { documents, initial: documents.map(({ id }) => id), limit: documents.length },
-    options: [{ action: 'export', label: 'Export {n}…', tone: 'positive', picks: true, disabled: project.busy,
-      description: 'Then choose JSON, Excel or CSV' },
-    { action: 'upload', label: 'Upload more documents', tone: 'secondary', disabled: project.uploading,
-      description: 'Add PDFs to this project; the template then extracts them for review' }, notYet],
+    options: [...upload, skip, notYet],
   }
 }
 

@@ -2628,7 +2628,32 @@ it('the workflow bar\'s batch step opens the collection run on the approved Curr
   await enabledRun('Run 2 Source Documents')
 })
 
-it('the workflow bar\'s review step opens the first result left to review', async () => {
+it('the project status\'s extract ticks only the documents the approved revision has no result for yet (ADR 0041)', async () => {
+  // The first document already completed on this revision: only the other is ticked.
+  const done = { ...batch, trial: false, members: [{ ...batch.members[0]!, executionStatus: 'COMPLETED' as const, completed: true, reviewable: true }, batch.members[1]!] }
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (url.startsWith('/api/batch-extractions?')) return response({ batchExtractions: [done] })
+    if (url.startsWith('/api/batch-schema-suggestions?')) return response({ batchSchemaSuggestions: [] })
+    if (url.startsWith('/api/extraction-schemas?')) return response({
+      extractionSchemas: [{
+        extractionSchemaId: batch.extractionSchemaId, name: 'Places', createdAt: '2026-08-14T10:00:00.000Z',
+        currentRevision: { schemaRevisionId, revisionNumber: 1, origin: 'researcher-edit', createdAt: '2026-08-14T10:00:00.000Z' },
+      }],
+    })
+    const chosen = chosenSchemaRead(url, { ...chosenRevision(), stabilisedAt: '2026-08-14T12:00:00.000Z' })
+    if (chosen) return chosen
+    throw new Error(`Unexpected request: ${url}`)
+  }))
+  render(<BatchExtractionsPanel projectContextId={projectContextId} sourceDocuments={documents}
+    openBatchExtractionId={null} pilotSchemaRevisionId={null}
+    summary={pilotSummary({ phase: 'batch', schemaStabilised: true, pendingExtractionSourceDocumentCount: 1 })}
+    guidedRequest="batch" onGuidedRequestHandled={() => {}} onNavigate={() => {}} />)
+  expect(await screen.findByText(/This template is approved for batch extraction/)).toBeVisible()
+  expect(screen.getByText('1 selected')).toBeInTheDocument()
+})
+
+it('the project status\'s review opens the batch\'s review grid (ADR 0041)', async () => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.startsWith('/api/batch-extractions?')) return response({
@@ -2645,11 +2670,7 @@ it('the workflow bar\'s review step opens the first result left to review', asyn
     guidedRequest="review" onGuidedRequestHandled={onGuidedRequestHandled} onNavigate={onNavigate} />)
 
   await vi.waitFor(() => expect(onNavigate).toHaveBeenCalledWith({
-    kind: 'document',
-    projectContextId,
-    sourceDocumentId: failedDocumentId,
-    extractionId,
-    fromBatchExtractionId: batchExtractionId,
+    kind: 'project', projectContextId, tab: 'extractions', batchExtractionId, view: 'grid',
   }))
   expect(onGuidedRequestHandled).toHaveBeenCalledOnce()
 })

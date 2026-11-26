@@ -13,6 +13,7 @@ import ModalDialog from './ui/ModalDialog'
 import { DurableInputs } from './DurableInputs'
 import ExtractionResultExportControl from './ExtractionResultExportControl'
 import ReviewRow from './ReviewRow'
+import ProposedValueChange, { type ProposedChange } from './ProposedValueChange'
 import type { PartPick } from './ui/ReviewedValueDisplay'
 import ReviewFocus from './ReviewFocus'
 import ReviewList from './ReviewList'
@@ -315,7 +316,7 @@ const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify
 /** Durable live review in the results rail: the latest saved values while the run
  * goes on, each record as it is read, and the researcher's decisions on them. An edit is guidance for the model's
  * later calls. Pause, Resume and Stop are the workspace's run button's (App). */
-export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,menuItems,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,headerSlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null,onValueHistory,nextReview=null}:{attempt:ExtractionAttempt|null;
+export function DurableResults({attempt,reader,connectionShown=false,initialCut=null,document:currentDocument,documentRevisionId,currentSchema,onSchema,controlled=true,sourceDocumentName,onEvidence,readOnly=false,selection,menuItems,onPinnedDocument,onReviewProgress,onReviewFinalized,railOpen=true,historySlot,headerSlot,historyShown=false,onShowResults,onShowHistory,onOpenLatest=null,onValueHistory,nextReview=null,proposed=null}:{attempt:ExtractionAttempt|null;
   /** The workspace's reader of `attempt`: its state and latest results; null until the workspace has made it. */
   reader:DurableReader|null;
   /** The rail's banner already reports this reader's connection. */
@@ -342,6 +343,9 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   onValueHistory?:(extractionId:string,valueId:string,name:string)=>void;
   /** The next document waiting for review: once every value here is checked, saving the review may go on to it. */
   nextReview?:{name:string;open:()=>void}|null;
+  /** The changes the chat proposes to an Extraction's values, by value id, until saved or discarded (ADR 0035);
+   *  `key` is the proposal's own. */
+  proposed?:{key:number;extractionId:string;changes:ReadonlyMap<string,ProposedChange>}|null;
 }) {
   const id=attempt?.extractionId
   const article=attempt?.strategy==='ARTICLE'
@@ -636,6 +640,25 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     read()
     return()=>{controller.abort();clearTimeout(retry)}
   },[id])
+  // The chat's proposed changes to these values (ADR 0035) show on their rows until saved or discarded. Once per
+  // proposal the list shows every value, with each changed value's record open, and the first change is brought into view.
+  const proposedChanges=proposed&&proposed.extractionId===id?proposed.changes:null
+  const proposalKey=proposedChanges?proposed!.key:null
+  const [revealedProposal,setRevealedProposal]=useState<number|null>(null)
+  if(proposalKey!==null&&revealedProposal!==proposalKey&&model) {
+    setRevealedProposal(proposalKey)
+    setFocus(false);setFilter('all')
+    const owners=model.records.filter(record=>record.key&&record.rows.some(row=>proposedChanges!.has(row.key)))
+    if(owners.length)setToggledRecords(previous=>new Map([...previous,...owners.map(record=>[record.key!,true] as const)]))
+  }
+  useEffect(()=> {
+    const container=resultsContainer.current
+    if(revealedProposal===null||!container||!proposedChanges)return
+    const first=[...container.querySelectorAll<HTMLElement>('[data-result-key]')].find(row=>proposedChanges.has(row.dataset.resultKey!))
+    if(first)scrollWithinPane(container,first)
+  // Once per proposal: a later read of the values leaves the scroll where the researcher put it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[revealedProposal])
   if(!state||!latestPage||!page||!attempt||!id||!model||!reader) return <><p role={shownError?'alert':'status'} className="p-3 text-secondary [overflow-wrap:anywhere]">{shownError??'Loading saved extraction results…'}</p>
     {reconnect&&<div className="px-3 pb-3">{reconnect}</div>}
     {historySlot&&createPortal(<p className="p-3 text-secondary [overflow-wrap:anywhere]">{shownError??'Loading…'}</p>,historySlot)}</>
@@ -789,8 +812,12 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const renderValue=(row:RailRow,pinnedRow:boolean)=>{
     const owner=valuesById.get(markValueId(row.key))
     const reason=row.parts?.length?null:checkReason(row)
+    const change=proposedChanges?.get(row.key)??null
     return <div style={evidenceColorVars(fieldColor(fieldOrder,owner?.node.name??row.name))}>
-      {inline&&row.key===inlineKey?valueReview:<ReviewRow row={{...row,reason}} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)}
+      {inline&&row.key===inlineKey?<>
+        {change&&<div className="px-2 pt-1.5"><ProposedValueChange node={owner?.node??null} change={change}/></div>}
+        {valueReview}
+      </>:<ReviewRow row={{...row,reason}} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} proposed={change}
         canDecide={false} saved={readOnly} editing={false} node={owner?.node??null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>}
     </div>
   }

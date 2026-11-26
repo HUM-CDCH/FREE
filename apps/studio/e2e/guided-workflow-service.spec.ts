@@ -111,24 +111,24 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     expect(latestExtractions.filter(({ extractionId }: { extractionId: string }) => pilotMembers.includes(extractionId))).toEqual(
       pilotMembers.map(() => expect.objectContaining({ completed: true, review: { snapshotVersion: expect.any(Number), feedbackVersion: expect.any(Number) } })))
     await page.reload()
-    // The second trial is offered first; declining it goes on to the approval.
-    const more = step(page, 'Try more documents?')
-    await expect(more).toBeVisible({ timeout: 60_000 })
-    await more.getByRole('button', { name: 'No, go on to approval' }).click()
+    // The approval asks whether the template is good for batch extraction; its other answer tries more documents first.
     const approval = step(page, 'Approve template')
     await expect(approval).toBeVisible({ timeout: 60_000 })
-    await approval.getByRole('button', { name: 'Approve template' }).click()
+    await approval.getByRole('button', { name: 'Yes', exact: true }).click()
     const approve = page.getByRole('dialog', { name: 'Approve the template for Batch Extraction?' })
     await approve.getByRole('button', { name: 'Approve', exact: true }).click()
     await expect(approve).toBeHidden()
 
-    // Batch extract: the chat ticks the documents the pilot left, which may now run past the pilot limit.
-    const batch = step(page, 'Batch extraction')
-    await expect(batch.getByRole('checkbox', { checked: true })).toHaveCount(DOCUMENTS - 3)
-    await batch.getByRole('button', { name: `Extract ${DOCUMENTS - 3} documents` }).click()
+    // Batch extract on the project page (ADR 0041): the chat points there, which ticks the documents the pilot left,
+    // past the pilot limit.
+    await step(page, 'Batch extraction').getByRole('button', { name: 'Open project page' }).click()
+    await expect(status).toContainText(`Next: Extract ${DOCUMENTS - 3} documents`, { timeout: 60_000 })
+    await status.getByRole('button', { name: `Extract ${DOCUMENTS - 3} documents` }).click()
+    await expect(page.getByText(`${DOCUMENTS - 3} selected`)).toBeVisible({ timeout: 60_000 })
+    await page.getByRole('button', { name: `Run ${DOCUMENTS - 3} Source Documents` }).click()
 
-    // Review: once the batch has run, the chat leads to its results; every result is then reviewed.
-    await expect(step(page, 'Review results')).toBeVisible({ timeout: 300_000 })
+    // Review: once the batch has run, the project page leads to its grid; every result is then reviewed.
+    await expect(status.getByRole('button', { name: 'Review in grid' })).toBeVisible({ timeout: 300_000 })
     for (const extractionId of await newestBatchMembers(page, project)) await reviewExtraction(page, extractionId)
     await page.goto(`/projects/${project}`)
     await expect(status).toContainText('Every document is extracted and reviewed.')
@@ -142,7 +142,7 @@ test('the chat leads from the first upload to a reviewed collection, and never b
     await expect(status).toContainText('Next in the chat: Re-approve template')
     await status.getByRole('button', { name: 'Continue in chat' }).click()
     const reapproval = step(page, 'Re-approve template')
-    await reapproval.getByRole('button', { name: 'Re-approve template' }).click()
+    await reapproval.getByRole('button', { name: 'Yes', exact: true }).click()
     const reapprove = page.getByRole('dialog', { name: 'Re-approve the revised template?' })
     await reapprove.getByRole('button', { name: 'Re-approve', exact: true }).click()
     await expect(reapprove).toBeHidden()
