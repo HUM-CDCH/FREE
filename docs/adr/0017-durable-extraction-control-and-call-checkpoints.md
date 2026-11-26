@@ -102,10 +102,12 @@ DBOS events Studio reads for display only; nothing in a run reads them back,
 and failing to write them never fails a call. The source shows each as a
 dashed record preview, whose limits may still change. A record the saved plan
 lists (the whole list, or the unified Catalog's partial list while discovery
-still reads) shows the text it owns as a solid outline, which replaces its
-preview and stays until the run settles. A record outline is never Evidence:
-it is no link, and nothing selects, reviews or exports it. (Until 12 November
-2026 a record showed as one mark on the block it starts in.)
+still reads) shows the text it owns as a light-blue highlight with a solid
+underline, which replaces its preview and stays until the run settles. Both
+are drawn as Evidence marks are, in a blue no field has. A record block is
+never Evidence: it is no link, and nothing selects, reviews or exports it.
+(Until 12 November 2026 a record showed as one mark on the block it starts
+in; until 26 November 2026 as an ink outline.)
 
 During a live Article or Catalog run, a saved provisional string value may also
 highlight its unique, exact occurrence in the pinned source as a dashed preview.

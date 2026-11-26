@@ -22,6 +22,7 @@ FREE feels like a quiet research desk: paper-forward, compact, and evidence-mind
 | Accent soft | `--color-accent-soft` | `#f4ddd3` | Accent fills |
 | Accent ghost | `--color-accent-ghost` | `#fbf1ec` | Hover wash |
 | Evidence | `--color-ev` | `#4f8aa8` | Evidence-related marks only; a top-level field's colour overrides it on its marks and rows |
+| Record block | `--color-record` | `#4a90e2` | A running Catalog's record blocks only: drawn as Evidence marks are, never Evidence |
 | Success | `--color-green` | `#3e7c4f` | Positive commands (run, apply, accept, save, finalize) and success state |
 | Warning | `--color-stale` | `#b8860b` | Stale state (golden amber, held off the terracotta hue) |
 | Error | `--color-danger` | `#9e2b33` | Destructive commands (delete a field, clear the schema, discard a proposal, cancel) and errors |

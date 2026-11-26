@@ -82,19 +82,19 @@ it('finds each record\'s own lines in the Markdown by code points, and only the 
     ['- one\n- two', 'preview', ['Preview · 8', 'Preview · 9'], false, true]])
 })
 
-it('outlines every block of a record as one region down a column, and gives a record its own rows of a table', () => {
+it('highlights every block of a record as one region down a column, and gives a record its own rows of a table', () => {
   const { document, bytes } = page()
   const blocks = [closed(0, line('p1_s0', 0, 9), line('p1_s1', 0, 12)), closed(1, line('p1_s1', 13, 24), line('p1_s2', 0, 23), line('p1_s3', 0, 21)),
     closed(2, line('p1_s5', 0, 5)), closed(3, line('p1_s5', 6, 17)), preview('1', 'p1_s1', line('p1_s1', 0, 12))]
   const pieces = recordPieces(document, bytes, blocks)
-  expect(pieces.map(piece => [piece.state, piece.tag, Object.values(piece.box), piece.start, piece.end])).toEqual([
+  expect(pieces.map(piece => [piece.state, piece.tag, Object.values(piece.box), piece.start])).toEqual([
     // The heading and the paragraph under it: one region.
-    ['closed', ['Record 1'], [40, 40, 280, 110], true, true],
+    ['closed', ['Record 1'], [40, 40, 280, 110], true],
     // The paragraph two records share is placed whole, so the second record's region (it and the next block) names it
-    // alone; its last block, in the next column, is another region of the same outline, with no tag of its own.
-    ['closed', ['Record 2'], [40, 70, 280, 140], true, false], ['closed', [], [320, 40, 560, 60], false, true],
-    ['closed', ['Record 3'], [320, 200, 560, 220], true, true], ['closed', ['Record 4'], [320, 220, 560, 260], true, true],
-    ['preview', ['Preview · 1'], [40, 70, 280, 110], true, true]])
+    // alone; its last block, in the next column, is another region of the same record, with no tag of its own.
+    ['closed', ['Record 2'], [40, 70, 280, 140], true], ['closed', [], [320, 40, 560, 60], false],
+    ['closed', ['Record 3'], [320, 200, 560, 220], true], ['closed', ['Record 4'], [320, 220, 560, 260], true],
+    ['preview', ['Preview · 1'], [40, 70, 280, 110], true]])
   // Records that own no more than one shared block share its region; without the Markdown a table is one block too.
   // Regions beginning at one corner are named on one tag, never one tag over another.
   expect(recordPieces(document, null, [closed(0, line('p1_s1', 0, 12)), closed(1, line('p1_s1', 13, 24)), closed(4, line('p1_s1', 13, 24), line('p1_s2', 0, 5)),
@@ -104,7 +104,7 @@ it('outlines every block of a record as one region down a column, and gives a re
     [['Record 3', 'Record 4'], ['Record 3', 'Record 4'], [320, 200, 560, 260]]])
 })
 
-it('the Markdown view outlines a record\'s lines inside the Evidence mark of their block, which still selects its value', () => {
+it('the Markdown view highlights a record\'s lines inside the Evidence mark of their block, which still selects its value', () => {
   const { document, markdown } = page(), selection = createSelectionChannel(), onSelect = vi.fn()
   const marks = { extractionId: 'x', selected: null, describe: new Map([['value', { name: 'title', value: 'Bowl', word: null, style: 'link' as const }]]),
     savedLinks: [{ key: 'value', link: { resultPath: ['records', 1, 'title'], evidenceAnchorId: 'a_p1_s1' } }],
@@ -114,22 +114,22 @@ it('the Markdown view outlines a record\'s lines inside the Evidence mark of the
   const mark = screen.getByRole('button', { name: 'title: Bowl' })
   const first = screen.getByRole('group', { name: 'Record 1' }), second = screen.getByRole('group', { name: 'Preview · 2: still being found, its limits can change' })
   expect(first).toHaveTextContent(/^1 Vase 𝔸 réd$/)
-  expect(first).toHaveClass('record-block', 'closed')
+  expect(first).toHaveClass('record-block', 'evidence-mark', 'closed')
   expect(first).toHaveAttribute('data-record-label', 'Record 1')
   expect(second).toHaveTextContent(/^2 Bowl blue$/)
-  expect(second).toHaveClass('record-block', 'preview')
+  expect(second).toHaveClass('record-block', 'evidence-mark', 'preview')
   expect(mark).toContainElement(first)
   expect(mark).toHaveTextContent('1 Vase 𝔸 réd 2 Bowl blue')
-  // The outline is no mark: a click on it reaches the Evidence mark it lies in.
+  // The highlight is no mark: a click on it reaches the Evidence mark it lies in.
   fireEvent.click(second)
   expect(onSelect).toHaveBeenCalledWith(['value'], mark)
   expect(screen.getByLabelText('Parsed Markdown')).toHaveTextContent('# Catalogue 1 Vase 𝔸 réd 2 Bowl blue found at the north wall')
-  // The "Evidence marks" switch clears the outlines with the marks.
+  // The "Evidence marks" switch clears the highlights with the marks.
   rerender(<DocumentMarkdown markdown={markdown} document={document} selection={selection} extractionId="x" marksShown={false} onSelect={onSelect} />)
   expect(screen.queryByRole('group')).toBeNull()
 })
 
-it('the page draws record blocks as outlines that are no marks, keeps them through a page reset and removes them with their run', async () => {
+it('the page draws record blocks as the marks are drawn, though none selects, keeps them through a page reset and removes them with their run', async () => {
   const { document: parsed, markdown } = page(), selection = createSelectionChannel(), onSelect = vi.fn()
   const container = document.createElement('div')
   container.innerHTML = '<div class="page" data-page-number="1"></div>'
@@ -142,19 +142,19 @@ it('the page draws record blocks as outlines that are no marks, keeps them throu
   act(() => selection.publish({ marks }))
   renderHook(() => useEvidenceOverlays({ containerRef: { current: container }, viewer: viewer as never, parsedDocument: parsed, markdown,
     extractionId: 'x', active: true, selection, onSelect }))
-  const outlines = () => [...container.querySelectorAll<HTMLElement>('.record-block')]
-  const seen = () => outlines().map(outline => [outline.className, outline.getAttribute('aria-label'), outline.dataset.recordLabel, outline.style.top, outline.style.height])
+  const drawn = () => [...container.querySelectorAll<HTMLElement>('.record-block')]
+  const seen = () => drawn().map(block => [block.className, block.getAttribute('aria-label'), block.dataset.recordLabel, block.style.top, block.style.height])
   const expected = [
-    ['record-block closed start end', 'Record 1', 'Record 1', '5%', '8.75%'],
-    ['record-block closed start', 'Record 2', 'Record 2', '8.75%', '5%'], ['record-block closed end', 'Record 2', undefined, '5%', '2.5%'],
-    ['record-block preview start end', 'Preview · 3: still being found, its limits can change', 'Preview · 3', '25%', '2.5%']]
+    ['record-block evidence-mark closed', 'Record 1', 'Record 1', '5%', '8.75%'],
+    ['record-block evidence-mark closed', 'Record 2', 'Record 2', '8.75%', '5%'], ['record-block evidence-mark closed', 'Record 2', undefined, '5%', '2.5%'],
+    ['record-block evidence-mark preview', 'Preview · 3: still being found, its limits can change', 'Preview · 3', '25%', '2.5%']]
   expect(seen()).toEqual(expected)
-  // An outline is an image with a name: nothing to press, and a click on it selects nothing.
-  for (const outline of outlines()) {
-    expect(outline.tagName).toBe('DIV')
-    expect(outline.getAttribute('role')).toBe('img')
-    expect(outline.dataset.hoverKeys).toBeUndefined()
-    outline.click()
+  // A block is an image with a name: nothing to press, and a click on it selects nothing.
+  for (const block of drawn()) {
+    expect(block.tagName).toBe('DIV')
+    expect(block.getAttribute('role')).toBe('img')
+    expect(block.dataset.hoverKeys).toBeUndefined()
+    block.click()
   }
   expect(onSelect).not.toHaveBeenCalled()
   // The Evidence mark of the shared paragraph is still the one button, and still selects its value.
@@ -166,13 +166,13 @@ it('the page draws record blocks as outlines that are no marks, keeps them throu
   container.querySelector('.page')!.replaceChildren()
   act(() => listeners.get('pagerendered')!())
   expect(seen()).toEqual(expected)
-  // A poll that changes only the values keeps the same outlines.
-  const kept = outlines()
+  // A poll that changes only the values keeps the same blocks.
+  const kept = drawn()
   await act(async () => selection.publish({ marks: { ...marks, selected: 'value' } }))
   expect(container.querySelector('button.evidence-mark')!.getAttribute('aria-current')).toBe('true')
-  expect(outlines()).toEqual(kept)
+  expect(drawn()).toEqual(kept)
   await act(async () => selection.publish({ marks: { ...marks, records: [] } }))
-  expect(outlines()).toEqual([])
+  expect(drawn()).toEqual([])
   expect(container.querySelectorAll('button.evidence-mark')).toHaveLength(1)
 })
 

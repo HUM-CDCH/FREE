@@ -23,6 +23,9 @@
   --color-ev: #4f8aa8;            /* evidence blue */
   --color-ev-soft: #d9eaf3;       /* evidence tint fill */
   --color-ev-ghost: #eef6fa;      /* faint evidence wash (stepper, current row) */
+  --color-record: #4a90e2;        /* a running Catalog's record blocks: a light blue no field has (3.3:1 on white) */
+  --color-record-soft: #d4e4f8;   /* record block fill */
+  --color-record-ghost: #e9f2fc;  /* record preview fill */
   --color-green: #3e7c4f;
   --color-green-soft: #e7f1e9;
   --color-stale: #b8860b;         /* stale / re-run golden amber, held off the terracotta hue */

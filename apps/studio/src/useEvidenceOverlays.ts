@@ -30,6 +30,11 @@ function pageMap(container: HTMLElement, pageNumber?: number): PageMap {
 
 const transformOnly = (event?: PageRender) => event?.cssTransform || event?.isDetailView
 
+/** Where a box in page points lies on its page: block marks, value marks and record blocks are all placed so. */
+const boxStyle = (box: { x0: number; y0: number; x1: number; y1: number }, page: { width_pt: number; height_pt: number }) => ({
+  position: 'absolute', left: `${(box.x0 / page.width_pt) * 100}%`, top: `${(box.y0 / page.height_pt) * 100}%`,
+  width: `${((box.x1 - box.x0) / page.width_pt) * 100}%`, height: `${((box.y1 - box.y0) / page.height_pt) * 100}%` })
+
 /** What the rail says about one value, for its mark on the page. */
 export type MarkInfo = { name: string; value: string; word: string | null; style: 'link' | 'rule' | 'doubtful' | 'neutral' | 'preview'; color?: string }
 
@@ -43,7 +48,7 @@ export type RailMarkState = {
   selected: string | null
   /** Stable retained value IDs, including explicit correction occurrences. */
   savedLinks: readonly {key:string;link:SourceEvidenceLink;occurrenceIds?:readonly string[]}[]
-  /** A running Catalog's record blocks: outlines under the marks, never Evidence and never selectable. */
+  /** A running Catalog's record blocks: light-blue highlights under the marks, never Evidence and never selectable. */
   records?: readonly RecordBlock[]
 }
 
@@ -98,11 +103,7 @@ function appendOverlay(
     overlay.dataset.resultPath = JSON.stringify(options.resultPath)
   else delete overlay.dataset.resultPath
   Object.assign(overlay.style, {
-    position: 'absolute',
-    left: `${(bbox.x0 / pageMeta.width_pt) * 100}%`,
-    top: `${(bbox.y0 / pageMeta.height_pt) * 100}%`,
-    width: `${((bbox.x1 - bbox.x0) / pageMeta.width_pt) * 100}%`,
-    height: `${((bbox.y1 - bbox.y0) / pageMeta.height_pt) * 100}%`,
+    ...boxStyle(bbox, pageMeta),
     ...(options.mark ? {} : { border: options.border ?? '0', background: options.background ?? '', pointerEvents: 'none' }),
     borderRadius: '2px',
     zIndex: options.border ? '5' : '4',
@@ -315,31 +316,26 @@ export function useEvidenceOverlays({ containerRef, viewer, parsedDocument, mark
         mark.ariaHidden = 'true'
         mark.dataset.occurrenceId = occurrence.occurrence_id
         mark.dataset.resultPath = JSON.stringify(link.resultPath)
-        Object.assign(mark.style, {
-          position: 'absolute', left: `${box.x0 / meta.width_pt * 100}%`, top: `${box.y0 / meta.height_pt * 100}%`,
-          width: `${(box.x1 - box.x0) / meta.width_pt * 100}%`, height: `${(box.y1 - box.y0) / meta.height_pt * 100}%`,
-          pointerEvents: info ? 'auto' : 'none', zIndex: '5',
-        })
+        Object.assign(mark.style, { ...boxStyle(box, meta), pointerEvents: info ? 'auto' : 'none', zIndex: '5' })
         decorate(mark, [key], info ? fieldWords(info.name) : undefined, info?.color)
         if (mark.parentElement !== page) page.append(mark)
       }
       previousValues.forEach(element => element.remove())
-      // Record blocks: outlines under every mark (z-index 3) that take no pointer, placed like the marks, by the page's size.
+      // Record blocks: drawn as the marks are (`evidence-mark`, in their own blue), under every mark (z-index 3), taking no pointer.
       const previousRecords = new Map(elements('.record-block').map(element => [element.dataset.recordBlock!, element]))
       for (const piece of records.pieces) {
         const page = pages.get(piece.page), meta = metadata.get(piece.page)
         if (!page || !meta) continue
-        const outline = previousRecords.get(piece.id) ?? document.createElement('div')
+        const block = previousRecords.get(piece.id) ?? document.createElement('div')
         previousRecords.delete(piece.id)
-        outline.dataset.recordBlock = piece.id
-        outline.className = `record-block ${piece.state}${piece.start ? ' start' : ''}${piece.end ? ' end' : ''}`
-        outline.setAttribute('role', 'img')
-        outline.setAttribute('aria-label', recordBlockName(piece.state, piece.labels))
-        if (piece.tag.length) outline.dataset.recordLabel = recordBlockTag(piece.tag)
-        else delete outline.dataset.recordLabel
-        Object.assign(outline.style, { left: `${piece.box.x0 / meta.width_pt * 100}%`, top: `${piece.box.y0 / meta.height_pt * 100}%`,
-          width: `${(piece.box.x1 - piece.box.x0) / meta.width_pt * 100}%`, height: `${(piece.box.y1 - piece.box.y0) / meta.height_pt * 100}%` })
-        if (outline.parentElement !== page) page.append(outline)
+        block.dataset.recordBlock = piece.id
+        block.className = `record-block evidence-mark ${piece.state}`
+        block.setAttribute('role', 'img')
+        block.setAttribute('aria-label', recordBlockName(piece.state, piece.labels))
+        if (piece.tag.length) block.dataset.recordLabel = recordBlockTag(piece.tag)
+        else delete block.dataset.recordLabel
+        Object.assign(block.style, boxStyle(piece.box, meta))
+        if (block.parentElement !== page) page.append(block)
       }
       previousRecords.forEach(element => element.remove())
       for (const page of pages.values()) page.querySelectorAll('.evidence-dim').forEach(element => element.remove())

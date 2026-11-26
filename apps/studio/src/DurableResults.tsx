@@ -837,7 +837,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       onDetails={()=>setDetailsOpen(open=>!open)} onMenu={()=>setMenuOpen(open=>!open)} onShowDetails={()=>setDetailsOpen(true)}
       onOneByOne={openOneByOne} onSaveReview={()=>finalize()} onList={()=>{++selectedGeneration.current;setFocus(false)}}/>
     {(blocks.length>0||previews.length>0)&&<p role="note" className="m-0 shrink-0 border-b border-line px-3 py-1 text-compact text-ink-muted">
-      {blocks.length>0&&<span>Dashed outline: a record still being found, its limits may change. Solid outline: a record with settled limits. Highlights are Evidence. </span>}
+      {blocks.length>0&&<span>Light blue, dashed: a record still being found, its limits may change. Light blue, underlined: a record with settled limits. Other highlights are Evidence. </span>}
       {previews.length>0&&<span>Preview highlights show matching text. Citations are still being checked.</span>}</p>}
     <ResultSchemaNotice page={page} state={state} current={currentSchema} controlled={controlled} readOnly={readOnly} onSchema={onSchema}/>
     {menuOpen&&<ResultsMenu items={[
