@@ -10,10 +10,11 @@ export type RowKind =
   | 'not-reviewable' | 'missing' | 'contested'
   | 'reading' | 'checking' | 'queued'
 export type ChipStyle = 'link' | 'rule' | 'doubtful' | 'neutral'
-/** Where a value's support check places it in the review order: the source text was judged not to support
- *  it, no verdict could be reached (no source text, too long an input, the checker unavailable), or it was judged
- *  supported. It orders the review only; a supported value is checked like any other. */
-export type ReviewPriority = 'unsupported' | 'to-verify' | 'supported'
+/** What a value's support check says: the source text was judged not to support it, its verdicts disagree, the check
+ *  failed (the checker unavailable), no verdict could be reached (no source text, too long an input), or it was judged
+ *  supported. Only the first two move a value up the review order; a check that gave no verdict is no verdict against
+ *  the value, and a supported value is checked like any other. */
+export type ReviewPriority = 'unsupported' | 'uncertain' | 'failed' | 'to-verify' | 'supported'
 type Path = (string | number)[]
 
 export type RailRow = {
@@ -34,6 +35,10 @@ export type RailRow = {
   reason?: string | null
   /** The extracted value's support check, when the backend attempted one. */
   priority?: ReviewPriority | null
+  /** This review has shown the value's reason to be noise, so it no longer comes first; the reason is still its own. */
+  settled?: boolean
+  /** Where the value is, said on its row when it is shown away from its record: among the values checked first. */
+  place?: string
   /** Populated original scalars in document order; they share this row's saved value identity. */
   parts?: readonly RailRow[]
   /** The run-time decision was not kept at settlement. */
@@ -151,12 +156,15 @@ export function evidenceCheck(link: Pick<EvidenceLink, 'verbatim' | 'grounding' 
   return null
 }
 
-/** What the researcher reads of a support check, and its short word for a chip. It describes the extracted value, so
- *  none after an edit or a rejection; and none for a supported value, which is no approval. */
-export function supportNote(row: Pick<RailRow, 'priority' | 'kind'>): { text: string; word: string } | null {
+/** What the researcher reads of a support check in the open value's detail. It describes the extracted value, so none
+ *  after an edit or a rejection; and none for a supported value, which is no approval. A check that gave no verdict is
+ *  said here only: it moves nothing and marks no row, where "checked" is the researcher's own review. */
+export function supportNote(row: Pick<RailRow, 'priority' | 'kind'>): { text: string } | null {
   if (row.kind === 'edited' || row.kind === 'rejected') return null
-  if (row.priority === 'unsupported') return { text: 'The source text may not support this value, please check it first', word: 'check first' }
-  if (row.priority === 'to-verify') return { text: 'Its support could not be checked automatically', word: 'not checked' }
+  if (row.priority === 'unsupported') return { text: 'An automatic check doubts the source text supports this value. Such a check is often wrong: please read the source' }
+  if (row.priority === 'uncertain') return { text: 'The automatic checks disagree on whether the source text supports this value' }
+  if (row.priority === 'failed') return { text: 'Its automatic support check was unavailable; that says nothing about the value' }
+  if (row.priority === 'to-verify') return { text: 'Its support could not be checked automatically' }
   return null
 }
 

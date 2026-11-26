@@ -326,7 +326,7 @@ test('one ranked table cell approval survives reload and an independent owner se
       await openRailView(view, 'Results')
       await expect(checkFirst(view).getByRole('button', { name: /measurements › #1 › baseline.*22/i })).toBeVisible()
       await expect(rankedCell(view)).toHaveCount(0)
-      await view.getByRole('button', { name: 'Use document order', exact: true }).click()
+      await view.getByRole('button', { name: 'Show in their place', exact: true }).click()
       await view.getByRole('button', { name: /^To check measurements/ }).click()
     }
 

@@ -1,29 +1,74 @@
 import { isDecidable, type RailModel, type RailRecord, type RailRow } from './reviewVocabulary'
 
-export type QueueItem = { key: string; ownerKey: string; record: RailRecord | null; row: RailRow }
+export type QueueItem = { key: string; ownerKey: string; record: RailRecord | null; row: RailRow
+  /** One of the rest that comes early, among the values checked first. */
+  early?: true }
 
-const ORDINARY = 3
+/** Why a value is checked first, in the researcher's words: on its row, on its one-by-one card and in Up next. */
+export type ReviewReason = {
+  /** Strongest first: what FREE read off the source, then what an automatic check said. */
+  rank: number
+  text: string
+  /** One or two words, where there is room for no more. */
+  short: string
+  /** What to do about it, on the one-by-one card. */
+  advice: string
+  /** Set where an automatic check says it: how far to trust that, said wherever the reason is. Such a check is often
+   *  wrong on real documents, so it is a reason to look and never a verdict. */
+  caveat?: string
+}
 
-function checkCue(row: RailRow): { rank: number; text: string } | null {
-  if (!row.link && row.reason && !row.disagreement && (row.value === null || typeof row.value !== 'object')) {
-    return { rank: 0, text: row.reason }
-  }
-  if (row.doubt) return { rank: 1, text: 'Not an exact match' }
-  if (row.disagreement) return { rank: 2, text: 'Different readings in the source' }
-  if (row.reason) return { rank: 2, text: row.reason }
-  if (row.priority === 'unsupported') return { rank: 2, text: 'Source may not support this value' }
-  if (row.priority === 'to-verify') return { rank: 2, text: 'Support could not be checked' }
+const ORDINARY = 5
+const NO_SOURCE: ReviewReason = { rank: 0, text: 'Source not found', short: 'no source', advice: 'Look for it in the document before approving.' }
+const NOT_EXACT: ReviewReason = { rank: 1, text: 'Not an exact match', short: 'not exact', advice: 'Read the marked passage closely.' }
+const READINGS: ReviewReason = { rank: 2, text: 'Different readings in the source', short: 'readings', advice: 'Pick one below, or edit.' }
+const UNSUPPORTED: ReviewReason = { rank: 3, text: 'The source may not support it', short: 'auto-check',
+  advice: 'From an automatic check. Often wrong on real documents.', caveat: 'automatic check, often wrong' }
+const DISAGREE: ReviewReason = { rank: 4, text: 'Automatic checks disagree', short: 'checks differ',
+  advice: 'Two checks gave opposite answers. Read the passage yourself.', caveat: 'two gave opposite answers' }
+
+/** The reason a value asks to be checked first, or none. A check that failed, could not run or never ran gives none:
+ *  no verdict is not a verdict against the value, so it keeps its document place, as a supported one does. It reads the
+ *  extracted value's reason, which a decision leaves as it was, so deciding a value never moves it. */
+export function reviewReason(row: RailRow): ReviewReason | null {
+  if (row.reason === 'Source not found' && !row.disagreement && (row.value === null || typeof row.value !== 'object')) return NO_SOURCE
+  // Different readings are a fact to act on, so they outrank a link's doubt: that reason can settle, this one never.
+  if (row.disagreement) return READINGS
+  if (row.reason === 'Not an exact match' || row.doubt) return NOT_EXACT
+  if (row.reason) return { ...READINGS, text: row.reason, short: row.reason.toLowerCase(), advice: '' }
+  if (row.priority === 'unsupported') return UNSUPPORTED
+  if (row.priority === 'uncertain') return DISAGREE
   return null
 }
 
-const checkRank = (row: RailRow) => checkCue(row)?.rank ?? ORDINARY
-export const checkReason = (row: RailRow) => checkCue(row)?.text ?? null
+export const checkReason = (row: RailRow) => reviewReason(row)?.text ?? null
+/** The reason as a row says it: an automatic check's with how far to trust it. */
+export const rowReason = (row: RailRow) => {
+  const reason = reviewReason(row)
+  return reason && (reason.caveat ? `${reason.text} · ${reason.caveat}` : reason.text)
+}
+/** Whether the value comes first now: it has a reason, and this review has not shown that reason to be noise. */
+export const checkFirst = (row: RailRow) => !row.settled && reviewReason(row) !== null
+const checkRank = (row: RailRow) => checkFirst(row) ? reviewReason(row)!.rank : ORDINARY
 
-export const hasPriority = (items: readonly QueueItem[]) =>
-  items.some(({ row }) => checkCue(row) !== null)
+export const hasPriority = (items: readonly QueueItem[]) => items.some(({ row }) => checkFirst(row))
 
-/** Queue reviewable scalars once. An unresolved disagreement and a value with no populated parts stay whole. */
-export function oneByOneQueue(model: RailModel, prioritize = true): QueueItem[] {
+/** One of the rest comes after every this many values with a reason. */
+const SAMPLE_EVERY = 3
+/** The values of the rest that come early, so the review shows how the rest reads while it goes and not only at its
+ *  end: whole values still to check with no reason, spread over the document. Chosen once and kept, so the sequence
+ *  never reshuffles under the researcher. */
+export function sampleRest(items: readonly QueueItem[]): string[] {
+  const first = items.filter(({ row }) => checkFirst(row)).length
+  const whole = items.filter(({ key, ownerKey, row }) => key === ownerKey && row.kind === 'to-check' && !reviewReason(row))
+  const count = Math.min(Math.floor(first / SAMPLE_EVERY), whole.length)
+  return Array.from({ length: count }, (_, slot) => whole[Math.floor((slot + 0.5) * whole.length / count)]!.key)
+}
+
+/** Queue reviewable scalars once. An unresolved disagreement and a value with no populated parts stay whole.
+ *  Prioritized, the values with a reason come first, strongest reason first, each kind in document order; with
+ *  `sampled`, one of those values of the rest follows every third of them. */
+export function oneByOneQueue(model: RailModel, prioritize = true, sampled: readonly string[] = []): QueueItem[] {
   const queue: QueueItem[] = []
   const seen = new Set<string>()
   const append = (rows: readonly RailRow[], record: RailRecord | null) => {
@@ -41,7 +86,69 @@ export function oneByOneQueue(model: RailModel, prioritize = true): QueueItem[] 
   for (const record of records) {
     if (record.state === 'finished') append(record.rows, record)
   }
-  return prioritize ? queue.sort((first, second) => checkRank(first.row) - checkRank(second.row)) : queue
+  if (!prioritize) return queue
+  const first = queue.filter(({ row }) => checkFirst(row)).sort((a, b) => checkRank(a.row) - checkRank(b.row))
+  const rest = queue.filter(({ row }) => !checkFirst(row))
+  const byKey = new Map(rest.map((item) => [item.key, item]))
+  const picked = sampled.slice(0, Math.floor(first.length / SAMPLE_EVERY)).flatMap((key) => byKey.get(key) ?? [])
+  const taken = new Set(picked.map((item) => item.key))
+  const sequence: QueueItem[] = []
+  first.forEach((item, at) => {
+    sequence.push(item)
+    const pick = (at + 1) % SAMPLE_EVERY === 0 ? picked[(at + 1) / SAMPLE_EVERY - 1] : undefined
+    if (pick) sequence.push({ ...pick, early: true })
+  })
+  return [...sequence, ...rest.filter((item) => !taken.has(item.key))]
+}
+
+export type ReasonTally = { fine: number; wrong: number; left: number }
+/** What the researcher's decisions in this review say of each reason ('' is no reason: the rest): values approved as
+ *  they were, values edited or rejected, values still to check. Whole values are counted, never a table's cells apart:
+ *  a table with any cell still to check is no approval yet. With `here`, the values seen still to check in this
+ *  review, an approval made before it is none either; an edit or a rejection counts whenever it was made. */
+export function reviewTallies(items: readonly QueueItem[], here?: ReadonlySet<string>): Map<string, ReasonTally> {
+  // What a whole value says is the most that any of its parts does.
+  const FINE = 0, BEFORE = 1, LEFT = 2, WRONG = 3
+  const whole = new Map<string, number>()
+  const seen = new Map<string, { owners: Set<string>; left: number }>()
+  for (const { key, row, ownerKey } of items) {
+    const says = row.kind === 'approved' ? (here && !here.has(key) ? BEFORE : FINE)
+      : row.kind === 'to-check' ? LEFT : row.kind === 'edited' || row.kind === 'rejected' ? WRONG : null
+    if (says === null) continue
+    whole.set(ownerKey, Math.max(whole.get(ownerKey) ?? FINE, says))
+    const reason = checkReason(row) ?? ''
+    const tally = seen.get(reason) ?? { owners: new Set<string>(), left: 0 }
+    tally.owners.add(ownerKey)
+    if (says === LEFT) tally.left += 1
+    seen.set(reason, tally)
+  }
+  const count = (owners: ReadonlySet<string>, says: number) => [...owners].filter((owner) => whole.get(owner) === says).length
+  return new Map([...seen].map(([reason, tally]) => [reason, { fine: count(tally.owners, FINE), wrong: count(tally.owners, WRONG), left: tally.left }]))
+}
+
+/** Values decided with a reason before the review trusts what they showed. */
+export const LEARN_AFTER = 3
+/** The reasons this review has shown to be noise: enough values decided with one, every one approved as it was, and
+ *  none of the rest edited or rejected either. Their remaining values return to their place; an edit or a rejection of
+ *  one, or of one of the rest, brings them first again. Only a soft reason can settle: no source and different readings
+ *  are facts the researcher must act on, and `kept` are the reasons the researcher asked to keep first.
+ *  shortcut: three is a placeholder, no review decisions exist yet to set it from; calibrate when they do. */
+export function settledReasons(tallies: ReadonlyMap<string, ReasonTally>, kept: ReadonlySet<string>): Set<string> {
+  if ((tallies.get('')?.wrong ?? 0) > 0) return new Set()
+  return new Set([NOT_EXACT, UNSUPPORTED, DISAGREE].map((reason) => reason.text).filter((reason) => {
+    const tally = tallies.get(reason)
+    return tally !== undefined && !kept.has(reason) && tally.wrong === 0 && tally.fine >= LEARN_AFTER
+  }))
+}
+
+/** Marks the values whose reason no longer comes first in this review. The reason itself stays on the value. */
+export function settle(model: RailModel, settled: ReadonlySet<string>): RailModel {
+  if (settled.size === 0) return model
+  const mark = (row: RailRow): RailRow => {
+    const parts = row.parts?.map(mark)
+    return { ...row, ...(parts ? { parts } : {}), ...(settled.has(checkReason(row) ?? '') ? { settled: true } : {}) }
+  }
+  return { ...model, document: model.document.map(mark), records: model.records.map((record) => ({ ...record, rows: record.rows.map(mark) })) }
 }
 
 /** Keep acknowledged writes as navigation anchors while waiting for the saved decision. */

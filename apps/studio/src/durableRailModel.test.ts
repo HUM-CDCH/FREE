@@ -3,7 +3,7 @@ import { expect, it } from 'vitest'
 import type { ParsedDocument } from 'extraction/parsed-document'
 import type { DurablePage, EvidenceLink } from 'extraction/durable-types'
 import { durableRailModel, durableRailRow, markValueId, ownsMark, partKey, reviewPriority, valueParts, type RetainedValue } from './durableRailModel'
-import { checkReason, oneByOneQueue } from './reviewQueue'
+import { checkReason, hasPriority, oneByOneQueue, rowReason } from './reviewQueue'
 import { partState } from './partReview'
 
 const value=(overrides:Partial<RetainedValue>={}):RetainedValue=>({
@@ -105,7 +105,7 @@ it('uses each boolean cell’s cited text for its review state, filter and queue
   expect(valueParts(saved).map(part => partState(part, false, document))).toEqual(['unread', 'to-check'])
   expect(queue.map(item => item.row.resultPath)).toEqual([second, first])
   expect(queue.map(item => passesFilter(item.row, 'doubt'))).toEqual([true, false])
-  expect(queue.map(item => checkReason(item.row))).toEqual(['Not an exact match', 'Source may not support this value'])
+  expect(queue.map(item => checkReason(item.row))).toEqual(['Not an exact match', 'The source may not support it'])
 })
 
 it('non-verbatim Evidence determines the uncertain filter, count and queue',()=> {
@@ -131,11 +131,26 @@ it('reads a value\'s review priority from its support check alone, and a part\'s
   expect(reviewPriority(check(judgment(title,'ok',1),judgment(year,'ok',1)))).toBe('supported')
   expect(reviewPriority(check(judgment(title,'ok',1),judgment(year,'input_limit')))).toBe('to-verify')
   expect(reviewPriority(check(judgment(title,'no_evidence')))).toBe('to-verify')
-  expect(reviewPriority(check(judgment(title,'unavailable')))).toBe('to-verify')
+  expect(reviewPriority(check(judgment(title,'unavailable')))).toBe('failed')
   const mixed=check(judgment(title,'ok',1),judgment(year,'no_evidence'),judgment(place,'ok',0))
   expect(reviewPriority(mixed)).toBe('unsupported')
   expect([title,year,place].map(path=>reviewPriority(mixed,path))).toEqual(['supported','to-verify','unsupported'])
   expect(reviewPriority(mixed,['records',0,'work','publisher'])).toBeNull()
+})
+
+it('reads opposite labels for one scalar as uncertain, never as unsupported, and no label as no verdict',()=> {
+  const title=['records',0,'work','title'],year=['records',0,'work','year']
+  const split=check(judgment(title,'ok',0),judgment(title,'ok',1),judgment(year,'ok',1))
+  expect(reviewPriority(split,title)).toBe('uncertain')
+  expect(reviewPriority(split)).toBe('uncertain')
+  // Sibling scalars are judged apart: a 0 on one and a 1 on another is one unsupported scalar, not a disagreement.
+  expect(reviewPriority(check(judgment(title,'ok',0),judgment(year,'ok',1)))).toBe('unsupported')
+  expect(reviewPriority(check(judgment(title,'ok',0),judgment(title,'ok',1),judgment(year,'ok',0)))).toBe('unsupported')
+  // A check that gave no label takes nothing from one that did, and is never a verdict against the value.
+  expect(reviewPriority(check(judgment(title,'ok',1),judgment(title,'unavailable')),title)).toBe('supported')
+  expect(reviewPriority(check(judgment(title,'ok',0),judgment(title,'input_limit')),title)).toBe('unsupported')
+  expect(reviewPriority(check(judgment(title,'input_limit'),judgment(title,'unavailable')),title)).toBe('failed')
+  expect(reviewPriority(check(judgment(title,'unavailable'),judgment(year,'ok',1)))).toBe('failed')
 })
 
 it('shows a support check on the extracted value only, never as an approval, and keeps its place after a decision',()=> {
@@ -144,8 +159,10 @@ it('shows a support check on the extracted value only, never as an approval, and
   const linked=(overrides:Partial<RetainedValue>)=>durableRailRow(value({node,modelValue:'x',links:[link],...overrides}),null)
   const unsupported=linked({check:check(judgment(path,'ok',0))})
   expect(unsupported.priority).toBe('unsupported')
-  expect(unsupported.chip).toEqual({text:'linked · check first',style:'link'})
-  expect(supportNote(unsupported)?.word).toBe('check first')
+  // The chip says where the source is; what a check said is the row's reason, with how far to trust it.
+  expect(unsupported.chip).toEqual({text:'linked',style:'link'})
+  expect(rowReason(unsupported)).toBe('The source may not support it · automatic check, often wrong')
+  expect(supportNote(unsupported)?.text).toMatch(/often wrong/)
   const supported=linked({check:check(judgment(path,'ok',1))})
   expect(supported.priority).toBe('supported')
   expect(supported.chip).toEqual({text:'linked',style:'link'})
@@ -153,7 +170,8 @@ it('shows a support check on the extracted value only, never as an approval, and
   const unlinked=durableRailRow(value({node,modelValue:'x',check:check(judgment(path,'no_evidence'))}),null)
   expect(unlinked.priority).toBe('to-verify')
   expect(unlinked.chip?.text).toBe('no source')
-  expect(supportNote(unlinked)?.word).toBe('not checked')
+  expect(supportNote(unlinked)).toEqual({text:'Its support could not be checked automatically'})
+  expect(rowReason(unlinked)).toBe('Source not found')
   const edited=linked({check:check(judgment(path,'ok',0)),
     correction:{revision:1,decision:{action:'EDITED',value:'y',evidence:[],included:true}} as RetainedValue['correction']})
   expect(edited.priority).toBe('unsupported')
@@ -174,6 +192,47 @@ it('orders the saved values of every record by their support checks, the documen
   expect(oneByOneQueue(model,false).map(item=>item.key)).toEqual(['e','a','b','c','d'])
   // Missing Evidence comes first; ordinary values keep document order regardless of a support verdict.
   expect(oneByOneQueue(model).map(item=>item.key)).toEqual(['b','e','c','a','d'])
+})
+
+it('queues by verdict alone: unsupported, then uncertain; a failed, unrun or absent check keeps its document place, each value under its own record',()=> {
+  const at=(record:number,id:string)=>['records',record,id]
+  const field=(id:string,record:number,judged:RetainedValue['check'])=>value({id:`${record}.${id}`,recordId:`record-${record}`,fieldId:id,
+    path:at(record,id),node:{id,name:id,type:'string'},modelValue:'x',check:judged,links:[{resultPath:at(record,id),evidenceAnchorId:`${record}.${id}`,verbatim:true}]})
+  // Both records name the same fields: a verdict belongs to the saved value it was given for.
+  const values=[field('a',0,check(judgment(at(0,'a'),'unavailable'))),field('b',0,undefined),
+    field('a',1,check(judgment(at(1,'a'),'ok',0),judgment(at(1,'a'),'ok',1))),field('b',1,check(judgment(at(1,'b'),'ok',0))),
+    field('c',1,check(judgment(at(1,'c'),'input_limit')))]
+  const model=durableRailModel({values} as DurablePage,null,null,['a','b','c'])
+  const queued=(prioritize:boolean)=>oneByOneQueue(model,prioritize).map(item=>[item.key,item.record?.key,item.row.priority,item.row.link?.evidenceAnchorId])
+  expect(queued(false).map(([key])=>key)).toEqual(['0.a','0.b','1.a','1.b','1.c'])
+  expect(queued(true)).toEqual([
+    ['1.b','record-1','unsupported','1.b'],['1.a','record-1','uncertain','1.a'],
+    ['0.a','record-0','failed','0.a'],['0.b','record-0',null,'0.b'],['1.c','record-1','to-verify','1.c'],
+  ])
+  expect(model.records.flatMap(record=>record.rows.map(row=>row.chip?.text))).toEqual(
+    ['linked','linked','linked','linked','linked'])
+  // No checker ran at all: Review priority is the document order, and nothing is offered first.
+  const unchecked=durableRailModel({values:values.map(each=>({...each,check:undefined}))} as DurablePage,null,null,['a','b','c'])
+  expect(oneByOneQueue(unchecked).map(item=>item.key)).toEqual(queued(false).map(([key])=>key))
+  expect(hasPriority(oneByOneQueue(unchecked))).toBe(false)
+})
+
+it('never moves a value in the review order when it is decided: the reason stays the extracted value\'s',()=> {
+  const field=(id:string,verbatim:boolean,correction:RetainedValue['correction']=null)=>value({id,fieldId:id,path:['records',0,id],
+    node:{id,name:id,type:'string'},modelValue:'x',links:[{resultPath:['records',0,id],evidenceAnchorId:id,verbatim}],correction})
+  const decided=(action:string)=>({revision:1,decision:{action,value:'y',evidence:[],included:true}}) as RetainedValue['correction']
+  const order=(b:RetainedValue['correction'],c:RetainedValue['correction'])=>
+    oneByOneQueue(durableRailModel({values:[field('a',true),field('b',true,b),field('c',false,c)]} as DurablePage,null,null,['a','b','c']))
+      .map(item=>[item.key,checkReason(item.row)])
+  const extracted=[['c','Not an exact match'],['a',null],['b',null]]
+  expect(order(null,null)).toEqual(extracted)
+  // An edit shows its own Evidence (none here) and a rejection no doubt; neither is why the value was to be checked.
+  for(const action of ['APPROVED','EDITED','REJECTED']) {
+    expect(order(decided(action),null)).toEqual(extracted)
+    expect(order(null,decided(action))).toEqual(extracted)
+  }
+  const edited=durableRailRow(field('b',true,decided('EDITED')),null)
+  expect([edited.kind,edited.link,edited.chip?.text]).toEqual(['edited',null,'no source'])
 })
 
 it('shows a linked value saved while the run goes on as linked, not as still being checked',()=> {
