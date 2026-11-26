@@ -9,7 +9,7 @@ import { verifiedEvidenceBbox } from './evidenceNavigation'
  *  decision or an export. */
 export type RecordBlock = { key: string; state: 'preview' | 'closed'; label: string; segment: string; ranges: readonly SourceRange[] }
 
-/** What a block says in words, for those who cannot see its outline. */
+/** What a block says in words, for those who cannot see its highlight. */
 export const recordBlockName = (state: RecordBlock['state'], labels: readonly string[]) =>
   `${labels.join(', ')}${state === 'preview' ? ': still being found, its limits can change' : ''}${labels.length > 1 ? '. They share this block; the text view shows the lines of each.' : ''}`
 
@@ -104,9 +104,9 @@ type Box = { x0: number; y0: number; x1: number; y1: number }
 const union = (boxes: readonly Box[]): Box => ({ x0: Math.min(...boxes.map(box => box.x0)), y0: Math.min(...boxes.map(box => box.y0)),
   x1: Math.max(...boxes.map(box => box.x1)), y1: Math.max(...boxes.map(box => box.y1)) })
 
-export type RecordPiece = { id: string; page: number; box: Box; state: RecordBlock['state']; labels: string[]; tag: string[]; start: boolean; end: boolean }
-/** The record blocks on the page, as the regions to outline: every block a record covers, those stacked down one
- *  column of a page as one region, the first (`start`) and last (`end`) closing the outline. The source places a block
+export type RecordPiece = { id: string; page: number; box: Box; state: RecordBlock['state']; labels: string[]; tag: string[]; start: boolean }
+/** The record blocks on the page, as the regions to highlight: every block a record covers, those stacked down one
+ *  column of a page as one region, the first of a record its `start`. The source places a block
  *  and a table's cells, nothing finer: a record gets its own rows of a table, and otherwise its whole block, which the
  *  records sharing it then share (`labels`). `tag` names a record on the region where it begins and every record of a
  *  shared region, once for each corner regions begin at; empty on a region that only continues one. */
@@ -158,10 +158,9 @@ export function recordPieces(document: ParsedDocument, markdown: Uint8Array | nu
     }
     for (const [index, { page, box }] of regions.entries()) {
       const id = `${block.state}|${page}|${box.x0},${box.y0},${box.x1},${box.y1}`
-      const piece = pieces.get(id) ?? { id, page, box, state: block.state, labels: [], tag: [], start: false, end: false }
+      const piece = pieces.get(id) ?? { id, page, box, state: block.state, labels: [], tag: [], start: false }
       if (!piece.labels.includes(block.label)) piece.labels.push(block.label)
       piece.start ||= index === 0
-      piece.end ||= index === regions.length - 1
       pieces.set(id, piece)
     }
   }

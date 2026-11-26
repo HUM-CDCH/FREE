@@ -63,7 +63,7 @@ function valueMarks(anchor: Pick<TextEvidenceAnchor, 'anchor_id' | 'markdown_spa
 /**
  * The parsed Markdown in the document pane: a page-shaped text with the rail's values
  * marked at their saved literal spans when they map to the Markdown, else at their anchors (UTF-8 byte offsets).
- * Marks select and light their values as the page's marks do. A running Catalog's record blocks are outlined at
+ * Marks select and light their values as the page's marks do. A running Catalog's record blocks are highlighted at
  * their own lines of text, under the marks.
  */
 function DocumentMarkdown({ markdown, document, selection, extractionId, active = true, marksShown = true, onSelect }: {
@@ -76,8 +76,8 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
   const bytes = useMemo(() => new TextEncoder().encode(markdown ?? ''), [markdown])
   const root = useRef<HTMLPreElement>(null)
   const describe = marks?.describe, savedLinks = marks?.savedLinks
-  const outlines = marksShown ? marks?.records : undefined
-  const records = useMemo(() => document && outlines?.length ? recordSpans(document, bytes, outlines) : [], [document, bytes, outlines])
+  const shown = marksShown ? marks?.records : undefined
+  const records = useMemo(() => document && shown?.length ? recordSpans(document, bytes, shown) : [], [document, bytes, shown])
   useLayoutEffect(() => observeEvidenceHover(selection, [root.current]))
   // Reveal the retained selection on mount; later clicks scroll only their destination pane.
   useLayoutEffect(() => {
@@ -125,14 +125,14 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
   const spans = [...textSpans, ...cellSpans].sort((a, b) => a.start - b.start)
   const parts: React.ReactNode[] = []
   let at = 0, record = 0
-  /** The text of these bytes, each record block's part of it in its outline; asked for in reading order. */
-  const outlined = (from: number, to: number) => {
+  /** The text of these bytes, each record block's part of it in its highlight; asked for in reading order. */
+  const highlighted = (from: number, to: number) => {
     const pieces: React.ReactNode[] = []
     for (; record < records.length && records[record]!.from < to; record += 1) {
       const span = records[record]!, start = Math.max(span.from, from), end = Math.min(span.to, to)
       if (end > start) {
         pieces.push(decode(from, start), <span key={`record:${start}`} role="group" aria-label={recordBlockName(span.state, span.labels)}
-          className={`record-block ${span.state}`}
+          className={`record-block evidence-mark ${span.state}`}
           data-record-label={start === span.from && (span.first || span.labels.length > 1) ? recordBlockTag(span.labels) : undefined}>{decode(start, end)}</span>)
         from = end
       }
@@ -145,12 +145,12 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
   for (const span of spans) {
     if (span.start < at) continue
     if (span.end > bytes.length) break
-    parts.push(...outlined(at, span.start))
+    parts.push(...highlighted(at, span.start))
     const keys = span.keys.filter(key => describe?.has(key))
     const infos = describeMarks(keys, describe).map(({ info }) => info)
     const selected = marks?.selected != null && keys.some(key => ownsMark(marks.selected!, key))
     const contextSelected = marks?.selected != null && span.contextKeys.some(key => ownsMark(marks.selected!, key))
-    const text = outlined(span.start, span.end)
+    const text = highlighted(span.start, span.end)
     parts.push(!keys.length && span.contextKeys.length ? <span key={span.start} data-evidence-anchor-id={span.anchorId}
       title={contextSelected ? 'Attribution context' : undefined}
       style={contextSelected ? { background: 'var(--color-ev-ghost)', outline: '1px dotted var(--color-accent)' } : undefined}>{text}</span>
@@ -163,7 +163,7 @@ function DocumentMarkdown({ markdown, document, selection, extractionId, active 
         onClick={event => onSelect(keys, event.currentTarget)} onMouseMove={() => selection.hover(keys)} onMouseLeave={() => selection.hover(null)}>{text}</button>)
     at = span.end
   }
-  parts.push(...outlined(at, bytes.length))
+  parts.push(...highlighted(at, bytes.length))
   return <pre ref={root} aria-label="Parsed Markdown" className="mx-auto m-0 max-w-[816px] bg-surface px-10 py-8 font-mono text-secondary whitespace-pre-wrap text-ink shadow-page">
     {parts}
   </pre>

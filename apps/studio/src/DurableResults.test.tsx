@@ -157,7 +157,7 @@ it('shows the records discovery has found on the source as previews while it sti
   // A record block is never a value or its Evidence: nothing links to it and nothing selects it.
   expect(selection.snapshot().marks!.savedLinks).toEqual([])
   expect(selection.snapshot().marks!.describe.size).toBe(0)
-  expect(screen.getByRole('note')).toHaveTextContent('Dashed outline: a record still being found, its limits may change. Solid outline: a record with settled limits. Highlights are Evidence.')
+  expect(screen.getByRole('note')).toHaveTextContent('Light blue, dashed: a record still being found, its limits may change. Light blue, underlined: a record with settled limits. Other highlights are Evidence.')
 })
 
 it('draws each closed record over the preview it settles, apart from the Evidence, and drops every block once the run settles',async()=>{
