@@ -15,10 +15,11 @@ const same = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.si
  *  `learning` is off while a run still saves values and on a saved or read-only cut, where the sequence is as it was
  *  built: what was learned is kept, unapplied, for when it is on again. `holding` is a row open in the list, a save
  *  in flight, or a page behind state: nothing changes place under it, also not when learning starts, and what was held
- *  back applies when it clears. Returns the model with the settled values marked, the values of the rest that come
+ *  back applies when it clears. `live` is a model of this review's own decisions, not an opened cut's: there an
+ *  approval undone or replaced while learning is off stops counting, also when it is approved again. Returns the model with the settled values marked, the values of the rest that come
  *  early (chosen once), the moves to tell the researcher about, the settled reasons, and the way to keep a reason
  *  first whatever was approved. */
-export function useReviewLearning(model: RailModel | null, learning: boolean, holding: boolean) {
+export function useReviewLearning(model: RailModel | null, learning: boolean, holding: boolean, live: boolean) {
   const [on, setOn] = useState(false)
   // Effective policy for this render: holding keeps an active session from starting under an open row or stale page,
   // while leaving learning immediately drops learning so historical/inactive renders never record `open`.
@@ -27,12 +28,17 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
   const inPlace = useMemo(() => model ? oneByOneQueue(model, false) : [], [model])
   // Separate currently-open keys (`to-check` in this active interval) from already-earned approvals (observed
   // transitioning from `open` to `approved` while `active`). Leaving active learning clears `open` so approvals
-  // made while paused/running or in a saved cut never become earned when active learning resumes, while keeping
-  // valid prior learning in `earned` (unless undone, edited, or rejected).
+  // made while a run saves values or in a saved cut never become earned when active learning resumes, while keeping
+  // valid prior learning in `earned`: an opened cut never touches it, a live decision no longer approved drops it.
   const [open, setOpen] = useState(EMPTY)
   const [earned, setEarned] = useState(EMPTY)
   const { nextOpen, nextEarned } = useMemo(() => {
-    if (!active) return { nextOpen: EMPTY, nextEarned: earned }
+    if (!active) {
+      if (!live || earned.size === 0) return { nextOpen: EMPTY, nextEarned: earned }
+      const revoked = new Set(inPlace.filter(({ row }) => row.kind !== 'approved').map(({ key }) => key))
+      const stillEarned = new Set([...earned].filter((key) => !revoked.has(key)))
+      return { nextOpen: EMPTY, nextEarned: same(earned, stillEarned) ? earned : stillEarned }
+    }
     if (!model) return { nextOpen: open, nextEarned: earned }
     const toCheck = new Set<string>()
     const approved = new Set<string>()
@@ -47,7 +53,7 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
       nextOpen: same(open, toCheck) ? open : toCheck,
       nextEarned: same(earned, updatedEarned) ? earned : updatedEarned,
     }
-  }, [active, model, inPlace, open, earned])
+  }, [active, live, model, inPlace, open, earned])
   if (nextOpen !== open) setOpen(nextOpen)
   if (nextEarned !== earned) setEarned(nextEarned)
   const eligible = useMemo(

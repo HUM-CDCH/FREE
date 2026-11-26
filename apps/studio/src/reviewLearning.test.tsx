@@ -18,8 +18,8 @@ const model = (kinds: Record<string, RowKind> = {}): RailModel => ({
 })
 const two = { a: 'approved', b: 'approved' } as const
 const three = { ...two, c: 'approved' } as const
-const hook = (props: { kinds?: Record<string, RowKind>; learning?: boolean; holding?: boolean } = {}) => renderHook(
-  ({ kinds = {}, learning = true, holding = false }: typeof props) => useReviewLearning(model(kinds), learning, holding), { initialProps: props })
+const hook = (props: { kinds?: Record<string, RowKind>; learning?: boolean; holding?: boolean; live?: boolean } = {}) => renderHook(
+  ({ kinds = {}, learning = true, holding = false, live = false }: typeof props) => useReviewLearning(model(kinds), learning, holding, live), { initialProps: props })
 type Learned = { current: ReturnType<typeof useReviewLearning> }
 const leading = (learned: Learned) => oneByOneQueue(learned.current.model!, true, learned.current.sampled).map((item) => item.key).join('')
 const settledRows = (learned: Learned) => learned.current.model!.records[0]!.rows.filter((each) => each.settled).map((each) => each.key).join('')
@@ -128,7 +128,7 @@ it('gives the sequence a decision just saved makes, before its read arrives', ()
       { ...row('z', kinds.z ?? 'to-check', false), reason: 'Different readings in the source', disagreement: [] },
     ] }],
   })
-  const mixed = renderHook(({ kinds = {} as Record<string, RowKind> }) => useReviewLearning(withReading(kinds), true, false),
+  const mixed = renderHook(({ kinds = {} as Record<string, RowKind> }) => useReviewLearning(withReading(kinds), true, false, false),
     { initialProps: { kinds: {} as Record<string, RowKind> } })
   mixed.rerender({ kinds: two })
   expect(mixed.result.current.nextAfter(withReading(three), true, 'c')).toBe('z')
@@ -192,7 +192,7 @@ it('attributes a table edit or rejection to every original cell reason, bringing
     durableRailModel({ values: [scalar('a', 0, approvedCount >= 1), scalar('b', 1, approvedCount >= 2), scalar('c', 2, approvedCount >= 3), scalar('d', 3), table(tableAction)] } as DurablePage, null)
 
   for (const action of ['EDITED', 'REJECTED'] as const) {
-    const { result, rerender } = renderHook(({ m }: { m: RailModel }) => useReviewLearning(m, true, false), { initialProps: { m: build(0, null) } })
+    const { result, rerender } = renderHook(({ m }: { m: RailModel }) => useReviewLearning(m, true, false, false), { initialProps: { m: build(0, null) } })
     rerender({ m: build(3, null) })
     expect(result.current.moves).toEqual([{ ...SETTLED, left: 2 }])
     rerender({ m: build(3, action) })
@@ -211,7 +211,7 @@ it('holds category settling during an in-flight save and supports an explicit pr
   })
   const { result, rerender } = renderHook(
     ({ kinds = {} as Record<string, RowKind>, holding = false }: { kinds?: Record<string, RowKind>; holding?: boolean }) =>
-      useReviewLearning(withReading(kinds), true, holding),
+      useReviewLearning(withReading(kinds), true, holding, false),
     { initialProps: { kinds: {} as Record<string, RowKind>, holding: false } },
   )
   rerender({ kinds: two, holding: false })
@@ -252,7 +252,7 @@ it('never counts approvals made while learning is off (e.g. a resumed run) when 
   })
   const partial = renderHook(
     ({ kinds = {} as Record<string, RowKind>, learning = true }: { kinds?: Record<string, RowKind>; learning?: boolean }) =>
-      useReviewLearning(fiveInexact(kinds), learning, false),
+      useReviewLearning(fiveInexact(kinds), learning, false, false),
     { initialProps: { kinds: {} as Record<string, RowKind>, learning: true } },
   )
   partial.rerender({ kinds: two, learning: true })
@@ -279,4 +279,17 @@ it('never counts approvals made while learning is off (e.g. a resumed run) when 
   acrossHistory.rerender({ kinds: two, learning: true })
   acrossHistory.rerender({ kinds: three, learning: true })
   expect(acrossHistory.result.current.moves).toEqual([SETTLED])
+})
+
+it('stops counting an approval undone while a run saves values, also when it is approved again', () => {
+  const { result, rerender } = hook()
+  rerender({ kinds: two })
+  // The run resumes: a is undone, then approved again, on the live page.
+  rerender({ kinds: two, learning: false, live: true })
+  rerender({ kinds: { b: 'approved' }, learning: false, live: true })
+  rerender({ kinds: two, learning: false, live: true })
+  rerender({ kinds: two })
+  rerender({ kinds: three })
+  expect(result.current.moves).toEqual([])
+  expect(settledRows(result)).toBe('')
 })

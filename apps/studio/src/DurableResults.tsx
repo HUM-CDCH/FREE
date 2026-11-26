@@ -467,10 +467,12 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // The sequence learns from this review once the run has settled, never on a saved or read-only cut: an opened cut
   // takes that only as its page replaces the live one. A row open in the list, a decision saving, or a page behind
   // state holds changes of place until it clears.
+  const livePage=!pinned||Boolean(loadedCut?.kept)
   const learning=useReviewLearning(
     extracted,
-    (!pinned||Boolean(loadedCut?.kept))&&!readOnly&&Boolean(state)&&!ACTIVE.has(state!.status),
+    livePage&&!readOnly&&Boolean(state)&&!ACTIVE.has(state!.status),
     (Boolean(review)&&(!focus||saving))||pageBehindState,
+    livePage,
   )
   const onSaveEnd=useCallback(()=>{setSavingReview(previous=>previous?.key===reviewKey?null:previous)},[reviewKey])
   const onSaveStart=()=>{if(reviewKey)setSavingReview(previous=>previous?.key===reviewKey?previous:{key:reviewKey,settled:learning.settled})}
@@ -499,7 +501,6 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // While an Extraction reads, records follow reading order (nearest startPage first); once settled — and on saved
   // cuts — they follow document order, matching one by one, independent of whether any priority values remain.
   const [readingOrder,setReadingOrder]=useState(false)
-  const livePage=!pinned||Boolean(loadedCut?.kept)
   const wantReading=livePage&&(Boolean(state&&ACTIVE.has(state.status))||(readingOrder&&Boolean(review)&&!focus))
   if(readingOrder!==wantReading)setReadingOrder(wantReading)
   // The open value's review lives in one element, placed in whichever row shows it. That row changes section when the
