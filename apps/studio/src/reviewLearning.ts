@@ -13,26 +13,48 @@ const same = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.si
 
 /** The review sequence learns from this review alone, and only moves values: nothing is hidden, approved or dimmed.
  *  `learning` is off while a run still saves values and on a saved or read-only cut, where the sequence is as it was
- *  built: what was learned is kept, unapplied, for when it is on again. `holding` is a row open in the list: nothing
- *  changes place under it, also not when learning starts, and what was held back applies when it closes. Returns the
- *  model with the settled values marked, the values of the rest that come early (chosen once), the moves to tell the
- *  researcher about, and the way to keep a reason first whatever was approved. */
+ *  built: what was learned is kept, unapplied, for when it is on again. `holding` is a row open in the list, a save
+ *  in flight, or a page behind state: nothing changes place under it, also not when learning starts, and what was held
+ *  back applies when it clears. Returns the model with the settled values marked, the values of the rest that come
+ *  early (chosen once), the moves to tell the researcher about, the settled reasons, and the way to keep a reason
+ *  first whatever was approved. */
 export function useReviewLearning(model: RailModel | null, learning: boolean, holding: boolean) {
   const [on, setOn] = useState(false)
-  // Effective policy for this render: holding keeps an active session from starting under an open row,
+  // Effective policy for this render: holding keeps an active session from starting under an open row or stale page,
   // while leaving learning immediately drops learning so historical/inactive renders never record `open`.
   const active = learning && (!holding || on)
   if (on !== active) setOn(active)
   const inPlace = useMemo(() => model ? oneByOneQueue(model, false) : [], [model])
-  // Only a value seen still to check while the review learns can be approved in it: a decision saved before is not
-  // this review's to learn from.
+  // Separate currently-open keys (`to-check` in this active interval) from already-earned approvals (observed
+  // transitioning from `open` to `approved` while `active`). Leaving active learning clears `open` so approvals
+  // made while paused/running or in a saved cut never become earned when active learning resumes, while keeping
+  // valid prior learning in `earned` (unless undone, edited, or rejected).
   const [open, setOpen] = useState(EMPTY)
-  const known = useMemo(() => {
-    const unseen = active ? inPlace.filter(({ key, row }) => row.kind === 'to-check' && !open.has(key)) : []
-    return unseen.length > 0 ? new Set([...open, ...unseen.map((item) => item.key)]) : open
-  }, [active, inPlace, open])
-  if (known !== open) setOpen(known)
-  const tallies = useMemo(() => reviewTallies(inPlace, known), [inPlace, known])
+  const [earned, setEarned] = useState(EMPTY)
+  const { nextOpen, nextEarned } = useMemo(() => {
+    if (!active) return { nextOpen: EMPTY, nextEarned: earned }
+    if (!model) return { nextOpen: open, nextEarned: earned }
+    const toCheck = new Set<string>()
+    const approved = new Set<string>()
+    for (const { key, row } of inPlace) {
+      if (row.kind === 'to-check') toCheck.add(key)
+      else if (row.kind === 'approved') approved.add(key)
+    }
+    const updatedEarned = new Set<string>()
+    for (const key of earned) if (approved.has(key)) updatedEarned.add(key)
+    for (const key of approved) if (open.has(key)) updatedEarned.add(key)
+    return {
+      nextOpen: same(open, toCheck) ? open : toCheck,
+      nextEarned: same(earned, updatedEarned) ? earned : updatedEarned,
+    }
+  }, [active, model, inPlace, open, earned])
+  if (nextOpen !== open) setOpen(nextOpen)
+  if (nextEarned !== earned) setEarned(nextEarned)
+  const eligible = useMemo(
+    () => nextOpen.size === 0 ? nextEarned : nextEarned.size === 0 ? nextOpen : new Set([...nextEarned, ...nextOpen]),
+    [nextEarned, nextOpen],
+  )
+  const tallies = useMemo(() => reviewTallies(inPlace, eligible), [inPlace, eligible])
   const [kept, setKept] = useState(EMPTY)
   const [settled, setSettled] = useState(EMPTY)
   const [returned, setReturned] = useState(EMPTY)
@@ -62,7 +84,7 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
     return [...said(settled, 'settled'), ...said(returned, 'returned')]
   }, [active, settled, returned, tallies])
   return {
-    model: marked, sampled: early, moves,
+    model: marked, sampled: early, moves, settled: active ? settled : EMPTY,
     /** The move to say once, on the first one-by-one card shown after it: `key` is that card's value. Another card
      *  ends it, so a return to the first one does not say it again. */
     noticeOn(key: string | null): ReviewMove | null {
@@ -78,7 +100,8 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
       setNotice(null)
     },
     /** The next value to check once `next` is the model read: a decision just saved moves the card on before its read
-     *  arrives, and by what the review will have learned from it. When the decision changes which reasons come first,
+     *  arrives, and by what the review will have learned from it. When the decision changes which reasons come first
+     *  (compared against `beforeSettled` if provided, so a poll landing mid-save cannot mask the transition),
      *  advance into the new priority sequence so remaining or returned issues are not postponed behind the rest. */
     nextAfter(
       next: RailModel,
@@ -86,13 +109,14 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
       current: string | null,
       blocked: ReadonlySet<string> = EMPTY,
       exclude?: (item: QueueItem) => boolean,
+      beforeSettled?: ReadonlySet<string>,
     ): string | null {
-      const currentSettled = active ? settled : EMPTY
-      const reasons = active ? settledReasons(reviewTallies(oneByOneQueue(next, false), known), kept) : EMPTY
+      const currentSettled = active ? (beforeSettled ?? settled) : EMPTY
+      const reasons = active ? settledReasons(reviewTallies(oneByOneQueue(next, false), eligible), kept) : EMPTY
       const after = oneByOneQueue(settle(next, reasons), prioritize, early)
-      const eligible = (item: QueueItem) => item.row.kind === 'to-check' && !blocked.has(item.ownerKey) && !exclude?.(item)
+      const canTake = (item: QueueItem) => item.row.kind === 'to-check' && !blocked.has(item.ownerKey) && !exclude?.(item)
       if (prioritize && !same(currentSettled, reasons)) {
-        const priority = after.find((item) => checkFirst(item.row) && eligible(item))
+        const priority = after.find((item) => checkFirst(item.row) && canTake(item))
         if (priority) return priority.key
       }
       return forwardItems(after, current, blocked).find((item) => !exclude?.(item))?.key ?? null

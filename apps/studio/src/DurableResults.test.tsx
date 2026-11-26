@@ -2042,6 +2042,220 @@ it('keeps Catalog records in document order when the last priority category sett
   expect(recordOrder()).toEqual(['Record 1','Record 2','Record 3','Record 4','Record 5'])
 })
 
+it('advances into remaining or returned priority values when polling observes the save before its response',async()=>{
+  const reading={...reviewValue('z',''),recordId:'record-6',path:['records',6,'z'],selectionId:disagreementSelection,modelValue:null,
+    disagreement:[{path:[],alternatives:disagreementAlternatives}],correctionCompatibility:'compatible'} as unknown as DurablePage['values'][number]
+  const pageWith=(decided:Record<string,'APPROVED'|'REJECTED'>)=>({
+    ...reviewPage(1,Object.keys(decided).length),total:7,
+    reviewCounts:{required:7,toCheck:7-Object.keys(decided).length,approved:Object.values(decided).filter(a=>a==='APPROVED').length,edited:0,rejected:Object.values(decided).filter(a=>a==='REJECTED').length},
+    values:[
+      ...[...'abcd'].map((id,record)=>({
+        ...linked(id,record,false,false),
+        ...(decided[id]?{correction:{id:`c-${id}`,revision:1,decision:{action:decided[id],evidence:[],included:false}}}:{}),
+      })),
+      ...['e','f'].map((id,offset)=>({
+        ...linked(id,offset+4,true,false),
+        ...(decided[id]?{correction:{id:`c-${id}`,revision:1,decision:{action:decided[id],evidence:[],included:false}}}:{}),
+      })),
+      reading,
+    ],
+  }) as DurablePage
+  const decided:Record<string,'APPROVED'|'REJECTED'>={}
+  const attempt={extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt
+  const reader=createDurableReader(attempt)
+  vi.mocked(readDurable).mockImplementation((async()=>({
+    state:{...pausedState,feedbackVersion:Object.keys(decided).length},
+    page:pageWith({...decided}),
+  })) as never)
+  let heldSave:Promise<unknown>|null=null
+  vi.mocked(durableRequest).mockImplementation((async(url:string,body?:{action:'APPROVED'|'REJECTED'})=>{
+    const id=url.split('/').pop()!
+    if(body)decided[id]=body.action
+    if(heldSave){const pending=heldSave;heldSave=null;return pending}
+    return {id:`c-${id}`,revision:1,feedbackVersion:Object.keys(decided).length,included:false}
+  }) as never)
+  render(<Results reader={reader} attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  for(const next of ['Title b','Title c']) {
+    fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+    expect(await screen.findByRole('heading',{name:next})).toBeVisible()
+  }
+
+  // Third approval is visible on the server while its save response is still in flight.
+  const thirdSave=Promise.withResolvers<unknown>()
+  heldSave=thirdSave.promise
+  fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  await screen.findByText('Saving your decision…')
+  await act(async()=>{await reader.refresh()})
+  expect(screen.queryByText(/You approved/)).toBeNull()
+
+  await act(async()=>{thirdSave.resolve({id:'c-c',revision:1,feedbackVersion:3,included:false})})
+  expect(await screen.findByRole('heading',{name:'Article title or Cited title'})).toBeVisible()
+  await waitFor(()=>expect(screen.getByText(/You approved/).closest('[role="status"]')).toHaveTextContent(/You approved 3 marked “Not an exact match”/))
+
+  // Same race when rejecting an ordinary value brings the settled category back first.
+  fireEvent.click(within(screen.getByText('Up next').parentElement!).getByRole('button',{name:/Title e/}))
+  expect(await screen.findByRole('heading',{name:'Title e'})).toBeVisible()
+  const rejectSave=Promise.withResolvers<unknown>()
+  heldSave=rejectSave.promise
+  fireEvent.click(screen.getByRole('button',{name:/^Reject/}))
+  await screen.findByText('Saving your decision…')
+  await act(async()=>{await reader.refresh()})
+  expect(screen.queryByText(/You edited or rejected one/)).toBeNull()
+
+  await act(async()=>{rejectSave.resolve({id:'c-e',revision:1,feedbackVersion:4,included:false})})
+  expect(await screen.findByRole('heading',{name:'Title d'})).toBeVisible()
+  await waitFor(()=>expect(screen.getByText(/You edited or rejected one/)).toHaveTextContent(/Not an exact match/))
+})
+
+it('advances into a remaining priority value when polling observes a table cell approval before its response',async()=>{
+  const tableNode={id:'items',name:'items',type:'array' as const,children:[{id:'nr',name:'nr',type:'string' as const}]}
+  const tableValue=(cellApproved:boolean)=>({
+    id:'t',recordId:'record-2',fieldId:'items',path:['records',2,'items'],selectionId:'original',schemaRevisionId:'schema',
+    node:tableNode,modelValue:[{nr:'Cell 1'}],evidence:[],grounding:'grounded',processing:'saved',lineage:[],historicalCorrection:null,
+    links:[{resultPath:['records',2,'items',0,'nr'],evidenceAnchorId:'t-nr',verbatim:false,precision:'cell'}],
+    approvedCells:cellApproved?[['records',2,'items',0,'nr']]:[],
+    reviewRevision:cellApproved?1:0,
+    correction:null,
+  }) as unknown as DurablePage['values'][number]
+  const reading={...reviewValue('z',''),recordId:'record-5',path:['records',5,'z'],selectionId:disagreementSelection,modelValue:null,
+    disagreement:[{path:[],alternatives:disagreementAlternatives}],correctionCompatibility:'compatible'} as unknown as DurablePage['values'][number]
+  let approvedA=false,approvedB=false,approvedCell=false
+  const currentPage=()=>({...reviewPage(1,Number(approvedA)+Number(approvedB)+Number(approvedCell)),total:6,
+    reviewCounts:{required:6,toCheck:6-Number(approvedA)-Number(approvedB)-Number(approvedCell),approved:Number(approvedA)+Number(approvedB)+Number(approvedCell),edited:0,rejected:0},
+    values:[linked('a',0,false,approvedA),linked('b',1,false,approvedB),tableValue(approvedCell),linked('d',3,false,false),linked('e',4,true,false),reading]}) as DurablePage
+  const attempt={extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt
+  const reader=createDurableReader(attempt)
+  const reloadCell=Promise.withResolvers<DurablePage>()
+  vi.mocked(readDurable).mockImplementation((async()=>({
+    state:{...pausedState,feedbackVersion:Number(approvedA)+Number(approvedB)+Number(approvedCell)},
+    page:currentPage(),
+  })) as never)
+  vi.mocked(durableRequest).mockImplementation((async(url:string,body?:unknown)=>{
+    if(url.endsWith('/cells')){approvedCell=true;return {id:'cell',revision:1,feedbackVersion:3,included:false}}
+    if(!body)return reloadCell.promise
+    const id=url.split('/').pop()!
+    if(id==='a')approvedA=true
+    if(id==='b')approvedB=true
+    return {id:`c-${id}`,revision:1,feedbackVersion:Number(approvedA)+Number(approvedB),included:false}
+  }) as never)
+  render(<Results reader={reader} attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  expect(await screen.findByRole('heading',{name:'Title b'})).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  expect(await screen.findByRole('heading',{name:'Cell 1'})).toBeVisible()
+
+  fireEvent.click(within(screen.getByRole('group',{name:'Decision for items › #1 › nr'})).getByRole('button',{name:'Approve and next'}))
+  await screen.findByText('Saving your decision…')
+  await act(async()=>{await reader.refresh()})
+  expect(screen.queryByText(/You approved/)).toBeNull()
+
+  await act(async()=>{reloadCell.resolve({...currentPage(),values:[tableValue(true)]})})
+  expect(await screen.findByRole('heading',{name:'Article title or Cited title'})).toBeVisible()
+  await waitFor(()=>expect(screen.getByText(/You approved/).closest('[role="status"]')).toHaveTextContent(/You approved 3 marked “Not an exact match”/))
+})
+
+it('does not count approvals saved while a resumed run is RUNNING when it completes, even if state arrives before values',async()=>{
+  const fivePage=(approved='',snapshotVersion=1)=>({...reviewPage(snapshotVersion,approved.length),total:6,
+    reviewCounts:{required:6,toCheck:6-approved.length,approved:approved.length,edited:0,rejected:0},
+    values:[...[...'abcdx'].map((id,record)=>linked(id,record,false,approved.includes(id))),linked('e',5,true)]}) as DurablePage
+  let status:'PAUSED'|'RUNNING'|'COMPLETED'='PAUSED'
+  let snapshotVersion=1
+  let saved=''
+  const attempt={extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt
+  const reader=createDurableReader(attempt)
+  vi.mocked(readDurable).mockImplementation(async(_id,_signal,_previous,_pages,onState)=>{
+    const state={...pausedState,status,snapshotVersion,feedbackVersion:saved.length} as never
+    onState?.(state)
+    return {state,page:fivePage(saved,snapshotVersion)}
+  })
+  vi.mocked(durableRequest).mockImplementation((async(url:string)=>{
+    const id=url.split('/').pop()!
+    saved+=id
+    return {id:`c-${id}`,revision:1,feedbackVersion:saved.length,included:false}
+  }) as never)
+  render(<Results reader={reader} attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+
+  expect(within(await screen.findByRole('region',{name:'Check first'})).getByRole('button',{name:/^To check a Title a/})).toBeVisible()
+
+  // Resume run: learning turns off while RUNNING; approvals a, b, c made during RUNNING must not count when it completes.
+  status='RUNNING'
+  await act(async()=>{await reader.refresh()})
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
+  for(const next of ['Title b','Title c','Title d']) {
+    fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+    expect(await screen.findByRole('heading',{name:next})).toBeVisible()
+  }
+  fireEvent.click(screen.getByRole('button',{name:/Leave one-by-one review/}))
+
+  // Simulate readDurable's onState publishing COMPLETED before readValues delivers the updated page.
+  const completionPage=Promise.withResolvers<DurablePage>()
+  vi.mocked(readDurable).mockImplementationOnce(async(_id,_signal,_previous,_pages,onState)=>{
+    const state={...pausedState,status:'COMPLETED',snapshotVersion:2,feedbackVersion:saved.length} as never
+    onState?.(state)
+    const page=await completionPage.promise
+    return {state,page}
+  })
+  status='COMPLETED'
+  snapshotVersion=2
+  const refreshing=reader.refresh()
+  await screen.findByText('Completed')
+  await act(async()=>{
+    completionPage.resolve(fivePage(saved,2))
+    await refreshing
+  })
+  expect(screen.queryByText(/You approved/)).toBeNull()
+  expect(within(screen.getByRole('region',{name:'Check first'})).getByRole('button',{name:/^To check d Title d/})).toBeVisible()
+})
+
+it('preserves prior valid approvals across a resumed run while ignoring approvals saved while RUNNING',async()=>{
+  const fivePage=(approved='',snapshotVersion=1)=>({...reviewPage(snapshotVersion,approved.length),total:6,
+    reviewCounts:{required:6,toCheck:6-approved.length,approved:approved.length,edited:0,rejected:0},
+    values:[...[...'abcdx'].map((id,record)=>linked(id,record,false,approved.includes(id))),linked('e',5,true)]}) as DurablePage
+  let status:'PAUSED'|'RUNNING'|'COMPLETED'='PAUSED'
+  let saved=''
+  const attempt={extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt
+  const reader=createDurableReader(attempt)
+  vi.mocked(readDurable).mockImplementation((async()=>({
+    state:{...pausedState,status,feedbackVersion:saved.length},
+    page:fivePage(saved),
+  })) as never)
+  vi.mocked(durableRequest).mockImplementation((async(url:string)=>{
+    const id=url.split('/').pop()!
+    saved+=id
+    return {id:`c-${id}`,revision:1,feedbackVersion:saved.length,included:false}
+  }) as never)
+  render(<Results reader={reader} attempt={attempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+
+  // Approve a, b while PAUSED (valid learning: 2 earned).
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  for(const next of ['Title b','Title c']) {
+    fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+    expect(await screen.findByRole('heading',{name:next})).toBeVisible()
+  }
+
+  // Resume run: approve c while RUNNING (must NOT earn).
+  status='RUNNING'
+  await act(async()=>{await reader.refresh()})
+  fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  expect(await screen.findByRole('heading',{name:'Title d'})).toBeVisible()
+
+  // Run completes: still only 2 valid approvals, so d stays prioritized and no settled notice appears.
+  status='COMPLETED'
+  await act(async()=>{await reader.refresh()})
+  expect(screen.queryByText(/You approved/)).toBeNull()
+  fireEvent.click(screen.getByRole('button',{name:/Leave one-by-one review/}))
+  expect(within(screen.getByRole('region',{name:'Check first'})).getByRole('button',{name:/^To check d Title d/})).toBeVisible()
+
+  // Approving d while COMPLETED reaches 3 earned approvals (a, b, d) and settles the remaining value x.
+  fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
+  fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  await waitFor(()=>expect(screen.getByText(/You approved/).closest('[role="status"]')).toHaveTextContent(/You approved 3 marked “Not an exact match”/))
+})
+
 it('uses acknowledged eligibility for Skip, Up next and re-entry while reads are held',async()=>{
   const page=reviewPage()
   page.values[2]={...page.values[2]!,recordId:'second',path:['records',1,'c']}

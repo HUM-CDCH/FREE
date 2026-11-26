@@ -43,8 +43,8 @@ const linkClass='cursor-pointer text-accent underline'
 /** Admitted work whose lifecycle can still change without a researcher's command. */
 const ACTIVE:ReadonlySet<string>=new Set(['QUEUED','RUNNING','PAUSING','STOPPING'])
 
-function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,queue,blocked,keyboardRoot,headerSlot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick:parts,onCellsChanged,order,notice,onKeep}:{
-  id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:(acknowledgement:ReviewAcknowledgement)=>void;onClose:()=>void;
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onSaveStart,onSaveEnd,onClose,focus,onNext,onPrevious,onGo,queue,blocked,keyboardRoot,headerSlot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick:parts,onCellsChanged,order,notice,onKeep}:{
+  id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:(acknowledgement:ReviewAcknowledgement)=>void;onSaveStart:()=>void;onSaveEnd:()=>void;onClose:()=>void;
   /** Shared list and one-by-one order. */
   order?:{priority:boolean;onToggle:()=>void};notice?:ReviewMove|null;onKeep?:(reason:string)=>void;
   /** The results shown now hold another version of this value; the open review stays on its own. */
@@ -67,23 +67,31 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   const headingRef=useRef<HTMLHeadingElement>(null)
   useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen&&!exportOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen,exportOpen,part?.key])
   useEffect(()=> {if(state.matches('saved')&&state.context.acknowledgement) onSaved(state.context.acknowledgement)},[state,onSaved])
+  const savePending=savingCell||state.matches('saving')||state.matches('undoing')||state.matches('saved')
+  useEffect(()=>{if(!savePending)onSaveEnd()},[savePending,onSaveEnd])
   const row=durableRailRow(state.context.value,document,part)
   const busy=savingCell||state.matches('saving')||state.matches('reloading')||state.matches('undoing')
   // An edit is guidance for the model's later calls by default (`reviewDraft`): the researcher's fix reaches its context.
   const decide=(action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING',edited?:unknown)=> {
+    if(busy||readOnly)return
+    onSaveStart()
     if(action==='EDITED')send({type:'edit',draft:{...state.context.draft,value:edited}})
     send({type:'save',action})
   }
   const onChoose=(choices:{path:string[];value:unknown}[])=> {
+    if(busy||readOnly)return
+    onSaveStart()
     send({type:'edit',draft:{...state.context.draft,choices}})
     send({type:'save',action:'APPROVED'})
   }
+  const undo=()=>{if(busy||readOnly)return;onSaveStart();send({type:'undo'})}
   const cells=tableCellReview(state.context.value)
   const canApproveWhole=!cells.wholeValue
   const canUndoWhole=!(cells.wholeValue&&state.context.value.approvedCells?.length===cells.paths.length)
   const valueUrl=durableRoot(id)+'/values/'+encodeURIComponent(value.id)
   const saveCell=async(change?:{part:ValuePart;approved:boolean})=> {
     if(busy||readOnly||editing)return
+    if(change)onSaveStart()
     setSavingCell(true)
     setCellError(null)
     try {
@@ -103,7 +111,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   const openCells=!busy&&!readOnly&&!editing&&Boolean(row.retained?.reviewable)
   const pick=parts?{...parts,review:{document,open:openCells,wholeApproved:row.kind==='approved',advance:focus,onApproval:(cell:ValuePart,approved:boolean)=>void saveCell({part:cell,approved})}}:undefined
   const common={pick,onChoose,editing,canApproveWhole,canUndoWhole,node:value.node,locked:busy||readOnly,onDecide:decide,onEdit:()=>setEditing(true),
-    onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
+    onCancelEdit:()=>setEditing(false),onUndo:undo,onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
     const root=keyboardRoot.current
     if(!focus||readOnly||!root)return
@@ -123,7 +131,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
       else if(action==='next')onNext()
       else if(action==='previous')onPrevious()
       else if(action==='undo'&&part?.reviewable)void saveCell({part,approved:false})
-      else if(action==='undo')send({type:'undo'})
+      else if(action==='undo')undo()
       else if(action==='edit')setEditing(true)
       else if(action==='approve'&&part?.reviewable)void saveCell({part,approved:true})
       else if((action==='approve'||action==='reject')&&!row.retained?.fillable)decide(action==='approve'?'APPROVED':'REJECTED')
@@ -446,9 +454,26 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // Top-level fields in schema order: the order the rail shows them in, and the names of their colours.
   const fieldOrder=useMemo(()=>(state?.selection?.schemaTree?.schemaNodes??[]).map((node:{name:string})=>node.name),[state?.selection?.schemaTree?.schemaNodes])
   const extracted=useMemo(()=>page?durableRailModel(page,document,pinned?null:progress,fieldOrder):null,[page,document,progress,pinned,fieldOrder])
+  const reviewKey=review&&id?`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`:null
+  const [savingReview,setSavingReview]=useState<{key:string;settled:ReadonlySet<string>}|null>(null)
+  const saving=savingReview!==null&&savingReview.key===reviewKey
+  // `readDurable` publishes a newer `state` before `readValues` finishes. When a running Extraction settles,
+  // hold off starting active learning until `latestPage` catches up so stale `to-check` rows from the active run
+  // are never recorded as `open` and then earned when the settled page arrives.
+  const pageBehindState=!pinned&&Boolean(state&&latestPage&&(
+    latestPage.snapshotVersion<state.snapshotVersion
+    ||(latestPage.snapshotVersion===state.snapshotVersion&&latestPage.feedbackVersion<state.feedbackVersion)
+  ))
   // The sequence learns from this review once the run has settled, never on a saved or read-only cut: an opened cut
-  // takes that only as its page replaces the live one. A row open in the list holds every change of place until it closes.
-  const learning=useReviewLearning(extracted,(!pinned||Boolean(loadedCut?.kept))&&!readOnly&&Boolean(state)&&!ACTIVE.has(state!.status),Boolean(review)&&!focus)
+  // takes that only as its page replaces the live one. A row open in the list, a decision saving, or a page behind
+  // state holds changes of place until it clears.
+  const learning=useReviewLearning(
+    extracted,
+    (!pinned||Boolean(loadedCut?.kept))&&!readOnly&&Boolean(state)&&!ACTIVE.has(state!.status),
+    (Boolean(review)&&(!focus||saving))||pageBehindState,
+  )
+  const onSaveEnd=useCallback(()=>{setSavingReview(previous=>previous?.key===reviewKey?null:previous)},[reviewKey])
+  const onSaveStart=()=>{if(reviewKey)setSavingReview(previous=>previous?.key===reviewKey?previous:{key:reviewKey,settled:learning.settled})}
   const model=learning.model
   // The export's fields are the shown values' own producing fields, never today's schema reinterpreting them.
   const exportFields=useMemo(()=>page?durableSchemaNodes(page.values,state?.selection?.schemaTree?.schemaNodes):[],[page,state?.selection?.schemaTree?.schemaNodes])
@@ -709,6 +734,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   }
   // A saved decision moves one-by-one to the next value at once; the saved results and counts follow.
   const saved=(acknowledgement?:ReviewAcknowledgement)=> {
+    const beforeSettled=savingReview?.key===reviewKey?savingReview.settled:undefined
+    setSavingReview(null)
     if(acknowledgement)setAcknowledgements(previous=>new Map(previous).set(acknowledgement.valueId,acknowledgement))
     const awaiting=new Set([...blocked,...(acknowledgement?[acknowledgement.valueId]:[])])
     const sameCut=!review||review.cutGeneration===(pinned?loadedCut?.generation??0:0)
@@ -717,7 +744,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     const decide=(row:RailRow):RailRow=>kind&&row.key===acknowledgement?.valueId?{...row,kind,...(row.parts?{parts:row.parts.map(part=>({...part,kind}))}:{})}:row
     const next=focus&&sameCut?(kind&&extracted
       ? learning.nextAfter({...extracted,document:extracted.document.map(decide),
-        records:extracted.records.map(record=>({...record,rows:record.rows.map(decide)}))},!documentOrder,activeQueueKey,awaiting)
+        records:extracted.records.map(record=>({...record,rows:record.rows.map(decide)}))},!documentOrder,activeQueueKey,awaiting,undefined,beforeSettled)
       : nextToCheck(queue,activeQueueKey,awaiting)):null
     setReview(null);setEditing(null)
     if(!sameCut)setFocus(false)
@@ -725,7 +752,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     void reader.refresh()
     if(next)selectValue(next)
   }
-  const closeReview=()=>{++selectedGeneration.current;pendingReveal.current=null;setPassageKeys([]);setReview(null);setFocus(false)}
+  const closeReview=()=>{++selectedGeneration.current;pendingReveal.current=null;setPassageKeys([]);setSavingReview(null);setReview(null);setFocus(false)}
   const showLatest=()=>{
     pin(false)
     ++readGenerations.current.snapshot
@@ -799,6 +826,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const cellReviewGeneration=selectedGeneration.current
   // A cell save answers after the view may have moved on: this is the handler of the render it was started from.
   const onCellsChanged=(value:Value,feedbackVersion:number,approvedKey?:string)=> {
+    const beforeSettled=savingReview?.key===reviewKey?savingReview.settled:undefined
+    setSavingReview(null)
     if(!review)return
     const {version,cutGeneration}=review
     // The save stands whatever is shown by now, so its re-read value is kept until the reads show it.
@@ -819,12 +848,12 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     // As a saved decision does: the sequence this approval makes, by what the review learns from it.
     const next=learning.nextAfter(
       durableRailModel({...page,values:page.values.map(each=>each.id===value.id?value:each)},document,pinned?null:progress,fieldOrder),
-      !documentOrder,approvedKey,blocked,item=>approved.has(item.key))
+      !documentOrder,approvedKey,blocked,item=>approved.has(item.key),beforeSettled)
     if(!next)setReview(null)
     else if(markValueId(next)!==value.id)selectValue(next)
     else setPart(next)
   }
-  const valueReview=review&&<ValueReview part={chosenPart} pick={pick} onCellsChanged={onCellsChanged} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
+  const valueReview=review&&<ValueReview part={chosenPart} pick={pick} onCellsChanged={onCellsChanged} onSaveStart={onSaveStart} onSaveEnd={onSaveEnd} key={reviewKey!} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onNext={openNext} onPrevious={()=>selectValue(previousInQueue(queue,activeQueueKey??review.value.id))} onGo={selectValue} queue={queue} blocked={blocked} keyboardRoot={keyboardRoot} headerSlot={headerSlot}
     order={order} notice={focus?learning.noticeOn(activeQueueKey):null} onKeep={learning.keep}
     menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly||historical}/>

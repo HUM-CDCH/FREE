@@ -39,8 +39,8 @@ const section = 'overflow-hidden rounded-lg border border-line bg-surface'
 const NOTHING = <p className="m-0 px-4 pt-1 pb-3 text-secondary text-ink-muted">Nothing in this record for this filter.</p>
 
 /**
- * The list: one component for both phases, records keyed by their index so settlement
- * moves nothing; a document's fields once above them; an Article's one record flat. The caller renders each row.
+ * The list: one component for both phases, records keyed by their index, in reading order while running and
+ * document order once settled; a document's fields once above them; an Article's one record flat. The caller renders each row.
  * The values to check first lead the list as one sheet with no heading of its own: a fact about the source stands
  * filled, what an automatic check says is dashed, and one of the rest between them is plain.
  */

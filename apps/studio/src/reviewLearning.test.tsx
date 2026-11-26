@@ -200,3 +200,83 @@ it('attributes a table edit or rejection to every original cell reason, bringing
     expect(result.current.model!.records.flatMap((r) => r.rows).filter((r) => r.settled)).toEqual([])
   }
 })
+
+it('holds category settling during an in-flight save and supports an explicit pre-save settled baseline', () => {
+  const withReading = (kinds: Record<string, RowKind>): RailModel => ({
+    document: [], counts: {} as RailModel['counts'],
+    records: [{ index: 0, label: 'Record 1', page: 1, state: 'finished', toCheck: 0, rows: [
+      ...'abcdef'.split('').map((name, at) => row(name, kinds[name] ?? 'to-check', at < 4)),
+      { ...row('z', kinds.z ?? 'to-check', false), reason: 'Different readings in the source', disagreement: [] },
+    ] }],
+  })
+  const { result, rerender } = renderHook(
+    ({ kinds = {} as Record<string, RowKind>, holding = false }: { kinds?: Record<string, RowKind>; holding?: boolean }) =>
+      useReviewLearning(withReading(kinds), true, holding),
+    { initialProps: { kinds: {} as Record<string, RowKind>, holding: false } },
+  )
+  rerender({ kinds: two, holding: false })
+  // Polling delivers the third approval while the save is still in flight (`holding: true`).
+  const preSaveSettled = result.current.settled
+  expect(preSaveSettled.size).toBe(0)
+  rerender({ kinds: three, holding: true })
+  expect(result.current.settled.size).toBe(0)
+  expect(result.current.moves).toEqual([])
+  expect(result.current.nextAfter(withReading(three), true, 'c', undefined, undefined, preSaveSettled)).toBe('z')
+  // Once the save completes (`holding: false`), the category settles and the notice surfaces on `z`.
+  rerender({ kinds: three, holding: false })
+  expect(result.current.moves).toEqual([SETTLED])
+  expect(noticeOn(result, 'z')).toMatchObject({ kind: 'settled', fine: 3, left: 1 })
+
+  // Even if settled already updated on the hook, passing the pre-save baseline preserves priority advance both ways.
+  const settledBeforeReject = result.current.settled
+  rerender({ kinds: { ...three, e: 'rejected' }, holding: false })
+  expect(result.current.settled.size).toBe(0)
+  expect(result.current.nextAfter(withReading({ ...three, e: 'rejected' }), true, 'e', undefined, undefined, settledBeforeReject)).toBe('d')
+})
+
+it('never counts approvals made while learning is off (e.g. a resumed run) when learning turns back on, while preserving valid prior learning', () => {
+  // 1. PAUSED with a..d open -> RUNNING -> a..c approved while RUNNING -> COMPLETED: none count.
+  const resumed = hook()
+  expect(leading(resumed.result)).toBe('abchdefgij')
+  resumed.rerender({ kinds: {}, learning: false })
+  resumed.rerender({ kinds: three, learning: false })
+  resumed.rerender({ kinds: three, learning: true })
+  expect(resumed.result.current.moves).toEqual([])
+  expect(settledRows(resumed.result)).toBe('')
+  expect(leading(resumed.result)).toBe('abchdefgij')
+
+  // 2. Two valid approvals before RUNNING + one during RUNNING -> still 2 earned; approving d after completion settles.
+  const fiveInexact = (kinds: Record<string, RowKind> = {}): RailModel => ({
+    document: [], counts: {} as RailModel['counts'],
+    records: [{ index: 0, label: 'Record 1', page: 1, state: 'finished', toCheck: 0, rows: [...'abcdxefghij'].map((name, at) => row(name, kinds[name] ?? 'to-check', at < 5)) }],
+  })
+  const partial = renderHook(
+    ({ kinds = {} as Record<string, RowKind>, learning = true }: { kinds?: Record<string, RowKind>; learning?: boolean }) =>
+      useReviewLearning(fiveInexact(kinds), learning, false),
+    { initialProps: { kinds: {} as Record<string, RowKind>, learning: true } },
+  )
+  partial.rerender({ kinds: two, learning: true })
+  partial.rerender({ kinds: two, learning: false })
+  partial.rerender({ kinds: three, learning: false })
+  partial.rerender({ kinds: three, learning: true })
+  expect(partial.result.current.moves).toEqual([])
+  expect(partial.result.current.model!.records[0]!.rows.filter((each) => each.settled)).toEqual([])
+  partial.rerender({ kinds: { ...three, d: 'approved' }, learning: true })
+  expect(partial.result.current.moves).toEqual([SETTLED])
+
+  // 3. Undoing an approval made while learning was off and re-approving while learning is on makes only that key eligible.
+  resumed.rerender({ kinds: two, learning: true })
+  resumed.rerender({ kinds: three, learning: true })
+  expect(resumed.result.current.moves).toEqual([])
+  resumed.rerender({ kinds: {}, learning: true })
+  resumed.rerender({ kinds: three, learning: true })
+  expect(resumed.result.current.moves).toEqual([SETTLED])
+
+  // 4. Valid partial learning survives viewing a historical cut where those items were still to check.
+  const acrossHistory = hook()
+  acrossHistory.rerender({ kinds: two, learning: true })
+  acrossHistory.rerender({ kinds: {}, learning: false })
+  acrossHistory.rerender({ kinds: two, learning: true })
+  acrossHistory.rerender({ kinds: three, learning: true })
+  expect(acrossHistory.result.current.moves).toEqual([SETTLED])
+})
