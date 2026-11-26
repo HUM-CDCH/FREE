@@ -135,6 +135,11 @@ describe('Check first across the saved snapshot', () => {
     const before = [...three, { ...inexact(0, 'f'), kind: 'rejected' as const }]
     expect(reviewTallies(oneByOneQueue(model([record(0, before)]), false), new Set(['0.a'])).get('Not an exact match'))
       .toEqual({ fine: 1, wrong: 1, left: 1 })
+    // An edited or rejected composite value without parts attributes the decision to every original cell reason.
+    const editedTable: RailRow = { ...row(0, 'editedTable', 'edited'), partReasons: ['Not an exact match', 'The source may not support it'] }
+    const multiTallies = tallies([...three, editedTable])
+    expect(multiTallies.get('Not an exact match')).toEqual({ fine: 3, wrong: 1, left: 1 })
+    expect(multiTallies.get('The source may not support it')).toEqual({ fine: 0, wrong: 1, left: 0 })
   })
 
   it('keeps different readings a fact to act on, whatever their link: no approval of other values settles them', () => {

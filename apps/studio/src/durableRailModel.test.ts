@@ -235,6 +235,22 @@ it('never moves a value in the review order when it is decided: the reason stays
   expect([edited.kind,edited.link,edited.chip?.text]).toEqual(['edited',null,'no source'])
 })
 
+it('preserves original cell reasons on edited or rejected composite values without exposing parts',()=> {
+  const node={id:'items',name:'items',type:'array' as const,children:[{id:'name',name:'name',type:'string' as const},{id:'size',name:'size',type:'string' as const}]}
+  const links=[
+    {resultPath:['records',0,'items',0,'name'],evidenceAnchorId:'name-anchor',verbatim:false},
+    {resultPath:['records',0,'items',0,'size'],evidenceAnchorId:'size-anchor',verbatim:true},
+  ]
+  const check={protocol:1 as const,model:{},judgments:[{path:['records',0,'items',0,'size'],status:'ok' as const,label:0 as const}]}
+  for(const action of ['EDITED','REJECTED'] as const) {
+    const saved=value({id:'t',fieldId:'items',path:['records',0,'items'],node,modelValue:[{name:'Cup',size:'Large'}],links,check,
+      correction:{revision:1,decision:{action,...(action==='EDITED'?{value:[{name:'Bowl',size:'Large'}]}:{}),evidence:[],included:action==='EDITED'}} as RetainedValue['correction']})
+    const [row]=durableRailModel({values:[saved]} as DurablePage,null).records[0]!.rows
+    expect(row!.parts).toBeUndefined()
+    expect(row!.partReasons).toEqual(['Not an exact match','The source may not support it'])
+  }
+})
+
 it('shows a linked value saved while the run goes on as linked, not as still being checked',()=> {
   const row=durableRailRow(value({grounding:'provisional',node:{id:'flag',name:'flag',type:'string'},
     links:[{resultPath:['records',0,'flag'],evidenceAnchorId:'own-anchor',verbatim:true,grounding:{linkedBy:'verification'}}] as never}),null)

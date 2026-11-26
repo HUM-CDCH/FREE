@@ -7,6 +7,7 @@ import { filledIn, originPages, partName, reviewedValue } from 'extraction/value
 import { linkOrigin } from './linkOrigin'
 import type { DurableState } from './durableExtractionApi'
 import type { StatusLine } from './ResultsHeader'
+import { checkReason } from './reviewQueue'
 import { evidenceCheck, type RailModel, type RailRecord, type RailRow, type ReviewAction, type ReviewPriority } from './reviewVocabulary'
 
 export type RetainedValue = DurablePage['values'][number]
@@ -227,6 +228,12 @@ export function durableRailModel(page: DurablePage, document: ParsedDocument | n
         key: part.key, name: part.name, resultPath: [...part.path], value: part.value, extracted: part.value,
         kind: part.reviewable ? (part.approved ? 'approved' : 'to-check') : row.kind,
       }))
+    } else if ((row.kind === 'edited' || row.kind === 'rejected') && !row.disagreement && (value.node.type === 'object' || value.node.type === 'array')) {
+      const original = { ...value, correction: null }
+      const parts = valueParts(original).filter((part) => part.value != null && part.value !== '')
+      if (parts.length > 0) {
+        row.partReasons = [...new Set(parts.map((part) => checkReason(durableRailRow(original, document, part)) ?? ''))]
+      }
     }
     if (value.node.valueSource) { documentRows.push(row); continue }
     let record = groups.get(value.recordId)

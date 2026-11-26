@@ -116,11 +116,12 @@ export function reviewTallies(items: readonly QueueItem[], here?: ReadonlySet<st
       : row.kind === 'to-check' ? LEFT : row.kind === 'edited' || row.kind === 'rejected' ? WRONG : null
     if (says === null) continue
     whole.set(ownerKey, Math.max(whole.get(ownerKey) ?? FINE, says))
-    const reason = checkReason(row) ?? ''
-    const tally = seen.get(reason) ?? { owners: new Set<string>(), left: 0 }
-    tally.owners.add(ownerKey)
-    if (says === LEFT) tally.left += 1
-    seen.set(reason, tally)
+    for (const reason of row.partReasons?.length ? row.partReasons : [checkReason(row) ?? '']) {
+      const tally = seen.get(reason) ?? { owners: new Set<string>(), left: 0 }
+      tally.owners.add(ownerKey)
+      if (says === LEFT) tally.left += 1
+      seen.set(reason, tally)
+    }
   }
   const count = (owners: ReadonlySet<string>, says: number) => [...owners].filter((owner) => whole.get(owner) === says).length
   return new Map([...seen].map(([reason, tally]) => [reason, { fine: count(tally.owners, FINE), wrong: count(tally.owners, WRONG), left: tally.left }]))

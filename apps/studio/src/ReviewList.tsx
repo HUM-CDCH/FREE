@@ -45,7 +45,7 @@ const NOTHING = <p className="m-0 px-4 pt-1 pb-3 text-secondary text-ink-muted">
  * filled, what an automatic check says is dashed, and one of the rest between them is plain.
  */
 export default function ReviewList({
-  model, article, finding, filter, selectedKey, linkedKeys, selection, isOpen, onToggle, renderRow, prioritized = [], order, moves = [], onKeep, children,
+  model, article, finding, filter, selectedKey, linkedKeys, selection, isOpen, onToggle, renderRow, prioritized = [], order, documentRecords = Boolean(order), moves = [], onKeep, children,
 }: {
   /** The open value's review, portalled into its row: rendered here it stays one instance wherever that row is shown. */
   children?: ReactNode
@@ -65,6 +65,8 @@ export default function ReviewList({
   prioritized?: readonly QueueItem[]
   /** Whether the values to check first lead (`priority`) or stay in their place, with how many are left and done. */
   order?: { priority: boolean; onToggle: () => void; left: number; done: number }
+  /** Whether records follow document order (`index`), independent of whether the priority toggle is shown. */
+  documentRecords?: boolean
   /** The kinds of reason that changed place because of what the researcher decided. */
   moves?: readonly ReviewMove[]
   onKeep?: (reason: string) => void
@@ -105,7 +107,7 @@ export default function ReviewList({
     const lit = hovered?.length === 1 ? hovered[0] : hovered ? undefined : null
     if (key !== lit) selection.hover(key ? [key] : null)
   }
-  const records = order
+  const records = documentRecords
     ? [...model.records].sort((first, second) => first.index - second.index)
     : model.records
   const first = prioritized.flatMap((item) => {

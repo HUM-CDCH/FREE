@@ -41,6 +41,9 @@ export type RailRow = {
   place?: string
   /** Populated original scalars in document order; they share this row's saved value identity. */
   parts?: readonly RailRow[]
+  /** Original populated parts' distinct check reasons when a composite value no longer exposes `parts` (after an edit
+   *  or rejection), so review learning still attributes the decision to every original category (`''` is an ordinary part). */
+  partReasons?: readonly string[]
   /** The run-time decision was not kept at settlement. */
   changed: boolean
   /** A Value Disagreement's readings at each place, none of them chosen by FREE. */

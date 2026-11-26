@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { act, renderHook } from '@testing-library/react'
 import { expect, it } from 'vitest'
+import type { DurablePage } from 'extraction/durable-types'
+import { durableRailModel, type RetainedValue } from './durableRailModel'
 import { useReviewLearning, type ReviewMove } from './reviewLearning'
 import { nextToCheck, oneByOneQueue } from './reviewQueue'
 import type { RailModel, RailRow, RowKind } from './reviewVocabulary'
@@ -115,6 +117,86 @@ it('gives the sequence a decision just saved makes, before its read arrives', ()
   rerender({ kinds: two })
   // The third approval settles the kind: the fourth is next in its place, not the one of the rest that came early.
   expect(nextToCheck(oneByOneQueue(result.current.model!, true, result.current.sampled), 'c')).toBe('h')
-  expect(nextToCheck(result.current.queueAfter(model(three), true), 'c')).toBe('d')
-  expect(nextToCheck(result.current.queueAfter(model({ ...two, c: 'rejected' }), true), 'c')).toBe('h')
+  expect(result.current.nextAfter(model(three), true, 'c')).toBe('d')
+  expect(result.current.nextAfter(model({ ...two, c: 'rejected' }), true, 'c')).toBe('h')
+
+  // When a remaining priority value exists after settling, advance to it instead of following the settled value.
+  const withReading = (kinds: Record<string, RowKind>): RailModel => ({
+    document: [], counts: {} as RailModel['counts'],
+    records: [{ index: 0, label: 'Record 1', page: 1, state: 'finished', toCheck: 0, rows: [
+      ...'abcdef'.split('').map((name, at) => row(name, kinds[name] ?? 'to-check', at < 4)),
+      { ...row('z', kinds.z ?? 'to-check', false), reason: 'Different readings in the source', disagreement: [] },
+    ] }],
+  })
+  const mixed = renderHook(({ kinds = {} as Record<string, RowKind> }) => useReviewLearning(withReading(kinds), true, false),
+    { initialProps: { kinds: {} as Record<string, RowKind> } })
+  mixed.rerender({ kinds: two })
+  expect(mixed.result.current.nextAfter(withReading(three), true, 'c')).toBe('z')
+  mixed.rerender({ kinds: three })
+  // Editing or rejecting an ordinary value brings the settled category back first at once.
+  expect(mixed.result.current.nextAfter(withReading({ ...three, e: 'rejected' }), true, 'e')).toBe('d')
+  expect(mixed.result.current.nextAfter(withReading({ ...three, e: 'rejected' }), false, 'e')).toBe('f')
+})
+
+it('never counts pre-existing approvals when a historical snapshot with open values is viewed', () => {
+  const { result, rerender } = hook({ kinds: three })
+  expect(result.current.moves).toEqual([])
+  expect(leading(result)).toBe('abchdefgij')
+  // Opening an older cut where a, b, c were still to check (learning off) must not record them as opened in this review.
+  rerender({ kinds: {}, learning: false })
+  expect(result.current.moves).toEqual([])
+  rerender({ kinds: three, learning: true })
+  expect(result.current.moves).toEqual([])
+  expect(settledRows(result)).toBe('')
+  expect(leading(result)).toBe('abchdefgij')
+
+  // Settled live state is preserved across a historical cut that had an earlier edit/rejection without a false return notice.
+  const live = hook()
+  live.rerender({ kinds: three })
+  expect(live.result.current.moves).toEqual([SETTLED])
+  live.rerender({ kinds: { ...three, e: 'rejected' }, learning: false })
+  expect(live.result.current.moves).toEqual([])
+  live.rerender({ kinds: three, learning: true })
+  expect(live.result.current.moves).toEqual([SETTLED])
+})
+
+it('attributes a table edit or rejection to every original cell reason, bringing settled categories first again', () => {
+  const scalar = (id: string, record: number, approved = false): RetainedValue => ({
+    id, recordId: `r${record}`, fieldId: id, path: ['records', record, id], selectionId: 's', schemaRevisionId: 'rev',
+    node: { id, name: id, type: 'string' }, modelValue: id, evidence: [], groundings: undefined, grounding: 'grounded',
+    processing: 'saved', lineage: [], historicalCorrection: null,
+    links: [{ resultPath: ['records', record, id], evidenceAnchorId: id, verbatim: false }],
+    correction: approved ? { revision: 1, decision: { action: 'APPROVED', value: id, evidence: [], included: false } } : null,
+  } as unknown as RetainedValue)
+  const tableNode = {
+    id: 'items', name: 'items', type: 'array' as const,
+    children: [{ id: 'name', name: 'name', type: 'string' as const }, { id: 'size', name: 'size', type: 'string' as const }],
+  }
+  const table = (action: 'EDITED' | 'REJECTED' | null): RetainedValue => ({
+    id: 't', recordId: 'r4', fieldId: 'items', path: ['records', 4, 'items'], selectionId: 's', schemaRevisionId: 'rev',
+    node: tableNode, modelValue: [{ name: 'Cup', size: 'Large' }], evidence: [], grounding: 'grounded',
+    processing: 'saved', lineage: [], historicalCorrection: null,
+    links: [
+      { resultPath: ['records', 4, 'items', 0, 'name'], evidenceAnchorId: 't-name', verbatim: false },
+      { resultPath: ['records', 4, 'items', 0, 'size'], evidenceAnchorId: 't-size', verbatim: true },
+    ],
+    check: { protocol: 1, model: {}, judgments: [{ path: ['records', 4, 'items', 0, 'size'], status: 'ok', label: 0 }] },
+    correction: action ? {
+      revision: 1,
+      decision: action === 'EDITED'
+        ? { action: 'EDITED', value: [{ name: 'Bowl', size: 'Large' }], evidence: [], included: true }
+        : { action: 'REJECTED', evidence: [], included: false },
+    } : null,
+  } as unknown as RetainedValue)
+  const build = (approvedCount: number, tableAction: 'EDITED' | 'REJECTED' | null) =>
+    durableRailModel({ values: [scalar('a', 0, approvedCount >= 1), scalar('b', 1, approvedCount >= 2), scalar('c', 2, approvedCount >= 3), scalar('d', 3), table(tableAction)] } as DurablePage, null)
+
+  for (const action of ['EDITED', 'REJECTED'] as const) {
+    const { result, rerender } = renderHook(({ m }: { m: RailModel }) => useReviewLearning(m, true, false), { initialProps: { m: build(0, null) } })
+    rerender({ m: build(3, null) })
+    expect(result.current.moves).toEqual([{ ...SETTLED, left: 2 }])
+    rerender({ m: build(3, action) })
+    expect(result.current.moves).toContainEqual({ reason: 'Not an exact match', kind: 'returned', fine: 3, left: 1 })
+    expect(result.current.model!.records.flatMap((r) => r.rows).filter((r) => r.settled)).toEqual([])
+  }
 })
