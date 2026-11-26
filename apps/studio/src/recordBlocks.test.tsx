@@ -177,6 +177,28 @@ it('the page draws record blocks as the marks are drawn, though none selects, ke
 })
 
 
+it('keeps a record that runs through a table, and a line set in fragments, as one region', () => {
+  // As a parsed report gives them: a line in three fragments, a short line and a paragraph under it, a table whose rows
+  // the record owns one by one (the tabs and line ends between them are no record's) and the paragraph after it.
+  const { document, bytes } = source([
+    { segment: 'p1_s0', kind: 'paragraph', text: 'Photo 1', at: [77, 142, 216, 151] },
+    { segment: 'p1_s1', kind: 'paragraph', text: 'Film 2', at: [256, 142, 347, 151] },
+    { segment: 'p1_s2', kind: 'paragraph', text: 'Slide 3', at: [375, 142, 466, 151] },
+    { segment: 'p1_s3', kind: 'paragraph', text: 'Sheet 67', at: [77, 154, 200, 163] },
+    { segment: 'p1_s4', kind: 'paragraph', text: 'numbered as follows:', at: [77, 166, 519, 340] },
+    { segment: 'p1_s5', kind: 'table', text: 'No\tWhat\tNote\t\n8-1\tJaw\t\t\n8-3\tLeg\tBroken', at: [77, 346, 495, 397], cells: [
+      { id: 'r0_c0', row: 0, column: 0, text: 'No', at: [80, 349, 100, 358] }, { id: 'r0_c1', row: 0, column: 1, text: 'What', at: [140, 349, 200, 358] },
+      { id: 'r0_c2', row: 0, column: 2, text: 'Note', at: [300, 349, 380, 358] },
+      { id: 'r1_c0', row: 1, column: 0, text: '8-1', at: [80, 362, 100, 370] }, { id: 'r1_c1', row: 1, column: 1, text: 'Jaw', at: [140, 362, 195, 370] },
+      { id: 'r2_c0', row: 2, column: 0, text: '8-3', at: [80, 375, 100, 383] }, { id: 'r2_c1', row: 2, column: 1, text: 'Leg', at: [140, 375, 195, 383] },
+      { id: 'r2_c2', row: 2, column: 2, text: 'Broken', at: [300, 375, 345, 383] }] },
+    { segment: 'p1_s6', kind: 'paragraph', text: 'a man over 45', at: [77, 399, 510, 446] },
+  ])
+  const record = closed(0, line('p1_s0', 0, 7), line('p1_s1', 0, 6), line('p1_s2', 0, 7), line('p1_s3', 0, 8), line('p1_s4', 0, 20),
+    line('p1_s5', 0, 12), line('p1_s5', 14, 21), line('p1_s5', 24, 38), line('p1_s6', 0, 13))
+  expect(recordPieces(document, bytes, [record]).map(piece => Object.values(piece.box))).toEqual([[77, 142, 519, 446]])
+})
+
 it('keeps parent table regions separate across a child row', () => {
   const { document, bytes } = source([{ segment: 'p1_s0', kind: 'table', text: 'Parent\nChild\nParent again', at: [40, 100, 280, 160],
     cells: ['Parent', 'Child', 'Parent again'].map((text, row) => ({ id: `c${row}`, row, column: 0, text,

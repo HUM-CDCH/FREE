@@ -140,21 +140,35 @@ export function recordPieces(document: ParsedDocument, markdown: Uint8Array | nu
   for (const block of blocks) {
     const regions: { page: number; box: Box }[] = []
     let previous: (SourceRange | { segment: string }) | undefined
+    let run = 0 // Where the regions of the portions that follow one another with no hole begin.
     for (const range of rangesOf(block)) {
       const source = 'start' in range ? texts(range.segment) : null
       const cells = source && 'start' in range ? tableCells(range.segment)?.filter(cell => cell.from < source.unit(range.end) && cell.to > source.unit(range.start)) : undefined
       for (const region of cells?.length ? [{ page: cells[0]!.page, box: union(cells.filter(cell => cell.page === cells[0]!.page).map(cell => cell.box)) }] : placed(`a_${range.segment}`)) {
-        const last = regions.at(-1)
-        // Merge only consecutive source portions; geometry cannot bridge a hole in ownership.
+        // Merge only consecutive source portions; geometry cannot bridge a hole in ownership. White space alone between
+        // two portions (a table's row ends, which no record owns) is no hole.
         const continuous = previous && (previous.segment === range.segment
-          ? 'end' in previous && 'start' in range && previous.end >= range.start
+          ? 'end' in previous && 'start' in range && (previous.end >= range.start
+            || (!!source && !source.text.slice(source.unit(previous.end), source.unit(range.start)).trim()))
           : order.get(range.segment) === (order.get(previous.segment) ?? -2) + 1
             && 'end' in previous && 'start' in range && range.start === 0
             && texts(previous.segment)?.unit(previous.end) === texts(previous.segment)?.text.length)
-        if (continuous && last && last.page === region.page && region.box.y0 >= last.box.y0 && Math.min(last.box.x1, region.box.x1) > Math.max(last.box.x0, region.box.x0)) last.box = union([last.box, region.box])
+        if (!continuous) run = regions.length
+        // The region it lies under: the last of the run, or an earlier one where a line set in fragments came between.
+        const above = regions.slice(run).findLast(each => each.page === region.page && region.box.y0 >= each.box.y0 && Math.min(each.box.x1, region.box.x1) > Math.max(each.box.x0, region.box.x0))
+        if (above) above.box = union([above.box, region.box])
         else regions.push(region)
       }
       previous = range
+    }
+    // Regions of one record that overlap on a page are one region: the fragments of a line set apart each start their
+    // own, and the lines under the last then grow over the others.
+    for (let at = 0; at < regions.length; at += 1) for (let other = at + 1; other < regions.length; other += 1) {
+      const a = regions[at]!, b = regions[other]!
+      if (a.page !== b.page || Math.min(a.box.x1, b.box.x1) <= Math.max(a.box.x0, b.box.x0) || Math.min(a.box.y1, b.box.y1) <= Math.max(a.box.y0, b.box.y0)) continue
+      a.box = union([a.box, b.box])
+      regions.splice(other, 1)
+      other = at // The grown region is compared with the rest again.
     }
     for (const [index, { page, box }] of regions.entries()) {
       const id = `${block.state}|${page}|${box.x0},${box.y0},${box.x1},${box.y1}`
