@@ -46,8 +46,8 @@ const PILL_FIT = 'min-w-0 max-w-full'
  *  (`w-max`), never wrapping or overflowing them, though then past the pills' 140px reserve. Shown, and only then hit by
  *  a pointer, on hover and on keyboard focus in the row (`:focus-visible`: a field or note clicked keeps focus, and
  *  would otherwise keep the actions over its note until a click elsewhere); at rest a tap there reaches the row, never an
- *  unseen action. While a pill has keyboard focus the overlay steps aside as well. A note running under it fades out at its left edge. */
-const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-max min-w-[140px] items-center justify-end gap-1 rounded-[3px] bg-surface pl-1 before:absolute before:inset-y-0 before:right-full before:w-6 before:bg-linear-to-l before:from-surface before:to-transparent @max-[240px]:before:hidden opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-visible:pointer-events-auto group-focus-visible:opacity-100 group-has-[:focus-visible:not([data-row-pill])]:pointer-events-auto group-has-[:focus-visible:not([data-row-pill])]:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
+ *  unseen action. On touch screens, focusing the row itself reveals its actions for the next tap. While a pill has keyboard focus the overlay steps aside as well. A note running under it fades out at its left edge. */
+const ACTIONS = 'pointer-events-none absolute right-0 top-px flex w-max min-w-[140px] items-center justify-end gap-1 rounded-[3px] bg-surface pl-1 before:absolute before:inset-y-0 before:right-full before:w-6 before:bg-linear-to-l before:from-surface before:to-transparent @max-[240px]:before:hidden opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 any-pointer-coarse:group-focus:pointer-events-auto any-pointer-coarse:group-focus:opacity-100 group-focus-visible:pointer-events-auto group-focus-visible:opacity-100 group-has-[:focus-visible:not([data-row-pill])]:pointer-events-auto group-has-[:focus-visible:not([data-row-pill])]:opacity-100 group-has-[[data-row-pill]:focus-visible]:pointer-events-none group-has-[[data-row-pill]:focus-visible]:opacity-0'
 /** On a row line under 240px (the 264px rail, where a 140px overlay would cover the name and reach the disclosure) the
  *  actions are no overlay: they take their own line in the pills' flow, below the pills, shown (and hit) on hover and
  *  keyboard focus like the overlay. The line keeps its place at rest: collapsing it would move every row below whenever a
@@ -69,7 +69,7 @@ const NAME_UNDER_ACTIONS = 'max-w-[calc(100%_+_140px)] @max-[296px]:max-w-full @
 const NOTE_INDENT = 'pl-[46px]'
 /** A note in the pills' flow, after them: closed, one line, ellipsized (its full text is its title); opened, in full in
  *  the same place, its further lines wrapping under its first, so opening it never moves it. It keeps at least 96px
- *  beside the pills, else wraps to its own line below them; it stays clear of the actions like the pills. */
+ *  beside the pills, else wraps to its own line below them. */
 const NOTE_INLINE = 'min-w-24 flex-1 basis-0 text-left text-secondary leading-snug text-ink-muted outline-none hover:text-ink'
 /** The note, unlike the pills, runs on under the actions to the row's right edge: they show over its end only on hover
  *  and focus, so at rest the line is the note's. Where the pills already start below the actions' line (under 296px)

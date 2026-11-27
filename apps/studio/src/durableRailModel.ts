@@ -7,7 +7,8 @@ import { filledIn, originPages, partName, reviewedValue } from 'extraction/value
 import { linkOrigin } from './linkOrigin'
 import type { DurableState } from './durableExtractionApi'
 import type { StatusLine } from './ResultsHeader'
-import { evidenceCheck, supportNote, type RailModel, type RailRecord, type RailRow, type ReviewAction, type ReviewPriority } from './reviewVocabulary'
+import { checkReason } from './reviewQueue'
+import { evidenceCheck, type RailModel, type RailRecord, type RailRow, type ReviewAction, type ReviewPriority } from './reviewVocabulary'
 
 export type RetainedValue = DurablePage['values'][number]
 
@@ -116,14 +117,23 @@ export const sharedColor = (colors: readonly (string | undefined)[]) =>
 export const evidenceColorVars = (color: string | undefined): Record<string, string> => color ? {'--color-ev': color,
   '--color-ev-soft': `color-mix(in srgb, ${color} 24%, white)`, '--color-ev-ghost': `color-mix(in srgb, ${color} 12%, white)`} : {}
 
-/** A value's place in the review order, from its support check alone: not supported when any scalar it
- *  holds was judged so, else to verify when any has no verdict, else supported; null when no checker judged it. With
- *  `path`, that one part's. */
+/** Most to least in need of a look; a value takes the first that any scalar it holds has. */
+const PRIORITIES: readonly ReviewPriority[] = ['unsupported', 'uncertain', 'failed', 'to-verify', 'supported']
+/** One scalar's verdicts read together, labels only: opposite labels are uncertain, never an unsupported verdict, and
+ *  a check that gave no label adds nothing to one that did. */
+function scalarPriority(judged: NonNullable<RetainedValue['check']>['judgments']): ReviewPriority {
+  const labels = new Set(judged.map(each => each.label))
+  if (labels.has(0)) return labels.has(1) ? 'uncertain' : 'unsupported'
+  if (labels.has(1)) return 'supported'
+  return judged.some(each => each.status === 'unavailable') ? 'failed' : 'to-verify'
+}
+/** What a value's support check says of it, from the check alone; null when no checker judged it. With `path`, that
+ *  one part's. */
 export function reviewPriority(check: RetainedValue['check'], path?: readonly (string | number)[]): ReviewPriority | null {
-  const judged = !check ? [] : path ? judgmentsByPath(check).get(JSON.stringify(path)) ?? [] : check.judgments
-  if (judged.length === 0) return null
-  if (judged.some(each => each.status === 'ok' && each.label === 0)) return 'unsupported'
-  return judged.every(each => each.status === 'ok') ? 'supported' : 'to-verify'
+  if (!check) return null
+  const scalars = path ? [judgmentsByPath(check).get(JSON.stringify(path)) ?? []] : [...judgmentsByPath(check).values()]
+  const found = new Set(scalars.filter(judged => judged.length > 0).map(scalarPriority))
+  return PRIORITIES.find(each => found.has(each)) ?? null
 }
 
 /** Correction links carry the occurrences selected by the researcher. Model links retain their producer precision. */
@@ -172,18 +182,20 @@ export function durableRailRow(value: RetainedValue, document: ParsedDocument | 
   const doubt = link ? reviewLinkDoubt(link, part ? part.value : linkedModelValue(value, link), document, checkedAction) : null
   const origin = link ? linkOrigin(link) : null
   const priority = reviewPriority(value.check, part?.path)
-  // A linked value's chip also says its support check; one without a link already reads "no source".
-  const support = link ? supportNote({ priority, kind }) : null
   const composite = !part && (value.node.type === 'object' || value.node.type === 'array')
+  // The reason is the extracted value's, read from the model's own link whatever was decided since: an edit shows its
+  // correction Evidence and a rejection no doubt, and neither may move the value in the review order.
+  const read = part ? part.link : value.links[0] ?? null
+  const inexact = read && reviewLinkDoubt(read, part ? part.value : linkedModelValue(value, read), document)
   const reason = value.processing !== 'saved' ? null : disagreement ? 'Different readings in the source'
-    : composite ? null : !link ? 'Source not found' : doubt ? 'Not an exact match' : null
+    : composite ? null : !read ? 'Source not found' : inexact ? 'Not an exact match' : null
   return {
     key: value.id, resultPath: value.path, name: value.node.name,
     value: reviewedValue(value), extracted: value.modelValue,
     kind, link,
     // A missing value has no Evidence to check, during the run or after it.
     chip: {text: disagreement ? 'different readings' : value.processing === 'absent' && !filled ? 'missing' : value.grounding === 'provisional' && !link ? 'checking' : !link ? 'no source'
-      : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · not exact' : ''}${support ? ` · ${support.word}` : ''}`,
+      : `${page === null ? 'linked' : `p.${page}`}${doubt ? ' · not exact' : ''}`,
       style: doubt ? 'doubtful' : origin === 'rule' ? 'rule' : link ? 'link' : 'neutral'},
     evidence: disagreement ? {label:'Different readings',detail:'Pick one, or edit.'} : filled && !link
       ? {label:'Filled in by you', detail:'No source linked.'}
@@ -215,7 +227,14 @@ export function durableRailModel(page: DurablePage, document: ParsedDocument | n
         ...durableRailRow(value, document, part),
         key: part.key, name: part.name, resultPath: [...part.path], value: part.value, extracted: part.value,
         kind: part.reviewable ? (part.approved ? 'approved' : 'to-check') : row.kind,
+        ...(part.reviewable ? { cell: true as const } : {}),
       }))
+    } else if ((row.kind === 'edited' || row.kind === 'rejected') && !row.disagreement && (value.node.type === 'object' || value.node.type === 'array')) {
+      const original = { ...value, correction: null }
+      const parts = valueParts(original).filter((part) => part.value != null && part.value !== '')
+      if (parts.length > 0) {
+        row.partReasons = [...new Set(parts.map((part) => checkReason(durableRailRow(original, document, part)) ?? ''))]
+      }
     }
     if (value.node.valueSource) { documentRows.push(row); continue }
     let record = groups.get(value.recordId)

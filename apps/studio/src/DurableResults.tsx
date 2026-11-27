@@ -26,7 +26,8 @@ import { durableRailModel, durableRailRow, reviewState, evidenceColorVars, field
 import { provisionalMarks } from './provisionalMarks'
 import { recordBlocks, type RecordBlock } from './recordBlocks'
 import type { MarkInfo } from './useEvidenceOverlays'
-import { checkReason, forwardItems, hasPriority, nextToCheck, oneByOneQueue, previousInQueue, type QueueItem } from './reviewQueue'
+import { checkFirst, hasPriority, nextToCheck, oneByOneQueue, previousInQueue, rowReason, type QueueItem } from './reviewQueue'
+import { useReviewLearning, type ReviewMove } from './reviewLearning'
 import { fieldWords, passesFilter, shownValue, stateLabel, type RailRecord, type RailRow, type ValueFilter } from './reviewVocabulary'
 import type { EvidenceLink } from 'extraction/durable-types'
 import type { SelectionChannel } from './selectionChannel'
@@ -42,10 +43,10 @@ const linkClass='cursor-pointer text-accent underline'
 /** Admitted work whose lifecycle can still change without a researcher's command. */
 const ACTIVE:ReadonlySet<string>=new Set(['QUEUED','RUNNING','PAUSING','STOPPING'])
 
-function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onClose,focus,onNext,onPrevious,onGo,queue,blocked,keyboardRoot,headerSlot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick:parts,onCellsChanged,order}:{
-  id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:(acknowledgement:ReviewAcknowledgement)=>void;onClose:()=>void;
+function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersion,document,recordLabel,newer=false,onSaved,onSaveStart,onSaveEnd,onClose,focus,onNext,onPrevious,onGo,queue,blocked,keyboardRoot,headerSlot,menuOpen,detailsOpen,exportOpen,onCloseOverlay,readOnly=false,part,pick:parts,onCellsChanged,order,notice,onKeep}:{
+  id:string;value:Value;snapshotVersion:number;document:ParsedDocument|null;recordLabel:string;onSaved:(acknowledgement:ReviewAcknowledgement)=>void;onSaveStart:()=>void;onSaveEnd:()=>void;onClose:()=>void;
   /** Shared list and one-by-one order. */
-  order?:{priority:boolean;onToggle:()=>void};
+  order?:{priority:boolean;onToggle:()=>void};notice?:ReviewMove|null;onKeep?:(reason:string)=>void;
   /** The results shown now hold another version of this value; the open review stays on its own. */
   newer?:boolean;
   focus:boolean;onNext:()=>void;onPrevious:()=>void;onGo:(key:string)=>void;
@@ -66,23 +67,31 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   const headingRef=useRef<HTMLHeadingElement>(null)
   useEffect(()=>{if(focus&&!editing&&!menuOpen&&!detailsOpen&&!exportOpen)headingRef.current?.focus({preventScroll:true})},[focus,editing,menuOpen,detailsOpen,exportOpen,part?.key])
   useEffect(()=> {if(state.matches('saved')&&state.context.acknowledgement) onSaved(state.context.acknowledgement)},[state,onSaved])
+  const savePending=savingCell||state.matches('saving')||state.matches('undoing')||state.matches('saved')
+  useEffect(()=>{if(!savePending)onSaveEnd()},[savePending,onSaveEnd])
   const row=durableRailRow(state.context.value,document,part)
   const busy=savingCell||state.matches('saving')||state.matches('reloading')||state.matches('undoing')
   // An edit is guidance for the model's later calls by default (`reviewDraft`): the researcher's fix reaches its context.
   const decide=(action:'APPROVED'|'EDITED'|'REJECTED'|'PENDING',edited?:unknown)=> {
+    if(busy||readOnly)return
+    onSaveStart()
     if(action==='EDITED')send({type:'edit',draft:{...state.context.draft,value:edited}})
     send({type:'save',action})
   }
   const onChoose=(choices:{path:string[];value:unknown}[])=> {
+    if(busy||readOnly)return
+    onSaveStart()
     send({type:'edit',draft:{...state.context.draft,choices}})
     send({type:'save',action:'APPROVED'})
   }
+  const undo=()=>{if(busy||readOnly)return;onSaveStart();send({type:'undo'})}
   const cells=tableCellReview(state.context.value)
   const canApproveWhole=!cells.wholeValue
   const canUndoWhole=!(cells.wholeValue&&state.context.value.approvedCells?.length===cells.paths.length)
   const valueUrl=durableRoot(id)+'/values/'+encodeURIComponent(value.id)
   const saveCell=async(change?:{part:ValuePart;approved:boolean})=> {
     if(busy||readOnly||editing)return
+    if(change)onSaveStart()
     setSavingCell(true)
     setCellError(null)
     try {
@@ -102,7 +111,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   const openCells=!busy&&!readOnly&&!editing&&Boolean(row.retained?.reviewable)
   const pick=parts?{...parts,review:{document,open:openCells,wholeApproved:row.kind==='approved',advance:focus,onApproval:(cell:ValuePart,approved:boolean)=>void saveCell({part:cell,approved})}}:undefined
   const common={pick,onChoose,editing,canApproveWhole,canUndoWhole,node:value.node,locked:busy||readOnly,onDecide:decide,onEdit:()=>setEditing(true),
-    onCancelEdit:()=>setEditing(false),onUndo:()=>send({type:'undo'}),onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
+    onCancelEdit:()=>setEditing(false),onUndo:undo,onTypedEdit:(edited:unknown)=>decide('EDITED',edited)}
   useEffect(()=> {
     const root=keyboardRoot.current
     if(!focus||readOnly||!root)return
@@ -122,7 +131,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
       else if(action==='next')onNext()
       else if(action==='previous')onPrevious()
       else if(action==='undo'&&part?.reviewable)void saveCell({part,approved:false})
-      else if(action==='undo')send({type:'undo'})
+      else if(action==='undo')undo()
       else if(action==='edit')setEditing(true)
       else if(action==='approve'&&part?.reviewable)void saveCell({part,approved:true})
       else if((action==='approve'||action==='reject')&&!row.retained?.fillable)decide(action==='approve'?'APPROVED':'REJECTED')
@@ -134,7 +143,7 @@ function ValueReview({id,projectId,sourceDocumentId,article,value,snapshotVersio
   })
   return <section aria-label={`Review ${fieldWords(value.node.name)}`} className="space-y-2">
     <div>
-      {focus?<ReviewFocus {...common} article={article} current={row} part={part} queue={queue} blocked={blocked} order={order}
+      {focus?<ReviewFocus {...common} article={article} current={row} part={part} queue={queue} blocked={blocked} order={order} notice={notice} onKeep={onKeep}
         recordLabel={recordLabel}
         headingRef={headingRef} onNext={onNext} onPrevious={onPrevious} onGo={onGo}/>
         :<ReviewRow {...common} row={row} selected pinned={false} onSelect={onClose} canDecide={!busy&&!readOnly&&Boolean(row.retained?.reviewable||row.retained?.fillable)}
@@ -307,7 +316,7 @@ function History({id,shown,current,live,review,onSnapshot}:{id:string;shown:bool
 const readings=(value:Value)=>value.disagreement?.map(d=>JSON.stringify([d.path,d.alternatives.map(a=>JSON.stringify(a.value)).sort()])).sort()
 /** A save the reads have yet to show. A cell save also keeps the value as re-read after it, with its snapshot: the
  *  review of a table goes on from it, cell after cell, without waiting for those reads. */
-type Acknowledged=Pick<ReviewAcknowledgement,'extractionId'|'valueId'|'revision'|'feedbackVersion'>&{reread?:{value:Value;version:number}}
+type Acknowledged=Pick<ReviewAcknowledgement,'extractionId'|'valueId'|'revision'|'feedbackVersion'>&{decision?:{version:number;kind:RailRow['kind']};reread?:{value:Value;version:number}}
 const holds=(page:DurablePage|null,ack:Acknowledged)=>Boolean(page?.values.some(value=>value.id===ack.valueId&&reviewRevision(value)>=ack.revision))
 const observes=(page:DurablePage|null,ack:Acknowledged)=>Boolean(page&&page.feedbackVersion>=ack.feedbackVersion)&&holds(page,ack)
 const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
@@ -359,7 +368,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // latest results"). Collapsed, a read already started finishes and none starts.
   useEffect(()=>railOpen?reader?.wantPages():undefined,[reader,railOpen])
   // A loaded cut keeps its identity, page and policy together; pending requests replace none.
-  const [loadedCut,setLoadedCut]=useState<{page:DurablePage;historical:boolean;generation:number}|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
+  // `kept`: the live page, still shown while an opened cut loads or after its read failed.
+  const [loadedCut,setLoadedCut]=useState<{page:DurablePage;historical:boolean;generation:number;kept?:true}|null>(null),[error,setError]=useState<string|null>(null),[busy,setBusy]=useState(false)
   const [errorsBefore,setErrorsBefore]=useState(state)
   // A stopped reader reads again only when asked, so it is shown first, with its Reconnect; the rail's banner does this
   // for the latest one.
@@ -443,13 +453,45 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     startPage:state.selection?.resolved?.startPage??null}:null,[state])
   // Top-level fields in schema order: the order the rail shows them in, and the names of their colours.
   const fieldOrder=useMemo(()=>(state?.selection?.schemaTree?.schemaNodes??[]).map((node:{name:string})=>node.name),[state?.selection?.schemaTree?.schemaNodes])
-  const model=useMemo(()=>page?durableRailModel(page,document,pinned?null:progress,fieldOrder):null,[page,document,progress,pinned,fieldOrder])
+  const extracted=useMemo(()=>page?durableRailModel(page,document,pinned?null:progress,fieldOrder):null,[page,document,progress,pinned,fieldOrder])
+  const reviewKey=review&&id?`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`:null
+  const [savingReview,setSavingReview]=useState<{key:string;settled:ReadonlySet<string>}|null>(null)
+  const saving=savingReview!==null&&savingReview.key===reviewKey
+  // `readDurable` publishes a newer `state` before `readValues` finishes. When a running Extraction settles,
+  // hold off starting active learning until `latestPage` catches up so stale `to-check` rows from the active run
+  // are never recorded as `open` and then earned when the settled page arrives.
+  const pageBehindState=!pinned&&Boolean(state&&latestPage&&(
+    latestPage.snapshotVersion<state.snapshotVersion
+    ||(latestPage.snapshotVersion===state.snapshotVersion&&latestPage.feedbackVersion<state.feedbackVersion)
+  ))
+  const livePage=!pinned||Boolean(loadedCut?.kept)
+  // A receipt informs this snapshot's review order only until its value is read at that revision or later.
+  const confirmed=useMemo(()=>{
+    const kinds=new Map<string,RailRow['kind']>()
+    if(page&&!historical&&pendingDecisions.size)for(const value of page.values){
+      const ack=pendingDecisions.get(value.id)
+      if(ack?.decision?.version===page.snapshotVersion&&reviewRevision(value)<ack.revision)kinds.set(value.id,ack.decision.kind)
+    }
+    return kinds
+  },[page,historical,pendingDecisions])
+  const learning=useReviewLearning(
+    extracted,
+    livePage&&!readOnly&&Boolean(state)&&!ACTIVE.has(state!.status),
+    (Boolean(review)&&(!focus||saving))||pageBehindState,
+    livePage,confirmed,
+  )
+  const onSaveEnd=useCallback(()=>{setSavingReview(previous=>previous?.key===reviewKey?null:previous)},[reviewKey])
+  const onSaveStart=()=>{if(reviewKey)setSavingReview(previous=>previous?.key===reviewKey?previous:{key:reviewKey,settled:learning.settled})}
+  const model=learning.model
   // The export's fields are the shown values' own producing fields, never today's schema reinterpreting them.
   const exportFields=useMemo(()=>page?durableSchemaNodes(page.values,state?.selection?.schemaTree?.schemaNodes):[],[page,state?.selection?.schemaTree?.schemaNodes])
   // Records open as a run reads them; a settled Extraction opens only its first record with a value to check, chosen
   // once so a decision doesn't close it. The record holding the reviewed value always opens.
   const [opening,setOpening]=useState<{live:boolean;first:string|undefined}|null>(null)
-  if(model&&state&&!opening)setOpening({live:ACTIVE.has(state.status),first:model.records.find(record=>record.toCheck>0)?.key})
+  if(model&&state&&!opening){
+    const ordered=ACTIVE.has(state.status)?model.records:[...model.records].sort((first,second)=>first.index-second.index)
+    setOpening({live:ACTIVE.has(state.status),first:ordered.find(record=>record.toCheck>0)?.key})
+  }
   // A resumed or retried run reads again: its records open as they are read, and stay open once it settles.
   else if(opening&&!opening.live&&state&&ACTIVE.has(state.status))setOpening({...opening,live:true})
   const reviewedRecord=review?.value.recordId
@@ -462,8 +504,19 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const previewing=!pinned&&Boolean(state&&ACTIVE.has(state.status))
   const previews=useMemo(()=>previewing&&document?provisionalMarks(document,displayed):[],[previewing,document,displayed])
   const [documentOrder,setDocumentOrder]=useState(false)
-  const queue=useMemo(()=>model?oneByOneQueue(model,!documentOrder):[],[model,documentOrder])
-  const order=(documentOrder||hasPriority(queue))?{priority:!documentOrder,onToggle:()=>setDocumentOrder(previous=>!previous)}:undefined
+  // While an Extraction reads, records follow reading order (nearest startPage first); once settled — and on saved
+  // cuts — they follow document order, matching one by one, independent of whether any priority values remain.
+  const [readingOrder,setReadingOrder]=useState(false)
+  const wantReading=livePage&&(Boolean(state&&ACTIVE.has(state.status))||(readingOrder&&Boolean(review)&&!focus))
+  if(readingOrder!==wantReading)setReadingOrder(wantReading)
+  // The open value's review lives in one element, placed in whichever row shows it. That row changes section when the
+  // order is switched or a later snapshot changes why it is checked first; mounted in the row itself, the review would
+  // be built again there and lose an unsaved edit, a reading being chosen and the answer to a save in flight.
+  const [reviewHost]=useState(()=>Object.assign(window.document.createElement('div'),{className:'contents'}))
+  const queue=useMemo(()=>model?oneByOneQueue(model,!documentOrder,learning.sampled):[],[model,documentOrder,learning.sampled])
+  const stillToCheck=(item:QueueItem)=>item.row.kind==='to-check'&&!confirmed.has(item.ownerKey)
+  const first=queue.filter(item=>checkFirst(item.row)),firstLeft=first.filter(stillToCheck).length
+  const order=(documentOrder||hasPriority(queue))?{priority:!documentOrder,onToggle:()=>setDocumentOrder(previous=>!previous),left:firstLeft,done:first.length-firstLeft}:undefined
   // The open composite value's parts as shown, an edited one's linked only where unchanged (`valueParts`). The chosen
   // part (its mark key) is what the value shows on the source: its link (none when it has none), else the whole value's
   // (`valueEvidenceLink`: its first link, or an edit's own Evidence only).
@@ -673,7 +726,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   }
   const selectPage=async(query:{snapshotVersion:number;feedbackVersion?:number})=> {
     // Keep the shown page's policy while the destination loads, also if that read fails.
-    if(!pinnedRef.current)setLoadedCut({page,historical:false,generation:0})
+    if(!pinnedRef.current)setLoadedCut({page,historical:false,generation:0,kept:true})
     pin(true)
     ++selectedGeneration.current
     const generation=++readGenerations.current.snapshot
@@ -689,17 +742,28 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   }
   // A saved decision moves one-by-one to the next value at once; the saved results and counts follow.
   const saved=(acknowledgement?:ReviewAcknowledgement)=> {
-    if(acknowledgement)setAcknowledgements(previous=>new Map(previous).set(acknowledgement.valueId,acknowledgement))
+    const beforeSettled=savingReview?.key===reviewKey?savingReview.settled:undefined
+    setSavingReview(null)
+    const decisions=new Map(confirmed)
+    if(acknowledgement&&review){
+      const kind=({APPROVED:'approved',EDITED:'edited',REJECTED:'rejected',PENDING:'to-check'} as const)[acknowledgement.action]
+      const receipt={...acknowledgement,decision:{version:review.version,kind}}
+      setAcknowledgements(previous=>new Map(previous).set(receipt.valueId,receipt))
+      if(review.version===page.snapshotVersion&&!holds(page,receipt))decisions.set(receipt.valueId,kind)
+    }
     const awaiting=new Set([...blocked,...(acknowledgement?[acknowledgement.valueId]:[])])
     const sameCut=!review||review.cutGeneration===(pinned?loadedCut?.generation??0:0)
-    const next=focus&&sameCut?nextToCheck(queue,activeQueueKey,awaiting):null
+    // The next value is the saved decision's own sequence's: what the review learns from it, before its read arrives.
+    const next=focus&&sameCut?(acknowledgement&&extracted
+      ? learning.nextAfter(extracted,!documentOrder,activeQueueKey,awaiting,undefined,beforeSettled,decisions)
+      : nextToCheck(queue,activeQueueKey,awaiting)):null
     setReview(null);setEditing(null)
     if(!sameCut)setFocus(false)
     if(pinnedRef.current&&sameCut)void selectPage({snapshotVersion:page.snapshotVersion})
     void reader.refresh()
     if(next)selectValue(next)
   }
-  const closeReview=()=>{++selectedGeneration.current;pendingReveal.current=null;setPassageKeys([]);setReview(null);setFocus(false)}
+  const closeReview=()=>{++selectedGeneration.current;pendingReveal.current=null;setPassageKeys([]);setSavingReview(null);setReview(null);setFocus(false)}
   const showLatest=()=>{
     pin(false)
     ++readGenerations.current.snapshot
@@ -773,6 +837,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const cellReviewGeneration=selectedGeneration.current
   // A cell save answers after the view may have moved on: this is the handler of the render it was started from.
   const onCellsChanged=(value:Value,feedbackVersion:number,approvedKey?:string)=> {
+    const beforeSettled=savingReview?.key===reviewKey?savingReview.settled:undefined
+    setSavingReview(null)
     if(!review)return
     const {version,cutGeneration}=review
     // The save stands whatever is shown by now, so its re-read value is kept until the reads show it.
@@ -790,33 +856,41 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     setReview(previous=>previous?.value.id===value.id&&previous.version===version&&previous.cutGeneration===cutGeneration?{...previous,value,feedbackVersion}:previous)
     if(selectedGeneration.current!==cellReviewGeneration||!focus||!approvedKey)return
     const approved=new Set(value.approvedCells?.map(path=>partKey(value.id,path)))
-    const next=forwardItems(queue,approvedKey,blocked).find(item=>!approved.has(item.key))?.key
+    // As a saved decision does: the sequence this approval makes, by what the review learns from it.
+    const next=learning.nextAfter(
+      durableRailModel({...page,values:page.values.map(each=>each.id===value.id?value:each)},document,pinned?null:progress,fieldOrder),
+      !documentOrder,approvedKey,blocked,item=>approved.has(item.key),beforeSettled)
     if(!next)setReview(null)
     else if(markValueId(next)!==value.id)selectValue(next)
     else setPart(next)
   }
-  const valueReview=review&&<ValueReview part={chosenPart} pick={pick} onCellsChanged={onCellsChanged} key={`${id}:${review.value.id}:${review.version}:${review.feedbackVersion}`} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
+  const valueReview=review&&<ValueReview part={chosenPart} pick={pick} onCellsChanged={onCellsChanged} onSaveStart={onSaveStart} onSaveEnd={onSaveEnd} key={reviewKey!} id={id} projectId={state.projectId} sourceDocumentId={attempt.sourceDocumentId} article={article} value={review.value} snapshotVersion={review.version} document={document}
     recordLabel={recordOf(review.value.id)} newer={Boolean(shownVersion)&&!sameValue(review.value,shownVersion!)} onSaved={saved} onClose={closeReview} focus={focus} onNext={openNext} onPrevious={()=>selectValue(previousInQueue(queue,activeQueueKey??review.value.id))} onGo={selectValue} queue={queue} blocked={blocked} keyboardRoot={keyboardRoot} headerSlot={headerSlot}
-    order={order}
+    order={order} notice={focus?learning.noticeOn(activeQueueKey):null} onKeep={learning.keep}
     menuOpen={menuOpen} detailsOpen={detailsOpen} exportOpen={exportOpen} onCloseOverlay={overlay=>overlay==='dialog'?setExportOpen(false):overlay==='menu'?setMenuOpen(false):setDetailsOpen(false)} readOnly={readOnly||historical}/>
   const linkedKeys=new Set(passageKeys.flatMap(key=>[key,markValueId(key)]))
   const anchoredKey=listAnchor&&review?.value.id===markValueId(listAnchor)?listAnchor:null
+  // The values that lead the list while one is still to check first: those and the few of the rest that come early
+  // among them, as one by one meets them, each while still to check.
   const prioritized=documentOrder?[]:queue.filter(item=>{
     const selected=item.key===anchoredKey
-    return (item.row.kind==='to-check'||selected)&&checkReason(item.row)!==null&&
+    return (firstLeft>0&&(checkFirst(item.row)||item.early)?stillToCheck(item)||selected:selected&&checkFirst(item.row))&&
       (passesFilter(item.row,filter)||selected||linkedKeys.has(item.key))
   })
   const inlineKey=anchoredKey&&prioritized.some(item=>item.key===anchoredKey)?anchoredKey:review?.value.id??null
   const isOpen=(record:RailRecord)=>toggledRecords.get(record.key!)??(Boolean(opening?.live)||record.key===opening?.first||record.key===reviewedRecord)
   const valuesById=new Map(page.values.map(value=>[value.id,value]))
+  // What the open review has focused, read before the commit: taking its row out of the page drops the focus, so the
+  // field being typed in is given it back where the review is placed next.
+  const typing=reviewHost.contains(window.document.activeElement)?window.document.activeElement as HTMLElement:null
   const renderValue=(row:RailRow,pinnedRow:boolean)=>{
     const owner=valuesById.get(markValueId(row.key))
-    const reason=row.parts?.length?null:checkReason(row)
+    const reason=row.parts?.length?null:rowReason(row)
     const change=proposedChanges?.get(row.key)??null
     return <div style={evidenceColorVars(fieldColor(fieldOrder,owner?.node.name??row.name))}>
       {inline&&row.key===inlineKey?<>
         {change&&<div className="px-2 pt-1.5"><ProposedValueChange node={owner?.node??null} change={change}/></div>}
-        {valueReview}
+        <div className="contents" ref={slot=>{if(slot&&reviewHost.parentNode!==slot){slot.append(reviewHost);typing?.focus({preventScroll:true})}}}/>
       </>:<ReviewRow row={{...row,reason}} selected={false} pinned={pinnedRow} onSelect={()=>choose(row.key)} proposed={change}
         canDecide={false} saved={readOnly} editing={false} node={owner?.node??null} onDecide={()=>{}} onEdit={()=>{}} onCancelEdit={()=>{}} onUndo={()=>{}}/>}
     </div>
@@ -904,8 +978,10 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {focus&&!review&&<p role="status" className="py-4 text-center text-secondary">All saved values are checked. New ones show up here as they arrive.</p>}
       {!focus&&(article&&page.total===0&&active?<p className="m-0 px-1 py-6 text-center text-secondary text-ink-muted">Reading the document…</p>
         :<ReviewList model={model} article={article} finding={!article&&page.total===0&&active&&!state.records} filter={filter}
-          selectedKey={inlineKey} linkedKeys={linkedKeys} selection={selection} isOpen={isOpen} prioritized={prioritized} order={order}
-          onToggle={record=>setToggledRecords(previous=>new Map(previous).set(record.key!,!isOpen(record)))} renderRow={renderValue}/>)}
+          selectedKey={inlineKey} linkedKeys={linkedKeys} selection={selection} isOpen={isOpen} prioritized={prioritized} order={order} documentRecords={!wantReading} moves={learning.moves} onKeep={learning.keep}
+          onToggle={record=>setToggledRecords(previous=>new Map(previous).set(record.key!,!isOpen(record)))} renderRow={renderValue}>
+          {inline&&valueReview&&createPortal(valueReview,reviewHost)}
+        </ReviewList>)}
     </div>
   </div>
 }

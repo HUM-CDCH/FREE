@@ -19,7 +19,7 @@ const schemaNodes = [
   { id: 'findings', name: 'findings', type: 'array', children: [
     { id: 'kind', name: 'kind', type: 'string', allowedValues: SIX('pottery bone metal glass stone wood') },
     { id: 'deposit', name: 'deposit', type: 'object', children: [
-      { id: 'layer', name: 'layer', type: 'string', allowedValues: SIX('topsoil fill floor cut natural unknown') },
+      { id: 'layer', name: 'layer', type: 'string', description: 'The layer named in the report.', allowedValues: SIX('topsoil fill floor cut natural unknown') },
     ] },
   ] },
 ] as const
@@ -337,10 +337,9 @@ test('a field note fits beside its type or wraps under its name, and expands in 
   test.skip(withoutDatabase, 'Requires the disposable PostgreSQL stack.')
   await openSchema(page)
   const title = page.getByRole('listitem', { name: 'title', exact: true })
-  const name = title.getByText('title', { exact: true })
-  const header = title.locator('> div').first()
   const type = title.getByTitle(/^Type:/)
   const note = title.getByRole('button', { name: 'The report title as printed on its cover page.' })
+  const starts = new Map<number, {x: number; y: number}>()
 
   for (const width of [344, 264, 560]) {
     await resizeRail(page, width)
@@ -350,31 +349,30 @@ test('a field note fits beside its type or wraps under its name, and expands in 
     const lineHeight = await note.evaluate((element) => parseFloat(getComputedStyle(element).lineHeight))
     expect(preview.height, `${width}px: a single preview line`).toBeCloseTo(lineHeight)
     expectInside(preview, (await title.boundingBox())!, `${width}px: closed note inside the row`)
-    if (width === 344) {
-      // With the actions overlaid, the preview takes one extra line below the pill.
-      expect(preview.y - (pill.y + pill.height), '344px: row gap above the wrapped note').toBeCloseTo(2)
-      expect(preview.x, '344px: wrapped note aligned with its name').toBeCloseTo((await name.boundingBox())!.x)
-      expect((await header.boundingBox())!.height, '344px: compact header plus one note line').toBeCloseTo(30 + 2 + lineHeight)
-    } else {
-      // At 264px the actions move to a separate line. At 560px there is room beside them.
-      expect(preview.x, `${width}px: note follows the type pill`).toBeGreaterThanOrEqual(pill.x + pill.width)
-      expect(preview.y + preview.height / 2, `${width}px: note and type share a line`).toBeCloseTo(pill.y + pill.height / 2)
-      if (width === 560) expect((await header.boundingBox())!.height, '560px: compact row at rest').toBe(30)
+    expect(preview.x, `${width}px: note follows the type pill`).toBeGreaterThanOrEqual(pill.x + pill.width)
+    expect(preview.y + preview.height / 2, `${width}px: note shares the pill's line`).toBeGreaterThan(pill.y)
+    expect(preview.y + preview.height / 2, `${width}px: note shares the pill's line`).toBeLessThan(pill.y + pill.height)
+    starts.set(width, {x: preview.x - pill.x, y: preview.y - pill.y})
+    if (width === 264) {
+      const layer = page.getByRole('listitem', { name: 'layer', exact: true })
+      const wrapped = (await layer.getByRole('button', { name: 'The layer named in the report.' }).boundingBox())!
+      const values = (await layer.getByTitle(/^Allowed values/).boundingBox())!
+      expect(wrapped.y, '264px: nested note wraps below the pills').toBeGreaterThanOrEqual(values.y + values.height)
+      expect(wrapped.x, '264px: wrapped note starts under the field name').toBeCloseTo((await layer.getByText('layer', {exact:true}).boundingBox())!.x)
     }
   }
 
   await note.click()
-  for (const width of [344, 264]) {
+  await expect(note).toHaveAttribute('aria-expanded', 'true')
+  for (const [width, start] of starts) {
     await resizeRail(page, width)
     expect(await note.evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight),
       `${width}px: full note displayed without clipping`).toBe(true)
     const box = (await note.boundingBox())!
-    const line = (await header.boundingBox())!
-    expect(box.y, `${width}px: full note below the header`).toBeGreaterThanOrEqual(line.y + line.height)
-    const textStart = await note.evaluate((el) => el.getBoundingClientRect().left + parseFloat(getComputedStyle(el).paddingLeft))
-    expect(textStart, `${width}px: expanded note aligned with its name`).toBeCloseTo((await name.boundingBox())!.x)
+    const pill = (await type.boundingBox())!
+    expect(box.x - pill.x, `${width}px: expanded note keeps its horizontal position`).toBeCloseTo(start.x)
+    expect(box.y - pill.y, `${width}px: expanded note keeps its first line`).toBeCloseTo(start.y)
     expectInside(box, (await title.boundingBox())!, `${width}px: expanded note inside the row`)
-    if (width === 344) expect(line.height, '344px: compact header above the full note').toBe(30)
   }
 })
 
@@ -485,6 +483,7 @@ test.describe('on a touch screen', () => {
       await expect(row, `${width}px: the tap focused the row`).toBeFocused()
       await expect(page.getByText('Field removed'), `${width}px: nothing deleted`).toHaveCount(0)
       await expect.poll(() => opacity(remove.locator('..')), `${width}px: the actions shown after the tap`).toBe('1')
+      await remove.tap({ trial: true })
     }
   })
 })

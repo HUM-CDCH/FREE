@@ -239,16 +239,17 @@ test('saved live review survives reload, rejects another owner and exports its f
     expect((await ownState.json()).extractionId).toBe(id)
     expect((await pool.query('SELECT count(*)::int AS n FROM extraction_runtime.correction WHERE "extractionId"=$1',[id])).rows[0].n).toBe(1)
     // The review is saved by the researcher once nothing is left to check.
-    await expect(page.getByRole('button',{name:'Save review',exact:true})).toHaveCount(0)
+    await expect(page.getByRole('button',{name:'Mark as reviewed',exact:true})).toHaveCount(0)
     await page.getByRole('button',{name:/To check year 2026/}).click()
     await page.getByRole('button',{name:'Approve',exact:true}).click()
+    await page.getByRole('dialog',{name:'All values checked'}).getByRole('button',{name:'Not yet',exact:true}).click()
     await expect(page.getByRole('button',{name:/Approved year 2026/})).toBeVisible()
-    await page.getByRole('button',{name:'Save review',exact:true}).click()
-    await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'Mark as reviewed',exact:true}).click()
+    await expect(page.getByText('Marked as reviewed.',{exact:true})).toBeVisible()
     await page.reload()
     await openRailView(page,'Results')
     await expect(page.getByRole('img',{name:/^1 approved, 1 edited, 0 rejected/})).toBeVisible()
-    await expect(page.getByText(/checked · review saved/)).toBeVisible()
+    await expect(page.getByText(/checked · reviewed/)).toBeVisible()
     // The paused Extraction's controls are the chat's step (ADR 0026).
     const extractionStep=page.getByRole('region',{name:'Extraction',exact:true})
     await expect(extractionStep.getByRole('button',{name:'▶ Resume extraction',exact:true})).toBeVisible()
@@ -270,6 +271,75 @@ test('saved live review survives reload, rejects another owner and exports its f
     await page.getByRole('button',{name:'Excel workbook',exact:true}).click()
     expect((await workbook).suggestedFilename()).toContain('-extraction-result-s1.xlsx')
   } finally {await fixture.close()}
+})
+
+test('one-by-one review preserves drafts, source status and priority order across late reads and reload', async ({ page }) => {
+  const fixture = await prepareInteractiveDocument(page, { hasKey: false })
+  try {
+    const source = decodeParsedDocument(await (await page.request.get('/api/project-contexts/' + fixture.projectContextId
+      + '/source-representations/' + fixture.sourceRepresentationRevisionId + '/source')).json())
+    const anchor = source.evidence_index.anchors[0]!, occurrence = anchor.producer_observations[0]!
+    const { x0, y0, x1, y1 } = occurrence.bbox
+    const fields = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'missing', 'reading']
+    const nodes = fields.map(name => ({ id: name, name, type: 'string' as const }))
+    const modelEvidence: Record<string, DurableValue['evidence']> = {}
+    for (const name of fields.slice(0, 8)) {
+      modelEvidence[name] = [{ anchorId: anchor.anchor_id, occurrenceIds: [occurrence.occurrence_id],
+        producer: { path: ['records', 0, name], segment: 'p1_s0', page: 1, bbox_pt: [x0, y0, x1, y1],
+          verbatim: name >= 'e', linked_by: 'lexical', precision: 'segment' } }]
+    }
+    const alternatives = ['First reading', 'Second reading'].map(value => ({ value, segments: ['p3_s0'] }))
+    const { id } = await savedExtraction(fixture, nodes, fields.map(name => name === 'reading' ? null : 'Value ' + name),
+      'COMPLETED', { modelEvidence, disagreement: { reading: [{ path: [], alternatives }] } })
+    const root = '/api/extractions/' + id + '/durable'
+    const oneByOne = page.getByRole('button', { name: 'Review one by one', exact: true })
+    const approve = page.getByRole('button', { name: /^Approve and next/ })
+    const heading = (name: string) => page.getByRole('heading', { name, exact: true })
+    await page.goto(fixture.url + '?extractionId=' + id)
+    await openRailView(page, 'Results')
+    await page.getByRole('button', { name: 'Show in their place' }).click()
+    await page.getByRole('button', { name: /^To check a Value a/ }).click()
+    await oneByOne.click()
+    await page.getByRole('button', { name: /^Edit\b/ }).click()
+    const draft = page.getByRole('textbox', { name: 'Reviewed value' })
+    await draft.fill('Unsaved reading')
+    await expect(page.getByRole('button', { name: /Value b · b/i })).toBeDisabled()
+    await expect(draft).toHaveValue('Unsaved reading')
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: /^Start with the/ }).click()
+    await expect(heading('Value missing')).toBeVisible()
+    await approve.click()
+    await expect(heading('Value a')).toBeVisible()
+    await expect(page.getByRole('img', { name: /^1 approved,/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Previous', exact: true }).click()
+    await expect(heading('Value missing')).toBeVisible()
+    await expect(page.getByText('Source not found', { exact: true })).toBeVisible()
+
+    await page.reload()
+    await openRailView(page, 'Results')
+    await oneByOne.click()
+    const valuesRead = '**' + root + '/values?*'
+    // Every write reaches Studio. Keep the values read at its previous version for the next three saves.
+    const priorPage = await (await page.request.get(root + '/values?snapshotVersion=1')).json()
+    await page.route(valuesRead, route => route.fulfill({ json: priorPage }))
+    for (const name of ['a', 'b', 'c']) {
+      await expect(heading('Value ' + name)).toBeVisible()
+      await approve.click()
+    }
+    await expect(heading('First reading or Second reading')).toBeVisible()
+    await page.unroute(valuesRead)
+    for (const [field, action] of [['d', 'APPROVED'], ['reading', 'REJECTED']]) {
+      const response = await page.request.post(root + '/values/' + field, {
+        headers: { Origin: E2E_ORIGIN }, data: { snapshotVersion: 1, expectedRevision: 0, action },
+      })
+      expect(response.ok(), await response.text()).toBe(true)
+    }
+    await page.reload()
+    await openRailView(page, 'Results')
+    await expect(page.getByRole('region', { name: 'Check first' })).toHaveCount(0)
+    await oneByOne.click()
+    await expect(heading('Value e')).toBeVisible()
+  } finally { await fixture.close() }
 })
 
 test('one ranked table cell approval survives reload and an independent owner session', async ({ page, browser }) => {
@@ -320,13 +390,13 @@ test('one ranked table cell approval survives reload and an independent owner se
       await expect(view.getByRole('button', { name: /accepted, not read|accept.*not read/i })).toHaveCount(0)
       await expect(view.getByRole('group', { name: 'Decision for measurements', exact: true })
         .getByRole('button', { name: /^(approve|accept)/i })).toHaveCount(0)
-      await expect(view.getByRole('button', { name: 'Save review', exact: true })).toHaveCount(0)
+      await expect(view.getByRole('button', { name: 'Mark as reviewed', exact: true })).toHaveCount(0)
     }
     const openTable = async (view: Page) => {
       await openRailView(view, 'Results')
       await expect(checkFirst(view).getByRole('button', { name: /measurements › #1 › baseline.*22/i })).toBeVisible()
       await expect(rankedCell(view)).toHaveCount(0)
-      await view.getByRole('button', { name: 'Use document order', exact: true }).click()
+      await view.getByRole('button', { name: 'Show in their place', exact: true }).click()
       await view.getByRole('button', { name: /^To check measurements/ }).click()
     }
 
@@ -406,8 +476,8 @@ test('leaving a saved table review closes its historical detail', async ({ page 
     }
     await page.goto(link)
     await openRailView(page, 'Results')
-    await page.getByRole('button', { name: 'Save review', exact: true }).click()
-    await expect(page.getByText('Review saved.', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Mark as reviewed', exact: true }).click()
+    await expect(page.getByText('Marked as reviewed.', { exact: true })).toBeVisible()
 
     await page.goto(link)
     await openTable()
@@ -964,6 +1034,7 @@ test('shared correction Evidence reveals linked Results fields from Markdown UTF
       await page.getByRole('button',{name:'Save edit',exact:true}).click()
       await expect.poll(async()=>(await (await page.request.get(`/api/extractions/${id}/durable/values/${name}`)).json()).values[0].correction?.decision.value).toBe(`Corrected ${name}`)
     }
+    await page.getByRole('dialog',{name:'All values checked'}).getByRole('button',{name:'Not yet',exact:true}).click()
     await page.getByRole('group',{name:'Document view'}).getByRole('button',{name:'Markdown',exact:true}).click()
     const view=page.getByLabel('Parsed Markdown'),mark=view.getByRole('button')
     await expect(mark).toHaveCount(1)
@@ -1073,7 +1144,10 @@ test('concurrent whole-value drafts show a conflict and Undo restores the previo
     const undone=history.corrections.at(-1)
     expect(undone).toMatchObject({extractionId:id,valueId:'work',snapshotVersion:1,feedbackVersion:3})
     await page.goto(savedCorrectionHref(fixture.projectContextId,fixture.sourceDocumentId,undone));await openRailView(page,'Results')
-    await expect(page.getByRole('region',{name:'Review work'})).toContainText('a: 10 · b: 2')
+    const restored=page.getByRole('region',{name:'Review work',exact:true})
+    await expect(restored.getByRole('term').filter({visible:true})).toHaveText(['a','b'])
+    await expect(restored.getByRole('button',{name:'work › a: 10',exact:true})).toHaveText('10')
+    await expect(restored.getByRole('button',{name:'work › b: 2',exact:true})).toHaveText('2')
     await expect(page.getByText(/Your open review stays/)).toHaveCount(0)
     await expect(page).toHaveURL(/snapshotVersion=1&feedbackVersion=3/)
   } finally {await second?.close();await fixture.close()}
@@ -1130,7 +1204,7 @@ for(const source of ['same source','new source revision'] as const) {
         await expect(page).toHaveURL(new RegExp(`extractionId=${reviewed.id}&snapshotVersion=1&feedbackVersion=1`))
         await openRailView(page,'Results')
       }
-      await expect(page.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+      await expect(page.getByText(/Showing saved results 1 · reviewed/)).toBeVisible()
       await expect(page.getByRole('button',{name:'Show the latest results',exact:true})).toBeVisible()
       await page.getByRole('button',{name:'All',exact:true}).click()
       await expect(page.getByText('Finalized title',{exact:true})).toBeVisible()
@@ -1139,7 +1213,7 @@ for(const source of ['same source','new source revision'] as const) {
       expect((await (await page.request.get(`/api/extractions/${current.id}/durable/values`)).json()).values[0].modelValue).toBe('Current attempt title')
       await expect(page.getByText(/· not the latest$/).filter({visible:true})).toBeVisible()
       await page.reload();await openRailView(page,'Results')
-      await expect(page.getByText(/Showing saved results 1 · a saved review/)).toBeVisible()
+      await expect(page.getByText(/Showing saved results 1 · reviewed/)).toBeVisible()
       await page.getByRole('button',{name:'Open latest',exact:true}).click()
       await expect(page).toHaveURL(new RegExp(`extractionId=${current.id}`))
       await openRailView(page,'Results')
@@ -1216,8 +1290,8 @@ test('feedback-only lag names the older pair before browser finalization',async(
     // back to it; saving the review names the cut shown.
     await page.evaluate(()=>window.dispatchEvent(new Event('focus')))
     await expect(page.getByText(/Showing saved results 1/)).toBeVisible()
-    await page.getByRole('button',{name:'Save review',exact:true}).click()
-    await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
+    await page.getByRole('button',{name:'Mark as reviewed',exact:true}).click()
+    await expect(page.getByText('Marked as reviewed.',{exact:true})).toBeVisible()
     const older=(await (await page.request.get(`${root}/values?snapshotVersion=1&feedbackVersion=1`)).json())
     expect(older.finalization).toMatchObject({snapshotVersion:1,feedbackVersion:1})
     const live=(await (await page.request.get(`${root}/values`)).json())
@@ -1247,8 +1321,10 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     await page.getByRole('button',{name:'Review one by one'}).click()
     await page.getByRole('heading',{name:'Article title or Cited title'}).press('a')
     expect((await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(1)
+    const allChecked=page.getByRole('dialog',{name:'All values checked'})
     await page.getByRole('button',{name:'Use Article title'}).click()
     await expect.poll(async()=> (await (await page.request.get(`${root}/values`)).json()).reviewCounts.toCheck).toBe(0)
+    await allChecked.getByRole('button',{name:'Not yet',exact:true}).click()
     await page.reload();await openRailView(page,'Results');await page.getByRole('button',{name:'All',exact:true}).click()
     await page.getByRole('button',{name:/Approved title Article title/}).click()
     // A decided value changes through Undo, which returns it to To check with every decision offered again.
@@ -1259,6 +1335,7 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     await page.getByRole('button',{name:/To check title Article title or Cited title/}).click()
     await page.getByRole('button',{name:'Use Cited title'}).click()
     await expect.poll(async()=>(await decision())?.value).toBe('Cited title')
+    await allChecked.getByRole('button',{name:'Not yet',exact:true}).click()
     await page.getByRole('button',{name:/Approved title Cited title/}).click()
     await page.getByRole('button',{name:'Undo',exact:true}).click()
     await expect.poll(async()=>(await decision())?.action).toBe('PENDING')
@@ -1266,8 +1343,8 @@ test('Value Disagreements require explicit choices, survive reload, and export t
     await expect(page.getByRole('button',{name:'Edit',exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Reject',exact:true}).click()
     await expect.poll(async()=>(await decision())?.action).toBe('REJECTED')
-    await page.getByRole('button',{name:'Save review',exact:true}).click()
-    await expect(page.getByText('Review saved.',{exact:true})).toBeVisible()
+    await allChecked.getByRole('button',{name:'Yes',exact:true}).click()
+    await expect(page.getByText('Marked as reviewed.',{exact:true})).toBeVisible()
   } finally {await fixture.close()}
 })
 

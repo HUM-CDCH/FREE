@@ -92,7 +92,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
   return (
     <div className={`rounded-md ${selected ? 'bg-accent-ghost shadow-[inset_2px_0_0_var(--color-accent)]' : ''}`}>
       <button ref={rowRef} type="button" disabled={locked} aria-expanded={selected} aria-controls={expansionId} onClick={onSelect}
-        aria-label={`${stateLabel(row)} ${fieldWords(row.name)} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${!selected && row.kind === 'to-check' && row.reason ? `, ${row.reason}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}${proposed ? ', change proposed in the chat' : ''}`}
+        aria-label={`${stateLabel(row)} ${fieldWords(row.name)} ${rowText(row)}${row.chip ? ` ${row.chip.text}` : ''}${!selected && row.kind === 'to-check' && row.reason ? `, ${row.reason}` : ''}${row.place ? `, ${row.place}` : ''}${pinned ? ', outside the current filter' : ''}${row.changed ? ', changed after you reviewed it' : ''}${proposed ? ', change proposed in the chat' : ''}`}
         className={`${grid} min-h-7.5 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-accent animate-fadeup`}>
         <span className="flex h-4.5 items-center"><RowGlyph row={row} /><span className="sr-only">{stateLabel(row)}</span></span>
         <span className="min-w-0">
@@ -100,6 +100,7 @@ export default function ReviewRow({ row, selected, pinned, rowRef, onSelect, can
               name and value whole, so nothing is left to a tooltip. */}
           <span className="flex items-baseline gap-1.5 text-compact text-ink-faint">
             {row.link && <span aria-hidden="true" className="size-2 shrink-0 rounded-sm bg-ev" />}
+            {row.place && <span className="shrink-0">{row.place} ·</span>}
             <span className={`min-w-0 first-letter:uppercase ${selected ? '[overflow-wrap:anywhere]' : 'truncate'}`}>{fieldWords(row.name)}</span>
             {itemCount(row.value) && <span className="shrink-0">· {itemCount(row.value)}</span>}
           </span>
