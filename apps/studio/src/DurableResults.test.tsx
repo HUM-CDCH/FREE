@@ -922,7 +922,7 @@ it.each(['ARTICLE', 'CATALOG'] as const)('reviews ungrounded true and false valu
   // The last value checked here: a dialog asks to save the review, which is saved only when chosen.
   const ask = await screen.findByRole('dialog', {name: 'All values checked'})
   expect(durableRequest).not.toHaveBeenCalledWith(expect.stringMatching(/finalize$/), expect.anything())
-  // Not yet leaves it to the header's Save review.
+  // After Not yet, the researcher can still use Mark as reviewed in the header.
   fireEvent.click(within(ask).getByRole('button', {name: 'Not yet'}))
   expect(screen.queryByRole('dialog', {name: 'All values checked'})).toBeNull()
   vi.mocked(readValues).mockResolvedValue({...page, finalization: {id: 'saved', snapshotVersion: 1, feedbackVersion: 2}} as never)
@@ -1205,7 +1205,7 @@ it('keeps a cut the researcher opens while the review is being saved',async()=> 
   expect(onReviewFinalized).toHaveBeenCalledOnce()
   expect(screen.getByText(/Showing saved results 1/)).toBeVisible()
   expect(readValues).toHaveBeenCalledOnce()
-  // The finalized latest is read again, so "Save review" doesn't come back with it.
+  // Reading the finalized version again keeps Mark as reviewed hidden.
   await waitFor(()=>expect(vi.mocked(readDurable).mock.calls.length).toBeGreaterThan(reads))
 })
 
