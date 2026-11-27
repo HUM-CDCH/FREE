@@ -274,7 +274,6 @@ test('saved live review survives reload, rejects another owner and exports its f
 
 test('one-by-one review preserves drafts, source status and priority order across late reads and reload', async ({ page }) => {
   const fixture = await prepareInteractiveDocument(page, { hasKey: false })
-  const held = Promise.withResolvers<void>()
   try {
     const source = decodeParsedDocument(await (await page.request.get('/api/project-contexts/' + fixture.projectContextId
       + '/source-representations/' + fixture.sourceRepresentationRevisionId + '/source')).json())
@@ -319,13 +318,14 @@ test('one-by-one review preserves drafts, source status and priority order acros
     await openRailView(page, 'Results')
     await oneByOne.click()
     const valuesRead = '**' + root + '/values?*'
-    await page.route(valuesRead, async route => { await held.promise; await route.continue() })
+    // Every write reaches Studio. Keep the values read at its previous version for the next three saves.
+    const priorPage = await (await page.request.get(root + '/values?snapshotVersion=1')).json()
+    await page.route(valuesRead, route => route.fulfill({ json: priorPage }))
     for (const name of ['a', 'b', 'c']) {
       await expect(heading('Value ' + name)).toBeVisible()
       await approve.click()
     }
     await expect(heading('First reading or Second reading')).toBeVisible()
-    held.resolve()
     await page.unroute(valuesRead)
     for (const [field, action] of [['d', 'APPROVED'], ['reading', 'REJECTED']]) {
       const response = await page.request.post(root + '/values/' + field, {
@@ -338,7 +338,7 @@ test('one-by-one review preserves drafts, source status and priority order acros
     await expect(page.getByRole('region', { name: 'Check first' })).toHaveCount(0)
     await oneByOne.click()
     await expect(heading('Value e')).toBeVisible()
-  } finally { held.resolve(); await fixture.close() }
+  } finally { await fixture.close() }
 })
 
 test('one ranked table cell approval survives reload and an independent owner session', async ({ page, browser }) => {
