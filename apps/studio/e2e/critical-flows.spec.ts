@@ -155,6 +155,10 @@ test('template instruction editor retains clipboard ownership in a reopened Sour
   await page.keyboard.type('Extract the grave name')
   await page.keyboard.press('Enter')
   await expect(page.getByRole('note', { name: 'Instruction 1', exact: true })).toContainText('Extract the grave name')
+  await activateWithKeyboard(
+    page,
+    page.getByRole('region', { name: 'Choose Record Scope' }).getByRole('button', { name: /^Article: one record per document/ }),
+  )
   const generated = page.waitForRequest('**/api/generate_schema')
   await activateWithKeyboard(
     page,

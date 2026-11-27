@@ -118,10 +118,17 @@ export async function completeMockOidcLogin(
       name: selected.displayName,
     }),
   )
-  await Promise.all([
-    page.waitForURL(new RegExp(`${e2eStudioPath('/projects')}(?:[?#]|$)`)),
+  const [callback] = await Promise.all([
+    page.waitForResponse((response) => {
+      const url = new URL(response.url())
+      return response.request().isNavigationRequest() &&
+        response.request().method() === 'GET' && url.origin === E2E_ORIGIN &&
+        url.pathname === e2eStudioPath('/auth/callback')
+    }),
     page.locator('input[type="submit"]').click(),
   ])
+  expect(callback.status(), 'Studio sign-in callback must redirect').toBe(302)
+  await page.waitForURL((url) => url.origin === E2E_ORIGIN && url.pathname === e2eStudioPath('/projects'))
 }
 
 export async function loginResearcher(
