@@ -56,6 +56,12 @@ it('learns nothing from an approval saved before this review', () => {
   expect(settledRows(result)).toBe('')
 })
 
+it('samples only pending priority values when saved decisions arrive before the first active read', () => {
+  const confirmed = new Map<string, RowKind>(Object.entries(three))
+  const { result } = renderHook(() => useReviewLearning(model(), true, false, true, confirmed))
+  expect(result.current.sampled?.keys).toEqual([])
+})
+
 it('brings them first again when one of that kind, or one of the rest, is edited or rejected', () => {
   const { result, rerender } = hook()
   rerender({ kinds: three })

@@ -80,7 +80,7 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
     if (moved) setNotice({ reason: moved, kind: come.includes(moved) ? 'settled' : 'returned', on: null })
   }
   const marked = useMemo(() => model && active ? settle(model, settled) : model, [model, active, settled])
-  if (active && !holding && sampled === undefined && marked && inPlace.length > 0) setSampled(sampleRest(oneByOneQueue(marked, false)))
+  if (active && !holding && sampled === undefined && inPlace.length > 0) setSampled(sampleRest(inPlace))
   const early = active ? sampled : undefined
   const moves = useMemo(() => {
     if (!active) return NO_MOVES
