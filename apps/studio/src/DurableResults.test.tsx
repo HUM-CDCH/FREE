@@ -1885,7 +1885,7 @@ it('keeps the learned order of the live page until an opened cut replaces it',as
   expect(leading()).toEqual(['Title a','Title b','Title c','Title d'])
 })
 
-it('starts with the strongest reason when one by one returns to Check first, and waits for an open edit',async()=>{
+it.each(['a','c'])('starts with the strongest reason from %s and keeps open drafts on their card',async(start)=>{
   const page=reviewPage()
   // In the document, a value not printed as such comes before one with no source.
   const inexact={...page.values[0]!,links:[{resultPath:['records',0,'a'],evidenceAnchorId:'anchor',verbatim:false}]}
@@ -1894,16 +1894,43 @@ it('starts with the strongest reason when one by one returns to Check first, and
   render(<Results attempt={{extractionId:'extraction',strategy:'CATALOG'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}/>)
 
   fireEvent.click(await screen.findByRole('button',{name:'Show in their place'}))
-  fireEvent.click(screen.getByRole('button',{name:/^To check c Third title/}))
+  fireEvent.click(screen.getByRole('button',{name:new RegExp('^To check '+start+' ')}))
   fireEvent.click(screen.getByRole('button',{name:'Review one by one'}))
-  expect(screen.getByRole('heading',{name:'Third title'})).toBeVisible()
+  expect(screen.getByRole('heading',{name:start==='a'?'First title':'Third title'})).toBeVisible()
   fireEvent.click(screen.getByRole('button',{name:/^Edit/}))
   fireEvent.change(screen.getByRole('textbox',{name:'Reviewed value'}),{target:{value:'My unsaved correction'}})
   expect(screen.getByRole('button',{name:'Start with the 2 to check first'})).toBeDisabled()
+  const upcoming=within(screen.getByText('Up next').parentElement!).getByRole('button',{name:/Second title/})
+  expect(upcoming).toBeDisabled()
+  fireEvent.click(upcoming)
+  expect(screen.getByRole('textbox',{name:'Reviewed value'})).toHaveValue('My unsaved correction')
   fireEvent.click(screen.getByRole('button',{name:'Cancel'}))
   fireEvent.click(screen.getByRole('button',{name:'Start with the 2 to check first'}))
   expect(screen.getByRole('heading',{name:'Second title'})).toBeVisible()
   expect(durableRequest).not.toHaveBeenCalled()
+})
+
+it('keeps missing Evidence visible on a previously approved card',async()=>{
+  const page=reviewPage()
+  page.values[0]={...page.values[0]!,correction:linked('a',0,true,true).correction}
+  page.values[1]=linked('b',0,true)
+  page.values[2]=linked('c',0,true)
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  render(<Results attempt={article} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  fireEvent.click(screen.getByRole('button',{name:/Previous/}))
+  const card=within(screen.getByRole('region',{name:'Review a'}))
+  expect(card.getByRole('heading',{name:'First title'})).toBeVisible()
+  expect(card.getByText('Approved')).toBeVisible()
+  expect(card.getByText('Source not found')).toBeVisible()
+})
+
+it('opens the first ordinary value in document order when all flags were approved before reopening',async()=>{
+  const values=[...['a','b','c'].map((id,i)=>linked(id,i,false,true)),linked('d',3,true),linked('e',4,true)]
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page:{...reviewPage(),values,total:5,reviewCounts:{required:5,toCheck:2,approved:3,edited:0,rejected:0}}} as never)
+  render(<Results attempt={article} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  expect(screen.getByRole('heading',{name:'Title d'})).toBeVisible()
 })
 
 it('shows the one of the rest that follows the third value to check first where one by one meets it',async()=>{
@@ -1935,7 +1962,7 @@ it('never counts pre-existing approvals when a saved cut with open values is ope
   expect(durableRequest).not.toHaveBeenCalled()
 })
 
-it('advances into remaining or returned priority values when a saved decision changes priority categories',async()=>{
+it.each([false,true])('advances on all acknowledged decisions, including while reads lag: %s',async(lag)=>{
   const reading={...reviewValue('z',''),recordId:'record-6',path:['records',6,'z'],selectionId:disagreementSelection,modelValue:null,
     disagreement:[{path:[],alternatives:disagreementAlternatives}],correctionCompatibility:'compatible'} as unknown as DurablePage['values'][number]
   const pageWith=(decided:Record<string,'APPROVED'|'REJECTED'>)=>({
@@ -1954,7 +1981,11 @@ it('advances into remaining or returned priority values when a saved decision ch
     ],
   }) as DurablePage
   const decided:Record<string,'APPROVED'|'REJECTED'>={}
-  vi.mocked(readDurable).mockImplementation((async()=>({state:pausedState,page:pageWith({...decided})})) as never)
+  const heldRead=Promise.withResolvers<void>()
+  vi.mocked(readDurable).mockImplementation((async()=>{
+    if(lag&&Object.keys(decided).length)await heldRead.promise
+    return {state:pausedState,page:pageWith({...decided})}
+  }) as never)
   vi.mocked(durableRequest).mockImplementation((async(url:string,body?:{action:'APPROVED'|'REJECTED'})=>{
     const id=url.split('/').pop()!
     if(body)decided[id]=body.action
@@ -1968,6 +1999,7 @@ it('advances into remaining or returned priority values when a saved decision ch
     expect(await screen.findByRole('heading',{name:next})).toBeVisible()
     expect(decided[id]).toBe('APPROVED')
   }
+  if(lag)await act(async()=>heldRead.resolve())
   await waitFor(()=>expect(screen.getByText(/You approved/)).toBeVisible())
   const upNext=within(screen.getByText('Up next').parentElement!).getAllByRole('button').map(button=>button.textContent)
   expect(upNext.slice(0,3).map(text=>text?.match(/Title \w/)?.[0])).toEqual(['Title d','Title e','Title f'])

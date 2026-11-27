@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react'
 import { checkFirst, forwardItems, oneByOneQueue, reviewTallies, sampleRest, settle, settledReasons, type QueueItem } from './reviewQueue'
-import type { RailModel } from './reviewVocabulary'
+import type { RailModel, RowKind } from './reviewVocabulary'
 
 /** A reason whose values changed place because of what the researcher decided: they returned to their place after
  *  enough were approved as they were (`settled`), or come first again after an edit or a rejection (`returned`). */
 export type ReviewMove = { reason: string; kind: 'settled' | 'returned'; fine: number; left: number }
 
 const EMPTY: ReadonlySet<string> = new Set()
-const NONE: readonly string[] = []
+const NO_DECISIONS: ReadonlyMap<string, RowKind> = new Map()
+
 const NO_MOVES: readonly ReviewMove[] = []
 const same = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.size && [...a].every((each) => b.has(each))
 
@@ -19,13 +20,13 @@ const same = (a: ReadonlySet<string>, b: ReadonlySet<string>) => a.size === b.si
  *  approval undone or replaced while learning is off stops counting, also when it is approved again. Returns the model with the settled values marked, the values of the rest that come
  *  early (chosen once), the moves to tell the researcher about, the settled reasons, and the way to keep a reason
  *  first whatever was approved. */
-export function useReviewLearning(model: RailModel | null, learning: boolean, holding: boolean, live: boolean) {
+export function useReviewLearning(model: RailModel | null, learning: boolean, holding: boolean, live: boolean, decisions = NO_DECISIONS) {
   const [on, setOn] = useState(false)
   // Effective policy for this render: holding keeps an active session from starting under an open row or stale page,
   // while leaving learning immediately drops learning so historical/inactive renders never record `open`.
   const active = learning && (!holding || on)
   if (on !== active) setOn(active)
-  const inPlace = useMemo(() => model ? oneByOneQueue(model, false) : [], [model])
+  const inPlace = useMemo(() => model ? oneByOneQueue(model, false, undefined, decisions) : [], [model, decisions])
   // Separate currently-open keys (`to-check` in this active interval) from already-earned approvals (observed
   // transitioning from `open` to `approved` while `active`). Leaving active learning clears `open` so approvals
   // made while a run saves values or in a saved cut never become earned when active learning resumes, while keeping
@@ -65,7 +66,7 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
   const [settled, setSettled] = useState(EMPTY)
   const [returned, setReturned] = useState(EMPTY)
   const [notice, setNotice] = useState<{ reason: string; kind: ReviewMove['kind']; on: string | null } | null>(null)
-  const [sampled, setSampled] = useState<readonly string[] | null>(null)
+  const [sampled, setSampled] = useState<ReturnType<typeof sampleRest>>()
   const wanted = useMemo(() => settledReasons(tallies, kept), [tallies, kept])
   if (active && !holding && !same(settled, wanted)) {
     const left = (reason: string) => (tallies.get(reason)?.left ?? 0) > 0
@@ -79,8 +80,8 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
     if (moved) setNotice({ reason: moved, kind: come.includes(moved) ? 'settled' : 'returned', on: null })
   }
   const marked = useMemo(() => model && active ? settle(model, settled) : model, [model, active, settled])
-  if (active && !holding && sampled === null && marked && inPlace.length > 0) setSampled(sampleRest(oneByOneQueue(marked, false)))
-  const early = active ? sampled ?? NONE : NONE
+  if (active && !holding && sampled === undefined && marked && inPlace.length > 0) setSampled(sampleRest(oneByOneQueue(marked, false)))
+  const early = active ? sampled : undefined
   const moves = useMemo(() => {
     if (!active) return NO_MOVES
     const said = (reasons: ReadonlySet<string>, kind: ReviewMove['kind']) => [...reasons].flatMap((reason): ReviewMove[] => {
@@ -116,10 +117,11 @@ export function useReviewLearning(model: RailModel | null, learning: boolean, ho
       blocked: ReadonlySet<string> = EMPTY,
       exclude?: (item: QueueItem) => boolean,
       beforeSettled?: ReadonlySet<string>,
+      confirmed = decisions,
     ): string | null {
       const currentSettled = active ? (beforeSettled ?? settled) : EMPTY
-      const reasons = active ? settledReasons(reviewTallies(oneByOneQueue(next, false), eligible), kept) : EMPTY
-      const after = oneByOneQueue(settle(next, reasons), prioritize, early)
+      const reasons = active ? settledReasons(reviewTallies(oneByOneQueue(next, false, undefined, confirmed), eligible), kept) : EMPTY
+      const after = oneByOneQueue(settle(next, reasons), prioritize, early, confirmed)
       const canTake = (item: QueueItem) => item.row.kind === 'to-check' && !blocked.has(item.ownerKey) && !exclude?.(item)
       if (prioritize && !same(currentSettled, reasons)) {
         const priority = after.find((item) => checkFirst(item.row) && canTake(item))

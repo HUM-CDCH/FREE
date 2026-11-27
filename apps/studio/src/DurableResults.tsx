@@ -316,7 +316,7 @@ function History({id,shown,current,live,review,onSnapshot}:{id:string;shown:bool
 const readings=(value:Value)=>value.disagreement?.map(d=>JSON.stringify([d.path,d.alternatives.map(a=>JSON.stringify(a.value)).sort()])).sort()
 /** A save the reads have yet to show. A cell save also keeps the value as re-read after it, with its snapshot: the
  *  review of a table goes on from it, cell after cell, without waiting for those reads. */
-type Acknowledged=Pick<ReviewAcknowledgement,'extractionId'|'valueId'|'revision'|'feedbackVersion'>&{reread?:{value:Value;version:number}}
+type Acknowledged=Pick<ReviewAcknowledgement,'extractionId'|'valueId'|'revision'|'feedbackVersion'>&{decision?:{version:number;kind:RailRow['kind']};reread?:{value:Value;version:number}}
 const holds=(page:DurablePage|null,ack:Acknowledged)=>Boolean(page?.values.some(value=>value.id===ack.valueId&&reviewRevision(value)>=ack.revision))
 const observes=(page:DurablePage|null,ack:Acknowledged)=>Boolean(page&&page.feedbackVersion>=ack.feedbackVersion)&&holds(page,ack)
 const sameValue=(a:Value,b:Value)=>a.selectionId===b.selectionId&&JSON.stringify(a.modelValue)===JSON.stringify(b.modelValue)
@@ -464,15 +464,21 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
     latestPage.snapshotVersion<state.snapshotVersion
     ||(latestPage.snapshotVersion===state.snapshotVersion&&latestPage.feedbackVersion<state.feedbackVersion)
   ))
-  // The sequence learns from this review once the run has settled, never on a saved or read-only cut: an opened cut
-  // takes that only as its page replaces the live one. A row open in the list, a decision saving, or a page behind
-  // state holds changes of place until it clears.
   const livePage=!pinned||Boolean(loadedCut?.kept)
+  // A receipt informs this snapshot's review order only until its value is read at that revision or later.
+  const confirmed=useMemo(()=>{
+    const kinds=new Map<string,RailRow['kind']>()
+    if(page&&!historical&&pendingDecisions.size)for(const value of page.values){
+      const ack=pendingDecisions.get(value.id)
+      if(ack?.decision?.version===page.snapshotVersion&&reviewRevision(value)<ack.revision)kinds.set(value.id,ack.decision.kind)
+    }
+    return kinds
+  },[page,historical,pendingDecisions])
   const learning=useReviewLearning(
     extracted,
     livePage&&!readOnly&&Boolean(state)&&!ACTIVE.has(state!.status),
     (Boolean(review)&&(!focus||saving))||pageBehindState,
-    livePage,
+    livePage,confirmed,
   )
   const onSaveEnd=useCallback(()=>{setSavingReview(previous=>previous?.key===reviewKey?null:previous)},[reviewKey])
   const onSaveStart=()=>{if(reviewKey)setSavingReview(previous=>previous?.key===reviewKey?previous:{key:reviewKey,settled:learning.settled})}
@@ -737,15 +743,18 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   const saved=(acknowledgement?:ReviewAcknowledgement)=> {
     const beforeSettled=savingReview?.key===reviewKey?savingReview.settled:undefined
     setSavingReview(null)
-    if(acknowledgement)setAcknowledgements(previous=>new Map(previous).set(acknowledgement.valueId,acknowledgement))
+    const decisions=new Map(confirmed)
+    if(acknowledgement&&review){
+      const kind=({APPROVED:'approved',EDITED:'edited',REJECTED:'rejected',PENDING:'to-check'} as const)[acknowledgement.action]
+      const receipt={...acknowledgement,decision:{version:review.version,kind}}
+      setAcknowledgements(previous=>new Map(previous).set(receipt.valueId,receipt))
+      if(review.version===page.snapshotVersion&&!holds(page,receipt))decisions.set(receipt.valueId,kind)
+    }
     const awaiting=new Set([...blocked,...(acknowledgement?[acknowledgement.valueId]:[])])
     const sameCut=!review||review.cutGeneration===(pinned?loadedCut?.generation??0:0)
     // The next value is the saved decision's own sequence's: what the review learns from it, before its read arrives.
-    const kind=acknowledgement&&({APPROVED:'approved',EDITED:'edited',REJECTED:'rejected',PENDING:'to-check'} as const)[acknowledgement.action]
-    const decide=(row:RailRow):RailRow=>kind&&row.key===acknowledgement?.valueId?{...row,kind,...(row.parts?{parts:row.parts.map(part=>({...part,kind}))}:{})}:row
-    const next=focus&&sameCut?(kind&&extracted
-      ? learning.nextAfter({...extracted,document:extracted.document.map(decide),
-        records:extracted.records.map(record=>({...record,rows:record.rows.map(decide)}))},!documentOrder,activeQueueKey,awaiting,undefined,beforeSettled)
+    const next=focus&&sameCut?(acknowledgement&&extracted
+      ? learning.nextAfter(extracted,!documentOrder,activeQueueKey,awaiting,undefined,beforeSettled,decisions)
       : nextToCheck(queue,activeQueueKey,awaiting)):null
     setReview(null);setEditing(null)
     if(!sameCut)setFocus(false)

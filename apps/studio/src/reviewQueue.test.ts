@@ -94,9 +94,13 @@ describe('Check first across the saved snapshot', () => {
     const extraction = model([record(0, rows), record(1, [row(1, 'h'), row(1, 'i'), row(1, 'j')])])
     const sampled = sampleRest(oneByOneQueue(extraction, false))
     // Four come first, so one of the six others comes early: a whole value from the middle of the document.
-    expect(sampled).toEqual(['1.h'])
+    expect(sampled.keys).toEqual(['1.h'])
     expect(keys(oneByOneQueue(extraction, true, sampled))).toEqual(['0.a', '0.b', '0.c', '1.h', '0.d', '0.e', '0.f', '0.g', '1.i', '1.j'])
     expect(keys(oneByOneQueue(extraction, false, sampled))).toEqual(keys(oneByOneQueue(extraction, false)))
+    // A flag checked before opening is still a Previous anchor, but the sample follows three pending flags.
+    const reopened = model([record(0, [{ ...rows[0]!, kind: 'approved' }, ...rows.slice(1)])])
+    const plan = sampleRest(oneByOneQueue(reopened, false))
+    expect(keys(oneByOneQueue(reopened, true, plan))).toEqual(['0.a', '0.b', '0.c', '0.d', '0.f', '0.e', '0.g'])
     // The queue says which one came early, also when it follows the last value checked first.
     expect(keys(oneByOneQueue(extraction, true, sampled).filter((item) => item.early))).toEqual(['1.h'])
     const three = model([record(0, rows.filter((each) => each.name !== 'd'))])
@@ -108,7 +112,7 @@ describe('Check first across the saved snapshot', () => {
       record(1, [{ ...row(1, 'h'), kind: 'edited' as const }, row(1, 'i'), row(1, 'j')])])
     expect(keys(oneByOneQueue(decided, true, sampled))).toEqual(keys(oneByOneQueue(extraction, true, sampled)))
     // Fewer than three come first: none of the rest is taken out of its place.
-    expect(sampleRest(oneByOneQueue(model([record(0, [inexact(0, 'a'), inexact(0, 'b'), row(0, 'c')])]), false))).toEqual([])
+    expect(sampleRest(oneByOneQueue(model([record(0, [inexact(0, 'a'), inexact(0, 'b'), row(0, 'c')])]), false)).keys).toEqual([])
   })
 
   it('counts whole values a decision was made on, and takes a soft reason out of the way only when every one was approved as it was', () => {

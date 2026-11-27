@@ -51,7 +51,7 @@ it('lets the rest of a kind return to its place once three were approved as they
 it('learns nothing from an approval saved before this review', () => {
   const { result, rerender } = hook({ kinds: three })
   expect(result.current.moves).toEqual([])
-  expect(leading(result)).toBe('abchdefgij')
+  expect(leading(result)).toBe('abcdefghij')
   rerender({ kinds: { ...three, d: 'approved' } })
   expect(settledRows(result)).toBe('')
 })
@@ -84,9 +84,9 @@ it('moves nothing while a row is open in the list, also not when the run settles
   // The run settles with a row open: none of the rest comes early until it closes.
   const running = hook({ learning: false, holding: true })
   running.rerender({ learning: true, holding: true })
-  expect(running.result.current.sampled).toEqual([])
+  expect(running.result.current.sampled).toBeUndefined()
   running.rerender({ learning: true, holding: false })
-  expect(running.result.current.sampled).toEqual(['h'])
+  expect(running.result.current.sampled?.keys).toEqual(['h'])
 })
 
 it('applies and says nothing of what it learned while learning is off, and nothing false once it is on again', () => {
@@ -95,10 +95,10 @@ it('applies and says nothing of what it learned while learning is off, and nothi
   expect(settledRows(result)).toBe('abcd')
   // A saved cut, or a run that saves values again: the sequence as it was built.
   rerender({ kinds: three, learning: false })
-  expect([result.current.moves, result.current.sampled, settledRows(result), noticeOn(result, 'd')]).toEqual([[], [], '', null])
+  expect([result.current.moves, result.current.sampled, settledRows(result), noticeOn(result, 'd')]).toEqual([[], undefined, '', null])
   rerender({ kinds: three, learning: true })
   expect(result.current.moves).toEqual([SETTLED])
-  expect(result.current.sampled).toEqual(['h'])
+  expect(result.current.sampled?.keys).toEqual(['h'])
   expect(noticeOn(result, 'd')).toMatchObject({ kind: 'settled' })
 })
 
@@ -141,14 +141,14 @@ it('gives the sequence a decision just saved makes, before its read arrives', ()
 it('never counts pre-existing approvals when a historical snapshot with open values is viewed', () => {
   const { result, rerender } = hook({ kinds: three })
   expect(result.current.moves).toEqual([])
-  expect(leading(result)).toBe('abchdefgij')
+  expect(leading(result)).toBe('abcdefghij')
   // Opening an older cut where a, b, c were still to check (learning off) must not record them as opened in this review.
   rerender({ kinds: {}, learning: false })
   expect(result.current.moves).toEqual([])
   rerender({ kinds: three, learning: true })
   expect(result.current.moves).toEqual([])
   expect(settledRows(result)).toBe('')
-  expect(leading(result)).toBe('abchdefgij')
+  expect(leading(result)).toBe('abcdefghij')
 
   // Settled live state is preserved across a historical cut that had an earlier edit/rejection without a false return notice.
   const live = hook()

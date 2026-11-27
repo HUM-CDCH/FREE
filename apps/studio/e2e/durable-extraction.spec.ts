@@ -272,6 +272,75 @@ test('saved live review survives reload, rejects another owner and exports its f
   } finally {await fixture.close()}
 })
 
+test('one-by-one review preserves drafts, source status and priority order across late reads and reload', async ({ page }) => {
+  const fixture = await prepareInteractiveDocument(page, { hasKey: false })
+  const held = Promise.withResolvers<void>()
+  try {
+    const source = decodeParsedDocument(await (await page.request.get('/api/project-contexts/' + fixture.projectContextId
+      + '/source-representations/' + fixture.sourceRepresentationRevisionId + '/source')).json())
+    const anchor = source.evidence_index.anchors[0]!, occurrence = anchor.producer_observations[0]!
+    const { x0, y0, x1, y1 } = occurrence.bbox
+    const fields = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'missing', 'reading']
+    const nodes = fields.map(name => ({ id: name, name, type: 'string' as const }))
+    const modelEvidence: Record<string, DurableValue['evidence']> = {}
+    for (const name of fields.slice(0, 8)) {
+      modelEvidence[name] = [{ anchorId: anchor.anchor_id, occurrenceIds: [occurrence.occurrence_id],
+        producer: { path: ['records', 0, name], segment: 'p1_s0', page: 1, bbox_pt: [x0, y0, x1, y1],
+          verbatim: name >= 'e', linked_by: 'lexical', precision: 'segment' } }]
+    }
+    const alternatives = ['First reading', 'Second reading'].map(value => ({ value, segments: ['p3_s0'] }))
+    const { id } = await savedExtraction(fixture, nodes, fields.map(name => name === 'reading' ? null : 'Value ' + name),
+      'COMPLETED', { modelEvidence, disagreement: { reading: [{ path: [], alternatives }] } })
+    const root = '/api/extractions/' + id + '/durable'
+    const oneByOne = page.getByRole('button', { name: 'Review one by one', exact: true })
+    const approve = page.getByRole('button', { name: /^Approve and next/ })
+    const heading = (name: string) => page.getByRole('heading', { name, exact: true })
+    await page.goto(fixture.url + '?extractionId=' + id)
+    await openRailView(page, 'Results')
+    await page.getByRole('button', { name: 'Show in their place' }).click()
+    await page.getByRole('button', { name: /^To check a Value a/ }).click()
+    await oneByOne.click()
+    await page.getByRole('button', { name: /^Edit\b/ }).click()
+    const draft = page.getByRole('textbox', { name: 'Reviewed value' })
+    await draft.fill('Unsaved reading')
+    await expect(page.getByRole('button', { name: /Value b · b/i })).toBeDisabled()
+    await expect(draft).toHaveValue('Unsaved reading')
+    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+    await page.getByRole('button', { name: /^Start with the/ }).click()
+    await expect(heading('Value missing')).toBeVisible()
+    await approve.click()
+    await expect(heading('Value a')).toBeVisible()
+    await expect(page.getByRole('img', { name: /^1 approved,/ })).toBeVisible()
+    await page.getByRole('button', { name: 'Previous', exact: true }).click()
+    await expect(heading('Value missing')).toBeVisible()
+    await expect(page.getByText('Source not found', { exact: true })).toBeVisible()
+
+    await page.reload()
+    await openRailView(page, 'Results')
+    await oneByOne.click()
+    const valuesRead = '**' + root + '/values?*'
+    await page.route(valuesRead, async route => { await held.promise; await route.continue() })
+    for (const name of ['a', 'b', 'c']) {
+      await expect(heading('Value ' + name)).toBeVisible()
+      await approve.click()
+    }
+    await expect(heading('First reading or Second reading')).toBeVisible()
+    held.resolve()
+    await page.unroute(valuesRead)
+    for (const [field, action] of [['d', 'APPROVED'], ['reading', 'REJECTED']]) {
+      const response = await page.request.post(root + '/values/' + field, {
+        headers: { Origin: E2E_ORIGIN }, data: { snapshotVersion: 1, expectedRevision: 0, action },
+      })
+      expect(response.ok(), await response.text()).toBe(true)
+    }
+    await page.reload()
+    await openRailView(page, 'Results')
+    await expect(page.getByRole('region', { name: 'Check first' })).toHaveCount(0)
+    await oneByOne.click()
+    await expect(heading('Value e')).toBeVisible()
+  } finally { held.resolve(); await fixture.close() }
+})
+
 test('one ranked table cell approval survives reload and an independent owner session', async ({ page, browser }) => {
   const fixture = await prepareInteractiveDocument(page, { hasKey: false })
   const secondContext = await browser.newContext()

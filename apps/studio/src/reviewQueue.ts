@@ -58,26 +58,31 @@ const SAMPLE_EVERY = 3
 /** The values of the rest that come early, so the review shows how the rest reads while it goes and not only at its
  *  end: whole values still to check with no reason, spread over the document. Chosen once and kept, so the sequence
  *  never reshuffles under the researcher. */
-export function sampleRest(items: readonly QueueItem[]): string[] {
-  const first = items.filter(({ row }) => checkFirst(row)).length
+export function sampleRest(items: readonly QueueItem[]) {
+  const first = items.filter(({ row }) => checkFirst(row))
+  const alreadyChecked = new Set(first.filter(({ row }) => row.kind !== 'to-check').map(({ key }) => key))
   const whole = items.filter(({ key, ownerKey, row }) => key === ownerKey && row.kind === 'to-check' && !reviewReason(row))
-  const count = Math.min(Math.floor(first / SAMPLE_EVERY), whole.length)
-  return Array.from({ length: count }, (_, slot) => whole[Math.floor((slot + 0.5) * whole.length / count)]!.key)
+  const count = Math.min(Math.floor((first.length - alreadyChecked.size) / SAMPLE_EVERY), whole.length)
+  const keys = Array.from({ length: count }, (_, slot) => whole[Math.floor((slot + 0.5) * whole.length / count)]!.key)
+  return { keys, alreadyChecked }
 }
 
 /** Queue reviewable scalars once. An unresolved disagreement and a value with no populated parts stay whole.
  *  Prioritized, the values with a reason come first, strongest reason first, each kind in document order; with
- *  `sampled`, one of those values of the rest follows every third of them. */
-export function oneByOneQueue(model: RailModel, prioritize = true, sampled: readonly string[] = []): QueueItem[] {
+ *  `sampled`, one of the rest follows every third priority value that was pending when sampling began. */
+export function oneByOneQueue(model: RailModel, prioritize = true, sampled?: ReturnType<typeof sampleRest>,
+  decisions?: ReadonlyMap<string, RailRow['kind']>): QueueItem[] {
   const queue: QueueItem[] = []
   const seen = new Set<string>()
   const append = (rows: readonly RailRow[], record: RailRecord | null) => {
     for (const owner of rows) {
       if (!isDecidable(owner.kind)) continue
+      // A save response can arrive ahead of the page. Its decision informs navigation while the read catches up.
+      const kind = decisions?.get(owner.key)
       for (const row of owner.parts?.length ? owner.parts : [owner]) {
         if (seen.has(row.key)) continue
         seen.add(row.key)
-        queue.push({ key: row.key, ownerKey: owner.key, record, row })
+        queue.push({ key: row.key, ownerKey: owner.key, record, row: kind ? { ...row, kind } : row })
       }
     }
   }
@@ -89,15 +94,22 @@ export function oneByOneQueue(model: RailModel, prioritize = true, sampled: read
   if (!prioritize) return queue
   const first = queue.filter(({ row }) => checkFirst(row)).sort((a, b) => checkRank(a.row) - checkRank(b.row))
   const rest = queue.filter(({ row }) => !checkFirst(row))
+  if (!sampled?.keys.length || !first.some(({ row }) => row.kind === 'to-check')) return [...first, ...rest]
   const byKey = new Map(rest.map((item) => [item.key, item]))
-  const picked = sampled.slice(0, Math.floor(first.length / SAMPLE_EVERY)).flatMap((key) => byKey.get(key) ?? [])
-  const taken = new Set(picked.map((item) => item.key))
+  const picked = sampled.keys.flatMap((key) => byKey.get(key) ?? [])
+  const taken = new Set<string>()
   const sequence: QueueItem[] = []
-  first.forEach((item, at) => {
+  let eligible = 0
+  for (const item of first) {
     sequence.push(item)
-    const pick = (at + 1) % SAMPLE_EVERY === 0 ? picked[(at + 1) / SAMPLE_EVERY - 1] : undefined
-    if (pick) sequence.push({ ...pick, early: true })
-  })
+    if (sampled.alreadyChecked.has(item.key)) continue
+    eligible++
+    const pick = eligible % SAMPLE_EVERY === 0 ? picked[eligible / SAMPLE_EVERY - 1] : undefined
+    if (pick) {
+      sequence.push({ ...pick, early: true })
+      taken.add(pick.key)
+    }
+  }
   return [...sequence, ...rest.filter((item) => !taken.has(item.key))]
 }
 

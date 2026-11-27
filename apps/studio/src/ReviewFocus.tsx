@@ -75,8 +75,8 @@ export default function ReviewFocus({ article, queue, blocked, current, part, re
                 order does, on the strongest reason: the document may meet a weaker one first. */}
             {firstLeft.length > 0 && <Button variant="ghost" className="-mx-2.5" disabled={locked || editing} onClick={() => {
               order!.onToggle()
-              if (!firstLeft.some((item) => item.key === key))
-                onGo(firstLeft.reduce((best, item) => reviewReason(item.row)!.rank < reviewReason(best.row)!.rank ? item : best).key)
+              const first = firstLeft.reduce((best, item) => reviewReason(item.row)!.rank < reviewReason(best.row)!.rank ? item : best)
+              if (first.key !== key) onGo(first.key)
             }}>Start with the {firstLeft.length} to check first</Button>}
           </> : firstLeft.length > 0 ? <>
             <span className="font-bold text-ink">Check first {count(`· ${left.length} left in all`)}</span>
@@ -120,6 +120,7 @@ export default function ReviewFocus({ article, queue, blocked, current, part, re
         {current.changed && <p className="m-0 mt-1 text-secondary text-stale-ink">Changed since you checked it, please check again</p>}
         {current.kind === 'edited' && <p className="m-0 mt-1 text-secondary text-ink-muted [overflow-wrap:anywhere]">Original: <s>{rowText({value: current.extracted, disagreement: current.disagreement})}</s></p>}
       </div>
+      {decided && !current.link && <p className="m-0 text-compact text-ink-muted">{current.kind === 'edited' ? 'No source linked.' : 'Source not found'}</p>}
       {current.page !== null && <p className="m-0 flex items-center gap-1 text-compact font-semibold text-ink"><EvidenceGlyph />Page {current.page}</p>}
       <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3.5 border-0 p-0">
         {!decided && !editing && current.disagreement && onChoose && <DisagreementChoice parts={current.disagreement} onChoose={onChoose}/>}
@@ -152,7 +153,7 @@ export default function ReviewFocus({ article, queue, blocked, current, part, re
           const place = `${item.record && !article ? `${item.record.label} › ` : ''}${fieldWords(item.row.name)}`
           const cue = next?.short ?? (item.row.chip?.style === 'rule' ? 'matched by rule' : item.row.page === null ? '' : `p.${item.row.page}`)
           return (
-            <button key={item.key} type="button" disabled={locked} onClick={() => onGo(item.key)}
+            <button key={item.key} type="button" disabled={locked || editing} onClick={() => onGo(item.key)}
               className="flex w-full cursor-pointer items-baseline justify-between gap-2 rounded border-0 bg-transparent px-0 py-0.5 text-left text-secondary outline-none hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default">
               <span className="min-w-0 truncate"><span className="font-medium text-ink">{rowText(item.row)}</span> · <span className="text-ink-faint first-letter:uppercase">{place}</span></span>
               {cue && <span className="shrink-0 text-compact text-ink-muted">{cue}</span>}
