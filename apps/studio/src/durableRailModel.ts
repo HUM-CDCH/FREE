@@ -227,6 +227,7 @@ export function durableRailModel(page: DurablePage, document: ParsedDocument | n
         ...durableRailRow(value, document, part),
         key: part.key, name: part.name, resultPath: [...part.path], value: part.value, extracted: part.value,
         kind: part.reviewable ? (part.approved ? 'approved' : 'to-check') : row.kind,
+        ...(part.reviewable ? { cell: true as const } : {}),
       }))
     } else if ((row.kind === 'edited' || row.kind === 'rejected') && !row.disagreement && (value.node.type === 'object' || value.node.type === 'array')) {
       const original = { ...value, correction: null }

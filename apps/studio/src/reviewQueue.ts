@@ -82,7 +82,9 @@ export function oneByOneQueue(model: RailModel, prioritize = true, sampled?: Ret
       for (const row of owner.parts?.length ? owner.parts : [owner]) {
         if (seen.has(row.key)) continue
         seen.add(row.key)
-        queue.push({ key: row.key, ownerKey: owner.key, record, row: kind ? { ...row, kind } : row })
+        // An approval of the whole value approves no cell: the read will show each cell as it was.
+        const decided = kind && !(kind === 'approved' && row.cell)
+        queue.push({ key: row.key, ownerKey: owner.key, record, row: decided ? { ...row, kind } : row })
       }
     }
   }

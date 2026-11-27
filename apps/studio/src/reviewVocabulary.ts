@@ -41,6 +41,8 @@ export type RailRow = {
   place?: string
   /** Populated original scalars in document order; they share this row's saved value identity. */
   parts?: readonly RailRow[]
+  /** A part that is a table cell, approved on its own: approving the whole value leaves it as it was. */
+  cell?: true
   /** Original populated parts' distinct check reasons when a composite value no longer exposes `parts` (after an edit
    *  or rejection), so review learning still attributes the decision to every original category (`''` is an ordinary part). */
   partReasons?: readonly string[]

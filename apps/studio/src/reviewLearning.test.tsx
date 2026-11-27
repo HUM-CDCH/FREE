@@ -166,14 +166,46 @@ it('never counts pre-existing approvals when a historical snapshot with open val
   expect(live.result.current.moves).toEqual([SETTLED])
 })
 
-it('attributes a table edit or rejection to every original cell reason, bringing settled categories first again', () => {
-  const scalar = (id: string, record: number, approved = false): RetainedValue => ({
-    id, recordId: `r${record}`, fieldId: id, path: ['records', record, id], selectionId: 's', schemaRevisionId: 'rev',
-    node: { id, name: id, type: 'string' }, modelValue: id, evidence: [], groundings: undefined, grounding: 'grounded',
-    processing: 'saved', lineage: [], historicalCorrection: null,
-    links: [{ resultPath: ['records', record, id], evidenceAnchorId: id, verbatim: false }],
-    correction: approved ? { revision: 1, decision: { action: 'APPROVED', value: id, evidence: [], included: false } } : null,
+const scalar = (id: string, record: number, approved = false): RetainedValue => ({
+  id, recordId: `r${record}`, fieldId: id, path: ['records', record, id], selectionId: 's', schemaRevisionId: 'rev',
+  node: { id, name: id, type: 'string' }, modelValue: id, evidence: [], groundings: undefined, grounding: 'grounded',
+  processing: 'saved', lineage: [], historicalCorrection: null,
+  links: [{ resultPath: ['records', record, id], evidenceAnchorId: id, verbatim: false }],
+  correction: approved ? { revision: 1, decision: { action: 'APPROVED', value: id, evidence: [], included: false } } : null,
+} as unknown as RetainedValue)
+
+it('learns nothing from an object approved whole while a cell of its table is still to check, also before its read arrives', () => {
+  const at = (...path: (string | number)[]) => ['records', 4, 'skelet', ...path]
+  const cells = [at('dele', 0, 'nr'), at('dele', 0, 'note')]
+  const mixed = (approved: boolean, approvedCells: (string | number)[][] = []): RetainedValue => ({
+    id: 'm', recordId: 'r4', fieldId: 'skelet', path: at(), selectionId: 's', schemaRevisionId: 'rev',
+    node: { id: 'skelet', name: 'skelet', type: 'object', children: [{ id: 'art', name: 'art', type: 'string' },
+      { id: 'dele', name: 'dele', type: 'array', children: [{ id: 'nr', name: 'nr', type: 'string' }, { id: 'note', name: 'note', type: 'string' }] }] },
+    modelValue: { art: 'Human', dele: [{ nr: '1', note: 'Tooth' }] }, evidence: [], grounding: 'grounded',
+    processing: 'saved', lineage: [], historicalCorrection: null, approvedCells,
+    links: [at('art'), ...cells].map((resultPath, index) => ({ resultPath, evidenceAnchorId: `m${index}`, verbatim: false })),
+    correction: approved ? { revision: 1, decision: { action: 'APPROVED', evidence: [], included: false } } : null,
   } as unknown as RetainedValue)
+  const build = (approvedCount: number, value: RetainedValue) =>
+    durableRailModel({ values: [scalar('a', 0, approvedCount >= 1), scalar('b', 1, approvedCount >= 2), scalar('d', 3), value] } as DurablePage, null)
+  type Props = { m: RailModel; decisions?: ReadonlyMap<string, RowKind> }
+  const { result, rerender } = renderHook(({ m, decisions }: Props) => useReviewLearning(m, true, false, false, decisions),
+    { initialProps: { m: build(0, mixed(false)) } as Props })
+  rerender({ m: build(2, mixed(false)) })
+  // The save of the whole value is confirmed and its read is late: the cells are as they were.
+  const confirmed = new Map<string, RowKind>([['m', 'approved']])
+  expect(oneByOneQueue(build(2, mixed(false)), false, undefined, confirmed).filter((item) => item.ownerKey === 'm').map((item) => item.row.kind))
+    .toEqual(['approved', 'to-check', 'to-check'])
+  rerender({ m: build(2, mixed(false)), decisions: confirmed })
+  expect([result.current.moves, result.current.settled.size, settledRows(result)]).toEqual([[], 0, ''])
+  // The read says the same, and the object is the third approval only once its last cell is approved.
+  rerender({ m: build(2, mixed(true, [cells[0]!])) })
+  expect([result.current.moves, result.current.settled.size]).toEqual([[], 0])
+  rerender({ m: build(2, mixed(true, cells)) })
+  expect(result.current.moves).toEqual([SETTLED])
+})
+
+it('attributes a table edit or rejection to every original cell reason, bringing settled categories first again', () => {
   const tableNode = {
     id: 'items', name: 'items', type: 'array' as const,
     children: [{ id: 'name', name: 'name', type: 'string' as const }, { id: 'size', name: 'size', type: 'string' as const }],
