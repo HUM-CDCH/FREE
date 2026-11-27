@@ -1933,6 +1933,26 @@ it('opens the first ordinary value in document order when all flags were approve
   expect(screen.getByRole('heading',{name:'Title d'})).toBeVisible()
 })
 
+it('keeps the final sample and its place after three no-source approvals while reads lag',async()=>{
+  const values=[...['a','b','c'].map(id=>({...linked(id,0,true),links:[]})),...['d','e','f'].map(id=>linked(id,0,true))]
+  const page={...reviewPage(),values,total:6,reviewCounts:{required:6,toCheck:6,approved:0,edited:0,rejected:0}}
+  vi.mocked(readDurable).mockResolvedValue({state:pausedState,page} as never)
+  let feedbackVersion=0
+  vi.mocked(durableRequest).mockImplementation((async()=>({id:'correction',revision:1,feedbackVersion:++feedbackVersion,included:false})) as never)
+  render(<Results attempt={article} document={null} currentSchema={null} onEvidence={()=>{}}/>)
+  fireEvent.click(await screen.findByRole('button',{name:'Review one by one'}))
+  for(const name of ['Title a','Title b','Title c']){
+    expect(await screen.findByRole('heading',{name})).toBeVisible()
+    fireEvent.click(screen.getByRole('button',{name:/Approve and next/}))
+  }
+  expect(await screen.findByRole('heading',{name:'Title e'})).toBeVisible()
+  expect(screen.getByText('From the rest of the document.')).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:/^Skip/}))
+  expect(screen.getByRole('heading',{name:'Title d'})).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:/Leave one-by-one review/}))
+  expect(screen.queryByRole('region',{name:'Check first'})).not.toBeInTheDocument()
+})
+
 it('shows the one of the rest that follows the third value to check first where one by one meets it',async()=>{
   const values=[linked('a',0,false),linked('b',0,false),linked('c',0,false),linked('e',0,true),linked('f',0,true)]
   vi.mocked(readDurable).mockResolvedValue({state:pausedState,page:{...reviewPage(),values,total:5}} as never)

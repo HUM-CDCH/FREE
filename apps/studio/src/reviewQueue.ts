@@ -94,7 +94,7 @@ export function oneByOneQueue(model: RailModel, prioritize = true, sampled?: Ret
   if (!prioritize) return queue
   const first = queue.filter(({ row }) => checkFirst(row)).sort((a, b) => checkRank(a.row) - checkRank(b.row))
   const rest = queue.filter(({ row }) => !checkFirst(row))
-  if (!sampled?.keys.length || !first.some(({ row }) => row.kind === 'to-check')) return [...first, ...rest]
+  if (!sampled?.keys.length) return [...first, ...rest]
   const byKey = new Map(rest.map((item) => [item.key, item]))
   const picked = sampled.keys.flatMap((key) => byKey.get(key) ?? [])
   const taken = new Set<string>()

@@ -59,7 +59,7 @@ export default function ReviewFocus({ article, queue, blocked, current, part, re
   const firstLeft = left.filter((item) => checkFirst(item.row))
   const inPlace = Boolean(order && !order.priority)
   // One of the rest, come early among the values checked first.
-  const sampled = !inPlace && !reason && firstLeft.length > 0 && Boolean(queue[at]?.early)
+  const sampled = !inPlace && !reason && Boolean(queue[at]?.early)
   const upNext = forwardItems(queue, key, blocked).slice(0, 3)
   const name = fieldWords(part?.name ?? current.name)
   const trail = article ? name : `${recordLabel} › ${name}`
@@ -82,7 +82,7 @@ export default function ReviewFocus({ article, queue, blocked, current, part, re
             <span className="font-bold text-ink">Check first {count(`· ${left.length} left in all`)}</span>
             {order && <Button variant="ghost" className="-mx-2.5" onClick={order.onToggle}>Follow the document instead</Button>}
           </> : (
-            <span className="font-semibold tabular-nums text-ink-muted">{queue.some((item) => reviewReason(item.row)) ? `The rest, in the document · ${left.length} left` : `${left.length} left to check`}</span>
+            <span className="font-semibold tabular-nums text-ink-muted">{!sampled && queue.some((item) => reviewReason(item.row)) ? `The rest, in the document · ${left.length} left` : `${left.length} left to check`}</span>
           )}
         </div>
         {/* Why this value, now: a fact about the source stands filled; what an automatic check says is dashed and

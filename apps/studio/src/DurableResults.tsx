@@ -514,7 +514,8 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // be built again there and lose an unsaved edit, a reading being chosen and the answer to a save in flight.
   const [reviewHost]=useState(()=>Object.assign(window.document.createElement('div'),{className:'contents'}))
   const queue=useMemo(()=>model?oneByOneQueue(model,!documentOrder,learning.sampled):[],[model,documentOrder,learning.sampled])
-  const first=queue.filter(item=>checkFirst(item.row)),firstLeft=first.filter(item=>item.row.kind==='to-check').length
+  const stillToCheck=(item:QueueItem)=>item.row.kind==='to-check'&&!confirmed.has(item.ownerKey)
+  const first=queue.filter(item=>checkFirst(item.row)),firstLeft=first.filter(stillToCheck).length
   const order=(documentOrder||hasPriority(queue))?{priority:!documentOrder,onToggle:()=>setDocumentOrder(previous=>!previous),left:firstLeft,done:first.length-firstLeft}:undefined
   // The open composite value's parts as shown, an edited one's linked only where unchanged (`valueParts`). The chosen
   // part (its mark key) is what the value shows on the source: its link (none when it has none), else the whole value's
@@ -873,7 +874,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
   // among them, as one by one meets them, each while still to check.
   const prioritized=documentOrder?[]:queue.filter(item=>{
     const selected=item.key===anchoredKey
-    return (firstLeft>0&&(checkFirst(item.row)||item.early)?item.row.kind==='to-check'||selected:selected&&checkFirst(item.row))&&
+    return (firstLeft>0&&(checkFirst(item.row)||item.early)?stillToCheck(item)||selected:selected&&checkFirst(item.row))&&
       (passesFilter(item.row,filter)||selected||linkedKeys.has(item.key))
   })
   const inlineKey=anchoredKey&&prioritized.some(item=>item.key===anchoredKey)?anchoredKey:review?.value.id??null
