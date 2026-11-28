@@ -245,8 +245,9 @@ stays saved but never enters the consuming target's context, and FREE
 classifies no guidance conflicts automatically. Each Batch Extraction member
 is its own Extraction, with its own result snapshots and finalized reviews;
 it stays openable and exportable when paused, failed or stopped. A Batch
-Extraction's review grid shows its completed members' latest values side by
-side; each decision there is a correction of one value, and each member's
+Extraction's review grid shows side by side the latest values of each member
+that has saved some and has completed once or is paused, stopped or failed;
+each decision there is a correction of one value, and each member's
 review is finalized on its own (ADR 0030). An export follows each field that has a Value
 Disagreement with a review column and an alternatives column; XLSX also lists
 each alternative and where it was read on a Disagreements sheet. Typed columns
