@@ -1,8 +1,9 @@
 # Signal-guided review for large Extractions
 
 * **Author:** Gennaro Baratta
-* **Status:** Draft — Overview & Goals approved; Technical Plan in progress
-* **Date:** 2026-11-13
+* **Status:** Draft — Overview & Goals approved; Technical Plan decisions closed
+  by the author on 2026-11-28, numeric parameters pending measurement
+* **Date:** 2026-11-13, updated 2026-11-28
 * **Predecessor:** [concepts_brief.md](./concepts_brief.md)
 
 ## Overview
@@ -117,7 +118,10 @@ and downstream changes needed before the new form of finalization is enabled.
 ## Open Questions
 
 These are unresolved choices from the brief, not decisions made by this draft.
-They must be resolved before the relevant Technical Plan is approved.
+They must be resolved before the relevant Technical Plan is approved. The
+author resolved them on 2026-11-28 in the Technical Plan below; the numbers it
+leaves to measurement are listed there under «Parametri da fissare con le
+misure».
 
 * **Thresholds and missing inputs:** the author has selected the initial rule
   that any doubt flag is sufficient. Thresholds, the proposed most doubtful
@@ -142,12 +146,14 @@ They must be resolved before the relevant Technical Plan is approved.
   languages and providers, acceptable model costs, and the proposed opt-in
   rollout after measurement. No new model or dependency is selected here.
 
-## Piano tecnico — in elaborazione
+## Piano tecnico
 
 Panoramica e obiettivi approvati dall'autore. Il 2026-11-13 l'autore ha scelto
 il worker Python esistente, con coda e limiti dedicati, per la valutazione in
-background. Questa sezione resta in elaborazione: le altre scelte indicate
-come aperte non sono implicite nell'approvazione dell'esecuzione.
+background. Il 2026-11-28 ha chiuso le scelte rimaste aperte, dopo una
+revisione indipendente in sola lettura del draft e del codice (Codex,
+`gpt-6.2-astra`). Restano da fissare con le misure soltanto i parametri
+numerici elencati alla fine.
 
 ### Punti di partenza verificati nel codice
 
@@ -156,21 +162,41 @@ come aperte non sono implicite nell'approvazione dell'esecuzione.
   Evidence canonica e il worker Python. La sua API non accede al database.
 * Una versione salvata del risultato conserva valori e riferimenti agli input
   di produzione. L'attuale finalizzazione nomina quella versione e una
-  Decision Version; richiede una decisione compatibile per ogni valore salvato.
+  Decision Version; richiede una decisione compatibile per ogni valore salvato
+  (`processing` `saved`): un valore `absent` si può compilare e non richiede
+  decisione.
+* Dal 2026-11-18 ogni valore durevole può portare un `check` opzionale
+  (protocol 1, `valueCheckSchema` in `durable-contract.ts`): per ogni scalare
+  giudicato uno stato, un'etichetta 0/1, l'impronta dell'input e l'identità
+  del checker. Vive dentro `snapshot.values`, che il database rende
+  immutabile. Nessun produttore lo scrive: esistono solo contratto, fixture
+  e un prototipo di Studio.
+* Studio ordina già la revisione «Check first» (PR #419): Evidence assente,
+  corrispondenza inesatta, Value Disagreement ed etichette 0 di `check`
+  vengono prima. Intercala campioni anticipati deterministici presi dal resto
+  e, durante la sessione, riporta al loro posto i motivi deboli dopo tre
+  approvazioni (`reviewQueue.ts`, `reviewLearning.ts`). È un ordine, non un
+  campione casuale.
 * Una correzione può sostituire un intero oggetto o una lista. La funzione
   `valueParts` di Studio distingue già gli attributi e i loro percorsi per
   mostrarli, ma usa anche le correzioni: non può identificare da sola la
-  popolazione originale da sottoporre a controllo.
-* Le richieste ai modelli non chiedono le probabilità dei token e `Reply` non
-  le conserva. Il protocollo durevole valida le chiavi delle richieste: la
-  raccolta delle probabilità richiederà modifiche coordinate, non soltanto
-  un parametro nel client HTTP.
+  popolazione originale da sottoporre a controllo. Le approvazioni di singole
+  celle sono durevoli e appartengono a snapshot e Decision Version;
+  un'approvazione dell'intera tabella non prova l'esame delle celle. Il
+  percorso delle celle originali (`table-cell-review.ts`) salta gli elementi
+  delle liste di primitivi.
+* Le richieste di Estrazione non chiedono le probabilità dei token e `Reply`
+  non le conserva; la trascrizione OCR sa già chiederle. Il protocollo
+  durevole valida le chiavi delle richieste: la raccolta delle probabilità
+  richiederà modifiche coordinate, non soltanto un parametro nel client HTTP.
+  Il metodo unificato delle Catalog ha ritirato la verifica di ogni valore:
+  non esiste una chiamata di verifica generale da cui leggerle.
 * La prima stabilizzazione di un Extraction Schema richiede oggi un risultato
   corrente finalizzato della Schema Revision interessata. Una revisione
   successiva dello stesso schema già stabilizzato non richiede necessariamente
-  un nuovo pilot. La politica per la nuova forma di accettazione è ancora aperta.
+  un nuovo pilot. La politica per la nuova forma di accettazione è in «Pilot».
 
-### Struttura funzionale da completare
+### Struttura funzionale
 
 ```mermaid
 flowchart TD
@@ -180,7 +206,7 @@ flowchart TD
     C --> D
     E["Evidence canonica e identità dei record"] --> D
     D --> F["Punteggi e motivi di indisponibilità"]
-    F --> G["Regola di divisione da scegliere"]
+    F --> G["Regola: basta un segnale di dubbio"]
     G --> H["Valori dubbi da esaminare"]
     G --> I["Gruppo da controllare a campione"]
     I --> J["Piano e campione salvati dal server"]
@@ -190,16 +216,18 @@ flowchart TD
     L --> M["Schermate ed esportazioni distinguono letto e non letto"]
 ```
 
-Le frecce descrivono responsabilità logiche; non selezionano ancora tabelle,
-endpoint, processi, modelli o soglie. Le probabilità delle chiamate originali
+Le frecce descrivono responsabilità logiche; tabelle, endpoint, processi e
+soglie sono nelle sezioni seguenti. Le probabilità delle chiamate originali
 non possono essere recuperate dai soli valori già salvati: una nuova chiamata
 al modello produrrebbe una nuova osservazione. Per quelle Estrazioni il segnale
 originale è indisponibile, salvo dati già conservati che lo documentino.
 
 La valutazione deve riferire ogni attributo alla versione originale esaminata,
-al valore salvato che lo contiene e al percorso al suo interno. La scelta di
-come conservare questi riferimenti e di come trattare modifiche successive
-resta aperta. Un errore trovato nel campione resta registrato dopo la correzione.
+al valore salvato che lo contiene e al percorso al suo interno. La
+conservazione è descritta in «Righe separate e `check` composto in lettura»,
+le modifiche successive in «Decisioni esistenti, modifiche e Value
+Disagreements». Un errore trovato nel campione resta registrato dopo la
+correzione.
 
 ### Prima scelta architetturale: esecuzione dei calcoli
 
@@ -222,8 +250,9 @@ dall'Estrazione. I nomi tecnici provvisori sono `kei-review-scoring` per la coda
 e `scoreExtractionReviewV1` per il workflow; non introducono nomi visibili al
 Ricercatore. L'avvio riceve l'identità della valutazione: i riferimenti a
 risultato, sorgente e modelli vengono letti dai dati salvati, non da contenuto
-del documento passato come argomento al workflow. Il momento in cui avviare
-la valutazione non è ancora deciso.
+del documento passato come argomento al workflow. L'avvio segue il calcolo
+anticipato e la segnalazione nella transazione di pubblicazione, descritti
+sotto.
 
 ```mermaid
 flowchart TD
@@ -273,17 +302,17 @@ La ripresa deve riutilizzare le porzioni già salvate della stessa valutazione
 e degli stessi input. Un calcolo completato soltanto in memoria può essere
 ripetuto dopo un crash: non si promette esecuzione esattamente una volta.
 Richieste duplicate e riprese non devono pubblicare due esiti per la stessa
-porzione. Il meccanismo di registrazione atomica dell'avvio, la conservazione
-dei punteggi e il trattamento della cancellazione del Progetto sono ancora da
-definire insieme al modello dei dati. Un errore nel calcolo lascia incompleta
+porzione. La registrazione atomica dell'avvio, la conservazione dei punteggi e
+la cancellazione del Progetto sono decise nelle sezioni seguenti. Un errore
+nel calcolo lascia incompleta
 la valutazione; non equivale a un punteggio basso né a un controllo superato.
 
 ### Decisione dell'autore: basta un segnale di dubbio
 
 I tre punteggi hanno scale diverse; non si sommano direttamente. La prima
 versione non dispone di dati reali con cui calibrare una probabilità d'errore.
-L'autore ha scelto la regola 1: basta un segnale di dubbio. Le soglie non sono
-ancora selezionate. La regola con pesi resta una possibile evoluzione da
+L'autore ha scelto la regola 1: basta un segnale di dubbio. Le soglie sono in
+«Soglie assolute per versione». La regola con pesi resta una possibile evoluzione da
 valutare con l'esperienza raccolta, non un secondo comportamento da costruire
 adesso.
 
@@ -293,10 +322,9 @@ adesso.
 | 2 — Punteggio combinato | Si trasformano i risultati in scale confrontabili e si combinano con pesi espliciti, includendo le penalità per Evidence mancante e corrispondenza inesatta. Una soglia sul totale divide i gruppi. | Permette di bilanciare segnali rumorosi. Senza dati etichettati, trasformazioni e pesi restano ipotesi; segnali rassicuranti possono compensare un allarme reale. Il totale non è una probabilità calibrata di correttezza. |
 
 Nessuna delle due regole autorizza l'accettazione senza controllo casuale.
-La gestione delle tecniche indisponibili, compreso il caso in cui nessuna
-possa essere eseguita, resta una decisione esplicita successiva: un dato
-mancante non viene riempito con un punteggio rassicurante. Non sono ancora
-scelti percentuali, soglie, pesi, modelli o criteri di ammissione.
+Un dato mancante non viene riempito con un punteggio rassicurante; le
+tecniche indisponibili, compreso il caso in cui nessuna possa essere
+eseguita, sono trattate in «Soglie assolute per versione».
 
 ### Separazione delle responsabilità e lavoro concorrente
 
@@ -344,8 +372,8 @@ In particolare:
   risolti o dichiarati indisponibili e divisione risultano fissati dal piano.
 * I limiti dei calcoli devono valere anche fra valutazioni concorrenti sulla
   stessa risorsa: moltiplicare i workflow non deve moltiplicare senza controllo
-  le chiamate attive. Il bilanciamento con parsing ed Estrazione richiede
-  misure e resta da completare. Massima concorrenza utile non equivale a
+  le chiamate attive. Il bilanciamento con parsing ed Estrazione si fissa
+  con le misure. Massima concorrenza utile non equivale a
   creare richieste senza limite.
 
 ### Decisione dell'autore: calcolo anticipato durante l'Estrazione
@@ -363,7 +391,7 @@ le opzioni senza attribuire motivazioni di rifiuto non dichiarate.
 
 La scelta B non permette campioni o accettazioni su un insieme che sta ancora
 cambiando e non approva l'ammissibilità di risultati provvisori. La regola
-per scegliere lo snapshot ammissibile resta da fissare in entrambe le opzioni.
+per scegliere lo snapshot ammissibile è in «Ammissione dello snapshot».
 
 ### Validità dei calcoli anticipati
 
@@ -398,12 +426,14 @@ fra Estrazioni o proprietari differenti.
 
 Se non è possibile dimostrare il collegamento fra token e valore prodotto,
 il segnale non viene attribuito per somiglianza del testo: resta indisponibile
-con un motivo. Il meccanismo concreto di attribuzione è ancora da definire.
+con un motivo. Il meccanismo di attribuzione è in «API, retry, cancellazione
+e attribuzione dei token».
 
 Le correzioni del Ricercatore non sostituiscono gli input originali di questo
 confronto. La valutazione dell'errore originale e l'eventuale modifica restano
-separate. La politica per coprire con decisioni interi oggetti e liste resta
-aperta e non è risolta dalla validità di un singolo punteggio.
+separate. La copertura con decisioni di interi oggetti e liste è in
+«Decisioni esistenti, modifiche e Value Disagreements»; non è risolta dalla
+validità di un singolo punteggio.
 
 ### Convergenza sul risultato finale
 
@@ -439,8 +469,8 @@ termine effettivo. La pulizia deve aspettarne la quiescenza.
 La divisione non viene aggiornata durante il controllo casuale. Se cambiano
 gli input necessari, si registra una nuova valutazione: nessun nuovo esito
 può modificare retroattivamente il gruppo dal quale è stato estratto il
-campione. Restano aperte la regola precisa di ammissione dello snapshot e
-quella per trattare decisioni del Ricercatore già presenti.
+campione. L'ammissione dello snapshot e le decisioni del Ricercatore già
+presenti sono trattate nelle sezioni omonime.
 
 ### Decisione dell'autore: segnalazione nella transazione di pubblicazione
 
@@ -508,8 +538,8 @@ ricevute prova che i punteggi siano pronti.
 L'identità del lavoro logico è distinta da quella di un tentativo di
 esecuzione. La riconsegna dello stesso tentativo non è un nuovo retry; una
 politica di retry di un tentativo terminale deve avere una propria identità
-e non perde gli esiti validi già salvati. I comandi di retry e i limiti
-restano da definire.
+e non perde gli esiti validi già salvati. Retry e limiti sono in «API, retry,
+cancellazione e attribuzione dei token».
 
 ### Accorpamento del lavoro e concorrenza
 
@@ -548,7 +578,7 @@ Un risveglio a bassa latenza può velocizzare la raccolta, mentre il recupero
 periodico delle righe pendenti rimane necessario. Frequenza e meccanismo del
 risveglio sono da specificare; non si promette una latenza numerica non misurata.
 
-### Scelta aperta: conservazione dei segnali e della valutazione
+### Decisione dell'autore: righe separate e `check` composto in lettura
 
 La separazione dal risultato originale è un requisito delle decisioni già
 prese: arrivo di punteggi e cambiamento della regola di divisione non devono
@@ -557,8 +587,7 @@ restano nel database di FREE e appartengono allo stesso Progetto.
 
 Si distinguono logicamente esiti delle tecniche, appartenenza dei valori alla
 valutazione, regola e divisione fissate, campione, etichette e accettazione.
-Il formato fisico resta aperto. Due opzioni mantengono la stessa interfaccia
-ai moduli e la stessa possibilità di ricostruire la revisione.
+**L'autore ha scelto l'opzione A.** La tabella conserva il confronto.
 
 | Opzione | Meccanismo | Compromesso e condizione di fallimento |
 | --- | --- | --- |
@@ -566,20 +595,186 @@ ai moduli e la stessa possibilità di ricostruire la revisione.
 | B — Blocchi immutabili di segnali | I segnali vengono salvati in blocchi JSONB indipendenti, con metadati e riferimenti al contenuto del blocco. Valutazione, campione, etichette e accettazione restano registrazioni strutturate e separate. I blocchi possono essere prodotti in parallelo e referenziati da più valutazioni della stessa Estrazione quando validi. | Riduce la frammentazione in righe dei segnali e si adatta al lavoro per porzioni. Cercare un singolo attributo e fare analisi sulle etichette richiede leggere o indicizzare il contenuto dei blocchi. Blocchi troppo grandi aumentano memoria, riscritture e costo dei retry; blocchi troppo piccoli riducono il vantaggio. |
 
 Non si propone un unico JSON modificabile per tutta la valutazione, che
-concentrerebbe scritture concorrenti e riletture. In entrambe le opzioni la
-deduplicazione, le impronte degli input, le autorizzazioni e i riferimenti
-storici devono essere verificabili dal server. La scelta non decide ancora
-le soglie né il piano del controllo casuale.
+concentrerebbe scritture concorrenti e riletture. La deduplicazione, le
+impronte degli input, le autorizzazioni e i riferimenti storici devono essere
+verificabili dal server.
 
-### Decisioni successive ancora necessarie
+Con l'opzione A le righe si scrivono a gruppi, non con una transazione per
+attributo. La chiave di unicità comprende Estrazione, origine del valore,
+percorso tipizzato, tecnica e sua versione, impronta degli input consumati;
+per una distanza anche l'impronta del gruppo di confronto. Lo snapshot e la
+Selezione da cui è partito il calcolo restano registrati per audit. Le
+dimensioni osservate (sotto) non giustificano i blocchi.
 
-Scelti il worker esistente, la regola basta un segnale, il calcolo anticipato
-e la segnalazione atomica con la pubblicazione, restano da definire
-conservazione fisica della valutazione, soglie e segnali indisponibili,
-ammissibilità dei risultati,
-trattamento di modifiche e Value Disagreements, piano statistico compresi i
-fallimenti ripetuti, API, interazione di revisione, finalizzazione, pilot ed
-esportazioni. Nessuna di queste decisioni è implicita nelle scelte già approvate.
+Il `check` protocol 1 dentro `snapshot.values` contrasta con questa
+separazione: un esito calcolato dopo la pubblicazione non può entrarvi senza
+una nuova versione del risultato. Gli esiti restano quindi nelle righe della
+valutazione. L'API di Studio compone in lettura lo stesso formato `check` per
+lo snapshot mostrato e nomina la valutazione da cui proviene; l'etichetta è
+quella data dalla soglia della versione, il punteggio grezzo resta nella
+riga. Un `check` già presente in uno snapshot resta leggibile come indizio
+d'ordine e non entra in una valutazione senza verificarne scalare originale,
+input e checker. Le parole di Studio descrivono oggi solo il sostegno
+dell'Evidence: se token o embedding vengono promossi, `check` richiede una
+nuova versione del protocollo che nomini la tecnica di ogni giudizio.
+
+### Decisione dell'autore: due fasi e misura delle tre tecniche
+
+Una misura su un'installazione di sviluppo (595 Estrazioni attive, ultimo
+snapshot, foglie scalari dei valori salvati) ha dato 587 Article, con mediana
+di 3 scalari e massimo di 120, e 8 Catalog, con mediana di 288 e massimo di
+470. Nessuna raggiunge 500 scalari. Il controllo casuale descritto sotto
+richiede 78 draw su 250 valori affidabili e 111 su 470, oltre a tutti i
+dubbi. Un'Article tipica va esaminata per intero anche se ogni suo valore
+fosse affidabile. Con queste dimensioni l'accettazione per singolo snapshot
+risparmia poco, mentre l'ordine «Check first» già presente in Studio aiuta
+subito.
+
+**L'autore ha scelto un rilascio in due fasi.**
+
+1. **Fase 1: segnali per l'ordine.** Le tre tecniche vengono misurate sul
+   benchmark sintetico, esteso con casi di OCR corrotto e record sbagliato,
+   contro l'ordine casuale e contro l'ordine attuale di Studio a parità di
+   lavoro. Si costruisce l'infrastruttura per tutte quelle che superano i
+   criteri, prima di rilasciarne una. I loro esiti alimentano l'ordine di
+   revisione tramite `check`; nessun valore viene accettato senza lettura.
+2. **Fase 2: accettazione a campione.** Facoltativa, solo per le Catalog, e
+   abilitata quando le misure mostrano un risparmio netto rispetto alla
+   revisione completa, contando dubbi, campione, revisioni intere dei
+   compositi e costo atteso di un fallimento.
+
+Le probabilità dei token mancano per i provider che non le espongono: per
+questi il segnale è indisponibile con un motivo. Su un Campo con pochi valori
+il gruppo di confronto degli embedding è troppo piccolo; la popolazione
+minima fa parte della versione della tecnica.
+
+### Decisione dell'autore: soglie assolute per versione
+
+| Opzione | Meccanismo | Compromesso e condizione di fallimento |
+| --- | --- | --- |
+| A — Soglia assoluta per versione (scelta) | Ogni tecnica ha una soglia scelta sul benchmark e fissata nella sua versione. Si conservano punteggio grezzo ed etichetta. | Stabile su popolazioni piccole; non manda in revisione una quota fissa di valori buoni. Una soglia mal tarata sposta tutto il carico; si corregge con una nuova versione, senza riscrivere le valutazioni esistenti. |
+| B — Percentile per tecnica | Il 20% più dubbio di ogni tecnica, con regole fisse per pareggi e popolazione minima. | Regge derive di scala, ma segnala sempre una quota anche quando l'Estrazione è buona, ed è instabile su Campi piccoli. |
+
+Evidence assente e corrispondenza inesatta bastano ciascuna a rendere dubbio
+uno scalare. Un calcolo pendente blocca la divisione. Una tecnica
+definitivamente indisponibile su uno scalare si astiene con un motivo; da
+sola non lo rende dubbio, altrimenti un provider senza probabilità
+manderebbe in revisione intere Estrazioni. Se nessuna tecnica può dare un
+esito, lo scalare è dubbio.
+
+### Decisione dell'autore: ammissione dello snapshot
+
+È ammesso solo uno snapshot corrente e completato, con prova coerente di
+tentativo, generazione e Selezione, una sola Selezione di produzione per i
+valori salvati, nessun valore provvisorio e una popolazione di scalari non
+vuota. La popolazione si ricava percorrendo `modelValue`, comprese liste di
+primitivi, zero e false. I valori `absent`, `unprocessed` e `failed` restano
+fuori dal denominatore e vengono dichiarati. Tagli parziali, misti o storici
+non sono ammessi.
+
+### Decisione dell'autore: decisioni esistenti, modifiche e Value Disagreements
+
+Un valore salvato che ha già una decisione quando parte la valutazione la
+mantiene e resta fuori dalla popolazione: non è esaminato dal campione né
+accettato. Un'approvazione di singola cella esclude solo quella cella, perché
+nomina un percorso originale dello stesso snapshot. Valutazione, divisione e
+campione riguardano il resto, e la garanzia vale solo per questo.
+
+Un padre con Value Disagreement va in revisione esplicita dell'intero valore;
+le alternative non entrano nella popolazione. Un composito modificato
+durante la valutazione va in revisione intera. Draw ed esiti originali
+restano registrati anche dopo una correzione o un riordino.
+
+### Decisione dell'autore: piano statistico e fallimento
+
+Il controllo è un solo campione casuale semplice senza reinserimento,
+estratto dal server sul gruppo affidabile fissato. Prima di qualsiasi esito
+si fissano N, n, c, la definizione di errore e l'appartenenza; i draw si
+salvano prima di essere mostrati. Il piano ipergeometrico esatto limita al
+5% la probabilità di passare con almeno ⌈0,05·N⌉ errori e dà almeno il 90%
+di probabilità di passare con ⌊0,01·N⌋:
+
+| Affidabili N | 250 | 470 | 500 | 1.000 | 5.000 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Draw n | 78 | 111 | 114 | 146 | 152 |
+| Errori ammessi c | 1 | 2 | 2 | 3 | 3 |
+
+Un errore è contenuto sbagliato, record sbagliato o Evidence che non
+sostiene il valore; uno scalare sbagliato conta una volta. Il controllo
+passa solo con tutti gli esiti registrati e al massimo c errori. Se fallisce,
+il resto del gruppo affidabile va in revisione manuale e su quello snapshot
+il test non si ripete: un nuovo tentativo darebbe al controllo più occasioni
+di passare. La garanzia copre il gruppo affidabile originale, non i singoli
+Campi né le omissioni. I campioni anticipati di Studio sono deterministici,
+a intervalli regolari e su valori interi: restano un ordine e non contano
+come draw.
+
+### Decisione dell'autore: pilot
+
+Un pilot può usare l'accettazione a campione con una regola propria. Oltre
+al campione complessivo, si aggiungono draw casuali per Campo finché ogni
+Campo ne ha almeno k; un Campo con meno di k valori affidabili si esamina per
+intero, e nessun errore è ammesso negli strati. La stabilizzazione registra
+la modalità del pilot. k si fissa con le misure. A titolo indicativo, con
+k = 10 un Campo con il 25% di errori viene scoperto con probabilità di circa
+0,94, uno con il 10% solo di circa 0,65. La query di stabilizzazione deve
+conoscere la modalità prima che esista la prima finalizzazione con
+accettazione.
+
+### Decisione dell'autore: interazione di revisione
+
+L'accettazione ha una modalità dedicata. Dopo i dubbi, una schermata del
+controllo presenta i draw salvati riusando le card con l'Evidence. L'esito
+(corretto, contenuto sbagliato, record sbagliato, Evidence che non lo
+sostiene) si registra separatamente dalla correzione. Saltare un draw lo
+lascia pendente fra le sessioni. Apprendimento di sessione, azioni in blocco
+e campioni anticipati non modificano appartenenza né esiti.
+
+### Decisione dell'autore: finalizzazione
+
+La finalizzazione resta un'azione esplicita sul taglio nominato e guadagna
+una modalità e l'identità immutabile dell'accettazione. Verifica in modo
+atomico che dubbi e padri con Value Disagreement abbiano una decisione, che
+ogni draw abbia un esito e ogni draw sbagliato una correzione, che il
+controllo sia passato e che le correzioni siano compatibili. Lega il digest
+delle decisioni a quello della valutazione. Una ripetizione identica
+restituisce lo stesso esito; un'accettazione diversa sulla stessa chiave è
+un conflitto. Non genera approvazioni. Le finalizzazioni esistenti
+mantengono il loro significato: le decisioni richieste esistono.
+
+### Decisione dell'autore: esportazioni
+
+L'XLSX ha un foglio di stato per scalare, il CSV colonne di stato accanto ai
+valori, il JSON metadati di revisione strutturati. Gli stati sono esaminato,
+accettato non letto, in attesa e solo decisione (finalizzazioni esistenti e
+valori decisi prima della valutazione). Percorsi e identità
+dell'accettazione si legano al taglio di ciascun membro di una Batch
+Extraction. I valori tipizzati e le colonne dei Value Disagreement restano.
+
+### Decisione dell'autore: API, retry, cancellazione e attribuzione dei token
+
+| Scelta | Meccanismo | Condizione di fallimento |
+| --- | --- | --- |
+| API | Una risorsa «valutazione» propria dell'Estrazione in Studio: avvio e ripresa idempotenti, stato e membri paginati, draw con identità emessa dal server, esiti con controllo di revisione, finalizzazione esplicita. Una ripetizione restituisce lo stesso draw o la stessa ricevuta. | Un client che usa solo le correzioni non può completare un draw. |
+| Retry e limiti | Pochi retry automatici per errori transitori, poi retry esplicito con una nuova identità di tentativo; la riconsegna mantiene la propria. Gli esiti validi già salvati si riusano. Un limite di chiamate concorrenti per dispositivo vale fra tutte le valutazioni, con limiti di byte o token per porzione. Lo scoring ha operazioni database proprie, recintate e circoscritte, e non tiene connessioni durante l'inferenza. | Un workflow fallito non fa mai passare una valutazione. |
+| Cancellazione del Progetto | Recinto immediato, cancellazione dello scoring in coda, attesa delle chiamate native. Commit e prese in carico tardivi vengono rifiutati. Ogni tentativo è tracciato; i riferimenti agli input restano fino alla quiescenza, poi si cancellano cronologia dei workflow e righe della valutazione. | La cancellazione fisica arriva in ritardo finché una chiamata nativa non termina. |
+| Attribuzione dei token | Al momento del parse si mappano i byte dei token emessi sugli span degli scalari JSON e si portano cattura e percorso vincenti nell'assemblaggio. | Chiamate storiche, fusioni ambigue, JSON riparato e provider senza probabilità danno un segnale indisponibile con motivo, mai attribuito per somiglianza del testo o rigenerando. |
+
+### Parametri da fissare con le misure
+
+Non sono scelte di design aperte: si fissano con le misure della fase 1 e si
+versionano.
+
+* soglie per tecnica e popolazione minima per gli embedding;
+* criteri di promozione dal benchmark: errori portati avanti a parità di
+  lavoro, copertura, latenza e costo;
+* lingue e provider supportati;
+* limiti di concorrenza e di volume e impatto tollerato su parsing ed
+  Estrazione;
+* risparmio netto minimo per abilitare la fase 2;
+* k dei pilot;
+* ritardo tollerato della cancellazione fisica dopo l'eliminazione di un
+  Progetto.
 
 ### Disallineamento documentale rilevato
 
@@ -590,10 +785,27 @@ attuale espone invece lettura e append della Project Chat persistita
 coerentemente con `CONTEXT.md`. Per il progetto si segue il codice attuale;
 questo disallineamento non richiede modifiche alla chat in questo lavoro.
 
+Il 2026-11-28 sono emersi altri tre disallineamenti:
+
+* `apps/studio/DESIGN.md` («Review order») descrive i motivi del controllo
+  automatico come attivi, ma nessun produttore emette ancora `check`.
+* Il brief descrive la verifica delle Catalog come spenta per default; il
+  metodo unificato l'ha ritirata (`CONTEXT.md`). Resta solo una lettura
+  indipendente per i valori ereditati da un'intestazione.
+* `docs/product-contract.md` dice che la griglia di una Batch Extraction
+  mostra i membri completati; `reviewableMember` ammette anche membri fermati
+  o falliti che hanno valori salvati.
+
 ### Riferimenti al codice esaminato
 
 * [Contratto del prodotto](./docs/product-contract.md)
-* [Contratto dei valori durevoli](./packages/extraction/src/durable-contract.ts)
+* [Contratto dei valori durevoli e `check`](./packages/extraction/src/durable-contract.ts)
+* [Fixture del contratto `check`](./apps/parsing_service/tests/fixtures/contracts/value-check.json)
+* [Ordine di revisione di Studio](./apps/studio/src/reviewQueue.ts)
+* [Apprendimento di sessione](./apps/studio/src/reviewLearning.ts)
+* [Celle originali delle tabelle](./packages/extraction/src/table-cell-review.ts)
+* [Query del pilot](./packages/extraction/src/postgres-attempts.ts)
+* [Membri revisionabili di una Batch Extraction](./apps/studio/shared/batchExtraction.contract.ts)
 * [Decisioni e finalizzazione](./packages/extraction/src/durable-repository.ts)
 * [Stabilizzazione dello schema](./packages/extraction/src/postgres-persistence.ts)
 * [Attributi mostrati in Studio](./apps/studio/src/durableRailModel.ts)
