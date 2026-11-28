@@ -111,9 +111,10 @@ for them and `Reply` drops them
 SQL validator rejects request keys outside an allowlist
 (`packages/db/migrations/app/20261101T1702_claude_code_extraction/claude_code.sql:95`),
 and a workflow-step change must go behind `DBOS.patch()`. The Codex provider
-probably cannot supply them. The default Catalog path runs with verification
-off (`unified.py:155`), so there is no verifier call to read a probability
-from.
+probably cannot supply them. The Unified Catalog Method retired the
+verification switch (`CONTEXT.md`), so there is no verifier call to read a
+probability from; only a value inherited from a heading gets a second,
+independent reading.
 
 **10. The other two techniques have unmeasured costs.** The cross-encoder
 adds a model to deploy; small entailment models are trained mostly on English,
@@ -189,8 +190,8 @@ accumulate, the doubtful pile shrinks.
   not give the stated confidence.
 * **Zero-error plan of 59 checks.** Rejected by review: a good pile fails too
   often.
-* **Verifier-label probability.** Rejected by review: the default Catalog
-  path has no verifier call.
+* **Verifier-label probability.** Rejected by review: the Unified Catalog
+  Method has no verifier call.
 * **Save acceptance as an approval on each value.** Rejected by review: it
   hides who decided what and corrupts future labels.
 * **OCR confidence as the first technique.** Deferred by author.

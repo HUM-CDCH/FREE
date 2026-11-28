@@ -844,14 +844,18 @@ del documento, rimossa (ADR 0012). La Project Chat persistita
 (`apps/studio/api/project_chat.ts`) è una conversazione di Progetto
 introdotta separatamente (ADR 0028).
 
-Il 2026-11-28 sono emersi due disallineamenti:
+Il 2026-11-28 sono emersi due disallineamenti, corretti lo stesso giorno
+seguendo il codice:
 
-* Il brief descrive la verifica delle Catalog come spenta per default; il
+* Il brief descriveva la verifica delle Catalog come spenta per default; il
   metodo unificato l'ha ritirata (`CONTEXT.md`). Resta solo una lettura
-  indipendente per i valori ereditati da un'intestazione.
-* `docs/product-contract.md` dice che la griglia di una Batch Extraction
-  mostra i membri completati; `reviewableMember` ammette anche membri in
-  pausa, fermati o falliti che hanno valori salvati.
+  indipendente per i valori ereditati da un'intestazione. Il brief è
+  corretto in questa PR.
+* `docs/product-contract.md` e ADR 0030 dicevano che la griglia di una Batch
+  Extraction mostra solo i membri completati; `reviewableMember` ammette
+  anche membri in pausa, fermati o falliti che hanno valori salvati.
+  Corretti nella PR #421 (contratto riformulato, emendamento datato di ADR
+  0030).
 
 ### Riferimenti al codice esaminato
 
