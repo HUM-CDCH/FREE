@@ -201,7 +201,9 @@ class CapturePlanner:
                     and output.get("calls") and looped(Call(**output["calls"][-1]))
                     and "response_format" in capture["input"]["request"]["body"].get("httpRequest", {})):
                 return self._fallback(capture, key, priority=priority, max_whitespace=MAX_WHITESPACE)
-            return output["parsed"], [Call(**call) for call in output["calls"]]
+            # Older failure records may still contain JSON parsed before the reply was refused.
+            attempts = [Call(**call) for call in output["calls"]]
+            return (output["parsed"] if attempts[-1].ok else None), attempts
         if capture["input"] is None:
             counter = counter or self.counters.get(ROLE[stage]) or counter_for(chat)
             reserve = max_tokens if max_tokens is not None else getattr(chat, "max_tokens", 8192)
@@ -264,7 +266,7 @@ class CapturePlanner:
             attempts = [Call(**call) for call in output["calls"]]
             if max_whitespace is not None and all(call.ok or call.recovered for call in attempts):
                 refused = [replace(call, recovered=True) for call in refused]
-            return output["parsed"],[*refused,*attempts]
+            return (output["parsed"] if attempts[-1].ok else None), [*refused, *attempts]
         if capture["input"] is None:
             request=deepcopy(parent["input"]["request"])
             formatting = request["body"]["httpRequest"].pop("response_format")
@@ -364,5 +366,7 @@ class CapturePlanner:
     def saved_record(self, fields, scope, *, record=0, links=(), primary=(), disagreements=()):
         from kei_exp.kie.extract.retained import publish_values
         self.scopes[record] = scope
+        record_fields = {node["id"] for node in self.selection["schemaTree"]["schemaNodes"]
+                         if node.get("valueSource") is None}
         return publish_values(self.lease, fields, scope, record=record, links=links, primary=primary,
-                              historical=self.historical, disagreements=disagreements)
+                              field_ids=record_fields, historical=self.historical, disagreements=disagreements)

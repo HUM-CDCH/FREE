@@ -12,6 +12,7 @@ import pytest
 from kei_exp.kie.extract import calls, run, unified
 from kei_exp.kie.extract.durable import Boundary, CapturePlanner, NeedsCall, digest
 from kei_exp.kie.extract.models import Router
+from kei_exp.kie.extract.llm import Reply
 from kei_exp.kie.extract import retained
 from kei_exp.workflows import durable_extract as worker
 from kei_exp.kie.extract.retained import publish_final, publish_values
@@ -931,3 +932,97 @@ def test_final_publication_never_completes_unread_source(explicit, unread):
     publish_final(lease, result)
     final = next(iter(lease.publications.values()))
     assert final["coverage"]["finalizedAttempt"]["complete"] is not unread
+
+
+@pytest.mark.parametrize("failed_second", [False, True])
+def test_article_document_fields_wait_for_every_context(failed_second):
+    request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {
+        "context": "bounded", "context_tokens": 8192, "grounding": "off"}})
+    source = evidence(passages(["First part. " + "word " * 2300, "Second part. " + "word " * 2300]))
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+
+    def answer(system, user, schema):
+        if "title" not in schema["properties"]:
+            return {}
+        if "Second part." in user:
+            if failed_second:
+                return Reply('{"title":"Refused title"}', 999, 6, "stop", 0)
+            return {"title": "Second title"}
+        return {"title": "First title"}
+
+    result = finish(lease, CountingChat(answer), lambda router, counter: run.dispatch(
+        None, source, request, router, counter={"fields": counter, "reasoning": counter}))
+
+    assert [call["ok"] for call in result["calls"] if call["stage"] == "document"] == [True, not failed_second]
+    expected_title = "First title" if failed_second else None
+    assert result["records"][0]["title"] == expected_title
+    assert result["records"][0]["filename"] == "bauer.pdf"
+    snapshots = list(lease.publications.values())
+    field_values = [(saved["coverage"], value) for saved in snapshots for value in saved["values"]
+                    if saved["coverage"].get("primaryScope") == "document-fields"]
+    titles = [(coverage, value) for coverage, value in field_values if value["fieldId"] == "title"]
+    first_coverage, first = titles[0]
+    assert first["modelValue"] == "First title"
+    assert first["grounding"] == "provisional"
+    assert first["id"] not in first_coverage["completedDocumentFields"]
+    filenames = [value for _, value in field_values if value["fieldId"] == "file"]
+    assert filenames
+    assert all(value["modelValue"] == "bauer.pdf" and value["evidence"] == [] for value in filenames)
+    last_coverage, last = titles[-1]
+    assert last["modelValue"] == expected_title
+    assert (last["id"] in last_coverage["completedDocumentFields"]) is not failed_second
+    assert last["processing"] == ("saved" if failed_second else "absent")
+    assert snapshots[-1]["coverage"]["finalizedAttempt"]["complete"] is not failed_second
+
+
+def test_article_drain_does_not_replay_a_rejected_legacy_document_reply():
+    request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"grounding": "off"}})
+    source = evidence(passages(["Title in source."]))
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    chat = CountingChat(lambda *_: pytest.fail("the planner must use the saved reply"))
+    counter = Counter()
+
+    def plan():
+        router = Router(chat, chat, CapturePlanner(lease))
+        return run.dispatch(None, source, request, router, counter={"fields": counter, "reasoning": counter})
+
+    with pytest.raises(NeedsCall):
+        plan()
+    (document,) = lease.units.values()
+    document["failures"][lease.attempt] = {"output": {"parsed": {"title": "Refused title"},
+        "calls": [asdict(calls.Call("document", None, 999, 6, 0, "stop", False, "prompt-count mismatch"))]}}
+    lease.intent = "PAUSE"
+    body = document["input"]["request"]["body"]
+    parsed, attempts = CapturePlanner(lease).complete(chat, **{key: body[key] for key in
+        ("stage", "record", "system", "user", "schema", "max_tokens")})
+    assert parsed is None and not attempts[-1].ok
+    with pytest.raises(Boundary):
+        plan()
+
+    assert all(value["modelValue"] != "Refused title"
+               for snapshot in lease.publications.values() for value in snapshot["values"])
+
+
+def test_article_keeps_the_producer_of_carried_document_fields():
+    request = run.ExtractRequest(schema=SCHEMA, options={"strategy": "article", "article": {"grounding": "off"}})
+    source = evidence(passages(["Hill."]))
+    lease = MemoryLease(request.schema_.model_dump(by_alias=True, exclude_none=True))
+    saved = publish_values(lease, {"title": "Historical title", "filename": "bauer.pdf"},
+                           "document-fields", complete=True, field_ids={"title", "file"})
+    lease.publications.clear()
+    lease.historical = {"snapshot": {"id": "historical", **deepcopy(saved)}, "manifest": {"coverage": {}}}
+    lease.state["selection"]["id"] = str(uuid4())
+
+    def answer(system, user, schema):
+        assert set(schema["properties"]) == {"entry_no", "site", "year", "finds"}
+        return {"site": "Hill"}
+
+    result = finish(lease, CountingChat(answer), lambda router, counter: run.dispatch(
+        None, source, request, router, counter={"fields": counter, "reasoning": counter}))
+
+    assert result["records"][0]["title"] == "Historical title"
+    assert result["records"][0]["filename"] == "bauer.pdf"
+    assert lease.historical["snapshot"]["values"] == saved["values"]
+    assert all(value["fieldId"] not in {"title", "file"}
+               for snapshot in lease.publications.values() for value in snapshot["values"])
+    assert list(lease.publications.values())[-1]["coverage"]["finalizedAttempt"]["complete"]

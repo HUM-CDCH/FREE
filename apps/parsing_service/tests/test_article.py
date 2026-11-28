@@ -151,9 +151,27 @@ def test_article_refuses_unknown_context_and_reports_incorrect_server_counts(mon
             counter={role: counter for role in ("fields", "reasoning")})
     assert not chat.calls
     chat = CountingChat(lambda *_: Reply('{}', 999, 1, 'stop', 0))
-    _, calls = complete(chat, stage="record", record=0, system="S", user="U", schema={"type": "object"},
+    parsed, calls = complete(chat, stage="record", record=0, system="S", user="U", schema={"type": "object"},
                        max_tokens=100, counter=WordCounter())
     assert not calls[-1].ok and "server reported 999" in calls[-1].error
+    assert parsed is None
+
+
+def test_a_refused_document_reply_cannot_supply_a_value_to_the_article_artifact():
+    def answer(system, user, schema):
+        if "title" in schema["properties"]:
+            return Reply('{"title":"Refused title"}', 999, 6, "stop", 0)
+        return {"site": "Hill"}
+
+    result = run.dispatch(None, evidence(passages(["Hill"])), finds_request(), CountingChat(answer),
+                          counter=counters())
+
+    assert result["records"] == [{"entry_no": None, "site": "Hill", "year": None, "finds": None,
+                                  "title": None, "filename": "bauer.pdf"}]
+    assert result["unverified"] == ["title"]
+    assert result["completion"]["processing"] is False
+    assert processing_complete(result) is False
+    assert result["calls"][0]["error"].endswith("server reported 999")
 
 
 # A document-scope list: each find the reply lists costs `PER_FIND` reply tokens, so 2,000 do not fit 4,096.

@@ -112,18 +112,22 @@ def document_values(evidence: Evidence, contexts: Sequence[Context], schema: Sch
     (`overlap_items_joined`), equal items from other contexts named (`possible_repeated_items`). A scalar the contexts
     disagree on is null, with its conflict and a `conflicting_document_values` issue."""
     from kei_exp.kie.extract.retained import document_inputs, saved_document
-    schema, carried = document_inputs(chat,schema)
+    schema, carried = document_inputs(chat, schema)
+    saved_document(chat, {node.name: evidence.source_name for node in schema.filename_nodes}, complete=True)
+    source_read = not any(passage.text.strip() for passage in evidence.withheld)
     documents: list[dict] = []
     calls: list[Call] = []
     issues: list[Issue] = []
-    for context in contexts:
+    for index, context in enumerate(contexts, start=1):
         document, document_calls, document_issues = extract_document(replace(evidence, passages=context.passages),
             schema, chat, counter=counter, structured=structured)
         documents.append(document)
         calls += document_calls
         issues += document_issues
-        interim=assemble_document(documents,sharing(contexts[:len(documents)]))[0] if len(documents)>1 else documents[0]
-        saved_document(chat,{**carried,**interim},complete=all(call.ok or call.recovered for call in calls))
+        if document_calls and document_calls[-1].ok:
+            interim = assemble_document(documents, sharing(contexts[:index]))[0] if index > 1 else document
+            complete = index == len(contexts) and source_read and all(call.ok or call.recovered for call in calls)
+            saved_document(chat, interim, complete=complete)
     document, conflicts, repeats, joined = (assemble_document(documents, sharing(contexts)) if len(documents) > 1
                                             else (documents[0], [], [], []))
     issues += [Issue("conflicting_document_values", json.dumps(conflict, ensure_ascii=False))

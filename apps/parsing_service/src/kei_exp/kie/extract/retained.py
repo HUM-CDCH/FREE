@@ -131,11 +131,12 @@ def publish_values(lease, fields: dict, scope, *, record=0, links=(), complete=F
         # grounded. A value published before the run completes stays
         # provisional even with its Evidence shown: adoption re-reads its record.
         grounded = bool(evidence) and node["type"] not in ("object", "array")
+        absent = complete or (scope != "document-fields" and node["name"] in produced)
         values.append({"id": digest([record_id, node["id"]]), "recordId": record_id, "fieldId": node["id"],
                        "path": ["records", record, node["name"]], "selectionId": selection["id"],
                        "schemaRevisionId": selection["schemaRevisionId"], "node": node, "modelValue": value,
                        "evidence": evidence, "grounding": ("grounded" if grounded else "ungrounded") if complete else "provisional",
-                       "processing": "saved" if value is not None or disagreement else "absent" if complete or node["name"] in produced else "unprocessed", "lineage": lineage,
+                       "processing": "saved" if value is not None or disagreement else "absent" if absent else "unprocessed", "lineage": lineage,
                        **({"disagreement": disagreement} if disagreement else {})})
     publication = digest([selection["id"], scope, values, complete, primary, metadata, proposals])
     identity = str(UUID(publication[:32], version=5))
@@ -201,7 +202,14 @@ def publish_final(lease, result):
     records = result["records"]
     metadata = {key: value for key, value in result.items() if key != "records"}
     raw_nodes = lease.state["selection"]["schemaTree"]["schemaNodes"]
-    document_ids = {node["id"] for node in raw_nodes if node.get("valueSource") is not None}
+    document_sources = ("document", "source-filename")
+    if result.get("strategy") == "article" and (
+        any(call["stage"] == "document" and not (call["ok"] or call.get("recovered")) for call in result["calls"])
+        or any(issue["code"] == "source_unread" for issue in result["issues"])
+    ):
+        # Assembly has already saved the partial document readings.
+        document_sources = ("source-filename",)
+    document_ids = {node["id"] for node in raw_nodes if node.get("valueSource") in document_sources}
     if records and document_ids:
         publish_values(lease, records[0], "document-fields", complete=True, field_ids=document_ids, metadata=metadata)
     # Record scopes were captured at the producer boundary.
@@ -220,10 +228,11 @@ def publish_final(lease, result):
 
 
 def saved_document(router, fields: dict, *, complete=False):
-    runtime=getattr(router,"runtime",None)
-    if runtime is None:
+    runtime = getattr(router, "runtime", None)
+    if runtime is None or not fields:
         return
-    ids={node["id"] for node in runtime.selection["schemaTree"]["schemaNodes"] if node.get("valueSource") is not None}
+    ids = {node["id"] for node in runtime.selection["schemaTree"]["schemaNodes"]
+           if node.get("valueSource") is not None and node["name"] in fields}
     if ids:
         publish_values(runtime.lease, fields, "document-fields", complete=complete, field_ids=ids)
 
