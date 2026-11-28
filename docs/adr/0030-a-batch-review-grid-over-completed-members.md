@@ -34,3 +34,11 @@ which one document at a time does not show.
 - Bulk Approve can decide many values in one click; the decisions are ordinary corrections, each undoable in the grid
   or the document.
 - Schema-issue flags and the pilot "ready to approve" signal of the earlier grid are not part of this one.
+
+## Amendment (2026-11-12)
+
+Settled members join too. A member with saved values joins once its run has
+completed once or is paused, stopped or failed, since its saved values then
+hold still; one stopped or failed partway keeps what it saved
+(`reviewableMember` in `apps/studio/shared/batchExtraction.contract.ts`). The
+document's Results and the chat's review step use the same rule.
