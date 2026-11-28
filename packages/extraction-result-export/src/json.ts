@@ -1,5 +1,5 @@
-import type { SchemaNode } from "extraction/schema";
-import { originPages, partName } from "extraction/value-disagreement";
+import { schemaPathNames, type SchemaNode } from "extraction/schema";
+import { originPages } from "extraction/value-disagreement";
 import { createFieldRegistry, decisionWords, durableRecords, exportedValue, type DurableExportValue, type FieldRegistry } from "./durable.js";
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
@@ -43,7 +43,10 @@ export interface JsonDisagreement {
   /** 0-based index into `records`, or `null` for a document-level (`document`) field. */
   readonly record: number | null;
   readonly field: string;
+  /** Dotted display label for the disagreeing place. */
   readonly part: string;
+  /** JSON property names relative to `field`, or `[]` for the whole field value. */
+  readonly path: readonly string[];
   readonly review: string;
   readonly alternatives: readonly JsonDisagreementAlternative[];
 }
@@ -89,16 +92,21 @@ export function durableJsonResults(values: readonly DurableExportValue[], regist
       const field = registry.column(value.node).name;
       const record = value.node.valueSource ? null : recordIndex.get(value.recordId) ?? null;
       const review = decisionWords(value);
-      return value.disagreement.map((entry) => ({
-        record,
-        field,
-        part: partName(value.node, entry.path),
-        review,
-        alternatives: entry.alternatives.map((alternative) => ({
-          value: alternative.value,
-          readIn: originPages(alternative.segments),
-        })),
-      }));
+      return value.disagreement.map((entry) => {
+        const path = schemaPathNames(value.node, entry.path);
+        if (path === undefined) throw new Error(`Cannot export a Value Disagreement with an invalid path in field "${field}".`);
+        return {
+          record,
+          field,
+          part: path.join("."),
+          path,
+          review,
+          alternatives: entry.alternatives.map((alternative) => ({
+            value: alternative.value,
+            readIn: originPages(alternative.segments),
+          })),
+        };
+      });
     })
     .sort((left, right) =>
       (left.record ?? -1) - (right.record ?? -1) ||

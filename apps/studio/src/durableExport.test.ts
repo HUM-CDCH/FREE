@@ -309,6 +309,7 @@ it('JSON export keeps unresolved disagreements distinguishable from absent value
     record: 0,
     field: 'year',
     part: '',
+    path: [],
     review: 'Readings differ',
     alternatives: [
       { value: 1827, readIn: 'p. 3' },

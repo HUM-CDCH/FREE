@@ -253,7 +253,14 @@ that has a Value Disagreement with a review column and an alternatives column;
 XLSX also lists each alternative and where it was read on a Disagreements
 sheet, and JSON lists each disagreement beside `records` and `document` in a
 `disagreements` array with its review status, typed alternatives and where each
-was read. Typed columns and JSON fields stay typed.
+was read. The array is omitted when there are no Value Disagreements. Each entry's
+`record` is a zero-based index into `records` or `null` for `document`. In that
+object, `field` is the exported property name and `path` gives the sequence of
+JSON property names relative to that field. For example, `["a.b"]` addresses the
+literal key `a.b`, `["a", "b"]` addresses the key `b` inside `a`, and `[]`
+addresses the entire field value. `part` is a dotted display label. An internal
+path that cannot be resolved against the producing schema fails the JSON export.
+Typed columns and JSON fields stay typed.
 
 ## Pipeline reference
 

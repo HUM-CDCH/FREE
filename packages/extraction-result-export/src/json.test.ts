@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SchemaNode } from "extraction/schema";
 import type { DurableExportValue } from "./durable.js";
-import { durableJsonResults, structuredValue } from "./json.js";
+import { durableJsonResults, structuredValue, type JsonResults } from "./json.js";
 
 const title: SchemaNode = { id: "title", name: "title", type: "string" };
 const finds: SchemaNode = { id: "finds", name: "finds", type: "array", children: [
@@ -120,6 +120,7 @@ test("keeps unresolved ValueDisagreements distinguishable from absent/rejected v
         record: null,
         field: "catalogue",
         part: "",
+        path: [],
         review: "Readings differ",
         alternatives: [
           { value: "Museum North", readIn: "p. 1" },
@@ -130,6 +131,7 @@ test("keeps unresolved ValueDisagreements distinguishable from absent/rejected v
         record: 0,
         field: "year",
         part: "",
+        path: [],
         review: "Readings differ",
         alternatives: [
           { value: 1827, readIn: "p. 3" },
@@ -140,6 +142,7 @@ test("keeps unresolved ValueDisagreements distinguishable from absent/rejected v
         record: 0,
         field: "parish",
         part: "year",
+        path: ["year"],
         review: "Readings differ",
         alternatives: [
           { value: 1901, readIn: "p. 1" },
@@ -148,6 +151,65 @@ test("keeps unresolved ValueDisagreements distinguishable from absent/rejected v
       },
     ],
   });
+});
+
+test("locates Value Disagreements at literal dotted keys and nested keys in both records and document", () => {
+  const metadata: SchemaNode = { id: "metadata", name: "metadata", type: "object", children: [
+    { id: "literal", name: "a.b", type: "string" },
+    { id: "group", name: "a", type: "object", children: [{ id: "leaf", name: "b", type: "string" }] },
+  ] };
+  const documentMetadata: SchemaNode = { ...metadata, id: "document-metadata", name: "document metadata", valueSource: "document" };
+  const alternatives = [
+    { value: "First reading", segments: ["p1_s0"] },
+    { value: "Second reading", segments: ["p2_s0"] },
+  ];
+  const blanks = { "a.b": null, a: { b: null } };
+  const cases = [
+    { ids: ["literal"], path: ["a.b"], chosen: { "a.b": "First reading", a: { b: null } } },
+    { ids: ["group", "leaf"], path: ["a", "b"], chosen: { "a.b": null, a: { b: "First reading" } } },
+  ];
+  const exports: JsonResults[] = cases.map(({ ids }) => {
+    const disagreement = [{ path: ids, alternatives }];
+    const results = durableJsonResults([
+      saved(0, metadata, blanks, { disagreement }),
+      saved(0, documentMetadata, blanks, { recordId: "document", path: ["document metadata"], disagreement }),
+    ]);
+    return JSON.parse(JSON.stringify(results));
+  });
+  assert.notDeepEqual(exports[0], exports[1], "different disagreeing places need distinguishable exports");
+
+  for (const [index, { path, chosen }] of cases.entries()) {
+    const { records, document, disagreements } = exports[index]!;
+    assert.deepEqual({ records, document }, { records: [{ metadata: blanks }], document: { "document metadata": blanks } });
+    assert.ok(disagreements);
+    assert.equal(disagreements.length, 2);
+    for (const entry of disagreements) {
+      assert.equal(entry.part, "a.b");
+      assert.deepEqual(entry.path, path);
+      const fields = entry.record === null ? document : records[entry.record];
+      assert.ok(fields);
+      const field = fields[entry.field] as Record<string, unknown>;
+      const parent = entry.path.slice(0, -1).reduce((object, key) => object[key] as Record<string, unknown>, field);
+      const key = entry.path.at(-1)!;
+      assert.equal(parent[key], null);
+      parent[key] = entry.alternatives[0]!.value;
+    }
+    assert.deepEqual(records, [{ metadata: chosen }]);
+    assert.deepEqual(document, { "document metadata": chosen });
+  }
+});
+
+test("fails the JSON export if a Value Disagreement path cannot be resolved", () => {
+  const disputed = saved(0, parish, { name: null, farms: null }, {
+    disagreement: [{
+      path: ["missing"],
+      alternatives: [
+        { value: "Vor Frue", segments: ["p1_s0"] },
+        { value: "Sankt Petri", segments: ["p2_s0"] },
+      ],
+    }],
+  });
+  assert.throws(() => durableJsonResults([disputed]), /invalid path in field "parish"/);
 });
 
 test("keeps resolved disagreement decisions, sparse record indices, and disambiguated field names in JSON", () => {
@@ -191,6 +253,7 @@ test("keeps resolved disagreement decisions, sparse record indices, and disambig
         record: 0,
         field: "year",
         part: "",
+        path: [],
         review: "Readings differ",
         alternatives: [
           { value: 1827, readIn: "p. 3" },
@@ -201,6 +264,7 @@ test("keeps resolved disagreement decisions, sparse record indices, and disambig
         record: 1,
         field: "year",
         part: "",
+        path: [],
         review: "Chosen",
         alternatives: [
           { value: 1827, readIn: "p. 3" },
@@ -211,6 +275,7 @@ test("keeps resolved disagreement decisions, sparse record indices, and disambig
         record: 2,
         field: "year",
         part: "",
+        path: [],
         review: "Edited",
         alternatives: [
           { value: 1827, readIn: "p. 3" },
@@ -221,6 +286,7 @@ test("keeps resolved disagreement decisions, sparse record indices, and disambig
         record: 2,
         field: "year (string)",
         part: "",
+        path: [],
         review: "Rejected",
         alternatives: [
           { value: "c. 1827", readIn: "p. 3" },
