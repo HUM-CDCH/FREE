@@ -119,9 +119,10 @@ and downstream changes needed before the new form of finalization is enabled.
 
 These are unresolved choices from the brief, not decisions made by this draft.
 They must be resolved before the relevant Technical Plan is approved. The
-author resolved them on 2026-11-28 in the Technical Plan below; the numbers it
-leaves to measurement are listed there under «Parametri da fissare con le
-misure».
+author resolved them on 2026-11-28 in the Technical Plan below, and this list
+is kept as the historical record. What remains to measurement, including
+which languages and providers are supported, is listed there under
+«Parametri da fissare con le misure».
 
 * **Thresholds and missing inputs:** the author has selected the initial rule
   that any doubt flag is sufficient. Thresholds, the proposed most doubtful
@@ -167,10 +168,10 @@ numerici elencati alla fine.
   decisione.
 * Dal 2026-11-18 ogni valore durevole può portare un `check` opzionale
   (protocol 1, `valueCheckSchema` in `durable-contract.ts`): per ogni scalare
-  giudicato uno stato, un'etichetta 0/1, l'impronta dell'input e l'identità
-  del checker. Vive dentro `snapshot.values`, che il database rende
-  immutabile. Nessun produttore lo scrive: esistono solo contratto, fixture
-  e un prototipo di Studio.
+  giudicato uno stato e un'etichetta 0/1; l'impronta dell'input può mancare
+  e l'identità del checker può essere vuota. Vive dentro `snapshot.values`,
+  che il database rende immutabile. Il rail dei risultati di Studio lo
+  consuma già; manca il produttore.
 * Studio ordina già la revisione «Check first» (PR #419): Evidence assente,
   corrispondenza inesatta, Value Disagreement ed etichette 0 di `check`
   vengono prima. Intercala campioni anticipati deterministici presi dal resto
@@ -613,10 +614,24 @@ valutazione. L'API di Studio compone in lettura lo stesso formato `check` per
 lo snapshot mostrato e nomina la valutazione da cui proviene; l'etichetta è
 quella data dalla soglia della versione, il punteggio grezzo resta nella
 riga. Un `check` già presente in uno snapshot resta leggibile come indizio
-d'ordine e non entra in una valutazione senza verificarne scalare originale,
-input e checker. Le parole di Studio descrivono oggi solo il sostegno
-dell'Evidence: se token o embedding vengono promossi, `check` richiede una
-nuova versione del protocollo che nomini la tecnica di ogni giudizio.
+d'ordine e non entra in una valutazione senza una provenienza verificabile di
+scalare originale, input e checker.
+
+Studio oggi riusa una pagina finché snapshot e Decision Version non cambiano,
+e un punteggio asincrono non cambia nessuno dei due. La composizione vale
+quindi per le letture paginate e per quelle di un singolo valore. Una
+revisione della valutazione resta fissata fra le pagine, e Studio rilegge
+quando quella revisione avanza.
+
+Le parole di Studio descrivono oggi solo il sostegno dell'Evidence, ed
+etichette 0 e 1 miste si leggono come controlli in disaccordo. Se token o
+embedding vengono promossi, una nuova versione del protocollo nomina la
+tecnica di ogni giudizio, e ogni tecnica ha il proprio motivo nella
+revisione. Secondo la regola basta un segnale, un'etichetta di dubbio di
+qualsiasi tecnica porta lo scalare fra quelli da controllare prima. Uno
+scalare che nessuna tecnica ha potuto giudicare viene prima con un motivo
+proprio; oggi `apps/studio/DESIGN.md` lo lascia al suo posto, e va
+aggiornato con la fase 1.
 
 ### Decisione dell'autore: due fasi e misura delle tre tecniche
 
@@ -637,7 +652,8 @@ subito.
    contro l'ordine casuale e contro l'ordine attuale di Studio a parità di
    lavoro. Si costruisce l'infrastruttura per tutte quelle che superano i
    criteri, prima di rilasciarne una. I loro esiti alimentano l'ordine di
-   revisione tramite `check`; nessun valore viene accettato senza lettura.
+   revisione tramite `check`. La fase 1 cambia solo l'ordine e non introduce
+   alcuna accettazione a campione.
 2. **Fase 2: accettazione a campione.** Facoltativa, solo per le Catalog, e
    abilitata quando le misure mostrano un risparmio netto rispetto alla
    revisione completa, contando dubbi, campione, revisioni intere dei
@@ -647,6 +663,20 @@ Le probabilità dei token mancano per i provider che non le espongono: per
 questi il segnale è indisponibile con un motivo. Su un Campo con pochi valori
 il gruppo di confronto degli embedding è troppo piccolo; la popolazione
 minima fa parte della versione della tecnica.
+
+Il confronto del benchmark deve essere riproducibile. Fissa le etichette
+d'errore degli scalari originali, il budget di ispezione, il costo di un
+composito rivisto per intero, le formule dei punteggi e la misura degli
+errori trovati entro il budget. I documenti usati per tarare le soglie sono
+distinti da quelli usati per la promozione. L'ordine di Studio usato come
+riferimento ha uno stato di sessione fissato: un motivo torna al suo posto
+solo dopo tre approvazioni intere per lo stesso motivo, e modifiche,
+rifiuti o la scelta di tenerlo in testa lo impediscono.
+
+Un Campo, per i gruppi di confronto degli embedding e per gli strati dei
+pilot, è il percorso della foglia nello schema senza gli indici delle
+liste: un valore salvato composito ha un solo `fieldId`, mentre i percorsi
+delle occorrenze distinguono ogni elemento.
 
 ### Decisione dell'autore: soglie assolute per versione
 
@@ -668,17 +698,23 @@ esito, lo scalare è dubbio.
 tentativo, generazione e Selezione, una sola Selezione di produzione per i
 valori salvati, nessun valore provvisorio e una popolazione di scalari non
 vuota. La popolazione si ricava percorrendo `modelValue`, comprese liste di
-primitivi, zero e false. I valori `absent`, `unprocessed` e `failed` restano
-fuori dal denominatore e vengono dichiarati. Tagli parziali, misti o storici
-non sono ammessi.
+primitivi, zero e false. `null` e la stringa vuota non sono scalari della
+popolazione, come già nel rail di Studio: un'omissione resta fuori da ogni
+garanzia. I valori `absent`, `unprocessed` e `failed` restano fuori dal
+denominatore e vengono dichiarati. Tagli parziali, misti o storici non sono
+ammessi.
 
 ### Decisione dell'autore: decisioni esistenti, modifiche e Value Disagreements
 
 Un valore salvato che ha già una decisione quando parte la valutazione la
 mantiene e resta fuori dalla popolazione: non è esaminato dal campione né
 accettato. Un'approvazione di singola cella esclude solo quella cella, perché
-nomina un percorso originale dello stesso snapshot. Valutazione, divisione e
-campione riguardano il resto, e la garanzia vale solo per questo.
+nomina un percorso originale dello stesso snapshot. All'ammissione si fissano
+la Decision Version e l'elenco dei valori e delle celle esclusi. Alla
+finalizzazione ogni esclusione deve avere ancora una decisione compatibile.
+Se una decisione è stata annullata, quel valore passa alla revisione
+manuale, mentre il campione resta invariato. Valutazione, divisione e
+campione riguardano il resto.
 
 Un padre con Value Disagreement va in revisione esplicita dell'intero valore;
 le alternative non entrano nella popolazione. Un composito modificato
@@ -687,12 +723,16 @@ restano registrati anche dopo una correzione o un riordino.
 
 ### Decisione dell'autore: piano statistico e fallimento
 
-Il controllo è un solo campione casuale semplice senza reinserimento,
-estratto dal server sul gruppo affidabile fissato. Prima di qualsiasi esito
-si fissano N, n, c, la definizione di errore e l'appartenenza; i draw si
-salvano prima di essere mostrati. Il piano ipergeometrico esatto limita al
-5% la probabilità di passare con almeno ⌈0,05·N⌉ errori e dà almeno il 90%
-di probabilità di passare con ⌊0,01·N⌋:
+N è il numero di scalari affidabili ammessi e non decisi, fissato
+all'ammissione e contato prima di ogni correzione. Il controllo è un solo
+campione casuale semplice senza reinserimento, estratto dal server su quel
+gruppo. Prima di qualsiasi esito si fissano N, n, c, la definizione di errore
+e l'appartenenza; i draw si salvano prima di essere mostrati. Il piano
+ipergeometrico esatto limita al 5% la probabilità di passare con almeno
+⌈0,05·N⌉ errori e dà almeno il 90% di probabilità di passare con ⌊0,01·N⌋.
+Si sceglie il più piccolo n per cui esiste un c che soddisfa entrambe le
+condizioni e, a parità, il c più piccolo. Con N = 0 non c'è accettazione a
+campione. Per esempio:
 
 | Affidabili N | 250 | 470 | 500 | 1.000 | 5.000 |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -704,22 +744,35 @@ sostiene il valore; uno scalare sbagliato conta una volta. Il controllo
 passa solo con tutti gli esiti registrati e al massimo c errori. Se fallisce,
 il resto del gruppo affidabile va in revisione manuale e su quello snapshot
 il test non si ripete: un nuovo tentativo darebbe al controllo più occasioni
-di passare. La garanzia copre il gruppo affidabile originale, non i singoli
-Campi né le omissioni. I campioni anticipati di Studio sono deterministici,
+di passare. Da quando il primo draw è stato mostrato, il tentativo resta
+legato allo snapshot anche se nasce una nuova valutazione: si riprendono i
+draw salvati o si finisce a mano. La garanzia copre soltanto il gruppo dei
+N scalari. Valori esclusi, dubbi, singoli Campi e omissioni non hanno un
+limite proprio. I campioni anticipati di Studio sono deterministici,
 a intervalli regolari e su valori interi: restano un ordine e non contano
 come draw.
 
 ### Decisione dell'autore: pilot
 
-Un pilot può usare l'accettazione a campione con una regola propria. Oltre
-al campione complessivo, si aggiungono draw casuali per Campo finché ogni
-Campo ne ha almeno k; un Campo con meno di k valori affidabili si esamina per
-intero, e nessun errore è ammesso negli strati. La stabilizzazione registra
-la modalità del pilot. k si fissa con le misure. A titolo indicativo, con
-k = 10 un Campo con il 25% di errori viene scoperto con probabilità di circa
-0,94, uno con il 10% solo di circa 0,65. La query di stabilizzazione deve
-conoscere la modalità prima che esista la prima finalizzazione con
-accettazione.
+Un pilot può usare l'accettazione a campione con una regola propria. I draw
+del campione di base restano marcati come tali. Per ogni Campo si
+aggiungono draw estratti uniformemente senza reinserimento fra i suoi membri
+restanti, finché il Campo ne ha almeno k; un Campo con meno di k valori
+affidabili si esamina per intero. Entrambi gli insiemi si fissano prima di
+mostrare gli esiti. Il limite c vale per il campione di base. Ogni Campo
+ammette zero errori fra tutti i suoi draw, di base o aggiunti. Il pilot
+conserva il limite del 5% di falsa accettazione, ma perde la garanzia del
+90% di passare: con 25 Campi di dieci valori e k = 10 ogni valore viene
+estratto, e un solo errore su 250 lo fa fallire, mentre il piano di base ne
+ammetterebbe uno. La stabilizzazione registra la modalità del pilot.
+
+k si fissa con le misure. Per un Campo di M valori con D errori e m draw, la
+probabilità di scoprirne almeno uno è 1 − C(M−D, m)/C(M, m). Su Campi
+grandi, con k = 10, un Campo con il 25% di errori viene scoperto con
+probabilità di circa 0,94 e uno con il 10% con probabilità di circa 0,65.
+Con 2 errori su 20 e 10 draw la probabilità è 0,763. La query di
+stabilizzazione deve conoscere la modalità prima che esista la prima
+finalizzazione con accettazione.
 
 ### Decisione dell'autore: interazione di revisione
 
@@ -736,7 +789,13 @@ La finalizzazione resta un'azione esplicita sul taglio nominato e guadagna
 una modalità e l'identità immutabile dell'accettazione. Verifica in modo
 atomico che dubbi e padri con Value Disagreement abbiano una decisione, che
 ogni draw abbia un esito e ogni draw sbagliato una correzione, che il
-controllo sia passato e che le correzioni siano compatibili. Lega il digest
+controllo sia passato e che le correzioni siano compatibili. Una decisione
+non prova l'esame: un'approvazione in blocco di un padre non vale come
+lettura dei suoi scalari dubbi. Uno scalare è «esaminato» solo se la
+modalità dedicata ha registrato il suo percorso originale, anche quando lo
+copre la revisione di un intero composito. Dopo un controllo fallito, la
+finalizzazione manuale richiede anche le decisioni dei draw corretti che
+hanno solo un esito. Lega il digest
 delle decisioni a quello della valutazione. Una ripetizione identica
 restituisce lo stesso esito; un'accettazione diversa sulla stessa chiave è
 un conflitto. Non genera approvazioni. Le finalizzazioni esistenti
@@ -745,9 +804,10 @@ mantengono il loro significato: le decisioni richieste esistono.
 ### Decisione dell'autore: esportazioni
 
 L'XLSX ha un foglio di stato per scalare, il CSV colonne di stato accanto ai
-valori, il JSON metadati di revisione strutturati. Gli stati sono esaminato,
-accettato non letto, in attesa e solo decisione (finalizzazioni esistenti e
-valori decisi prima della valutazione). Percorsi e identità
+valori, il JSON metadati di revisione strutturati. Gli stati sono esaminato
+(percorso originale registrato), accettato non letto, in attesa e solo
+decisione (finalizzazioni esistenti, valori decisi prima della valutazione e
+decisioni senza esame registrato). Percorsi e identità
 dell'accettazione si legano al taglio di ciascun membro di una Batch
 Extraction. I valori tipizzati e le colonne dei Value Disagreement restano.
 
@@ -778,23 +838,20 @@ versionano.
 
 ### Disallineamento documentale rilevato
 
-Il punto 15 di `docs/design/unified-durable-execution.md` afferma che la chat
-del documento viene eliminata invece di essere resa durevole. Il codice
-attuale espone invece lettura e append della Project Chat persistita
-(`apps/studio/api/project_chat.ts`, migrazione `20261103T1256_project_chat`),
-coerentemente con `CONTEXT.md`. Per il progetto si segue il codice attuale;
-questo disallineamento non richiede modifiche alla chat in questo lavoro.
+La prima stesura segnalava qui un disallineamento sulla chat che non esiste.
+Il punto 15 di `docs/design/unified-durable-execution.md` riguarda la chat
+del documento, rimossa (ADR 0012). La Project Chat persistita
+(`apps/studio/api/project_chat.ts`) è una conversazione di Progetto
+introdotta separatamente (ADR 0028).
 
-Il 2026-11-28 sono emersi altri tre disallineamenti:
+Il 2026-11-28 sono emersi due disallineamenti:
 
-* `apps/studio/DESIGN.md` («Review order») descrive i motivi del controllo
-  automatico come attivi, ma nessun produttore emette ancora `check`.
 * Il brief descrive la verifica delle Catalog come spenta per default; il
   metodo unificato l'ha ritirata (`CONTEXT.md`). Resta solo una lettura
   indipendente per i valori ereditati da un'intestazione.
 * `docs/product-contract.md` dice che la griglia di una Batch Extraction
-  mostra i membri completati; `reviewableMember` ammette anche membri fermati
-  o falliti che hanno valori salvati.
+  mostra i membri completati; `reviewableMember` ammette anche membri in
+  pausa, fermati o falliti che hanno valori salvati.
 
 ### Riferimenti al codice esaminato
 
