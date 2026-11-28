@@ -5,6 +5,7 @@ import {
 } from 'extraction-result-export'
 import type { DurablePage, DurableRead } from 'extraction/durable-types'
 import { readDurable, readValues } from './durableExtractionApi'
+import { reviewState } from './durableRailModel'
 
 /** One fixed cut of a durable Extraction: its state and the result page (a named result and decision version) the
  * researcher has open. The export reads nothing else: no history, no model calls, no other versions. */
@@ -25,13 +26,14 @@ const fitCell=(value:CellValue):CellValue=>typeof value==='string'&&value.length
 const fitTable=(table:Table):Table=>({...table,rows:table.rows.map(row=>Object.fromEntries(Object.entries(row).map(([key,value])=>[key,fitCell(value)])))})
 const toneOf=(status:string)=>status.charAt(0)+status.slice(1).toLowerCase()
 const jsonBlob=(content:unknown)=>new Blob([JSON.stringify(content,null,2)],{type:'application/json'})
+const isReviewed=(page:Fixed['page'])=>reviewState(page)==='reviewed'
 
 /** One Source Document's results as JSON, the template's hierarchy kept (groups as objects, lists as lists), with
  *  what identifies the cut it was read from. */
 export function durableJsonDocument(fixed:Fixed,values:DurablePage['values'],sourceName:string) {
   return {
     sourceDocument:sourceName,extractionId:fixed.state.extractionId,
-    resultsVersion:fixed.page.snapshotVersion,decisionsVersion:fixed.page.feedbackVersion,reviewed:Boolean(fixed.page.finalization),
+    resultsVersion:fixed.page.snapshotVersion,decisionsVersion:fixed.page.feedbackVersion,reviewed:isReviewed(fixed.page),
     ...durableJsonResults(values,createFieldRegistry(values,fixed.state.selection?.schemaTree?.schemaNodes)),
   }
 }
@@ -46,7 +48,7 @@ export function durableExportTables(fixed:Fixed,values:DurablePage['values'],cho
     ['Extraction ID',fixed.state.extractionId],['Strategy',fixed.state.strategy],['Source Document',sourceName],
     ['Source Representation Revision ID',fixed.state.sourceRevisionId],['State',toneOf(fixed.page.status)],
     ['Results version',fixed.page.snapshotVersion],['Decisions version',fixed.page.feedbackVersion],
-    ['Review saved',fixed.page.finalization?'Yes':'Not saved'],
+    ['Review saved',isReviewed(fixed.page)?'Yes':'Not saved'],
     ['Current inputs version',fixed.state.selection?.ordinal??null],['Producing Schema Revision IDs',revisions.join(', ')||'None'],
     ['Records',records.length],['Fields',registry.schemaNodes.length],['Values',values.length],
     ['Approved',fixed.page.reviewCounts.approved],['Edited',fixed.page.reviewCounts.edited],['Rejected',fixed.page.reviewCounts.rejected],['To check',fixed.page.reviewCounts.toCheck],
@@ -124,7 +126,7 @@ export async function durableBatchExportBlob(batch:{batchExtractionId:string},me
     const saved=snapshots.find(snapshot=>snapshot.member.extractionId===member.extractionId)
     return {[SOURCE_DOCUMENT]:member.sourceDocumentName,[SOURCE_DOCUMENT_ID]:member.sourceDocumentId,'Extraction ID':member.extractionId,
       'State':toneOf(saved?.fixed.page.status??member.status??''),'Results version':saved?.fixed.page.snapshotVersion??null,'Decisions version':saved?.fixed.page.feedbackVersion??null,
-      'Review saved':saved?saved.fixed.page.finalization?'Yes':'Not saved':null,'Values':saved?.values.length??null,'Source Representation Revision ID':saved?.fixed.state.sourceRevisionId??member.sourceRevisionId}
+      'Review saved':saved?isReviewed(saved.fixed.page)?'Yes':'Not saved':null,'Values':saved?.values.length??null,'Source Representation Revision ID':saved?.fixed.state.sourceRevisionId??member.sourceRevisionId}
   })}
   const evidenceRows=snapshots.flatMap(snapshot=>buildDurableEvidenceTable(snapshot.values,registry).rows.map(row=>({[SOURCE_DOCUMENT]:snapshot.member.sourceDocumentName,...row})))
   const evidence:Table={columns:[SOURCE_DOCUMENT,...buildDurableEvidenceTable([]).columns],rows:evidenceRows}

@@ -1186,6 +1186,25 @@ it('keeps a review another document\'s correction leaves as it was, and asks to 
   expect(screen.getByRole('button',{name:'Mark as reviewed'})).toBeVisible()
 })
 
+it('shows reviewed on a non-latest snapshot banner when only another document changed, and clears it once this extraction changes',async()=> {
+  const current={...reviewPage(2,3)}
+  const unchanged={...reviewPage(1,3),reviewCounts:{required:3,toCheck:0,approved:3,edited:0,rejected:0},
+    review:{id:'final',snapshotVersion:1,feedbackVersion:2,createdAt:'2026-11-25T09:00:00.000Z',changed:false}} as unknown as DurablePage
+  const changed={...unchanged,feedbackVersion:4,review:{id:'final',snapshotVersion:1,feedbackVersion:2,createdAt:'2026-11-25T09:00:00.000Z',changed:true}} as unknown as DurablePage
+  vi.mocked(readDurable).mockResolvedValue({state:{...pausedState,snapshotVersion:2,feedbackVersion:4},page:current} as never)
+  vi.mocked(readDurableHistorySummary).mockResolvedValue({selections:[],finalizations:[],snapshots:[{id:'one',version:1,valueCount:3},{id:'two',version:2,valueCount:3}]} as never)
+  vi.mocked(readValues).mockResolvedValueOnce(unchanged).mockResolvedValueOnce(changed)
+  render(<Results attempt={{extractionId:'extraction',strategy:'ARTICLE'} as ExtractionAttempt} document={null} currentSchema={null} onEvidence={()=>{}}
+    historySlot={historySlot()} historyShown/>)
+  openDetails(await screen.findByText('This extraction'))
+  fireEvent.click(await screen.findByRole('button',{name:'Open results 1'}))
+  expect(await screen.findByText(/Showing saved results 1 · reviewed/)).toBeVisible()
+  fireEvent.click(screen.getByRole('button',{name:'Open results 1'}))
+  expect(await screen.findByText(/checked · changed after review/)).toBeVisible()
+  expect(screen.getByText(/Showing saved results 1\./)).toBeVisible()
+  expect(screen.queryByText(/Showing saved results 1 · reviewed/)).toBeNull()
+})
+
 it('keeps a cut the researcher opens while the review is being saved',async()=> {
   const page={...reviewPage(2,1),reviewCounts:{required:3,toCheck:0,approved:3,edited:0,rejected:0}} as DurablePage
   const finalized=Promise.withResolvers<unknown>(),onReviewFinalized=vi.fn()

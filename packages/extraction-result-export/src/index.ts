@@ -8,7 +8,7 @@ export { createExportFilename } from "./filename.js";
 export { downloadBlob } from "./download.js";
 export { createXlsxBlob, type CompanionSheet } from "./xlsx.js";
 export { serializeCsv } from "./csv.js";
-export { durableJsonResults, structuredValue, type JsonResults } from "./json.js";
+export { durableJsonResults, structuredValue, type JsonDisagreement, type JsonDisagreementAlternative, type JsonResults } from "./json.js";
 export { validateSpreadsheetDimensions } from "./safety.js";
 export {
   buildExportTable,

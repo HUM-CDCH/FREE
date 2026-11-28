@@ -248,10 +248,12 @@ it stays openable and exportable when paused, failed or stopped. A Batch
 Extraction's review grid shows side by side the latest values of each member
 that has saved some and has completed once or is paused, stopped or failed;
 each decision there is a correction of one value, and each member's
-review is finalized on its own (ADR 0030). An export follows each field that has a Value
-Disagreement with a review column and an alternatives column; XLSX also lists
-each alternative and where it was read on a Disagreements sheet. Typed columns
-stay typed.
+review is finalized on its own (ADR 0030). A spreadsheet export follows each field
+that has a Value Disagreement with a review column and an alternatives column;
+XLSX also lists each alternative and where it was read on a Disagreements
+sheet, and JSON lists each disagreement beside `records` and `document` in a
+`disagreements` array with its review status, typed alternatives and where each
+was read. Typed columns and JSON fields stay typed.
 
 ## Pipeline reference
 

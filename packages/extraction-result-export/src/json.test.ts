@@ -55,5 +55,178 @@ test("writes the reviewed records in the order found, document-wide fields once,
 });
 
 test("has no document part when the template reads nothing from the document as a whole", () => {
-  assert.deepEqual(durableJsonResults([saved(0, title, "Only")]), { records: [{ title: "Only" }] });
+  const results = durableJsonResults([saved(0, title, "Only")]);
+  assert.deepEqual(results, { records: [{ title: "Only" }] });
+  assert.equal("disagreements" in results, false);
+});
+
+test("keeps unresolved ValueDisagreements distinguishable from absent/rejected values with readings and pages", () => {
+  const year: SchemaNode = { id: "year", name: "year", type: "integer" };
+  const datedParish: SchemaNode = {
+    id: "parish",
+    name: "parish",
+    type: "object",
+    children: [
+      { id: "name", name: "name", type: "string" },
+      year,
+    ],
+  };
+  const results = durableJsonResults([
+    saved(0, title, null, { processing: "absent" }),
+    saved(0, year, null, {
+      disagreement: [
+        {
+          path: [],
+          alternatives: [
+            { value: 1827, segments: ["p3_s0"] },
+            { value: 1828, segments: ["p4_s0", "p9_s1"] },
+          ],
+        },
+      ],
+    }),
+    saved(0, datedParish, { name: "Vor Frue", year: null }, {
+      disagreement: [
+        {
+          path: ["year"],
+          alternatives: [
+            { value: 1901, segments: ["p1_s0"] },
+            { value: 1902, segments: ["p2_s0"] },
+          ],
+        },
+      ],
+    }),
+    saved(0, finds, [{ name: "Pot" }], { correction: { decision: { action: "REJECTED" } } }),
+    saved(0, catalogue, null, {
+      recordId: "document",
+      path: ["catalogue"],
+      disagreement: [
+        {
+          path: [],
+          alternatives: [
+            { value: "Museum North", segments: ["p1_s0"] },
+            { value: "Museum South", segments: ["p5_s0"] },
+          ],
+        },
+      ],
+    }),
+  ]);
+  assert.deepEqual(results, {
+    document: { catalogue: null },
+    records: [
+      { title: null, year: null, parish: { name: "Vor Frue", year: null }, finds: null },
+    ],
+    disagreements: [
+      {
+        record: null,
+        field: "catalogue",
+        part: "",
+        review: "Readings differ",
+        alternatives: [
+          { value: "Museum North", readIn: "p. 1" },
+          { value: "Museum South", readIn: "p. 5" },
+        ],
+      },
+      {
+        record: 0,
+        field: "year",
+        part: "",
+        review: "Readings differ",
+        alternatives: [
+          { value: 1827, readIn: "p. 3" },
+          { value: 1828, readIn: "pp. 4, 9" },
+        ],
+      },
+      {
+        record: 0,
+        field: "parish",
+        part: "year",
+        review: "Readings differ",
+        alternatives: [
+          { value: 1901, readIn: "p. 1" },
+          { value: 1902, readIn: "p. 2" },
+        ],
+      },
+    ],
+  });
+});
+
+test("keeps resolved disagreement decisions, sparse record indices, and disambiguated field names in JSON", () => {
+  const year: SchemaNode = { id: "year", name: "year", type: "integer" };
+  const yearText: SchemaNode = { id: "year", name: "year", type: "string" };
+  const alternatives = [
+    { value: 1827, segments: ["p3_s0"] },
+    { value: 1828, segments: ["p4_s0"] },
+  ];
+  const approved = saved(2, year, null, {
+    disagreement: [{ path: [], alternatives }],
+    correction: { decision: { action: "APPROVED", value: 1827, choices: [{ path: [], value: 1827 }] } },
+  });
+  const edited = saved(5, year, null, {
+    disagreement: [{ path: [], alternatives }],
+    correction: { decision: { action: "EDITED", value: 1829 } },
+  });
+  const rejected = saved(5, yearText, null, {
+    disagreement: [{
+      path: [],
+      alternatives: [
+        { value: "c. 1827", segments: ["p3_s0"] },
+        { value: "c. 1828", segments: ["p4_s0"] },
+      ],
+    }],
+    correction: { decision: { action: "REJECTED" } },
+  });
+  const pending = saved(0, year, null, {
+    disagreement: [{ path: [], alternatives }],
+    correction: { decision: { action: "PENDING" } },
+  });
+  const results = durableJsonResults([edited, rejected, approved, pending]);
+  assert.deepEqual(results, {
+    records: [
+      { year: null, "year (string)": null },
+      { year: 1827, "year (string)": null },
+      { year: 1829, "year (string)": null },
+    ],
+    disagreements: [
+      {
+        record: 0,
+        field: "year",
+        part: "",
+        review: "Readings differ",
+        alternatives: [
+          { value: 1827, readIn: "p. 3" },
+          { value: 1828, readIn: "p. 4" },
+        ],
+      },
+      {
+        record: 1,
+        field: "year",
+        part: "",
+        review: "Chosen",
+        alternatives: [
+          { value: 1827, readIn: "p. 3" },
+          { value: 1828, readIn: "p. 4" },
+        ],
+      },
+      {
+        record: 2,
+        field: "year",
+        part: "",
+        review: "Edited",
+        alternatives: [
+          { value: 1827, readIn: "p. 3" },
+          { value: 1828, readIn: "p. 4" },
+        ],
+      },
+      {
+        record: 2,
+        field: "year (string)",
+        part: "",
+        review: "Rejected",
+        alternatives: [
+          { value: "c. 1827", readIn: "p. 3" },
+          { value: "c. 1828", readIn: "p. 4" },
+        ],
+      },
+    ],
+  });
 });

@@ -211,7 +211,7 @@ export function buildDurableExportTable(values: readonly DurableExportValue[], c
   return buildExportTable(registry.columns, records.map((record) => record.fields), choices);
 }
 
-const decisionWords = (value: DurableExportValue): string => {
+export const decisionWords = (value: DurableExportValue): string => {
   if (filledIn(value)) return "Filled in";
   if (value.processing !== "saved") return value.processing === "absent" ? "No value" : value.processing === "failed" ? "Failed" : "Not read";
   switch (value.correction?.decision.action) {

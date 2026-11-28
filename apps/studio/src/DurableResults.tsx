@@ -965,7 +965,7 @@ export function DurableResults({attempt,reader,connectionShown=false,initialCut=
       {reconnect}
       {notice&&<p role="status" className="text-secondary">{notice}</p>}
       {state.sourceRevisionId!==documentRevisionId&&<p className="text-secondary">Review uses the Source Representation saved with this Extraction.</p>}
-      {!latest&&<p role="status" className="m-0 text-secondary">Showing saved results {page.snapshotVersion}{page.finalization?' · reviewed':''}.{' '}
+      {!latest&&<p role="status" className="m-0 text-secondary">Showing saved results {page.snapshotVersion}{reviewed==='reviewed'?' · reviewed':''}.{' '}
         <button type="button" className={linkClass} onClick={showLatest}>Show the latest results</button></p>}
     </div>}
     <div ref={resultsContainer} className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-canvas p-2">

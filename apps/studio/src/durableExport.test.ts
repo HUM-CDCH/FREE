@@ -289,3 +289,95 @@ it('exports a reviewed member at its finalized results and decisions, not at tho
   expect(asked.filter((url) => url.includes('/values'))).toEqual([expect.stringMatching(/snapshotVersion=1&feedbackVersion=3$/)])
   expect(await downloads[0]!.blob.text()).toContain('Reviewed')
 })
+
+it('JSON export keeps unresolved disagreements distinguishable from absent values in single and batch exports', async () => {
+  const selectionId = '11111111-1111-4111-8111-111111111111'
+  const absentTitle = value(0, title, null, { selectionId, processing: 'absent' })
+  const disputedYear = value(0, year, null, {
+    selectionId,
+    disagreement: [{
+      path: [],
+      alternatives: [
+        { value: 1827, segments: ['p3_s0'] },
+        { value: 1828, segments: ['p4_s0', 'p9_s1'] },
+      ],
+    }],
+  })
+  const single = JSON.parse(await (await durableExportBlob(fixed, [absentTitle, disputedYear], 'json', root, 'Beretning.pdf')).text())
+  expect(single.records).toEqual([{ title: null, year: null }])
+  expect(single.disagreements).toEqual([{
+    record: 0,
+    field: 'year',
+    part: '',
+    review: 'Readings differ',
+    alternatives: [
+      { value: 1827, readIn: 'p. 3' },
+      { value: 1828, readIn: 'pp. 4, 9' },
+    ],
+  }])
+
+  const members = [
+    { extractionId: 'one', sourceDocumentId: 'doc-1', sourceDocumentName: 'one.pdf', sourceRevisionId: 'rev-1', status: 'COMPLETED' },
+    { extractionId: 'two', sourceDocumentId: 'doc-2', sourceDocumentName: 'two.pdf', sourceRevisionId: 'rev-2', status: 'COMPLETED' },
+  ]
+  const batch = JSON.parse(await (await durableBatchExportBlob(
+    { batchExtractionId: 'batch' },
+    members,
+    [
+      { fixed, member: members[0]!, values: [absentTitle, disputedYear] },
+      { fixed, member: members[1]!, values: [value(0, title, 'Agreed')] },
+    ],
+    'json',
+    root,
+  )).text())
+  expect(batch.documents[0].disagreements).toEqual(single.disagreements)
+  expect('disagreements' in batch.documents[1]).toBe(false)
+})
+
+it('keeps Document A reviewed across single and batch exports after Document B is edited, and invalidates A when A changes', async () => {
+  const reviewedPage = {
+    ...fixed.page,
+    snapshotVersion: 1,
+    feedbackVersion: 3,
+    status: 'COMPLETED',
+    finalization: null,
+    review: { id: 'fin-a', snapshotVersion: 1, feedbackVersion: 2, createdAt: '2026-11-25T09:00:00.000Z', changed: false },
+  }
+  const fixedUnchanged = { ...fixed, page: reviewedPage } as unknown as Fixed
+  const docValues = [value(0, title, 'Reviewed title')]
+  const members: BatchExportMember[] = [
+    { extractionId: 'extraction', sourceDocumentId: 'doc-a', sourceDocumentName: 'A.pdf', sourceRevisionId: 'source', status: 'COMPLETED' },
+  ]
+
+  const jsonUnchanged = JSON.parse(await (await durableExportBlob(fixedUnchanged, docValues, 'json', root, 'A.pdf')).text())
+  expect(jsonUnchanged).toMatchObject({ resultsVersion: 1, decisionsVersion: 3, reviewed: true })
+  const xlsxUnchanged = await workbook(await durableExportBlob(fixedUnchanged, docValues, 'xlsx', root, 'A.pdf'))
+  expect(cells(xlsxUnchanged.getWorksheet('Extraction')!)).toContainEqual(['Review saved', 'Yes'])
+  const batchJsonUnchanged = JSON.parse(await (await durableBatchExportBlob(
+    { batchExtractionId: 'batch' }, members, [{ fixed: fixedUnchanged, values: docValues, member: members[0]! }], 'json', root,
+  )).text())
+  expect(batchJsonUnchanged.documents[0].reviewed).toBe(true)
+  const batchXlsxUnchanged = await workbook(await durableBatchExportBlob(
+    { batchExtractionId: 'batch' }, members, [{ fixed: fixedUnchanged, values: docValues, member: members[0]! }], 'xlsx', root,
+  ))
+  expect(cells(batchXlsxUnchanged.getWorksheet('Members')!)[1]).toContain('Yes')
+
+  const changedPage = {
+    ...reviewedPage,
+    feedbackVersion: 4,
+    review: { ...reviewedPage.review, changed: true },
+  }
+  const fixedChanged = { ...fixed, page: changedPage } as unknown as Fixed
+  const jsonChanged = JSON.parse(await (await durableExportBlob(fixedChanged, docValues, 'json', root, 'A.pdf')).text())
+  expect(jsonChanged).toMatchObject({ resultsVersion: 1, decisionsVersion: 4, reviewed: false })
+  const xlsxChanged = await workbook(await durableExportBlob(fixedChanged, docValues, 'xlsx', root, 'A.pdf'))
+  expect(cells(xlsxChanged.getWorksheet('Extraction')!)).toContainEqual(['Review saved', 'Not saved'])
+  const batchJsonChanged = JSON.parse(await (await durableBatchExportBlob(
+    { batchExtractionId: 'batch' }, members, [{ fixed: fixedChanged, values: docValues, member: members[0]! }], 'json', root,
+  )).text())
+  expect(batchJsonChanged.documents[0].reviewed).toBe(false)
+  const batchXlsxChanged = await workbook(await durableBatchExportBlob(
+    { batchExtractionId: 'batch' }, members, [{ fixed: fixedChanged, values: docValues, member: members[0]! }], 'xlsx', root,
+  ))
+  expect(cells(batchXlsxChanged.getWorksheet('Members')!)[1]).toContain('Not saved')
+})
